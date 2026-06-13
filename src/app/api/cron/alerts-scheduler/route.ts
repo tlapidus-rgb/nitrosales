@@ -14,13 +14,14 @@
 // de Vercel. Mismo patrón que /api/sync, /api/cron/anomalies, etc.
 // ═══════════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { loadAllPendingSchedules, evaluateRule } from "@/lib/alerts/engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const CRON_KEY = "nitrosales-secret-key-2024-production";
+const CRON_KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   // Auth: aceptamos tanto la query key (Vercel cron pasa esto) como el

@@ -16,8 +16,10 @@ const MOCK_INFO: AffiliateInfo = {
   affiliateId: "NSL",
   affiliateName: "NitroSales",
   notificationEmail: "webhooks@nitrosales.ai",
+  // Preview/mock: placeholders, NO la key real (esto es código cliente → se bundlea al
+  // browser; nunca exponer el secreto acá). La URL real la arma server-side /api/me/vtex-affiliate-info. BP-M1.
   webhookUrl:
-    "https://nitrosales.vercel.app/api/webhooks/vtex/orders?key=nitrosales-secret-key-2024-production&org=cmoXXXXXXXXXXXX_TU_ORG_AQUI",
+    "https://nitrosales.vercel.app/api/webhooks/vtex/orders?key=TU_KEY_AQUI&org=cmoXXXXXXXXXXXX_TU_ORG_AQUI",
 };
 
 const TEXT_MUTED = "#6B7280";

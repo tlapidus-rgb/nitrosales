@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const lastSync = vtex?.lastSuccessfulSyncAt || vtex?.lastSyncAt;
     const lagMin = lastSync ? Math.round((Date.now() - new Date(lastSync).getTime()) / 60000) : null;
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayOrders = await prisma.order.count({ where: { orderDate: { gte: today }, status: { notIn: ["CANCELLED", "RETURNED"] } } });
+    const todayOrders = await prisma.order.count({ where: { orderDate: { gte: today }, status: { notIn: ["CANCELLED", "PENDING", "RETURNED"] } } });
     const syncDead = lagMin !== null && lagMin > 120;
     const syncStale = lagMin !== null && lagMin > 30;
     const healthy = dbOk && !syncDead;

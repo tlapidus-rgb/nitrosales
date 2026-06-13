@@ -8,13 +8,14 @@ export const dynamic = "force-dynamic";
 // that have competitorEan but no ownProductId.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+const CRON_KEY = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   const start = Date.now();

@@ -17,6 +17,7 @@
 // Solo isInternalUser. NO modifica data — todo es SELECT.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    const KEY = "nitrosales-secret-key-2024-production";
+    const KEY = ADMIN_API_KEY;
     const allowed = key === KEY ? true : await isInternalUser();
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

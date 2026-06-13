@@ -4,6 +4,7 @@
 // con auth por key (no cookie) para diagnosticar errores que el
 // endpoint admin tira como "Unexpected token A".
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { decryptCredentials, isEncrypted } from "@/lib/crypto";
@@ -11,7 +12,7 @@ import { testCredentialsByPlatform, testNitroPixel } from "@/lib/onboarding/cred
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

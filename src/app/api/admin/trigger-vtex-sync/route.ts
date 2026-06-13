@@ -20,6 +20,7 @@
 // Default: ultimos 3 dias. Max 50 ordenes por invocacion.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
@@ -27,7 +28,7 @@ import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — necesario si max>30
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

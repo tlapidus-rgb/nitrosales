@@ -9,6 +9,7 @@
 // Body: { email: "user@dominio.com" }
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -17,7 +18,7 @@ import { randomBytes } from "crypto";
 
 export const dynamic = "force-dynamic";
 
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 function generateTempPassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";

@@ -13,6 +13,7 @@
 // (útil para testear el template).
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import {
   checkConnectionIssues,
@@ -26,7 +27,7 @@ import { isInternalUser } from "@/lib/feature-flags";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const CRON_KEY = "nitrosales-secret-key-2024-production";
+const CRON_KEY = ADMIN_API_KEY;
 const ADMIN_EMAIL = "tlapidus@99media.com.ar";
 
 export async function GET(req: NextRequest) {

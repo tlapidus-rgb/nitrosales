@@ -23,6 +23,7 @@
 // Default: limit=100. Max=500 por invocacion.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -30,7 +31,7 @@ import { calculateAttribution } from "@/lib/pixel/attribution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

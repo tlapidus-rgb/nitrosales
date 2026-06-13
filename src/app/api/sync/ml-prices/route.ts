@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 //   GET /api/sync/ml-prices?key=...&org=ORG_ID
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { refreshMLPrices, getAccessToken, MLCredentials } from "@/lib/connectors/mercadolibre";
@@ -19,7 +20,7 @@ import { refreshMLPrices, getAccessToken, MLCredentials } from "@/lib/connectors
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+const CRON_KEY = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
 const BATCH_SIZE = 100; // ML allows 20 per multi-get, 5 batches = 100 items
 
 export async function GET(req: NextRequest) {

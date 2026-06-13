@@ -5,6 +5,7 @@
 //
 // El cliente la copia y la pega en VTEX Admin → Pedidos → Configuración → Afiliados.
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -19,7 +20,7 @@ export async function GET() {
 
     // URL base hardcodeada — coincide con la que tenemos configurada en EMDJ
     const baseUrl = "https://nitrosales.vercel.app";
-    const secret = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+    const secret = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
 
     const webhookUrl =
       `${baseUrl}/api/webhooks/vtex/orders` +

@@ -11,6 +11,7 @@
 // Manda email al cliente avisando que arrancó el backfill.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -21,7 +22,7 @@ import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
 
-const BACKFILL_RUNNER_KEY = "nitrosales-secret-key-2024-production";
+const BACKFILL_RUNNER_KEY = ADMIN_API_KEY;
 
 export async function POST(
   req: NextRequest,

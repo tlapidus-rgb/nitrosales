@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
         FROM orders o
         LEFT JOIN order_items oi ON o.id = oi."orderId"
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
       `,
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
       `,
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(o."shippingCost"), 0)::text as customer_shipping
         FROM orders o
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
       `,
@@ -136,7 +137,7 @@ export async function GET(req: NextRequest) {
           COUNT(DISTINCT o.id)::text as orders
         FROM orders o
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
         GROUP BY fecha
@@ -152,7 +153,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
         GROUP BY fecha
@@ -183,7 +184,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
         GROUP BY p.category
@@ -202,7 +203,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
           AND p.brand IS NOT NULL
@@ -229,7 +230,7 @@ export async function GET(req: NextRequest) {
             COUNT(DISTINCT o.id)::text as orders
           FROM orders o
           WHERE o."organizationId" = ${ORG_ID}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromDate}
             AND o."orderDate" <= ${toDate}
           GROUP BY o.source
@@ -243,7 +244,7 @@ export async function GET(req: NextRequest) {
           INNER JOIN orders o ON oi."orderId" = o.id
           LEFT JOIN products p ON oi."productId" = p.id
           WHERE o."organizationId" = ${ORG_ID}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromDate}
             AND o."orderDate" <= ${toDate}
           GROUP BY o.source
@@ -272,7 +273,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(o."totalValue"), 0)::text as revenue
         FROM orders o
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
         GROUP BY o."paymentMethod", o.source
@@ -284,7 +285,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(o."discountValue"), 0)::text as discount
         FROM orders o
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromDate}
           AND o."orderDate" <= ${toDate}
       `,
@@ -313,7 +314,7 @@ export async function GET(req: NextRequest) {
           COUNT(DISTINCT o.id)::text as orders
         FROM orders o
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${compFromDate}
           AND o."orderDate" <= ${compToDate}
       `,
@@ -325,7 +326,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${compFromDate}
           AND o."orderDate" <= ${compToDate}
       `,

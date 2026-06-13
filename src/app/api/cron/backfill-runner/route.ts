@@ -15,6 +15,7 @@
 // onboardingRequestId → marca ACTIVE y manda email.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -35,7 +36,7 @@ import { dataReadyEmailActive } from "@/lib/onboarding/emails";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const CRON_KEY = "nitrosales-secret-key-2024-production";
+const CRON_KEY = ADMIN_API_KEY;
 
 // Budget de tiempo del loop: 240s (4min) de los 300s (5min) max.
 // Deja 60s de margen para la response final + cleanup.
@@ -141,7 +142,7 @@ export async function GET(req: NextRequest) {
           const allDone = await areAllJobsComplete(currentJob.onboardingRequestId);
           if (allDone) {
             const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
-            const KEY = "nitrosales-secret-key-2024-production";
+            const KEY = ADMIN_API_KEY;
             const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${KEY}`;
             fetch(finalizeUrl, { method: "GET" })
               .then((r) => console.log(`[backfill-runner] post-backfill-finalize triggered: HTTP ${r.status}`))

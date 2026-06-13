@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 import { detectRuleBasedAnomalies, detectClaudeAnomalies, MetricSnapshot } from "@/lib/anomaly/detector";
 import { sendEmail } from "@/lib/email/send";
 import { anomalyAlertEmail, AnomalyForEmail } from "@/lib/email/templates";
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND o."orderDate" >= ${fromCurrent}
           AND o."orderDate" <= ${toCurrent}
       `;
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
           FROM orders o
           LEFT JOIN order_items oi ON o.id = oi."orderId"
           WHERE o."organizationId" = ${ORG_ID}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCurrent}
             AND o."orderDate" <= ${toCurrent}
         `,
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
           INNER JOIN orders o ON oi."orderId" = o.id
           LEFT JOIN products p ON oi."productId" = p.id
           WHERE o."organizationId" = ${ORG_ID}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCurrent}
             AND o."orderDate" <= ${toCurrent}
         `,
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
           FROM orders o
           LEFT JOIN order_items oi ON o.id = oi."orderId"
           WHERE o."organizationId" = ${ORG_ID}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromPrev}
             AND o."orderDate" < ${toPrev}
         `,
@@ -127,7 +128,7 @@ export async function GET(req: NextRequest) {
           INNER JOIN orders o ON oi."orderId" = o.id
           LEFT JOIN products p ON oi."productId" = p.id
           WHERE o."organizationId" = ${ORG_ID}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromPrev}
             AND o."orderDate" < ${toPrev}
         `,

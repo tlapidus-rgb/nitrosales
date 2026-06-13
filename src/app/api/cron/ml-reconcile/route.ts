@@ -21,6 +21,7 @@
 // falló silenciosamente.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -32,7 +33,7 @@ import { orgJitter, sleep } from "@/lib/sync/jitter";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const CRON_KEY = "nitrosales-secret-key-2024-production";
+const CRON_KEY = ADMIN_API_KEY;
 const ML_API = "https://api.mercadolibre.com";
 
 // Overlap: siempre consultamos desde (watermark - 5 min) para absorber clock skew

@@ -25,6 +25,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = 'LAST_CLICK'
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = 'LAST_CLICK'
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -190,7 +191,7 @@ export async function GET(request: NextRequest) {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'

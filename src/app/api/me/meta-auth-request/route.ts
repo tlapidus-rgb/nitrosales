@@ -17,6 +17,7 @@
 // Body: { fbEmail: "user@gmail.com" }
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
     }
 
     // Email a admin con datos + link directo a Meta + endpoint de confirmacion
-    const adminConfirmUrl = `https://app.nitrosales.ai/api/admin/meta-auth-confirm?orgId=${orgId}&key=nitrosales-secret-key-2024-production`;
+    const adminConfirmUrl = `https://app.nitrosales.ai/api/admin/meta-auth-confirm?orgId=${orgId}&key=${ADMIN_API_KEY}`;
     const metaTestersUrl = `https://developers.facebook.com/apps/${META_APP_ID}/roles/roles/`;
 
     await sendEmail({

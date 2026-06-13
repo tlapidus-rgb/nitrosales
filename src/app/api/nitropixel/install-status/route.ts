@@ -26,11 +26,14 @@ export async function GET() {
       where: { organizationId: orgId },
     });
 
-    // Último evento recibido
+    // Último evento. OJO: ordenar por `receivedAt` hace full scan+sort (columna
+    // SIN índice) → ~76s en orgs con millones de eventos y colgaba la página de
+    // Atribución (/pixel) en "Cargando…". `timestamp` SÍ tiene índice (~90ms).
+    // Mismo fix que commit c8bfb3d (pixel-test) y que section-status (Fase 1).
     const lastEvent = await prisma.pixelEvent.findFirst({
       where: { organizationId: orgId },
-      orderBy: { receivedAt: "desc" },
-      select: { receivedAt: true },
+      orderBy: { timestamp: "desc" },
+      select: { timestamp: true },
     });
 
     const isInstalled = eventsCount > 0;
@@ -40,7 +43,7 @@ export async function GET() {
       isInstalled,
       eventsCount,
       visitorsCount,
-      lastEventAt: lastEvent?.receivedAt?.toISOString() || null,
+      lastEventAt: lastEvent?.timestamp?.toISOString() || null,
       orgId,
       snippetUrl: `${process.env.NEXTAUTH_URL || "https://app.nitrosales.ai"}/api/pixel/script?org=${orgId}`,
     });

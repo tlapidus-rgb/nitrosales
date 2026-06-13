@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 import { sendEmail } from "@/lib/email/send";
 import { weeklyDigestEmail, DigestMetrics } from "@/lib/email/templates";
 import Anthropic from "@anthropic-ai/sdk";
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
         prisma.$queryRaw<[{ revenue: string; orders: string }]>`
           SELECT COALESCE(SUM(o."totalValue"), 0)::text as revenue, COUNT(DISTINCT o.id)::text as orders
           FROM orders o
-          WHERE o."organizationId" = ${ORG_ID} AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          WHERE o."organizationId" = ${ORG_ID} AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCur} AND o."orderDate" <= ${toCur}
         `,
         prisma.$queryRaw<[{ cogs: string }]>`
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
           FROM order_items oi
           INNER JOIN orders o ON oi."orderId" = o.id
           LEFT JOIN products p ON oi."productId" = p.id
-          WHERE o."organizationId" = ${ORG_ID} AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          WHERE o."organizationId" = ${ORG_ID} AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCur} AND o."orderDate" <= ${toCur}
         `,
         prisma.$queryRaw<[{ spend: string; conversions: string; conversion_value: string }]>`
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
           FROM order_items oi
           INNER JOIN orders o ON oi."orderId" = o.id
           LEFT JOIN products p ON oi."productId" = p.id
-          WHERE o."organizationId" = ${ORG_ID} AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          WHERE o."organizationId" = ${ORG_ID} AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCur} AND o."orderDate" <= ${toCur}
             AND p.name IS NOT NULL
           GROUP BY p.name
@@ -104,7 +105,7 @@ export async function GET(req: NextRequest) {
         prisma.$queryRaw<[{ revenue: string; orders: string }]>`
           SELECT COALESCE(SUM(o."totalValue"), 0)::text as revenue, COUNT(DISTINCT o.id)::text as orders
           FROM orders o
-          WHERE o."organizationId" = ${ORG_ID} AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          WHERE o."organizationId" = ${ORG_ID} AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromPrev} AND o."orderDate" < ${toPrev}
         `,
         prisma.$queryRaw<[{ cogs: string }]>`
@@ -112,7 +113,7 @@ export async function GET(req: NextRequest) {
           FROM order_items oi
           INNER JOIN orders o ON oi."orderId" = o.id
           LEFT JOIN products p ON oi."productId" = p.id
-          WHERE o."organizationId" = ${ORG_ID} AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          WHERE o."organizationId" = ${ORG_ID} AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromPrev} AND o."orderDate" < ${toPrev}
         `,
         prisma.$queryRaw<[{ spend: string; conversions: string; conversion_value: string }]>`

@@ -14,6 +14,7 @@
 // — útil para "rebackfillear" plataformas en clientes ya activos.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -22,7 +23,7 @@ import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
 
-const BACKFILL_RUNNER_KEY = "nitrosales-secret-key-2024-production";
+const BACKFILL_RUNNER_KEY = ADMIN_API_KEY;
 const VALID_PLATFORMS = new Set(["VTEX", "MERCADOLIBRE"]);
 
 export async function POST(

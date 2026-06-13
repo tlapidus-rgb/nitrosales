@@ -18,6 +18,7 @@
 // Multi-tenant safe: orgId explícito.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { withConcurrency } from "@/lib/sync/concurrency";
@@ -26,7 +27,7 @@ import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const REFRESH_KEY = "nitrosales-secret-key-2024-production";
+const REFRESH_KEY = ADMIN_API_KEY;
 const CONCURRENCY = 8;
 
 export async function GET(req: NextRequest) {

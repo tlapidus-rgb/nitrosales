@@ -134,17 +134,20 @@ function parseWindow(input: string | null): { key: WindowKey; days: number; labe
 // max(PIXEL_HEALTHY_FLOOR, primer evento del pixel para esa org)
 // ──────────────────────────────────────────────────────────
 async function getOrgMeasurementStart(orgId: string): Promise<Date> {
+  // PERF: ordenar por `timestamp` (indexado), no `receivedAt` (sin índice → full scan
+  // ~60-76s en orgs grandes). El clamp max(FLOOR, first) de abajo protege contra
+  // timestamps basura viejos (1978 < FLOOR → devuelve FLOOR); los futuros no afloran en asc.
   const firstEvent = await prisma.pixelEvent.findFirst({
     where: { organizationId: orgId },
-    orderBy: { receivedAt: "asc" },
-    select: { receivedAt: true },
+    orderBy: { timestamp: "asc" },
+    select: { timestamp: true },
   });
   if (!firstEvent) {
     // No hay eventos todavía — measurement start = ahora (todo en estado collecting)
     return new Date();
   }
-  return firstEvent.receivedAt.getTime() > PIXEL_HEALTHY_FLOOR.getTime()
-    ? firstEvent.receivedAt
+  return firstEvent.timestamp.getTime() > PIXEL_HEALTHY_FLOOR.getTime()
+    ? firstEvent.timestamp
     : PIXEL_HEALTHY_FLOOR;
 }
 
@@ -211,8 +214,10 @@ async function computeLeverPercents(
         COUNT(*)::bigint AS cnt
       FROM pixel_events
       WHERE "organizationId" = ${orgId}
-        AND "receivedAt" >= ${rangeStart}
-        AND "receivedAt" < ${rangeEnd}
+        -- PERF: filtrar por timestamp (indexado), no receivedAt (full scan). Es además
+        -- consistente con el resto del dashboard, que mide por event-time.
+        AND "timestamp" >= ${rangeStart}
+        AND "timestamp" < ${rangeEnd}
         AND type IN ('PAGE_VIEW', 'PAGEVIEW', 'SESSION_START')
       GROUP BY 1, 2
     `,
@@ -240,8 +245,9 @@ async function computeLeverPercents(
         COUNT(*)::bigint AS cnt
       FROM pixel_events
       WHERE "organizationId" = ${orgId}
-        AND "receivedAt" >= ${rangeStart}
-        AND "receivedAt" < ${rangeEnd}
+        -- PERF: timestamp (indexado) en vez de receivedAt (full scan). Ver nota arriba.
+        AND "timestamp" >= ${rangeStart}
+        AND "timestamp" < ${rangeEnd}
         AND type = 'PURCHASE'
       GROUP BY 1
     `,
@@ -276,7 +282,8 @@ async function computeLeverPercents(
       where: {
         organizationId: orgId,
         type: "PURCHASE",
-        receivedAt: { gte: rangeStart, lt: rangeEnd },
+        // PERF: `timestamp` (indexado) en vez de `receivedAt` (full scan).
+        timestamp: { gte: rangeStart, lt: rangeEnd },
       },
     }),
   ]);

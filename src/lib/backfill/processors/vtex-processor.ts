@@ -36,6 +36,7 @@
 import { prisma } from "@/lib/db/client";
 import { decryptCredentials } from "@/lib/crypto";
 import { fetchVtexOrderDetail, enrichOrderFromVtex } from "@/lib/connectors/vtex-enrichment";
+import { attributeOrderByMatch } from "@/lib/pixel/attribute-order-by-match";
 import { withConcurrency } from "@/lib/sync/concurrency";
 import type { ChunkResult } from "../types";
 
@@ -275,6 +276,20 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
             }
           } catch (err: any) {
             console.warn(`[vtex-backfill] enrich failed ${o.externalId}: ${err.message}`);
+          }
+        }),
+      );
+
+      // 3. BP-I1: atribuir las órdenes recién importadas (el backfill NO pasa por el webhook
+      //    real-time → quedaban sin atribuir). Después del enrich (ya está el customer/email).
+      //    Concurrency baja (no satura pool), idempotente, no-fatal. Match email → checkout-timing.
+      await withConcurrency(
+        5,
+        upsertedOrders.map((o) => async () => {
+          try {
+            await attributeOrderByMatch(o.dbOrderId, orgId);
+          } catch (err: any) {
+            console.warn(`[vtex-backfill] attribution failed ${o.externalId}: ${err.message}`);
           }
         }),
       );

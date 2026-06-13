@@ -18,6 +18,7 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { ordersValidSql } from "@/lib/metrics/orders";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getPixelInstallDate, isPrePixelOrder } from "@/lib/pixel/pre-pixel";
 
@@ -119,7 +120,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         WHERE o."customerId" = '${id}'
           AND o."organizationId" = '${ORG_ID}'
           AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidSql("o")}
       ),
       gaps AS (
         SELECT EXTRACT(DAY FROM o."orderDate" - LAG(o."orderDate") OVER (ORDER BY o."orderDate"))::numeric AS gap
@@ -129,10 +130,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         (SELECT COUNT(*)::text FROM ord) AS orders,
         (SELECT COALESCE(SUM(o2."totalValue"), 0)::text FROM orders o2
           WHERE o2."customerId" = '${id}' AND o2."organizationId" = '${ORG_ID}'
-            AND o2."source" = 'VTEX' AND o2.status NOT IN ('CANCELLED', 'RETURNED')) AS total_spent,
+            AND o2."source" = 'VTEX' AND ${ordersValidSql("o2")}) AS total_spent,
         (SELECT COALESCE(AVG(o2."totalValue"), 0)::text FROM orders o2
           WHERE o2."customerId" = '${id}' AND o2."organizationId" = '${ORG_ID}'
-            AND o2."source" = 'VTEX' AND o2.status NOT IN ('CANCELLED', 'RETURNED')) AS avg_ticket,
+            AND o2."source" = 'VTEX' AND ${ordersValidSql("o2")}) AS avg_ticket,
         (SELECT MIN(o."orderDate") FROM ord o) AS first_order,
         (SELECT MAX(o."orderDate") FROM ord o) AS last_order,
         (SELECT EXTRACT(DAY FROM NOW() - MAX(o."orderDate"))::text FROM ord o) AS recency,
@@ -152,7 +153,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         SELECT o."customerId", SUM(o."totalValue") AS spent
         FROM orders o
         WHERE o."organizationId" = '${ORG_ID}' AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED') AND o."customerId" IS NOT NULL
+          AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL
         GROUP BY o."customerId"
       ),
       ranked AS (
@@ -239,7 +240,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
              o.channel, o."trafficSource" AS traffic_source, o."paymentMethod" AS payment_method
       FROM orders o
       WHERE o."customerId" = '${id}' AND o."organizationId" = '${ORG_ID}'
-        AND o."source" = 'VTEX' AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND o."source" = 'VTEX' AND ${ordersValidSql("o")}
       ORDER BY o."orderDate" DESC
       LIMIT 30
     `);
@@ -299,7 +300,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       JOIN order_items oi ON oi."orderId" = o.id
       JOIN products p ON p.id = oi."productId"
       WHERE o."customerId" = '${id}' AND o."organizationId" = '${ORG_ID}'
-        AND o."source" = 'VTEX' AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND o."source" = 'VTEX' AND ${ordersValidSql("o")}
       GROUP BY p.id, p.name, p."imageUrl", p.category
       ORDER BY SUM(oi.quantity) DESC
       LIMIT 5

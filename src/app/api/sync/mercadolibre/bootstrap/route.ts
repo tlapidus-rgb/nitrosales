@@ -24,6 +24,7 @@
 //   - Idempotente: upserts por (organizationId + X)
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import {
@@ -36,7 +37,7 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const BOOTSTRAP_KEY = "nitrosales-secret-key-2024-production";
+const BOOTSTRAP_KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();

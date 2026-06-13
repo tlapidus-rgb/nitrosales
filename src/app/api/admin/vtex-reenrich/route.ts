@@ -18,6 +18,7 @@
 //  - Idempotente: solo procesa orders sin OrderItems
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -28,7 +29,7 @@ import { withConcurrency } from "@/lib/sync/concurrency";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 const CONCURRENCY = 4;
 
 export async function GET(req: NextRequest) {

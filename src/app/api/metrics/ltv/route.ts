@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidSql } from "@/lib/metrics/orders";
 
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: allow up to 60s
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
             MAX(o."orderDate") AS last_order
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -117,7 +118,7 @@ export async function GET(request: NextRequest) {
             AVG(o."totalValue") AS avg_ticket
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
             MIN(o."orderDate") AS first_order_date
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -202,7 +203,7 @@ export async function GET(request: NextRequest) {
           FROM acquisition_channel ac
           JOIN orders o2 ON o2."customerId" = ac."customerId"
             AND o2."organizationId" = '${ORG_ID}'
-            AND o2.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o2")}
           GROUP BY ac.channel, ac."customerId"
         )
         SELECT
@@ -239,7 +240,7 @@ export async function GET(request: NextRequest) {
             TO_CHAR(MIN(o."orderDate") AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS cohort_month
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -258,7 +259,7 @@ export async function GET(request: NextRequest) {
           FROM customer_first cf
           JOIN orders o ON o."customerId" = cf."customerId"
             AND o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
         )
         SELECT
           cohort_month,
@@ -296,7 +297,7 @@ export async function GET(request: NextRequest) {
             ROW_NUMBER() OVER (PARTITION BY o."customerId" ORDER BY o."orderDate") AS rn
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
         ),
@@ -388,7 +389,7 @@ export async function GET(request: NextRequest) {
             EXTRACT(DAY FROM NOW() - MIN(o."orderDate"))::int AS days_as_customer
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -464,7 +465,7 @@ export async function GET(request: NextRequest) {
             SUM(o."totalValue") AS total_spent
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -505,7 +506,7 @@ export async function GET(request: NextRequest) {
             TO_CHAR(MIN(o."orderDate") AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS cohort_month
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -519,7 +520,7 @@ export async function GET(request: NextRequest) {
           FROM customer_first cf
           JOIN orders o ON o."customerId" = cf."customerId"
             AND o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
           GROUP BY cf.cohort_month, cf."customerId"
         )
         SELECT
@@ -544,7 +545,7 @@ export async function GET(request: NextRequest) {
             TO_CHAR(MIN(o."orderDate") AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS cohort_month
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"
@@ -559,7 +560,7 @@ export async function GET(request: NextRequest) {
           FROM customer_first cf
           JOIN orders o ON o."customerId" = cf."customerId"
             AND o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
           GROUP BY cf.cohort_month, months_since
         )
         SELECT
@@ -596,7 +597,7 @@ export async function GET(request: NextRequest) {
             ROW_NUMBER() OVER (PARTITION BY o."customerId" ORDER BY o."orderDate") AS rn
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
         ),
@@ -606,7 +607,7 @@ export async function GET(request: NextRequest) {
             SUM(o."totalValue") AS total_ltv
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
             ${srcWhere}
           GROUP BY o."customerId"

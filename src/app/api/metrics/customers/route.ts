@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidSql } from "@/lib/metrics/orders";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -27,11 +28,11 @@ export async function GET(request: NextRequest) {
     const prevTo = new Date(dateFrom.getTime() - 1);
 
     const [currentKpis, prevKpis, repeatData, rfmSegments, frequencyDist, topCities, customerTable, totalCount, newVsReturning, clvData] = await Promise.all([
-      prisma.$queryRawUnsafe<[{total:string;total_spent:string}]>(`SELECT COUNT(DISTINCT o."customerId")::text AS total, COALESCE(SUM(o."totalValue"),0)::text AS total_spent FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere}`, dateFrom, dateTo),
-      prisma.$queryRawUnsafe<[{total:string;total_spent:string}]>(`SELECT COUNT(DISTINCT o."customerId")::text AS total, COALESCE(SUM(o."totalValue"),0)::text AS total_spent FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere}`, prevFrom, prevTo),
-      prisma.$queryRawUnsafe<[{total:string;repeat_customers:string;avg_orders:string}]>(`WITH co AS (SELECT o."customerId",COUNT(*)::int AS cnt FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere} GROUP BY o."customerId") SELECT COUNT(*)::text AS total, COUNT(*) FILTER(WHERE cnt>1)::text AS repeat_customers, COALESCE(AVG(cnt),0)::text AS avg_orders FROM co`, dateFrom, dateTo),
-      prisma.$queryRawUnsafe<Array<{segment:string;customers:string;revenue:string}>>(`WITH lifetime AS (SELECT o."customerId",COUNT(*)::int AS orders,SUM(o."totalValue") AS revenue,EXTRACT(DAY FROM NOW()-MAX(o."orderDate"))::int AS recency FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL GROUP BY o."customerId"), period_customers AS (SELECT DISTINCT o."customerId" FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere}) SELECT CASE WHEN l.recency<=30 AND l.orders>=4 THEN 'Champions' WHEN l.orders>=4 THEN 'Leales' WHEN l.recency<=30 AND l.orders=1 THEN 'Nuevos' WHEN l.recency<=60 AND l.orders>=2 THEN 'Potenciales' WHEN l.recency>90 AND l.orders>=2 THEN 'En riesgo' WHEN l.recency>180 THEN 'Perdidos' ELSE 'Ocasionales' END AS segment, COUNT(*)::text AS customers, COALESCE(SUM(l.revenue),0)::text AS revenue FROM lifetime l JOIN period_customers pc ON pc."customerId"=l."customerId" GROUP BY 1 ORDER BY SUM(l.revenue) DESC`, dateFrom, dateTo),
-      prisma.$queryRawUnsafe<Array<{bucket:string;customers:string;revenue:string}>>(`WITH co AS (SELECT o."customerId",COUNT(*)::int AS cnt,SUM(o."totalValue") AS spent FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere} GROUP BY o."customerId") SELECT CASE WHEN cnt=1 THEN '1 orden' WHEN cnt BETWEEN 2 AND 3 THEN '2-3 ordenes' WHEN cnt BETWEEN 4 AND 6 THEN '4-6 ordenes' ELSE '7+ ordenes' END AS bucket, COUNT(*)::text AS customers, COALESCE(SUM(spent),0)::text AS revenue FROM co GROUP BY 1 ORDER BY MIN(cnt)`, dateFrom, dateTo),
+      prisma.$queryRawUnsafe<[{total:string;total_spent:string}]>(`SELECT COUNT(DISTINCT o."customerId")::text AS total, COALESCE(SUM(o."totalValue"),0)::text AS total_spent FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere}`, dateFrom, dateTo),
+      prisma.$queryRawUnsafe<[{total:string;total_spent:string}]>(`SELECT COUNT(DISTINCT o."customerId")::text AS total, COALESCE(SUM(o."totalValue"),0)::text AS total_spent FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere}`, prevFrom, prevTo),
+      prisma.$queryRawUnsafe<[{total:string;repeat_customers:string;avg_orders:string}]>(`WITH co AS (SELECT o."customerId",COUNT(*)::int AS cnt FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere} GROUP BY o."customerId") SELECT COUNT(*)::text AS total, COUNT(*) FILTER(WHERE cnt>1)::text AS repeat_customers, COALESCE(AVG(cnt),0)::text AS avg_orders FROM co`, dateFrom, dateTo),
+      prisma.$queryRawUnsafe<Array<{segment:string;customers:string;revenue:string}>>(`WITH lifetime AS (SELECT o."customerId",COUNT(*)::int AS orders,SUM(o."totalValue") AS revenue,EXTRACT(DAY FROM NOW()-MAX(o."orderDate"))::int AS recency FROM orders o WHERE o."organizationId"='${ORG_ID}' AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL GROUP BY o."customerId"), period_customers AS (SELECT DISTINCT o."customerId" FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere}) SELECT CASE WHEN l.recency<=30 AND l.orders>=4 THEN 'Champions' WHEN l.orders>=4 THEN 'Leales' WHEN l.recency<=30 AND l.orders=1 THEN 'Nuevos' WHEN l.recency<=60 AND l.orders>=2 THEN 'Potenciales' WHEN l.recency>90 AND l.orders>=2 THEN 'En riesgo' WHEN l.recency>180 THEN 'Perdidos' ELSE 'Ocasionales' END AS segment, COUNT(*)::text AS customers, COALESCE(SUM(l.revenue),0)::text AS revenue FROM lifetime l JOIN period_customers pc ON pc."customerId"=l."customerId" GROUP BY 1 ORDER BY SUM(l.revenue) DESC`, dateFrom, dateTo),
+      prisma.$queryRawUnsafe<Array<{bucket:string;customers:string;revenue:string}>>(`WITH co AS (SELECT o."customerId",COUNT(*)::int AS cnt,SUM(o."totalValue") AS spent FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere} GROUP BY o."customerId") SELECT CASE WHEN cnt=1 THEN '1 orden' WHEN cnt BETWEEN 2 AND 3 THEN '2-3 ordenes' WHEN cnt BETWEEN 4 AND 6 THEN '4-6 ordenes' ELSE '7+ ordenes' END AS bucket, COUNT(*)::text AS customers, COALESCE(SUM(spent),0)::text AS revenue FROM co GROUP BY 1 ORDER BY MIN(cnt)`, dateFrom, dateTo),
       // Tanda 7.10.2 — normalización case+trim (NO fusiona jurisdicciones
       // distintas como CABA vs provincia de Buenos Aires).
       prisma.$queryRawUnsafe<Array<{city:string;customers:string;revenue:string;avg_ticket:string;repeat_pct:string}>>(`
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
             SUM(o."totalValue") AS spent
           FROM orders o JOIN customers c ON c.id=o."customerId"
           WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2
-            AND o.status NOT IN('CANCELLED','RETURNED') ${srcWhere}
+            AND ${ordersValidSql("o")} ${srcWhere}
           GROUP BY c.id, NULLIF(LOWER(TRIM(c.city)), '')
         )
         SELECT COALESCE(
@@ -57,8 +58,8 @@ export async function GET(request: NextRequest) {
         GROUP BY city_key
         ORDER BY COUNT(*) DESC LIMIT 10
       `, dateFrom, dateTo),
-      prisma.$queryRawUnsafe<Array<{id:string;name:string;email:string;city:string;orders:string;total_spent:string;avg_ticket:string;first_order:string;last_order:string;lifetime_orders:string;recency_days:string}>>(`WITH cs AS (SELECT o."customerId",COUNT(*)::int AS cnt,SUM(o."totalValue") AS spent,MIN(o."orderDate") AS first_o,MAX(o."orderDate") AS last_o FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere} GROUP BY o."customerId"), lt AS (SELECT o."customerId",COUNT(*)::int AS lifetime_orders,EXTRACT(DAY FROM NOW()-MAX(o."orderDate"))::int AS recency FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL GROUP BY o."customerId") SELECT c.id,TRIM(CONCAT(COALESCE(c."firstName",''),' ',COALESCE(c."lastName",''))) AS name,COALESCE(c.email,'') AS email,COALESCE(INITCAP(LOWER(TRIM(c.city))),'') AS city,cs.cnt::text AS orders,cs.spent::text AS total_spent,(cs.spent/NULLIF(cs.cnt,0))::text AS avg_ticket,TO_CHAR(cs.first_o-INTERVAL '3 hours','YYYY-MM-DD') AS first_order,TO_CHAR(cs.last_o-INTERVAL '3 hours','YYYY-MM-DD') AS last_order,lt.lifetime_orders::text AS lifetime_orders,lt.recency::text AS recency_days FROM cs JOIN customers c ON c.id=cs."customerId" LEFT JOIN lt ON lt."customerId"=cs."customerId" ORDER BY cs.spent DESC LIMIT ${PAGE_SIZE} OFFSET ${(page-1)*PAGE_SIZE}`, dateFrom, dateTo),
-      prisma.$queryRawUnsafe<[{cnt:string}]>(`SELECT COUNT(DISTINCT o."customerId")::text AS cnt FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL ${srcWhere}`, dateFrom, dateTo),
+      prisma.$queryRawUnsafe<Array<{id:string;name:string;email:string;city:string;orders:string;total_spent:string;avg_ticket:string;first_order:string;last_order:string;lifetime_orders:string;recency_days:string}>>(`WITH cs AS (SELECT o."customerId",COUNT(*)::int AS cnt,SUM(o."totalValue") AS spent,MIN(o."orderDate") AS first_o,MAX(o."orderDate") AS last_o FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere} GROUP BY o."customerId"), lt AS (SELECT o."customerId",COUNT(*)::int AS lifetime_orders,EXTRACT(DAY FROM NOW()-MAX(o."orderDate"))::int AS recency FROM orders o WHERE o."organizationId"='${ORG_ID}' AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL GROUP BY o."customerId") SELECT c.id,TRIM(CONCAT(COALESCE(c."firstName",''),' ',COALESCE(c."lastName",''))) AS name,COALESCE(c.email,'') AS email,COALESCE(INITCAP(LOWER(TRIM(c.city))),'') AS city,cs.cnt::text AS orders,cs.spent::text AS total_spent,(cs.spent/NULLIF(cs.cnt,0))::text AS avg_ticket,TO_CHAR(cs.first_o-INTERVAL '3 hours','YYYY-MM-DD') AS first_order,TO_CHAR(cs.last_o-INTERVAL '3 hours','YYYY-MM-DD') AS last_order,lt.lifetime_orders::text AS lifetime_orders,lt.recency::text AS recency_days FROM cs JOIN customers c ON c.id=cs."customerId" LEFT JOIN lt ON lt."customerId"=cs."customerId" ORDER BY cs.spent DESC LIMIT ${PAGE_SIZE} OFFSET ${(page-1)*PAGE_SIZE}`, dateFrom, dateTo),
+      prisma.$queryRawUnsafe<[{cnt:string}]>(`SELECT COUNT(DISTINCT o."customerId")::text AS cnt FROM orders o WHERE o."organizationId"='${ORG_ID}' AND o."orderDate">=$1 AND o."orderDate"<=$2 AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL ${srcWhere}`, dateFrom, dateTo),
       // New vs Returning customers by month
       prisma.$queryRawUnsafe<Array<{month:string;new_customers:string;returning_customers:string}>>(`
         WITH monthly_orders AS (
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
           JOIN customers c ON c.id = o."customerId"
           WHERE o."organizationId"='${ORG_ID}'
             AND o."orderDate">=$1 AND o."orderDate"<=$2
-            AND o.status NOT IN('CANCELLED','RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL ${srcWhere}
         )
         SELECT month,
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
             EXTRACT(DAY FROM NOW()-MIN(o."orderDate"))::int AS lifetime_days,
             EXTRACT(DAY FROM NOW()-MAX(o."orderDate"))::int AS recency
           FROM orders o
-          WHERE o."organizationId"='${ORG_ID}' AND o.status NOT IN('CANCELLED','RETURNED') AND o."customerId" IS NOT NULL
+          WHERE o."organizationId"='${ORG_ID}' AND ${ordersValidSql("o")} AND o."customerId" IS NOT NULL
           GROUP BY o."customerId"
         )
         SELECT

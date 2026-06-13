@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
     // Payment methods
     const paymentMethods = await prisma.order.groupBy({
       by: ["paymentMethod"],
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "RETURNED"] }, paymentMethod: { not: null } },
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "PENDING", "RETURNED"] }, paymentMethod: { not: null } },
       _count: { id: true },
       _sum: { totalValue: true },
       orderBy: { _count: { id: "desc" } },

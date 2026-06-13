@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export async function GET() {
       WHERE "organizationId" = ${orgId}
         AND "shippingCarrier" IS NOT NULL
         AND "shippingCarrier" != ''
-        AND status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("")}
       GROUP BY "shippingCarrier", "shippingService"
       ORDER BY COUNT(*) DESC
     `;

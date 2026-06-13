@@ -17,6 +17,7 @@
 // para repoblar orders historicas sin reset+backfill completo.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -29,7 +30,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
 const ML_API = "https://api.mercadolibre.com";
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 const CONCURRENCY = 5;
 
 export async function GET(req: NextRequest) {

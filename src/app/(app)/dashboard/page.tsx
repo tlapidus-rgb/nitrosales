@@ -488,6 +488,11 @@ export default function DashboardPage() {
     [dateFrom, dateTo]
   );
 
+  // PERF (2026-06-12, BP-PERF-DASHBOARD): gate para no fetchear datos con el layout
+  // DEFAULT y volver a fetchear todo cuando cargan las preferencias (era doble batch
+  // de ~40 requests → saturaba el pool). El fetch principal espera a que prefs cargue.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
   // ── Load preferences on mount (layout + per-card filters) ──
   useEffect(() => {
     fetch("/api/dashboard/preferences")
@@ -521,7 +526,8 @@ export default function DashboardPage() {
           setWidgetFilters(data.widgetFilters);
         }
       })
-      .catch(() => {}); // Use defaults on error
+      .catch(() => {}) // Use defaults on error
+      .finally(() => setPrefsLoaded(true)); // habilita el fetch principal (1 sola vez)
   }, []);
 
   // ── Fetch data based on active widgets + period ──
@@ -531,6 +537,9 @@ export default function DashboardPage() {
   const [perWidgetData, setPerWidgetData] = useState<Record<string, any>>({});
 
   useEffect(() => {
+    // Esperar a que carguen las preferencias para fetchear UNA sola vez con el
+    // layout definitivo (evita el doble batch DEFAULT_LAYOUT → layout-de-prefs).
+    if (!prefsLoaded) return;
     setLoading(true);
     setError("");
 
@@ -599,7 +608,7 @@ export default function DashboardPage() {
       })
       .catch(() => setError("Error cargando datos"))
       .finally(() => setLoading(false));
-  }, [layout, periodQuery]);
+  }, [layout, periodQuery, prefsLoaded]);
 
   // ── Per-widget filtered data overrides ──
   // Each widget with wired filters fetches its own slice of data so its KPI

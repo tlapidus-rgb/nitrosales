@@ -63,12 +63,15 @@ export async function GET() {
     }
 
     // NitroPixel: detectamos por presencia de eventos en pixel_events.
+    // OJO: prisma.count() IGNORA `take` → contaba TODOS los eventos de la org
+    // (millones) ~60s y colgaba el dashboard entero. Para un chequeo de existencia
+    // usamos findFirst (LIMIT 1, usa el índice) → instantáneo.
     try {
-      const hasPixelEvents = await prisma.pixelEvent.count({
+      const firstPixelEvent = await prisma.pixelEvent.findFirst({
         where: { organizationId: orgId },
-        take: 1,
+        select: { id: true },
       });
-      if (hasPixelEvents > 0) connected.add("NITROPIXEL");
+      if (firstPixelEvent) connected.add("NITROPIXEL");
     } catch {}
 
     // 2. Override global: tabla system_setting key="section_overrides_global"

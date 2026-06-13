@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 //   2. byCategory=true (catIndex): iterates VTEX categories for FULL catalog
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import {
@@ -18,7 +19,7 @@ import {
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+const CRON_KEY = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
 const SAFETY_TIMEOUT_MS = 30000;
 const BATCH_SIZE = 80; // Products per run (conservative for 60s Vercel limit)
 

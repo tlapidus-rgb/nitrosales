@@ -100,10 +100,13 @@ export async function GET() {
     // NitroPixel: detectamos "fresh" si hay eventos recientes en pixel_events.
     let latestPixelEvent: any = null;
     try {
+      // PERF: ordenar por `timestamp` (indexado), no `receivedAt` (sin índice → full
+      // scan ~60-76s en orgs grandes). Mismo fix que install-status (commit c8bfb3d).
       latestPixelEvent = await prisma.pixelEvent.findFirst({
-        where: { organizationId: ORG_ID },
-        orderBy: { receivedAt: "desc" },
-        select: { receivedAt: true },
+        // lte: now → freshness no se basa en un `timestamp` futuro basura (data corrupta conocida).
+        where: { organizationId: ORG_ID, timestamp: { lte: new Date() } },
+        orderBy: { timestamp: "desc" },
+        select: { timestamp: true },
       });
     } catch {}
 
@@ -113,7 +116,7 @@ export async function GET() {
       GOOGLE_ADS: latestGoogleAd?.date ?? null,
       META_ADS: latestMetaAd?.date ?? null,
       GOOGLE_SEARCH_CONSOLE: latestSeoQuery?.date ?? null,
-      NITROPIXEL: latestPixelEvent?.receivedAt ?? null,
+      NITROPIXEL: latestPixelEvent?.timestamp ?? null,
     };
 
     const platforms = [

@@ -27,11 +27,13 @@ function convertDecimalsToNumbers(obj: unknown): unknown {
 }
 
 function createPrismaClient(): PrismaClient {
-  // Railway PostgreSQL allows many more connections than we were using.
-  // DEMO MODE (2026-05-25): subido a 24 para que /api/metrics/pixel (32
-  // queries paralelas) pueda correr en 2 oleadas en vez de 4.
-  // REVERTIR a 8 cuando termine la demo.
-  // pool_timeout=30 gives headroom before Prisma throws "timed out".
+  // connection_limit=24: /api/metrics/orders corre 14 queries en paralelo y
+  // /api/metrics/pixel hace varias oleadas; 24 evita que se saturen entre sí.
+  // (El "8" histórico de REGLA #3b es previo al diseño de queries en paralelo y
+  // causaba pool timeouts; ver evolución 8→12 commit 608646a → 24.) El endpoint
+  // de Neon es el -pooler, así que 24 conexiones lógicas son seguras.
+  // pool_timeout=30 da margen antes de que Prisma tire "timed out".
+  // statement_timeout=25000 mata una query colgada → safeQuery usa su fallback.
   const rawUrl = process.env.DATABASE_URL || "";
   const sep = rawUrl.includes("?") ? "&" : "?";
   const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=30&statement_timeout=25000`;

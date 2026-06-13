@@ -80,6 +80,10 @@
     {
       "path": "/api/cron/meta-token-refresh?key=nitrosales-secret-key-2024-production",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/warm-cache?key=nitrosales-secret-key-2024-production",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

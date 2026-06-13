@@ -4,12 +4,13 @@
 // y las re-procesa via webhook handler (que recrea atribucion).
 // Idempotente. Excluye FVG-/BPR- (marketplaces sin pixel).
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,7 +65,8 @@ export async function POST(req: NextRequest) {
               OrderId: o.externalId,
               State: o.status?.toLowerCase().replace("_", "-") || "ready-for-handling",
               LastState: o.status?.toLowerCase().replace("_", "-") || "ready-for-handling",
-              Domain: "Marketplace",
+              // (Sin `Domain`: el webhook NO lo lee — verificado, grep 0 refs en
+              // webhooks/vtex/orders. Estas son órdenes WEB; "Marketplace" era engañoso. BP-M4)
               LastChangeDate: new Date().toISOString(),
               CurrentChangeDate: new Date().toISOString(),
             }),

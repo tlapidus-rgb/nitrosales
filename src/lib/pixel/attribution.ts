@@ -194,14 +194,21 @@ export async function calculateAttribution(
     const maxWindowDays = Math.max(...allWindowValues);
 
     // 3. Get all events from this visitor within the WIDEST attribution window
-    const windowStart = new Date();
-    windowStart.setDate(windowStart.getDate() - maxWindowDays);
+    // FIX 2026-06-11: la ventana se ancla a `order.orderDate` (la conversión), NO a now().
+    // Antes era `new Date()` (ahora) → en replay histórico la ventana [now-Nd, now] no
+    // contenía el journey (eventos previos a una compra vieja) → 0 eventos → return sin
+    // atribución. Anclar a la fecha de la orden es además MÁS correcto: los touchpoints son
+    // los previos a la compra dentro de la ventana. Para real-time es equivalente
+    // (orderDate ≈ now). windowEnd = orderDate + 1d (buffer para el disparo tardío del pixel
+    // post-orden en la misma sesión), y excluye visitas posteriores de otra compra.
+    const windowStart = new Date(order.orderDate.getTime() - maxWindowDays * 86400000);
+    const windowEnd = new Date(order.orderDate.getTime() + 86400000);
 
     const primaryEvents = await prisma.pixelEvent.findMany({
       where: {
         visitorId,
         organizationId,
-        timestamp: { gte: windowStart },
+        timestamp: { gte: windowStart, lte: windowEnd },
         type: { not: 'IDENTIFY' } // Skip identify events
       },
       orderBy: { timestamp: 'asc' },
@@ -243,7 +250,7 @@ export async function calculateAttribution(
             organizationId,
             ipHash: { in: Array.from(visitorIpHashes) },
             visitorId: { not: visitorId },
-            timestamp: { gte: windowStart },
+            timestamp: { gte: windowStart, lte: windowEnd }, // FIX 2026-06-11: ventana anclada a orderDate
             type: { not: 'IDENTIFY' },
             sessionId: { not: { startsWith: 'webhook-' } },
           },

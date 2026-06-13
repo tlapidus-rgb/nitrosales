@@ -7,6 +7,7 @@ import { getVtexConfig } from "@/lib/vtex-credentials";
 import { getOrganization } from "@/lib/auth-guard";
 import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 import { extractRealEmail } from "@/lib/connectors/vtex-email";
+import { attributeOrderByMatch } from "@/lib/pixel/attribute-order-by-match";
 
 // -- Helper: Enrich a DB order with customer + items from VTEX detail --
 // Called when an order exists in DB but is missing customer/products data.
@@ -440,6 +441,7 @@ export async function POST(req: Request) {
     // Enrich newly created orders by fetching full VTEX detail
     // This fills in customer, products, shipping, discounts, etc.
     let enrichedCount = 0;
+    let attributedCount = 0; // BP-I1: órdenes nuevas que quedaron atribuidas en este sync
     if (created > 0) {
       const newOrderIds = newOrders.map((o: any) => String(o.orderId));
       const dbNewOrders = await prisma.order.findMany({
@@ -462,6 +464,22 @@ export async function POST(req: Request) {
           }
         } catch (e: any) {
           console.warn(`[sync/vtex] Failed to enrich order ${dbOrder.externalId}: ${e.message}`);
+        }
+      }
+
+      // ── BP-I1: atribución en tiempo real para órdenes que entran por este camino (cron/sync) ──
+      // El webhook real-time corre calculateAttribution; este camino NO lo hacía → órdenes sin
+      // atribuir (causa estructural de la caída de cobertura). Corremos el match (email →
+      // checkout-timing) después del enrich (cuando ya está el customer). Secuencial (no satura
+      // el pool), idempotente, no-fatal (un fallo no rompe el sync). Ver BP-I1.
+      for (const dbOrder of dbNewOrders) {
+        try {
+          const attr = await attributeOrderByMatch(dbOrder.id, org.id);
+          if (attr.matched && attr.strategy !== "already-attributed" && attr.strategy !== "marketplace-skip") {
+            attributedCount++;
+          }
+        } catch (e: any) {
+          console.warn(`[sync/vtex] Attribution failed for order ${dbOrder.externalId}: ${e.message}`);
         }
       }
     }
@@ -489,6 +507,7 @@ export async function POST(req: Request) {
       fetched: orders.length,
       created,
       enriched: enrichedCount,
+      attributed: attributedCount,
       updated,
       unchanged: existingToUpdate.length - updated,
       hasMore: page < totalPages,

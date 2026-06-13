@@ -10,6 +10,7 @@
 // Cuenta totales por categoria.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -17,7 +18,7 @@ import { isInternalUser } from "@/lib/feature-flags";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 // - promotion_names included in TS type
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
@@ -79,33 +80,17 @@ function getPaymentLabel(method: string, source: string): string {
   return `${method} (VTEX)`;
 }
 
-const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
+const WARM_CACHE_KEY = ADMIN_API_KEY;
 
-// ══════════════════════════════════════════════════════════════
-// 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
-// ══════════════════════════════════════════════════════════════
-const DEMO_GLOBAL_TIMEOUT_MS = 15000;
-
-function buildEmptyOrdersMockResponse() {
-  return {
-    kpis: { totalOrders: 0, totalRevenue: 0, avgTicket: 0, totalItems: 0, totalShipping: 0, totalDiscounts: 0, canceledOrders: 0 },
-    byDay: [], bySource: [], byChannel: [], byStatus: [], topProducts: [], topCustomers: [], cohorts: [],
-    geography: { byProvince: [], byCity: [], byPostalCode: [] },
-    recentOrders: [],
-    pagination: { page: 1, pageSize: 50, totalCount: 0, totalPages: 0 },
-    meta: { dateFrom: new Date().toISOString(), dateTo: new Date().toISOString() },
-    _demoMode: true,
-  };
-}
-
+// Resiliencia (sin mocks silenciosos — es una plataforma de data, no debe mostrar $0 falso):
+//  - maxDuration=120 (Vercel Pro) da techo a la función.
+//  - statement_timeout=25000 en la DSN mata una query colgada → safeQuery() la
+//    reemplaza por su fallback y el resto devuelve data real (degradación parcial honesta).
+//  - El frontend (/orders page.tsx) tiene timeout propio 45s + 3 reintentos en 5xx + setError.
+// Se quitó (2026-06-11) el race demo `DEMO_GLOBAL_TIMEOUT_MS=15s → mock vacío`: cortaba
+// consultas históricas legítimas (30/90d tardan 10-12s, podían superar 15s) y devolvía $0
+// silencioso con 200, anulando el retry del frontend. Ver BP-I3.
 export async function GET(request: NextRequest) {
-  if (DEMO_GLOBAL_TIMEOUT_MS > 0) {
-    const realPromise = (async () => ordersRealHandler(request))();
-    const timeoutPromise = new Promise<NextResponse>((resolve) =>
-      setTimeout(() => resolve(NextResponse.json({ ...buildEmptyOrdersMockResponse(), _timeoutMs: DEMO_GLOBAL_TIMEOUT_MS })), DEMO_GLOBAL_TIMEOUT_MS)
-    );
-    return Promise.race([realPromise, timeoutPromise]);
-  }
   return ordersRealHandler(request);
 }
 
@@ -142,14 +127,14 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       : new Date(now.getTime() - 30 * MS_PER_DAY);
 
     // ══════════════════════════════════════════════════════════════
-    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
+    // DESACTIVADO (2026-06-10): el clamp de 7 días recortaba consultas
+    // históricas (ej: pedir 3-jun mostraba 53/$3,4M en vez de 159/$8,9M
+    // porque tiraba la mañana del día; >7 días atrás daba $0). Medido:
+    // el headline de orders responde 51-155ms para 7/30/90 días sobre
+    // 277k órdenes (índice orgId,orderDate) → el recorte no hace falta.
+    // Se deja en 0 (sin recorte). Ver investigación 2026-06-10.
     // ══════════════════════════════════════════════════════════════
-    // Si > 0, fuerza ventana máxima de N días para que las queries
-    // sobre orders (60k+ rows) no excedan timeout.
-    //
-    // Para REVERTIR:  const DEMO_FORCE_WINDOW_DAYS = 0;
-    // ══════════════════════════════════════════════════════════════
-    const DEMO_FORCE_WINDOW_DAYS = 7;
+    const DEMO_FORCE_WINDOW_DAYS = 0;
     if (DEMO_FORCE_WINDOW_DAYS > 0) {
       const demoFromMs = now.getTime() - DEMO_FORCE_WINDOW_DAYS * MS_PER_DAY;
       if (dateFrom.getTime() < demoFromMs) {
@@ -233,7 +218,6 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       prisma.$queryRawUnsafe<[{
         total_orders: string;
         total_revenue: string;
-        avg_ticket: string;
         total_items: string;
         total_shipping: string;
         total_discounts: string;
@@ -241,7 +225,9 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         SELECT
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS total_orders,
           COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
-          COALESCE(AVG("totalValue"), 0)::text AS avg_ticket,
+          -- avg_ticket NO se calcula con AVG("totalValue"): para packs MELI (N filas, 1
+          -- packId) promedia por fila y da un ticket falsamente bajo. El avgTicket real
+          -- = total_revenue / total_orders (distinct-pack), se computa en JS (L~1204). Ver BP-I5.
           COALESCE(SUM("itemCount"), 0)::text AS total_items,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts,
@@ -267,12 +253,11 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       prisma.$queryRawUnsafe<[{
         total_orders: string;
         total_revenue: string;
-        avg_ticket: string;
       }]>(`
         SELECT
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS total_orders,
-          COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
-          COALESCE(AVG("totalValue"), 0)::text AS avg_ticket
+          COALESCE(SUM("totalValue"), 0)::text AS total_revenue
+          -- avg_ticket removido: se computa en JS como revenue/orders (ver query #1 y BP-I5)
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
@@ -527,7 +512,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
           AND COALESCE(o."packId", o."externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
@@ -568,7 +553,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
           AND COALESCE(o."packId", o."externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
@@ -835,7 +820,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           ) first_order ON true
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
             AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
@@ -888,7 +873,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           LEFT JOIN products p ON p.id = oi."productId"
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
             AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
@@ -993,7 +978,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           LEFT JOIN pixel_visitors pv ON pv.id = pa."visitorId"
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
             AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
@@ -1067,7 +1052,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
             AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
@@ -1194,7 +1179,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       LEFT JOIN ml_listings ml ON ml."mlItemId" = p."externalId" AND ml."organizationId" = o."organizationId"
       WHERE o."organizationId" = '${ORG_ID}'
         AND o."orderDate" >= $1 AND o."orderDate" <= $2
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
         AND o.status != 'PENDING'
         AND o."source" = 'MELI'
         AND COALESCE(o."packId", o."externalId") NOT IN (
@@ -1466,34 +1451,11 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(response);
   } catch (error: any) {
     console.error("Orders API error:", error);
-
-    // ══════════════════════════════════════════════════════════════
-    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
-    // ══════════════════════════════════════════════════════════════
-    // Si tira pool timeout u otro error, devolver shape minimo vacio
-    // para que la UI cargue silenciosa en lugar de cartel rojo.
-    // REVERTIR: cambiar DEMO_MODE_MOCK_ON_ERROR a false.
-    // ══════════════════════════════════════════════════════════════
-    const DEMO_MODE_MOCK_ON_ERROR = true;
-    if (DEMO_MODE_MOCK_ON_ERROR) {
-      return NextResponse.json({
-        kpis: { totalOrders: 0, totalRevenue: 0, avgTicket: 0, totalItems: 0, totalShipping: 0, totalDiscounts: 0, canceledOrders: 0 },
-        byDay: [],
-        bySource: [],
-        byChannel: [],
-        byStatus: [],
-        topProducts: [],
-        topCustomers: [],
-        cohorts: [],
-        geography: { byProvince: [], byCity: [], byPostalCode: [] },
-        recentOrders: [],
-        pagination: { page: 1, pageSize: 50, totalCount: 0, totalPages: 0 },
-        meta: { dateFrom: new Date().toISOString(), dateTo: new Date().toISOString() },
-        _demoMode: true,
-        _error: String(error?.message || error).slice(0, 200),
-      }, { status: 200 });
-    }
-
+    // Devolver 500 real (NO un mock vacío con 200). En una plataforma de data, mostrar
+    // "$0 ventas" cuando en realidad falló la consulta es peor que mostrar el error: el
+    // dueño tomaría decisiones sobre data falsa. El frontend reintenta en 5xx (3x) y, si
+    // persiste, muestra setError(...) — comportamiento correcto. Se quitó (2026-06-11) el
+    // hack demo DEMO_MODE_MOCK_ON_ERROR que enmascaraba esto. Ver BP-I3.
     return NextResponse.json(
       { error: "Error fetching orders data", detail: error.message },
       { status: 500 }

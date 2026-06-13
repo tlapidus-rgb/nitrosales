@@ -18,6 +18,7 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { ordersValidSql } from "@/lib/metrics/orders";
 import { getOrganizationId } from "@/lib/auth-guard";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -183,7 +184,7 @@ export async function GET(request: NextRequest) {
         FROM orders o
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidSql("o")}
           AND o."customerId" IS NOT NULL
         GROUP BY o."customerId"
       ),
@@ -200,7 +201,7 @@ export async function GET(request: NextRequest) {
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."source" = 'VTEX'
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidSql("o")}
             AND o."customerId" IS NOT NULL
           GROUP BY o."customerId"
         ) ord ON ord."customerId" = c.id
@@ -262,7 +263,7 @@ export async function GET(request: NextRequest) {
         FROM orders o
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidSql("o")}
           AND o."customerId" IS NOT NULL
         GROUP BY o."customerId"
       ),
@@ -435,7 +436,7 @@ export async function GET(request: NextRequest) {
         FROM orders o
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidSql("o")}
           AND o."customerId" IS NOT NULL
         GROUP BY o."customerId"
       ),
@@ -642,7 +643,7 @@ export async function GET(request: NextRequest) {
         JOIN products p ON p.id = oi."productId"
         WHERE o."customerId" IN (${cidList})
           AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidSql("o")}
         ORDER BY o."customerId", oi.quantity DESC
       `);
       favoriteByCustomer = Object.fromEntries(

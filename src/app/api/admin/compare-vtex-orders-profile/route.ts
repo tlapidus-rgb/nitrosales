@@ -11,6 +11,7 @@
 // Si tienen la MISMA proporcion → mi diagnostico estaba mal.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -19,7 +20,7 @@ import { fetchVtexOrderDetail } from "@/lib/connectors/vtex-enrichment";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 const SAMPLE_SIZE = 20;
 
 export async function GET(req: NextRequest) {

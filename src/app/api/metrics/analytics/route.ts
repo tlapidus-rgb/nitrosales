@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import * as crypto from "crypto";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 // ══════════════════════════════════════════════════════════════
 // Analytics API — GA4 Data for Ecommerce Dashboard
@@ -251,7 +252,7 @@ export async function GET(req: Request) {
       WHERE o."organizationId" = ${org.id}
         AND o."orderDate" >= ${new Date(startDate)}::timestamp
         AND o."orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
         AND c.state IS NOT NULL AND TRIM(c.state) != ''
       GROUP BY UPPER(TRIM(c.state))
       ORDER BY revenue DESC
@@ -277,7 +278,7 @@ export async function GET(req: Request) {
       WHERE "organizationId" = ${org.id}
         AND "orderDate" >= ${new Date(startDate)}::timestamp
         AND "orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
-        AND status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("")}
         AND "deliveryType" IS NOT NULL
       GROUP BY "deliveryType"
     `;
@@ -299,7 +300,7 @@ export async function GET(req: Request) {
       WHERE "organizationId" = ${org.id}
         AND "orderDate" >= ${new Date(startDate)}::timestamp
         AND "orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
-        AND status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("")}
         AND "deliveryType" = 'pickup'
         AND "pickupStoreName" IS NOT NULL
       GROUP BY "pickupStoreName"

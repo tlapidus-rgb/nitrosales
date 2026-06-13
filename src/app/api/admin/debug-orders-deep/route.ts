@@ -12,12 +12,13 @@
 //   - presencia/ausencia de atribuciones de cada modelo
 // No asume nada. Devuelve raw data + diagnostico hipotetizado.
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

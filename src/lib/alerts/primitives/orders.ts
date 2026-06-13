@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import { ordersValidSql } from "@/lib/metrics/orders";
 import type { PrimitiveDefinition, EvaluationContext, EvaluationResult } from "./types";
 
 async function getOrdersCount(orgId: string, fromDate: Date, toDate: Date = new Date()) {
@@ -12,7 +13,7 @@ async function getOrdersCount(orgId: string, fromDate: Date, toDate: Date = new 
               COALESCE(AVG("totalValue"), 0)::text AS aov
          FROM "orders"
         WHERE "organizationId" = $1 AND "orderDate" >= $2 AND "orderDate" <= $3
-          AND "status" NOT IN ('CANCELLED')`,
+          AND ${ordersValidSql("")}`,
       orgId,
       fromDate,
       toDate

@@ -19,6 +19,7 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 import { getOrganizationId } from "@/lib/auth-guard";
 import {
   generateInsights,
@@ -108,7 +109,7 @@ export async function GET(_req: NextRequest) {
             WHERE o."organizationId" = ${organizationId}
               AND o.source = 'VTEX'
               AND o."customerId" IS NOT NULL
-              AND o.status NOT IN ('CANCELLED', 'RETURNED')
+              AND ${ordersValidWhere("o")}
             GROUP BY o."customerId"
           )
           SELECT
@@ -143,7 +144,7 @@ export async function GET(_req: NextRequest) {
             WHERE o."organizationId" = ${organizationId}
               AND o.source = 'VTEX'
               AND o."customerId" IS NOT NULL
-              AND o.status NOT IN ('CANCELLED', 'RETURNED')
+              AND ${ordersValidWhere("o")}
               AND o."orderDate" >= ${oneEightyDaysAgo}
           ),
           gaps AS (
@@ -191,7 +192,7 @@ export async function GET(_req: NextRequest) {
             WHERE o."organizationId" = ${organizationId}
               AND o.source = 'VTEX'
               AND o."customerId" IS NOT NULL
-              AND o.status NOT IN ('CANCELLED', 'RETURNED')
+              AND ${ordersValidWhere("o")}
             GROUP BY o."customerId"
           ),
           cohort_customers AS (
@@ -211,7 +212,7 @@ export async function GET(_req: NextRequest) {
             JOIN orders o ON o."customerId" = cc.customer_id
               AND o."organizationId" = ${organizationId}
               AND o.source = 'VTEX'
-              AND o.status NOT IN ('CANCELLED', 'RETURNED')
+              AND ${ordersValidWhere("o")}
               AND o."orderDate" > cc.first_order
               AND o."orderDate" <= cc.first_order + INTERVAL '120 days'
               AND o."orderDate" >= cc.first_order + INTERVAL '60 days'
@@ -253,7 +254,7 @@ export async function GET(_req: NextRequest) {
             WHERE o."organizationId" = ${organizationId}
               AND o.source = 'VTEX'
               AND o."customerId" IS NOT NULL
-              AND o.status NOT IN ('CANCELLED', 'RETURNED')
+              AND ${ordersValidWhere("o")}
             GROUP BY o."customerId"
           ),
           top_whales AS (

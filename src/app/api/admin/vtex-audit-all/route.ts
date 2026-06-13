@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { ordersValidSql } from "@/lib/metrics/orders";
 import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
     const ordersAgg: any[] = await prisma.$queryRawUnsafe(
       `SELECT COUNT(*)::int AS total,
               COALESCE(SUM("totalValue"),0)::float AS revenue,
-              COUNT(CASE WHEN "status" NOT IN ('CANCELLED','RETURNED') THEN 1 END)::int AS active,
+              COUNT(CASE WHEN ${ordersValidSql("")} THEN 1 END)::int AS active,
               MIN("orderDate") AS oldest,
               MAX("orderDate") AS newest
        FROM "orders"
