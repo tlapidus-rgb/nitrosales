@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
           SELECT 1 FROM pixel_attributions pa
           WHERE pa."orderId" = o.id
         )
-      ORDER BY o."orderDate" DESC
+      ORDER BY o."orderDate" DESC, o."createdAt" DESC, o.id DESC
       LIMIT ${limit}
     `;
 

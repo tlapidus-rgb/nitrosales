@@ -601,7 +601,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o.channel IS DISTINCT FROM 'marketplace'
           AND o."externalId" NOT LIKE 'FVG-%'
           AND o."externalId" NOT LIKE 'BPR-%'
-        ORDER BY o."orderDate" DESC
+        ORDER BY o."orderDate" DESC, o."createdAt" DESC, o.id DESC
         LIMIT 50
       ` as Promise<Array<{
         orderId: string; orderExternalId: string; revenue: number;
