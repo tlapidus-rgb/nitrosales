@@ -9,3 +9,6 @@ prisma/*.db
 .vercel
 .env*.local
 .DS_Store
+
+# gstack working dir (no commitear)
+.gstack/

@@ -11,6 +11,7 @@
 // Si viene platform, busca el job RUNNING de esa plataforma del onboarding.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -73,7 +74,7 @@ export async function POST(
       const allDone = await areAllJobsComplete(job.onboardingRequestId);
       if (allDone) {
         const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
-        const KEY = "nitrosales-secret-key-2024-production";
+        const KEY = ADMIN_API_KEY;
         const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(job.organizationId)}&key=${KEY}`;
         waitUntil(
           fetch(finalizeUrl, { method: "GET" })

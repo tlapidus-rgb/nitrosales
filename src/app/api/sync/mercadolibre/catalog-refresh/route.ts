@@ -19,6 +19,7 @@
 // Multi-tenant safe: orgId explicito + credenciales del seller.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
@@ -28,7 +29,7 @@ import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const REFRESH_KEY = "nitrosales-secret-key-2024-production";
+const REFRESH_KEY = ADMIN_API_KEY;
 const CONCURRENCY = 5;          // batches /items en paralelo
 const BATCH_SIZE = 20;          // ML acepta hasta 20 ids por request
 const MAX_PRODUCTS = 5000;      // techo por corrida (chunk defensive)

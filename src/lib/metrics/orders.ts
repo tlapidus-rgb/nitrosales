@@ -49,11 +49,24 @@ export const ORDER_STATUS_NOT_CONCRETED = [
  * Aplicar en WHERE de cualquier query que cuente ordenes.
  */
 export function ordersValidWhere(aliasOrders: string = "o") {
-  const a = Prisma.raw(`"${aliasOrders}"`);
+  // Soporta alias vacío ("") para queries sin alias en el FROM (ej: `FROM orders`).
+  const p = aliasOrders ? Prisma.raw(`"${aliasOrders}".`) : Prisma.raw("");
   return Prisma.sql`
-    ${a}.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
-    AND ${a}."totalValue" > 0
+    ${p}status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
+    AND ${p}"totalValue" > 0
   `;
+}
+
+/**
+ * Versión STRING del filtro de "orden válida" — para queries que usan `$queryRawUnsafe`
+ * (concatenación de string, no tagged template). Equivale a `ordersValidWhere()`:
+ *   <alias>.status NOT IN ('CANCELLED','PENDING','RETURNED') AND <alias>."totalValue" > 0
+ * Una sola fuente de verdad: se genera desde ORDER_STATUS_NOT_CONCRETED.
+ */
+export function ordersValidSql(aliasOrders: string = "o"): string {
+  const p = aliasOrders ? `"${aliasOrders}".` : "";
+  const list = ORDER_STATUS_NOT_CONCRETED.map((s) => `'${s}'`).join(", ");
+  return `${p}status NOT IN (${list}) AND ${p}"totalValue" > 0`;
 }
 
 /**

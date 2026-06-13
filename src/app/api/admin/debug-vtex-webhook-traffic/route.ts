@@ -4,11 +4,12 @@
 // Cuando llega un webhook VTEX y se procesa, se crea un PURCHASE event
 // con sessionId LIKE 'webhook-%'. Si una org tiene 0 = no le llegan webhooks.
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

@@ -21,6 +21,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 import {
   computeChurnScore,
   CHURN_TIER_LABELS,
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
         WHERE o."organizationId" = ${organizationId}
           AND o.source = 'VTEX'
           AND o."customerId" IS NOT NULL
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
         GROUP BY o."customerId"
         HAVING COUNT(*) >= 2
       )

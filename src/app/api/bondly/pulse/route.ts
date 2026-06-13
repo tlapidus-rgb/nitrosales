@@ -47,6 +47,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,6 +77,12 @@ export async function GET() {
     const ago60m = new Date(now.getTime() - 60 * MS_MIN);
     const ago24h = new Date(now.getTime() - MS_DAY);
     const ago30d = new Date(now.getTime() - 30 * MS_DAY);
+    // Guard anti-timestamps-basura: pixel_events tiene `timestamp` (event-time, client)
+    // con datos corruptos (1978 / fechas futuras). Al filtrar por timestamp (indexado)
+    // en vez de receivedAt, hay que acotar a una ventana sana: no antes de que existiera
+    // el pixel (PIXEL_FLOOR) ni después de ahora (un evento no puede ocurrir en el futuro).
+    // Sin esto, el Pulso mostraría "evento hace 0s" y "48 años de datos" por filas basura.
+    const PIXEL_FLOOR = new Date("2024-01-01T00:00:00Z");
 
     // ═══ COMMERCE: primera orden, última, counts, timeline ═══
     // ═══ PIXEL:    primer evento, último, activity live ═══
@@ -99,7 +106,7 @@ export async function GET() {
       prisma.$queryRaw<Array<{ first_at: Date | null }>>`
         SELECT MIN("orderDate") AS first_at FROM orders
         WHERE "organizationId" = ${orgId}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
           AND "source" = 'VTEX'
           AND "customerId" IS NOT NULL
       `,
@@ -107,7 +114,7 @@ export async function GET() {
       prisma.$queryRaw<Array<{ last_at: Date | null }>>`
         SELECT MAX("orderDate") AS last_at FROM orders
         WHERE "organizationId" = ${orgId}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
           AND "source" = 'VTEX'
           AND "customerId" IS NOT NULL
       `,
@@ -115,7 +122,7 @@ export async function GET() {
       prisma.$queryRaw<Array<{ cnt: bigint }>>`
         SELECT COUNT(*)::bigint AS cnt FROM orders
         WHERE "organizationId" = ${orgId}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
           AND "source" = 'VTEX'
           AND "customerId" IS NOT NULL
       `,
@@ -123,7 +130,7 @@ export async function GET() {
       prisma.$queryRaw<Array<{ cnt: bigint }>>`
         SELECT COUNT(*)::bigint AS cnt FROM orders
         WHERE "organizationId" = ${orgId}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
           AND "source" = 'VTEX'
           AND "customerId" IS NOT NULL
           AND "orderDate" >= ${ago24h}
@@ -132,7 +139,7 @@ export async function GET() {
       prisma.$queryRaw<Array<{ cnt: bigint }>>`
         SELECT COUNT(*)::bigint AS cnt FROM orders
         WHERE "organizationId" = ${orgId}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
           AND "source" = 'VTEX'
           AND "customerId" IS NOT NULL
           AND "orderDate" >= ${ago60m}
@@ -142,47 +149,52 @@ export async function GET() {
         SELECT date_trunc('day', "orderDate") AS day, COUNT(*)::bigint AS count
         FROM orders
         WHERE "organizationId" = ${orgId}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
           AND "source" = 'VTEX'
           AND "customerId" IS NOT NULL
           AND "orderDate" >= ${ago30d}
         GROUP BY day
         ORDER BY day ASC
       `,
-      // Primer evento pixel
+      // PERF (todas las queries de pixel_events de abajo): filtrar/ordenar por `timestamp`
+      // (indexado) en vez de `receivedAt` (SIN índice → full scan ~60-76s en orgs grandes,
+      // colgaba el Pulso). timestamp ≈ receivedAt en operación normal (segundos) y es la
+      // columna canónica de event-time del resto del dashboard. Mismo fix que install-status/
+      // asset-stats (commit c8bfb3d). Las keys `receivedAt` del response se mantienen.
+      // Primer evento pixel (acotado a PIXEL_FLOOR para no devolver basura de 1978)
       prisma.pixelEvent.findFirst({
-        where: { organizationId: orgId },
-        orderBy: { receivedAt: "asc" },
-        select: { receivedAt: true },
+        where: { organizationId: orgId, timestamp: { gte: PIXEL_FLOOR } },
+        orderBy: { timestamp: "asc" },
+        select: { timestamp: true },
       }),
-      // Último evento pixel
+      // Último evento pixel (acotado a <= now para no devolver fechas futuras basura)
       prisma.pixelEvent.findFirst({
-        where: { organizationId: orgId },
-        orderBy: { receivedAt: "desc" },
-        select: { receivedAt: true },
+        where: { organizationId: orgId, timestamp: { gte: PIXEL_FLOOR, lte: now } },
+        orderBy: { timestamp: "desc" },
+        select: { timestamp: true },
       }),
       // Total eventos pixel
       prisma.pixelEvent.count({ where: { organizationId: orgId } }),
       // Eventos 24h
       prisma.pixelEvent.count({
-        where: { organizationId: orgId, receivedAt: { gte: ago24h } },
+        where: { organizationId: orgId, timestamp: { gte: ago24h, lte: now } },
       }),
       // Eventos últimos 5 min (pulso vivo)
       prisma.pixelEvent.count({
-        where: { organizationId: orgId, receivedAt: { gte: ago5m } },
+        where: { organizationId: orgId, timestamp: { gte: ago5m, lte: now } },
       }),
       // Visitors distintos últimos 5 min
       prisma.$queryRaw<Array<{ cnt: bigint }>>`
         SELECT COUNT(DISTINCT "visitorId")::bigint AS cnt FROM pixel_events
         WHERE "organizationId" = ${orgId}
-          AND "receivedAt" >= ${ago5m}
+          AND "timestamp" >= ${ago5m} AND "timestamp" <= ${now}
       `,
       // Pixel timeline 30d
       prisma.$queryRaw<Array<{ day: Date; count: bigint }>>`
-        SELECT date_trunc('day', "receivedAt") AS day, COUNT(*)::bigint AS count
+        SELECT date_trunc('day', "timestamp") AS day, COUNT(*)::bigint AS count
         FROM pixel_events
         WHERE "organizationId" = ${orgId}
-          AND "receivedAt" >= ${ago30d}
+          AND "timestamp" >= ${ago30d} AND "timestamp" <= ${now}
         GROUP BY day
         ORDER BY day ASC
       `,
@@ -191,10 +203,10 @@ export async function GET() {
       prisma.pixelEvent.findMany({
         where: {
           organizationId: orgId,
-          receivedAt: { gte: ago60m },
+          timestamp: { gte: ago60m, lte: now },
           type: { in: ["ADD_TO_CART", "VIEW_PRODUCT", "IDENTIFY", "PURCHASE", "PAGE_VIEW"] },
         },
-        orderBy: { receivedAt: "desc" },
+        orderBy: { timestamp: "desc" },
         take: 5,
         select: {
           id: true,
@@ -202,7 +214,7 @@ export async function GET() {
           pageUrl: true,
           country: true,
           deviceType: true,
-          receivedAt: true,
+          timestamp: true,
           visitor: {
             select: { email: true },
           },
@@ -236,8 +248,8 @@ export async function GET() {
     }
 
     // ═══ PIXEL shaping ═══
-    const firstEventAt = firstEventRow?.receivedAt ?? null;
-    const lastEventAt = lastEventRow?.receivedAt ?? null;
+    const firstEventAt = firstEventRow?.timestamp ?? null;
+    const lastEventAt = lastEventRow?.timestamp ?? null;
     const pixelDaysCovered = firstEventAt
       ? Math.max(1, Math.floor((now.getTime() - firstEventAt.getTime()) / MS_DAY))
       : 0;
@@ -269,7 +281,7 @@ export async function GET() {
         country: e.country,
         deviceType: e.deviceType,
         pageUrl: e.pageUrl,
-        receivedAt: e.receivedAt.toISOString(),
+        receivedAt: e.timestamp.toISOString(),
       };
     });
 

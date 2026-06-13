@@ -3,7 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getCached, setCache } from "@/lib/api-cache";
+import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { waitUntil } from "@vercel/functions";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: hasta 60s para queries pesadas en producción
@@ -109,19 +112,28 @@ type APIResponse = {
 
 export async function GET(request: Request) {
   try {
-    const ORG_ID = await getOrganizationId();
+    const { searchParams } = new URL(request.url);
+    // Warm-cache cron bypass: ?orgId=X&key=KEY (mismo patrón que /metrics/pixel, BP-PERF-DASHBOARD).
+    // Permite al cron /api/cron/warm-cache precalentar el SWR de cada org sin sesión.
+    const queryOrgId = searchParams.get("orgId");
+    const queryKey = searchParams.get("key");
+    const ORG_ID = queryOrgId && queryKey === ADMIN_API_KEY
+      ? queryOrgId
+      : await getOrganizationId();
     const now = new Date();
 
     // Parse optional from/to date params (default: last 30 days)
-    const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
 
-    // Cache check
     const cacheKey = [ORG_ID, fromParam || "default", toParam || "default"];
-    const cached = getCached("products", ...cacheKey);
-    if (cached) return NextResponse.json(cached);
 
+    // SWR (2026-06-12, BP-PERF-DASHBOARD): el compute pesado (joins order_items×products
+    // + agregaciones por SKU) vive en computeAndCache(). Miss = bloqueante (solo 1a carga);
+    // hit fresh O stale = instant; stale → refresh background con lock anti-herd. Antes era
+    // getCached fresh-only → cada request tras el fresh window de 5 min recomputaba (~58s en
+    // el branch throttleado para EMDJ) y trababa el Centro de Control.
+    const computeAndCache = async () => {
     const dateTo = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
     const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000-03:00") : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const daysDiff = Math.max(1, Math.round((dateTo.getTime() - dateFrom.getTime()) / (24 * 60 * 60 * 1000)));
@@ -157,7 +169,7 @@ export async function GET(request: Request) {
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND "orderDate" <= ${dateTo}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
       `,
 
       // Query 2: Orders with items count
@@ -174,7 +186,7 @@ export async function GET(request: Request) {
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND "orderDate" <= ${dateTo}
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("")}
       `,
 
       // Query 3: Product aggregation (30 days) CONSOLIDATED BY SKU (Sesion 20).
@@ -224,7 +236,7 @@ export async function GET(request: Request) {
           WHERE o."organizationId" = ${ORG_ID}
             AND o."orderDate" >= ${thirtyDaysAgo}
             AND o."orderDate" <= ${dateTo}
-            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND p.sku IS NOT NULL AND p.sku != ''
           GROUP BY p.sku
         )
@@ -290,7 +302,7 @@ export async function GET(request: Request) {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${sixtyDaysAgo}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND p.sku IS NOT NULL AND p.sku != ''
         GROUP BY p.sku, date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
         ORDER BY date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
@@ -310,7 +322,7 @@ export async function GET(request: Request) {
         JOIN orders o ON oi."orderId" = o.id
         JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND p.sku IS NOT NULL AND p.sku != ''
         GROUP BY p.sku
       `,
@@ -382,7 +394,7 @@ export async function GET(request: Request) {
         JOIN orders o ON oi."orderId" = o.id
         JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o")}
           AND p.sku IS NOT NULL AND p.sku != ''
           AND oi.quantity > 0
           AND oi."totalPrice" > 0
@@ -502,10 +514,18 @@ export async function GET(request: Request) {
       }
 
       // Calculate stockoutDate
+      // FIX (2026-06-12, BP-PERF-DASHBOARD): un producto con mucho stock y venta
+      // muy lenta da daysOfStock astronómico (ej: 50.000 u / 0,03 u-día = 1,5M días).
+      // `now + 1,5M días` desborda el rango máximo de Date (±8,64e15 ms) → Invalid Date
+      // → `.toISOString()` tiraba RangeError y mataba TODO el endpoint con 500.
+      // (Reproducido: TeVe Compras, ventana 30d.) Capamos a 100 años: más allá de eso
+      // "no hay riesgo de quiebre" = null. Guard extra contra NaN/Invalid.
       let stockoutDate: string | null = null;
-      if (daysOfStock !== null) {
+      if (daysOfStock !== null && Number.isFinite(daysOfStock) && daysOfStock < 36500) {
         const stockoutDateObj = new Date(now.getTime() + daysOfStock * 24 * 60 * 60 * 1000);
-        stockoutDate = stockoutDateObj.toISOString();
+        if (!Number.isNaN(stockoutDateObj.getTime())) {
+          stockoutDate = stockoutDateObj.toISOString();
+        }
       }
 
       // Determine stockHealth
@@ -811,7 +831,22 @@ export async function GET(request: Request) {
     };
 
     setCache("products", response, ...cacheKey);
-    return NextResponse.json(response);
+    return response;
+    }; // ── fin computeAndCache ──
+
+    const cached = getCachedSWR("products", ...cacheKey);
+    if (cached?.data) {
+      if (cached.isStale && tryAcquireRefreshLock("products", ...cacheKey)) {
+        waitUntil(
+          computeAndCache()
+            .catch((e) => { console.error("[products] background refresh failed:", e); })
+            .finally(() => releaseRefreshLock("products", ...cacheKey))
+        );
+      }
+      return NextResponse.json(cached.data);
+    }
+    const freshResponse = await computeAndCache();
+    return NextResponse.json(freshResponse);
   } catch (error) {
     console.error("Error fetching product metrics:", error);
     return NextResponse.json(

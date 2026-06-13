@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
+import { ordersValidSql } from "@/lib/metrics/orders";
 
 // ── Optimized: all aggregation done in PostgreSQL, no full-table loads ──
 
@@ -31,7 +32,7 @@ async function getPeriodMetrics(
         FROM orders
         WHERE "organizationId" = $1
           AND "orderDate" >= $2 AND "orderDate" < $3
-          AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')${canalClause}`,
+          AND ${ordersValidSql("")}${canalClause}`,
         ...orderArgs
       ),
 

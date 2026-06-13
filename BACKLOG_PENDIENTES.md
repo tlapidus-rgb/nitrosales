@@ -8,7 +8,141 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-05-02 noche tarde — Sesion 60 EXT-2 BIS. Continuacion del dia con 5 bugs adicionales: unificacion Funnel+Conversion por Canal a first-touch, fix guard marketplace usando solo prefijos, nuevo cron VTEX cada 30 min como red de seguridad, recuperacion autonomia Claude via WebFetch, tooltips aclaratorios por modulo. Pendientes BP-S60-002/004/005 sin cambios.
+> **Última actualización**: 2026-06-12 — Agregado **BP-ROLLUPS-001**: endpoint admin `setup-pixel-rollups`
+> (crea hll + 7 tablas rollup + backfill chunked, idempotente y resumible) que destraba el BLOCKER #1 del
+> deploy. Pasó /gstack-review + /gstack-cso, tsc exit 0, NADA pusheado. Ver también BP-I1/BP-I4/BP-M1/BP-CORE-001
+> de la misma tanda de deploy. Agregado **BP-PERF-CONVERSION** (hallazgo del QA: `/api/metrics/conversion`
+> escanea `pixel_events` crudo, lento en orgs grandes — pre-existente, no regresión, follow-up).
+>
+> _(Anterior: 2026-05-02 noche tarde — Sesion 60 EXT-2 BIS. 5 bugs: unificacion Funnel+Conversion por Canal a
+> first-touch, fix guard marketplace prefijos, cron VTEX 30 min, recuperacion autonomia Claude via WebFetch,
+> tooltips por modulo. Pendientes BP-S60-002/004/005 sin cambios.)_
+
+---
+
+## ✅/🟡 BP-CONSIST-PIXEL — Inconsistencia "órdenes atribuidas vs funnel compras" (2026-06-12)
+
+> **Reporte del dueño:** "7d: 420 órdenes atribuidas pero 330 compras en el funnel — están mal".
+> **Diagnóstico (EMDJ 7d, reproducido):** funnel compras=742 vs atribuidas=939 (misma proporción 1,27 que 330/420).
+> **NO es un bug — es diferencia de DEFINICIÓN, ambas correctas:**
+> - **"Órdenes atribuidas" (939)** = órdenes REALES (tabla orders) con atribución NITRO. Coincide **98,3%** con
+>   las órdenes web del módulo Pedidos (955) y el revenue con Finanzas ($51,16M vs $52,05M). Cross-module ✅.
+> - **"Funnel compras" (742)** = VISITANTES distintos que dispararon el evento PURCHASE del pixel (client-side).
+>   Es menor porque: (a) ~20% de compras reales no disparan el evento (bloqueadores, cierre de pestaña, checkout
+>   server-side) pero igual se atribuyen por email (145 órdenes así), y (b) compradores repetidos = 1 visitante
+>   pero N órdenes (23). + HLL ~2% en buckets chicos.
+> - Funnel monótono (visitas 55033 ≥ producto 29990 ≥ carrito 4395 ≥ checkout 2913 ≥ compra 742). ✅
+>
+> **FIX (decisión del dueño: "diferencia legítima → explicarla en la UI"):** tooltips nuevos en `/pixel/analytics`
+> (header del Funnel + KPI "Órdenes Atribuidas") que aclaran qué mide cada uno y por qué difieren. Backup:
+> `pixel-analytics-page.tsx.bak`.
+
+---
+
+## ✅ BP-PERF-DASHBOARD — Páginas lentas: /nitropixel + Centro de Control (2026-06-12)
+
+**PÁGINA 2 — /nitropixel (Activo Vivo): ARREGLADA (root cause real).**
+`/api/nitropixel/asset-stats` hacía `COUNT(*)` sobre ~11,6M pixel_events + COUNT sobre ~932K visitors para los
+totales all-time (~37s; el fix previo de receivedAt→timestamp solo cubrió los conteos por ventana, no los
+all-time). + un `date_trunc+COUNT` 30d (2,6s). **Fix:** totales desde el rollup `pixel_daily_aggregates`
+(SUM + HLL) y timeline desde el rollup. **37,6s → 0,76s warm** (medido). Bonus: usa los mismos rollups que
+`/pixel` → números consistentes entre páginas. Backup `asset-stats-route.ts.bak`.
+
+**PÁGINA 1 — Centro de Control: causas raíz arregladas.**
+1. **Doble batch de fetches:** el dashboard fetcheaba ~40 endpoints con `DEFAULT_LAYOUT` y de nuevo al cargar las
+   preferencias (setLayout). **Fix:** gate `prefsLoaded` → 1 sola tanda. Backup `dashboard-page.tsx.bak`.
+2. **SWR roto (stale = recompute bloqueante ~13-17s):** `/api/metrics/pixel` y `/api/metrics/products` servían
+   sólo cache fresh; al expirar el fresh window (5 min) el siguiente request recomputaba bloqueante (pixel ~13-17s,
+   products ~58s en branch throttleado). El lib `api-cache` ya soportaba SWR pero el route nunca implementó el
+   serve-stale. **Fix:** `computeAndCache()` + serve stale instant + refresh background con lock anti-herd
+   (`tryAcquireRefreshLock`). **Verificado: stale 13s → 0,05s** (sirve stale al instante). El lock evita el
+   thundering-herd que motivó el revert previo (aquello era el cron warm-cache, 32 fetches; esto es 1 por key).
+   Backups `pixel-route.ts.bak-preswr`, `products-route.ts.bak`.
+
+**✅ WARM-CRON (2026-06-12, RESUELTO):** el endpoint `/api/cron/warm-cache` YA existía pero (1) NO estaba
+agendado en `vercel.json` y (2) hacía `Promise.all(orgs.map(...))` = el thundering-herd que motivó el revert
+del SWR. Arreglado: ahora **secuencial** (org→rango→endpoint, 1 fetch a la vez, con presupuesto de tiempo) y
+warmea **pixel + products** (antes warmeaba orders, que es liviano). **Agendado cada 5 min** en `vercel.json`
+(mantiene el cache dentro del fresh window de 5 min). Backup `warm-cache-route.ts.bak`. Para que el cron pueda
+warmear products sin sesión, se agregó el bypass `?orgId=X&key=KEY` a `/metrics/products` (mismo patrón que
+`/metrics/pixel`). Verificado en vivo: 3 orgs × 4 rangos × 2 endpoints = 24 requests secuenciales, 23/24 ok;
+el cache hit posterior es instant (EMDJ pixel 30d 0,025s). Limitación serverless documentada (cache por-instancia;
+solución multi-instancia completa = Vercel KV, follow-up).
+
+**🐛 BUG ENCONTRADO Y CORREGIDO por el test del warm-cron — products 500 `RangeError: Invalid time value`:**
+`/api/metrics/products` tiraba 500 para orgs con un producto de mucho stock y venta muy lenta (ej: TeVe 30d):
+`daysOfStock = stock/dailySalesRate` daba un número astronómico → `new Date(now + daysOfStock días)` desbordaba
+el rango máximo de Date → `.toISOString()` tiraba RangeError y mataba TODO el endpoint. **Pre-existente**, rompía
+el widget de productos del dashboard para esas orgs. Fix: guard `Number.isFinite + daysOfStock<36500 (100 años)
++ !isNaN`; más allá de 100 años stockoutDate=null ("sin riesgo de quiebre"). Verificado: TeVe 30d ahora 200.
+Backup `products-route.ts.bak`.
+- **No se pudo validar el tiempo absoluto de carga en localhost:** el branch Neon `prod-local-axel` THROTTLEA los
+  scans crudos (~8x); las queries frías dan 14-58s acá que en prod (sin throttle, rutas pre-compiladas) son ~2-7s.
+  Las lecturas de rollup/cache (que es lo que sirve el 99% de los requests) SÍ son fiables y dan <2s.
+  **Recomendación:** validar tiempos finales en un entorno prod-like (no throttleado).
+- **`/api/metrics/products` query 30d pesada** (joins order_items×products): candidata a portar a rollups en una
+  tanda futura (igual que se hizo con `/pixel`). No bloquea (SWR + cron lo mitigan).
+
+---
+
+## ✅ BP-VERIFY-20260612 — Verificación final pre-deploy (atribución 5 caminos + QA visual + canary)
+
+**P2 — Atribución 100% going-forward: los 5 caminos corren la atribución (verificado).**
+| Camino | Mecanismo | Evidencia |
+|---|---|---|
+| (a) Webhook VTEX | `calculateAttribution` | `webhooks/vtex/orders/route.ts:687` |
+| (b) sync/vtex (cron diario) | `attributeOrderByMatch` | `sync/vtex/route.ts:477` |
+| (c) Cron 30 min (red de seguridad webhook) | proxy → webhook | `cron/vtex-sync-recent/route.ts:67` |
+| (d) backfill vtex-processor | `attributeOrderByMatch` | `vtex-processor.ts:290` |
+| (e) cron attribution-reconcile | `attributeOrderByMatch` | LIVE: atribuyó 10 órdenes (EMDJ 5, TeVe 5) |
+
+**Edge cases (probados en vivo con `attributeOrderByMatch` sobre órdenes reales de EMDJ):**
+- Orden MELI → `marketplace-skip` (NO atribuida). ✅
+- Orden sin email → `no-email-no-window` (graceful, sin crash). ✅
+- Orden ya atribuida → `already-attributed`, before=1/after=1, **duplicateCreated=false** (idempotente). ✅
+- Orden web sin atribuir → matcheó por `email` (el matcher funciona). ✅
+- `calculateAttribution` crea row con touchpoints para órdenes atribuibles (verificado: order con touchpointCount=1).
+- "Orden antes que visitor" / "webhook perdido" → los recupera el cron 30 min + reconcile (estructural, mismo helper).
+- "Webhook duplicado" → orden upsert por externalId + atribución idempotente (NITRO único por orden) → sin dup.
+- "200+ órdenes/día" → cada orden pasa por un camino real-time (webhook/sync) que corre atribución; no depende del
+  límite del cron.
+
+> Framing honesto del "100%": significa que **TODOS los caminos corren el intento de atribución** (imposible que
+> baje por un gap de código). La TASA real es ~86-87% (techo por datos: órdenes sin journey reconstruible no se
+> pueden atribuir — no es un bug).
+
+**P4 — QA visual (Chromium, sesión EMDJ):** `/pixel/analytics`, `/pixel`, `/nitropixel` → **0 errores JS**, datos
+reales (revenue atribuido $16,4M, valoración activo $379,5M), **0 NaN/null/$0**. Screenshots full-page en
+`testout-qa/qa-*.png`. Tabs (KPIs/Verdad/Funnel/Revenue/Velocidad/Dispositivos/Cobertura/Journeys/Conversión) son
+secciones de `/pixel/analytics` (capturadas en el screenshot full-page; scan de texto sin NaN). Cross-panel:
+atribuidas ≈ Pedidos web 98,3% (ver BP-CONSIST-PIXEL). Cross-tenant: qa-demo (Arredo) no ve EMDJ (0 leak, BP previo).
+
+**Canary (carga real):** 10× concurrente `/metrics/pixel` = 10/10 200, 0 mocks; 10× `/metrics/orders` = 10/10 200,
+0×500. Sin saturación de pool. (Tiempos máximos altos = throttle del branch, no prod.)
+
+**⚠️ Caveat global (sin cambios):** el branch Neon throttlea scans crudos ~8x → los tiempos ABSOLUTOS de página
+(4-25s acá) no son representativos de prod (~1-3s). Validar tiempos finales en entorno prod-like. tsc 0 + `next build` 0.
+
+---
+
+## 🟡 BP-PERF-CONVERSION — `/api/metrics/conversion` escanea pixel_events crudo (lento en orgs grandes)
+
+> **Hallazgo del QA exhaustivo pre-deploy (2026-06-12).** NO es regresión: es el comportamiento actual de
+> prod (este endpoint nunca recibió el tratamiento de rollups que sí recibió `/api/metrics/pixel` en la Fase 2).
+
+**Síntoma:** `/api/metrics/conversion` hace `COUNT(DISTINCT "visitorId") FROM pixel_events` directo (líneas
+~48/75/131/167), sin usar las tablas rollup. En Arredo (11,6M eventos), branch throttleado:
+1d 0,95s · 7d 8,2s · **30d 76s · 90d ~84s**. Tiene `force-dynamic` pero **NO** `maxDuration` explícito.
+
+**Por qué no bloquea este deploy:** el código de conversion ya corre así en prod hoy; este deploy solo le
+cambió el filtro de status (I4), que NO toca los scans de pixel_events. En prod (sin throttle + con el índice
+covering `pixel_events_org_ts_cover_idx`) los scans son ~10x más rápidos. Igual conviene resolverlo.
+
+**Fix propuesto (follow-up, NO ahora):** portar las queries de tráfico de conversion a leer los rollups HLL
+(`pixel_daily_aggregates`/`_type`/`_source`) igual que hizo la Fase 2 con `/api/metrics/pixel`. Y agregar
+`maxDuration` explícito. Prioridad media (no afecta /pixel/analytics, que usa el endpoint optimizado).
+
+**Estado:** abierto, follow-up post-deploy.
 
 ---
 
@@ -990,3 +1124,338 @@ _(vacío por ahora — cuando un ítem se descarte, mover acá con razón)_
 - **Cuando Tomy pida "descartar un pendiente"**: mover al bloque "Descartados" con la razón.
 - **Al cierre de sesión**: si surgieron cosas "para después" durante el trabajo, proponerlas a Tomy para agregarlas acá (no auto-agregarlas sin consulta).
 - **No duplicar**: si un tema ya está en `CLAUDE_STATE.md` → sección "Pendientes / backlog" de alguna sesión, hacer match acá con el ID correspondiente para evitar que vivan en dos lados.
+
+---
+
+## ⚠️ BP-CORE-001 — Cambio en CORE PROTEGIDO: ventana de atribución anclada a orderDate (2026-06-11)
+
+**ARCHIVO PROTEGIDO MODIFICADO:** `src/lib/pixel/attribution.ts` (motor de atribución).
+**Backup original:** `~/Documents/NitroSales-Diagnostico/attribution.ts.bak`
+**Branch:** `prod-local-axel` (NO prod, NO pusheado).
+
+**Qué se cambió (2 lugares):**
+1. Línea ~197 (query `primaryEvents`): `windowStart` pasó de `new Date()` (ahora) a
+   `new Date(order.orderDate.getTime() - maxWindowDays*86400000)`, y se agregó
+   `windowEnd = order.orderDate + 1 día`. El filtro `timestamp` pasó de `{ gte: windowStart }`
+   a `{ gte: windowStart, lte: windowEnd }`.
+2. Query de IP-merge (relatedEvents): mismo cambio en el filtro `timestamp` (agregar `lte: windowEnd`).
+
+**Por qué:** la ventana estaba anclada a `now()`. En replay histórico (atribución retroactiva),
+la ventana `[now-Nd, now]` NO contenía el journey de órdenes viejas → `primaryEvents.length===0`
+→ return temprano sin crear atribución. Causa raíz de que la cobertura "no se recuperara"
+retroactivamente. Anclar a `orderDate` es además más correcto (touchpoints previos a la compra).
+Para real-time es equivalente (orderDate ≈ now).
+
+**Impacto medido:** día 05-23 pasó de 0 → 18/20 órdenes atribuidas. (Recuperación completa: ver ESTADO_SESION.)
+
+**Recuperación retroactiva CONVERGIDA (2026-06-11, branch, EMDJ, ventana 09-05→09-06):**
+drain por-día hasta convergencia (`scripts-tmp-replay-drain.cjs`, vía `/api/admin/replay-attribution`,
+excl. CANCELLED/PENDING/RETURNED + marketplace). Resultado: **4627/5374 = 86,1%** (baseline de arranque
+85,3% → +45 órdenes este run; +respecto al ~73% techo con la lógica vieja). **Convergido**: un sweep
+completo recuperó 0 nuevas. Las 747 restantes son irrecuperables retroactivamente — TODAS tienen email
+de customer (744/747) pero NO matchean a un pixel-visitor con journey reconstruible (atribución que solo
+existía en tiempo real: cookie/sesión/IP del momento de compra, ya perdida). El techo retroactivo real
+es 86,1%; subirlo más requiere el FIX ESTRUCTURAL (BP I1 / Parte B: que TODA ingesta corra
+`calculateAttribution` going-forward) — diferido al fundador.
+
+**Cómo revertir:** `cp ~/Documents/NitroSales-Diagnostico/attribution.ts.bak src/lib/pixel/attribution.ts`
+(o revertir los 2 bloques marcados con `FIX 2026-06-11`). tsc exit 0 con el cambio.
+
+**Pendiente de OK del fundador** antes de considerarlo para prod (es CORE-ATTRIBUTION).
+
+---
+
+## ✅ BP-I2 — `receivedAt` sin índice en endpoints user-facing del pixel — ARREGLADO 2026-06-11 (branch)
+
+**Bug** (BUGS_Y_ERRORES.md I2): `orderBy {receivedAt}` y `WHERE receivedAt >=` sobre `pixel_events`
+(~19M filas) en endpoints del pixel. `receivedAt` NO tiene índice → full scan/sort 60-76s → la
+página se cuelga o muestra $0. `timestamp` SÍ está indexado (`(orgId,type,timestamp)`, `(visitorId,
+timestamp)` + covering `(orgId,timestamp)` de esta sesión).
+
+**Arreglados esta sesión** (4 archivos, NO commiteado, branch prod-local-axel, tsc exit 0):
+- `src/app/api/me/nitropixel-recent-events/route.ts`
+- `src/app/api/connectors/route.ts`
+- `src/app/api/nitropixel/data-quality-score/route.ts` (getOrgMeasurementStart + 3 queries de rango)
+- `src/app/api/bondly/pulse/route.ts` (8 usos: first/last event, counts 24h/5m, 5m distinct, timeline 30d, live signals 60m)
+(Antes ya estaban `install-status` y `asset-stats` — commit c8bfb3d.)
+
+**Fix = swap `receivedAt` → `timestamp` (indexado) + GUARD anti-basura.** Verificado vía EXPLAIN:
+Index Only Scan, 43-639ms (era 60-76s). **Hallazgo clave durante el fix**: `timestamp` es client-provided
+y tiene datos corruptos (1978 y fechas futuras como 2026-07-02). Un swap "pelado" cambiaría "lento pero
+correcto" por "rápido pero muestra evento hace 0s / 48 años de datos". Por eso se acotó:
+`lte: now` (un evento no puede ocurrir en el futuro) + `PIXEL_FLOOR=2024-01-01` para first-event.
+Verificado post-guard: first=2026-01-06 (real, era 1978), last=2026-06-08 (real, era 2026-07-02),
+count 5m=0 (correcto, era 3 basura). `data-quality` ya estaba protegido por su clamp `max(FLOOR, first)`.
+
+**gstack:** /gstack-investigate (causa raíz) + /gstack-review (critical pass: SQL parametrizado OK,
+column-safety OK, time-window OK, type-coercion OK; sin findings críticos).
+
+**Pendiente relacionado (root cause, separado):** limpiar los `timestamp` basura en `pixel_events`
++ guard en el write-path del pixel (ya es ítem M-note). Estos fixes DEFIENDEN contra la basura;
+no la eliminan. Misma exposición latente quedó en `asset-stats`/`install-status` (ya shippeados):
+conviene agregarles el mismo `lte: now` cuando se toquen.
+
+---
+
+## ✅ BP-I3 — Hacks DEMO restantes en `/api/metrics/orders` — ARREGLADO 2026-06-11 (branch)
+
+**Bug** (BUGS_Y_ERRORES.md I3): 3 hacks demo que enmascaraban errores como $0 (gravísimo en
+plataforma de data). Backups: `~/Documents/NitroSales-Diagnostico/orders-route.ts.bak` + `db-client.ts.bak`.
+
+1. `orders/route.ts` `DEMO_GLOBAL_TIMEOUT_MS=15000` (race → mock vacío): **REMOVIDO**. Cortaba
+   consultas históricas legítimas (30/90d tardan 10-12s, podían superar 15s) y devolvía $0 con
+   200, anulando el retry del frontend. Ya hay resiliencia real: `maxDuration=120`,
+   `statement_timeout=25000` en DSN, `safeQuery()` per-query (fallback parcial), y el frontend
+   (`/orders` page.tsx) tiene timeout 45s + 3 reintentos en 5xx + setError.
+2. `orders/route.ts` `DEMO_MODE_MOCK_ON_ERROR=true` (catch → mock vacío 200): **REMOVIDO** → vuelve
+   a `500` real. El frontend ya estaba preparado (reintenta en 5xx, muestra error). Mostrar "$0
+   ventas" cuando falló la query es peor que mostrar el error.
+3. `db/client.ts` `connection_limit=24` "REVERTIR a 8": **relabeled, mantenido en 24** (NO revertido).
+   El "8" de REGLA #3b es previo al diseño de 14 queries en paralelo de orders y causaría pool
+   timeouts (que ahora saldrían como 500). Endpoint Neon -pooler → 24 lógicas seguras. Documentado.
+
+**Verificado**: tsc exit 0; orders devuelve data real (EMDJ 1-8 jun VTEX = 1.108 órdenes/$60,9M,
+sin `_demoMode`). `_demoMode`/`_timeoutMs` no se leen en ningún frontend (grep). 
+
+**gstack:** /gstack-investigate (mapeo de los 3 hacks + verificación de manejo de errores del
+frontend) + /gstack-review (critical pass sin findings).
+
+---
+
+## ✅ BP-I4 — Filtro de status inconsistente entre módulos — COMPLETO (2026-06-12, branch)
+
+> **DECISIONES DE TOMY (2026-06-11):** solo cuentan ventas confirmadas. **APPROVED SÍ cuenta**
+> (pago aprobado = venta real). **RETURNED siempre se excluye.** **PENDING nunca cuenta.**
+> → Alinear TODO al helper canónico `ordersValidWhere()` = `NOT IN (CANCELLED,PENDING,RETURNED)
+> AND totalValue>0`. Por tandas chicas con verificación de números antes/después por módulo.
+>
+> **Tandas (numeros = EMDJ, branch):**
+> - ✅ **Tanda A — `metrics/pnl`** (13 filtros `$queryRaw` → `ordersValidWhere("o")`). 2026-06-11.
+>   May1-Jun9: 19.255→19.253 ord, $768.606.680→$768.457.539 (Δ -2 ord/-$149k por PENDING; 0 por totalValue). tsc OK. Backup `pnl-route.ts.bak`.
+> - ✅ **Tanda B — `metrics/products` (6) + `metrics/customers` (10, $queryRawUnsafe→`ordersValidSql`) + `metrics/analytics` (3)**.
+>   Helper extendido: `ordersValidWhere`/`ordersValidSql` ahora soportan alias vacío ("") para `FROM orders`. Δ EMDJ 30d -2 ord/-$149k, 90d -5 ord/-$207k. tsc OK.
+> - ✅ **Tanda C — `metrics/pixel` (20, CORE, backup) + `metrics/conversion` (3)**. Sumaron RETURNED
+>   (antes solo excluían CANCELLED,PENDING) → canónico. Δ EMDJ 30d 0, 90d -33 ord/-$845k (RETURNED). tsc OK.
+> - ✅ **Tanda D — `metrics/top` (5) + `metrics/trends` (1) + `metrics/route.ts` (1)** ($queryRawUnsafe→`ordersValidSql`).
+>   `IN (INVOICED,SHIPPED,DELIVERED)` → canónico (SUMA APPROVED). **Δ EMDJ 30d +327 ord/+$11,0M, 90d +518 ord/+$21,1M.**
+>   Arregla incoherencia: estas vistas mostraban MENOS revenue que el dashboard principal (que ya contaba APPROVED). tsc OK.
+> - ✅ **Tanda E — bondly/* (5)**: pulse, ltv-insights, churn-risk (tagged) + clientes, clientes/[id] (unsafe, alias o/o2). Δ PENDING (~-2/-5 ord). tsc OK.
+> - ✅ **Tanda F — finanzas/pulso + finance/shipping-rates/carriers + /calculate (3)** (tagged). tsc OK.
+> - ✅ **Tanda G — cron/digest + cron/anomalies (2)** (tagged). tsc OK.
+> - ✅ **Tanda H — ltv: prediction-engine + settings/ltv (unsafe→`ordersValidSql`) + send-meta + send-google + fix-brands (Prisma `notIn`→canónico) (5)**. tsc OK.
+> - ✅ **Tanda I — alerts/primitives/orders + /finanzas (unsafe) + sync/reconcile (tagged) + admin/vtex-audit-all (5)**. tsc OK.
+>   (NO tocado en alerts/orders: `getPendingShipment` usa `IN ('APPROVED','INVOICED')` = filtro específico, no "orden válida".)
+> - ✅ **Extra (barrido final reveló subcontados)**: `metrics/ltv` (9), `metrics/distribution` (4, suma APPROVED), `health` (1 Prisma),
+>   `mercadolibre/dashboard:136` (1 Prisma), `metrics/orders` (7 sub-queries internas que excluían PENDING solo para MELI → canónico),
+>   `pixel/journeys` (1). tsc OK.
+>
+> **TOTAL: ~34 archivos, 134 call-sites** (78 `ordersValidWhere` + 56 `ordersValidSql`). Helper string nuevo `ordersValidSql()` +
+> soporte de alias vacío. **Una sola fuente de verdad** (genera del enum `ORDER_STATUS_NOT_CONCRETED`).
+>
+> **Verificación final:** tsc exit 0 · QA (/pixel 200 sin _demoMode; `ordersValidSql` ejecuta en 4 contextos: alias/sin-alias/CASE WHEN/o2;
+> orders headline intacto 1108/$60,9M) · CSO (134 call-sites con alias constante, cero input de usuario → sin inyección).
+> Backups CORE: pnl, pixel, conversion (.bak). Resto recuperable por git.
+>
+> **Δ NÚMEROS CLAVE (EMDJ):** PENDING excluido = mínimo (~-2/-5 ord, 0,01%). RETURNED en pixel/conversion = 90d -33 ord/-$845k.
+> **APPROVED sumado en top/trends/distribution = 30d +327 ord/+$11,0M, 90d +518 ord/+$21,1M** (arregla undercount vs dashboard principal).
+>
+> **Excluidos (intencional):** alerts `getPendingShipment` (IN APPROVED,INVOICED), finance/auto-costs (selecciona cancelled/returned),
+> admin/validate-orders-count + debug-* + replay-attribution + ml-diff-detail (tools de diagnóstico admin, no métricas mostradas),
+> mercadolibre/dashboard IN(CANCELLED,RETURNED) (métrica de cancelaciones), orders anti-join packs, ensure-coherence-indexes (partial idx),
+> y no-órdenes (claims MELI, jobs backfill, status de onboarding).
+
+
+
+**Bug** (BUGS_Y_ERRORES.md I4): la misma métrica de "ventas válidas" usa filtros de status
+distintos en distintos módulos → números incoherentes.
+
+**Hallazgo (investigate 2026-06-11)**: NO son 5 endpoints como decía BUGS — son **41 archivos**
+con filtros ad-hoc. Conteo por patrón:
+- `NOT IN (CANCELLED, RETURNED)` → **25 archivos** (dominante: bondly ×15, ltv, finanzas, products)
+- `NOT IN (CANCELLED, PENDING)` → 8 (conversion/debug)
+- `IN (INVOICED, SHIPPED, DELIVERED)` → 4 (metrics/trends, distribution)
+- `NOT IN (CANCELLED)` solo → 3
+- `NOT IN (CANCELLED, PENDING, RETURNED)` [= el helper canónico `ordersValidWhere`] → solo 3
+
+**Por qué NO se ejecutó autónomo (requiere decisión de negocio):**
+1. El helper canónico excluye PENDING, pero 25 archivos lo INCLUYEN. Unificar al canónico
+   **bajaría revenue/clientes** en LTV/Bondly/Finanzas/Products (sacaría PENDING). ¿PENDING
+   cuenta como venta válida? → decisión del dueño.
+2. `IN (INVOICED,SHIPPED,DELIVERED)` (trends/distribution) cuenta solo despachado; LTV maneja
+   RETURNED por su dominio. Algunas divergencias parecen intencionales, no bugs.
+3. Blast radius 41 archivos + cambia números visibles platform-wide → REGLA #3b (cada cambio SQL
+   con cuidado) y "coherencia > velocidad".
+
+**Decisión pendiente (para Tomy):** definir el set canónico de "venta válida" (¿PENDING cuenta?)
+y si distribution/LTV mantienen su semántica propia. Recomendación: (a) confirmar
+`ordersValidWhere = NOT IN (CANCELLED,PENDING,RETURNED)` como verdad para dashboards de
+revenue/órdenes; (b) migrar SOLO los módulos de revenue a ese helper en tandas chicas + verificar
+números antes/después por org; (c) dejar distribution/trends (`IN INVOICED/SHIPPED/DELIVERED`) y
+LTV como excepciones documentadas. NO hacer find-replace global.
+
+---
+
+## ✅ BP-I5 — avg_ticket por fila vs total_orders por packId — ARREGLADO 2026-06-11 (branch)
+
+**Bug** (BUGS_Y_ERRORES.md I5): `avg_ticket = AVG("totalValue")` promedia por FILA, pero
+`total_orders = COUNT(DISTINCT packId)` cuenta por PACK. Para packs MELI (N filas, 1 packId)
+divergen → ticket promedio incorrectamente bajo.
+
+**Hallazgo:** en `orders/route.ts` el avgTicket que se MUESTRA ya estaba correcto — se computa en
+JS como `totalRevenue / totalOrders` (L~1204, con comentario explicando el problema MELI). Las
+columnas SQL `AVG("totalValue") AS avg_ticket` de las queries #1 y #2 eran **dead code** (se
+seleccionaban pero NUNCA se leían en JS) y computaban el promedio buggy por fila.
+
+**Fix:** removidas las 2 columnas SQL `avg_ticket` + sus campos en el tipo TS, para que nadie las
+cablee por error pensando que son correctas. Verificado: tsc exit 0; avgTicket MELI = 45.132 =
+102.539.114,74 / 2.272 (revenue/orders, exacto). Sin cambio de número para el usuario.
+`bondly/clientes` usa `AVG` pero filtrado a `source='VTEX'` (1 fila/orden) → no tiene el bug.
+
+**gstack:** /gstack-investigate (traza de avg_ticket: dead code confirmado) + /gstack-review (sin findings).
+
+---
+
+## 🟢 Bugs menores (BUGS_Y_ERRORES.md) — estado 2026-06-11 (branch)
+
+- **✅ M4 — `Domain: "Marketplace"` en payload de reattribute-missing-vtex** — ARREGLADO.
+  Era un campo engañoso en el payload fabricado del webhook (son órdenes WEB, no marketplace).
+  Verificado: el webhook `webhooks/vtex/orders` NO referencia `Domain` (grep 0 refs) → removerlo
+  es cero cambio de comportamiento. Removido. tsc exit 0. (/gstack-investigate + /gstack-review).
+
+- **✅ M1 — Key hardcodeada → env var** — HECHO EN CÓDIGO (2026-06-11, branch). Migrados **89
+  archivos** + helper nuevo `src/lib/admin-key.ts` (lee `process.env.ADMIN_API_KEY`; fail-closed:
+  si la env no está, cae a un valor aleatorio por proceso → nunca acepta key vacía; CERO literal en
+  el código). `ADMIN_API_KEY` agregado al `.env` del branch. Verificado: `grep` = 0 ocurrencias del
+  literal en `src/`; tsc exit 0; key válida autentica (orders 200 con data), key inválida → 403;
+  todos los routes son Node runtime (crypto OK). Página cliente `control/preview/vtex-afiliado` →
+  placeholder (no se bundlea el secreto al browser). gstack: /gstack-cso (scan) + /gstack-review.
+
+  **⚠️ FALTA antes de prod (decisión/coordinación de Tomy):**
+  1. **Setear `ADMIN_API_KEY` en Vercel** ANTES de mergear. **Acople importante:** `vercel.json`
+     tiene 28 paths de cron con `?key=<literal>` (los crons SON los senders y vercel.json NO puede
+     usar env vars en el path). Por eso, hasta migrar los crons a `CRON_SECRET` (auth por header de
+     Vercel), `ADMIN_API_KEY` en prod **debe ser igual al literal actual** (no se puede rotar todavía).
+  2. **Rotar el secreto** requiere ANTES migrar `vercel.json` → `CRON_SECRET` (header `Authorization:
+     Bearer`). NO se hizo autónomo: cambia la AUTENTICACIÓN de TODOS los crons en prod, no se puede
+     verificar en local (Vercel inyecta el header solo en su runtime de cron) → riesgo alto. Es la
+     tanda siguiente, con OK de Tomy.
+  3. (Hygiene baja) docs históricos (CLAUDE_STATE.md, NEXT_SESSION_PROMPT.md) tienen URLs de ejemplo
+     con el literal — no funcional, opcional limpiar.
+
+- **🟢 M2 — `count()` sobre tablas grandes en endpoints admin** (admin/alertas, admin/clientes,
+  admin/clientes/[orgId], admin/compare-orgs-pixel) — BAJA PRIORIDAD, no tocado. Son admin-only y
+  de baja frecuencia; el costo no justifica el riesgo de tocar 4 endpoints ahora. Fix futuro:
+  cachear o usar estimaciones (o `findFirst` si alguno es chequeo de existencia, como section-status).
+
+- **🟢 M3 — Pill "Recalculando atribuciones" persiste unos segundos** (`/pixel` page.tsx) — NO
+  tocado (taste call). Es un debounce DELIBERADO ("minimum 800ms to avoid flash/glitch" + fade 0.4s)
+  para evitar parpadeo; la data ya está correcta debajo. Acortar el floor (600ms) reduciría el
+  lingering pero reintroduce riesgo de flash → decisión de UI/taste (requiere UI_VISION). Diferido.
+
+---
+
+## ✅ BP-I1 — Fix estructural de atribución (100% de ahora en adelante) — HECHO EN CÓDIGO (2026-06-11, branch)
+
+> **DECISIÓN DE TOMY:** garantizar que TODA orden web nueva se atribuya, entre por donde entre
+> (el cliente pidió 100% going-forward). Causa raíz: solo el webhook real-time corría
+> `calculateAttribution`; los demás caminos creaban órdenes sin atribuir.
+
+**Mapeo de los 3 caminos de ingesta (VTEX; MELI fuera de scope = marketplace sin journey):**
+| Camino | Estado previo | Acción |
+|---|---|---|
+| Webhook real-time (`webhooks/vtex/orders`) | ✅ ya atribuía | — |
+| Cron 30min (`vtex-sync-recent`→`trigger-vtex-sync`) | ✅ ya atribuía (proxia AL webhook) | — (verificado L118 POST a webhook) |
+| Cron diario / deep sync (`sync/vtex` createMany) | ❌ NO atribuía | ✅ cableado |
+| Backfill (`backfill/processors/vtex-processor`) | ❌ NO atribuía | ✅ cableado |
+
+**Implementado:**
+1. **Helper nuevo `src/lib/pixel/attribute-order-by-match.ts`**: matchea visitor (email → checkout-timing
+   ±3h) y corre `calculateAttribution`. Idempotente, excluye marketplace, guard de email (no pisa otro).
+   Lógica probada (= reconcile/replay; post-hoc no hay IP/teléfono, solo email — eso solo está en el payload live).
+2. **`sync/vtex`** (backup `sync-vtex-route.ts.bak`): loop de atribución post-enrich (secuencial, idempotente,
+   no-fatal), expone `attributed` en el response.
+3. **`backfill/vtex-processor`** (backup `vtex-processor.ts.bak`): atribución post-enrich, concurrency 5.
+4. **Cron de reconciliación nuevo `src/app/api/cron/attribution-reconcile`**: red de seguridad — barre
+   órdenes web sin NITRO de los últimos N días (default 3) y las atribuye. limit default 40 (~240s < maxDuration).
+   Cubre el race "webhook llegó antes que el visitor". Auth env-driven (ADMIN_API_KEY/NEXTAUTH_SECRET).
+
+**TEST CLAVE (paso pedido por Tomy) ✅:** orden web creada por el camino cron (forma de `sync/vtex`) para
+un cliente EMDJ con journey → quedó atribuida NITRO, strategy=email, 10 touchpoints, attributedValue=99999.
+Data de test limpiada. Endpoint de test temporal borrado.
+
+**gstack:** /gstack-investigate (mapeo de caminos + matching) · /gstack-review (helper + sync/vtex + backfill) ·
+/gstack-health tras cada cableado (tsc exit 0) · /gstack-cso (cron: auth + SQL parametrizado, sin findings).
+
+**Perf nota:** `calculateAttribution` ~6s/orden; el cron procesa hasta 40/corrida. Candidate query optimizada
+(enum sin cast: 476ms→91ms). En steady-state hay pocas candidatas; el backlog histórico lo drena el replay.
+
+**FALTA antes de prod (Tomy):** agregar la entrada de `attribution-reconcile` en `vercel.json` (schedule)
+— diferido junto con la migración de crons a `CRON_SECRET` (BP-M1). Sin esa entrada, el cron es invocable
+manual pero no corre programado. Los caminos sync/vtex + backfill + webhook ya atribuyen sin depender del cron.
+
+---
+
+## ✅ BP-ROLLUPS-001 — Endpoint admin para crear los rollups HLL del pixel en prod — HECHO EN CÓDIGO (2026-06-12, branch)
+
+> **BLOCKER #1 del deploy resuelto.** La Fase 2 del pixel (`/api/metrics/pixel`, perf 72s→2s) lee 7 tablas
+> rollup + la extensión `hll`. Esas tablas se crearon SOLO en la DB del branch con los scripts
+> `scripts/p2*.cjs`; prod NO las tiene → sin esto `/pixel/analytics` sale en $0. No había endpoint en el
+> repo para crearlas en prod. Ahora sí.
+
+**Archivo nuevo:** `src/app/api/admin/setup-pixel-rollups/route.ts`. Porta los scripts validados
+(`p2-setup` + `p2-backfill2` + `p2b-backfill` + `p2b-reprecision`) a un endpoint resumible y serverless-safe.
+
+**Contrato de diseño:**
+- **Idempotente:** `CREATE … IF NOT EXISTS` + `ON CONFLICT DO UPDATE`. SIN `TRUNCATE` (los scripts truncaban;
+  acá no, para no destruir data si una corrida se corta a la mitad). Fuente append-only → re-correr converge
+  a los mismos valores HLL. Correrlo dos veces NO rompe nada.
+- **No bloquea la DB:** cada chunk es un `INSERT…SELECT` de UN día sobre `pixel_events` (MVCC → leer no
+  bloquea los writes del pixel en tiempo real; el único lock es sobre las filas del rollup, tablas nuevas
+  sin lectores). No hace falta `CONCURRENTLY`.
+- **Resumible (no choca contra maxDuration):** cada POST procesa hasta 250s y devuelve un cursor; el caller
+  repite hasta `done:true`. Si un día/org falla, devuelve el cursor exacto de reanudación + URL `resume`.
+
+**Fases (POST muta, GET solo lee):**
+| Fase | Qué hace |
+|---|---|
+| `POST ?phase=schema` | `CREATE EXTENSION hll` + las 7 tablas. Rápido. |
+| `POST ?phase=first-source` | Rebuild de `pixel_visitor_first_source` (first-touch por visitante). Resumible por org (`orgCursor`). |
+| `POST ?phase=backfill` | Rollups diarios (aggregates/device/type/page/product/source). Resumible por día (`cursor=fecha`). |
+| `GET ?phase=status` | Counts + cobertura (min/max día) por tabla. Read-only. |
+
+**Orden obligatorio:** schema → first-source → backfill (el rollup `source` JOINea la dimensión first-source;
+hay guard que aborta el backfill con 409 si la dimensión está vacía).
+
+**Precisión HLL (consistente con el estado final del branch):** aggregates/device/page/product = `14,5`;
+type/source = `16,5` (post-reprecision). Coincide con lo que lee el route vía `hll_union_agg`.
+
+**gstack:** /gstack-review (2 findings INFORMATIONAL auto-fixed: reanudación-on-error en first-source y backfill;
+SQL safety / idempotencia / no-bloqueo / precisión = PASS; quality 9.5/10) · /gstack-cso (scope auth+inyección+
+exposición+DoS: 0 findings sobre el gate 8/10 — inputs parametrizados/validados con `isYmd`, auth fail-closed
+`isValidAdminKey`, POST-muta/GET-lee, sin CSRF por usar `?key=` no-cookie). tsc exit 0.
+
+**Cómo correrlo en prod:** ver `~/Documents/NitroSales-Diagnostico/LISTO_PARA_DEPLOY.md` §3 (paso 0-2).
+Resumen: `schema` (1 call) → `first-source` (repetir con `orgCursor` hasta done) → `backfill` (repetir con
+`cursor` hasta done) → verificar con `GET ?phase=status`. Idempotente: si algo se corta, se reanuda con el
+cursor devuelto.
+
+**Deuda heredada (no de este archivo, ya trackeada en BP-M1):** auth por `?key=` en query string y
+`e.message`/`e.stack` en respuestas de error — mismo patrón que `ensure-coherence-indexes`, detrás de auth
+admin. Se migra a `CRON_SECRET` por header en la tanda de BP-M1.
+
+**ACTUALIZACIÓN 2026-06-12 (QA exhaustivo pre-deploy) — 2 BUGS ENCONTRADOS Y CORREGIDOS:**
+1. **Bracket UTC demasiado ajustado (undercount ~14%).** `tsHi` estaba en `addDays(d,1)` (= `dHi`, sin
+   generosidad). Como AR=UTC-3, los eventos de la NOCHE AR del día `d` caen en UTC `[d+1 00:00Z, d+1 03:00Z]`
+   y se perdían. Fix: `tsHi = addDays(dHi, 1)` (= `addDays(d,2)`), igual que los scripts. Verificado:
+   `total_events` del 06-06 pasó de 74.114 (buggy) → **86.290 (= valor original de los scripts, exacto)**.
+2. **All-orgs-en-un-statement rompía el índice (442s/día → seq-scan de 19M).** Procesaba todas las orgs sin
+   `"organizationId"=$1`, así que no usaba el índice `(organizationId, timestamp)`. Fix: iterar **por org**
+   (como los scripts) → cada statement usa el índice. Bajó de **442s/día → ~13-20s/día** (branch throttleado;
+   ~1-2s/día en prod). Además: `globalRange` ahora hace MIN/MAX sobre `timestamp` crudo (índice, no seq-scan
+   funcional) y la lista de orgs sale de `pixel_visitors`/`pixel_visitor_first_source` (índice) en vez de
+   `pixel_events` (19M) → overhead fijo por llamada de ~90s → ~11s throttleado.
+
+**QA del endpoint (todo verificado en vivo contra el branch DB):** schema idempotente ×2 · status OK ·
+first-source resumible por org (total 1.685.833 preservado = idempotente) · backfill día único (valor ==
+original), ventana, cursor de reanudación (skip de días previos), idempotente ×2 · auth fail-closed (403 sin/mal/
+vacía key). tsc exit 0 · `next build` exit 0 · re-pasó /gstack-review + /gstack-cso conceptual sobre la versión final.

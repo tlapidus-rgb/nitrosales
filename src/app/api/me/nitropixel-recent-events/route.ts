@@ -20,9 +20,15 @@ export async function GET() {
     const orgId = (session as any)?.user?.organizationId;
     if (!orgId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
+    // PERF: ordenar por `timestamp` (indexado) en vez de `receivedAt` (SIN índice).
+    // Sobre orgs con millones de eventos, orderBy receivedAt hace full scan+sort (~60-76s)
+    // y cuelga la tabla de eventos recientes. timestamp usa el índice. Mismo fix que
+    // install-status / asset-stats (commit c8bfb3d). La key `receivedAt` del response se
+    // mantiene (el frontend la usa); ahora la alimenta `timestamp` (mismo significado práctico).
     const events = await prisma.pixelEvent.findMany({
-      where: { organizationId: orgId },
-      orderBy: { receivedAt: "desc" },
+      // lte: now → no flota al tope un evento con `timestamp` futuro basura (data corrupta conocida).
+      where: { organizationId: orgId, timestamp: { lte: new Date() } },
+      orderBy: { timestamp: "desc" },
       take: 10,
       select: {
         id: true,
@@ -30,7 +36,7 @@ export async function GET() {
         pageUrl: true,
         deviceType: true,
         country: true,
-        receivedAt: true,
+        timestamp: true,
       },
     });
 
@@ -42,7 +48,7 @@ export async function GET() {
         pageUrl: e.pageUrl,
         deviceType: e.deviceType,
         country: e.country,
-        receivedAt: e.receivedAt?.toISOString() || null,
+        receivedAt: e.timestamp?.toISOString() || null,
       })),
     });
   } catch (err: any) {

@@ -723,7 +723,7 @@ export default function AnalyticsPage() {
               label: "Ordenes Atribuidas", value: fmt(Math.round(ordersCountUp)),
               detail: bk ? `Ticket promedio: ${fmtCompact(bk.aov || 0)}` : "",
               change: bk?.changes?.ordersAttributed || 0,
-              tooltip: "Cantidad de órdenes web que el pixel pudo seguir hasta saber de qué canal vinieron. Ticket promedio = revenue atribuido dividido entre estas órdenes.",
+              tooltip: "Cantidad de órdenes web (del módulo Pedidos) que el pixel pudo seguir hasta saber de qué canal vinieron. Coincide ~98% con las órdenes web de Pedidos. OJO: es distinto a la etapa 'Compra' del Funnel — esa cuenta visitantes que dispararon el evento de compra del pixel (client-side) y suele ser menor, porque hay compras reales que no disparan el evento (bloqueadores, checkout server-side) pero igual se atribuyen, y porque un comprador repetido cuenta como 1 visitante en el funnel pero varias órdenes acá. Ticket promedio = revenue atribuido dividido entre estas órdenes.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>),
               gradient: "from-emerald-500 to-teal-600",
             },
@@ -1086,7 +1086,7 @@ export default function AnalyticsPage() {
             <div className="mb-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <h2 className="text-sm font-semibold text-gray-900">Funnel de Conversión</h2>
-                <InfoTip text="El funnel completo se cuenta por FIRST-TOUCH del visitor en el periodo (canal por el que entro por primera vez). Cuando filtras por un canal, ves solo a los visitors que arrancaron su journey por ese canal y como avanzaron etapa por etapa. La tabla Conversion por Canal usa la MISMA definicion (first-touch) y va a mostrar numeros consistentes con este funnel." />
+                <InfoTip text="El funnel completo se cuenta por FIRST-TOUCH del visitor en el periodo (canal por el que entro por primera vez). Cuando filtras por un canal, ves solo a los visitors que arrancaron su journey por ese canal y como avanzaron etapa por etapa. La tabla Conversion por Canal usa la MISMA definicion (first-touch) y va a mostrar numeros consistentes con este funnel. OJO con la etapa 'Compra': cuenta VISITANTES que dispararon el evento de compra del pixel (client-side), no órdenes. Suele ser MENOR que 'Órdenes Atribuidas' de los KPIs porque (1) ~15-20% de las compras reales no disparan el evento del pixel (bloqueadores, cierre de pestaña, checkout server-side) pero igual se atribuyen por email, y (2) un cliente que compra 2 veces cuenta como 1 visitante acá pero 2 órdenes en los KPIs. 'Órdenes Atribuidas' coincide ~98% con las órdenes web del módulo Pedidos; el funnel mide el evento del pixel. Las dos métricas son correctas, miden cosas distintas." />
               </div>
               <p className="text-[11px] text-gray-400">
                 {funnelChannel === "all"

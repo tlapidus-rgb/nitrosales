@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import { ordersValidSql } from "@/lib/metrics/orders";
 import type { PrimitiveDefinition, EvaluationContext, EvaluationResult } from "./types";
 
 // Helper: obtiene el cash override del mes actual (o 0 si no hay)
@@ -30,7 +31,7 @@ async function getBurnRate30d(orgId: string): Promise<number> {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400 * 1000);
     const revRows = await prisma.$queryRawUnsafe<Array<{ total: string }>>(
       `SELECT COALESCE(SUM("totalValue"), 0)::text AS total FROM "orders"
-       WHERE "organizationId" = $1 AND "orderDate" >= $2 AND "status" NOT IN ('CANCELLED')`,
+       WHERE "organizationId" = $1 AND "orderDate" >= $2 AND ${ordersValidSql("")}`,
       orgId,
       thirtyDaysAgo
     );
@@ -63,7 +64,7 @@ async function getRevenueInPeriod(
     const rows = await prisma.$queryRawUnsafe<Array<{ total: string }>>(
       `SELECT COALESCE(SUM("totalValue"), 0)::text AS total FROM "orders"
        WHERE "organizationId" = $1 AND "orderDate" >= $2 AND "orderDate" <= $3
-         AND "status" NOT IN ('CANCELLED')`,
+         AND ${ordersValidSql("")}`,
       orgId,
       fromDate,
       toDate

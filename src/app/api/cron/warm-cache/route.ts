@@ -2,26 +2,37 @@
 // ══════════════════════════════════════════════════════════════
 // GET /api/cron/warm-cache
 // ══════════════════════════════════════════════════════════════
-// Pre-calienta el cache de los endpoints pesados (/api/metrics/pixel
-// y /api/metrics/orders) para todas las orgs activas con los rangos
+// Pre-calienta el cache SWR de los endpoints pesados (/api/metrics/pixel
+// y /api/metrics/products) para todas las orgs activas con los rangos
 // más usados. Asi cuando el cliente abre el dashboard, siempre
 // encuentra cache fresh — nunca paga el costo completo de las queries.
 //
-// Trigger: Vercel Cron (configurado en vercel.json) cada 30 min.
+// Trigger: Vercel Cron (configurado en vercel.json) cada 5 min para
+// mantener el cache dentro del fresh window de api-cache (5 min).
 // Tambien se puede ejecutar manualmente:
 //   curl https://nitrosales.vercel.app/api/cron/warm-cache?key=...
 //
-// Volumen estimado: ~4 orgs activas × 4 rangos × 2 endpoints = 32
-// requests cada 30min = ~1500 requests/dia. Vercel free tier soporta.
+// ⚠️ ANTI-THUNDERING-HERD (2026-06-12): warmea SECUENCIALMENTE (1 fetch a la
+// vez). El SWR fue revertido una vez porque el warm-cron viejo hacia
+// `Promise.all(orgs.map(...))` = N orgs en paralelo × queries pesadas →
+// saturaba la DB (pool 24). Ahora es estrictamente secuencial: org → rango →
+// endpoint, uno por uno, con presupuesto de tiempo. Toca cada key; el SWR se
+// encarga de refrescar las stale en background.
+//
+// ⚠️ LIMITACIÓN SERVERLESS: el cache de api-cache es in-memory POR INSTANCIA.
+// El self-fetch calienta la instancia que atienda el request (no siempre la del
+// cron). Para tráfico bajo Vercel reusa pocas instancias calientes, así que en
+// la práctica ayuda. Solución multi-instancia completa = cache compartido (KV).
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — warm de N orgs puede tardar
 
-const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
+const WARM_CACHE_KEY = ADMIN_API_KEY;
 
 // Rangos comunes que precalentamos para cada org.
 // Formato: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }
@@ -81,53 +92,51 @@ export async function GET(req: NextRequest) {
       error?: string;
     }> = [];
 
-    // Endpoints a precalentar
+    // Endpoints PESADOS con SWR a precalentar. (orders/pnl/customers son <1s, no
+    // necesitan warm; products es el más caro junto con pixel.)
     const endpoints = [
       "/api/metrics/pixel",
-      "/api/metrics/orders",
+      "/api/metrics/products",
     ];
 
-    // Paralelizar por org (cada org tiene sus rangos secuenciales para
-    // no saturar la DB con 4×2 queries simultaneas).
-    await Promise.all(
-      activeOrgs.map(async (org) => {
-        for (const range of ranges) {
-          for (const endpoint of endpoints) {
-            const start = Date.now();
-            const target = `${baseUrl}${endpoint}?orgId=${encodeURIComponent(
-              org.id
-            )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}`;
-            try {
-              const r = await fetch(target, {
-                method: "GET",
-                cache: "no-store",
-                // Forzar cache miss para que ejecute las queries y guarde fresh
-                headers: { "x-skip-cache": "1" },
-              });
-              results.push({
-                orgId: org.id,
-                orgName: org.name,
-                endpoint,
-                range: range.label,
-                ms: Date.now() - start,
-                ok: r.ok,
-                error: r.ok ? undefined : `status ${r.status}`,
-              });
-            } catch (e: any) {
-              results.push({
-                orgId: org.id,
-                orgName: org.name,
-                endpoint,
-                range: range.label,
-                ms: Date.now() - start,
-                ok: false,
-                error: e.message?.slice(0, 100),
-              });
-            }
+    // SECUENCIAL: org → rango → endpoint, un fetch a la vez (anti-herd).
+    // Presupuesto de tiempo para no chocar contra maxDuration.
+    const startedAt = Date.now();
+    const TIME_BUDGET_MS = 270_000;
+    let budgetHit = false;
+    outer: for (const org of activeOrgs) {
+      for (const range of ranges) {
+        for (const endpoint of endpoints) {
+          if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break outer; }
+          const start = Date.now();
+          const target = `${baseUrl}${endpoint}?orgId=${encodeURIComponent(
+            org.id
+          )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}`;
+          try {
+            const r = await fetch(target, { method: "GET", cache: "no-store" });
+            results.push({
+              orgId: org.id,
+              orgName: org.name,
+              endpoint,
+              range: range.label,
+              ms: Date.now() - start,
+              ok: r.ok,
+              error: r.ok ? undefined : `status ${r.status}`,
+            });
+          } catch (e: any) {
+            results.push({
+              orgId: org.id,
+              orgName: org.name,
+              endpoint,
+              range: range.label,
+              ms: Date.now() - start,
+              ok: false,
+              error: e.message?.slice(0, 100),
+            });
           }
         }
-      })
-    );
+      }
+    }
 
     const totalOk = results.filter((r) => r.ok).length;
     const totalFail = results.filter((r) => !r.ok).length;
@@ -143,6 +152,8 @@ export async function GET(req: NextRequest) {
       ok_count: totalOk,
       fail_count: totalFail,
       avgMs,
+      budgetHit,
+      totalMs: Date.now() - startedAt,
       results,
     });
   } catch (err: any) {

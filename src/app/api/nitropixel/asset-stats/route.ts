@@ -84,9 +84,7 @@ export async function GET() {
 
     // Conteos paralelos
     const [
-      totalEvents,
-      totalVisitors,
-      identifiedVisitors,
+      rollupAgg,
       eventsLast24h,
       eventsLast7d,
       firstEvent,
@@ -95,21 +93,37 @@ export async function GET() {
       timelineRows,
       topSourcesRows,
     ] = await Promise.all([
-      prisma.pixelEvent.count({ where: { organizationId: orgId } }),
-      prisma.pixelVisitor.count({ where: { organizationId: orgId } }),
-      prisma.pixelVisitor.count({
-        where: { organizationId: orgId, email: { not: null } },
+      // PERF (2026-06-12, BP-PERF-ASSET): los totales all-time hacían COUNT(*) sobre
+      // ~11,6M pixel_events + COUNT sobre ~932K pixel_visitors → ~37s en orgs grandes,
+      // colgaba la página /nitropixel. Ahora salen del rollup `pixel_daily_aggregates`
+      // (Fase 2): SUM de eventos + HLL de visitantes/identificados únicos. Es una lectura
+      // de ~decenas de filas en vez de millones. Bonus: usa los MISMOS rollups que el
+      // dashboard /pixel → los números quedan CONSISTENTES entre páginas. Excluye eventos
+      // sintéticos de webhook (mejora de correctitud, igual que la Fase 2 del pixel route).
+      prisma.$queryRaw<Array<{ total_events: bigint; visitors: number; identified: number }>>`
+        SELECT
+          COALESCE(SUM(total_events), 0)::bigint AS total_events,
+          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int AS visitors,
+          COALESCE(hll_cardinality(hll_union_agg(identify_visitors_hll)), 0)::int AS identified
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${orgId}
+      `,
+      // PERF: filtrar/ordenar por `timestamp` (indexado) en vez de `receivedAt`
+      // (SIN índice). Sobre orgs con millones de eventos cada query por receivedAt
+      // hacía full scan (~60-66s medido) → el endpoint colgaba y la página Asset
+      // mostraba $0. `timestamp` usa el índice (orgId, timestamp). Mismo fix que
+      // install-status / commit c8bfb3d. `timestamp` es además la columna canónica
+      // de tiempo de evento usada por el resto del dashboard (rollups Fase 2).
+      prisma.pixelEvent.count({
+        where: { organizationId: orgId, timestamp: { gte: ago24h } },
       }),
       prisma.pixelEvent.count({
-        where: { organizationId: orgId, receivedAt: { gte: ago24h } },
-      }),
-      prisma.pixelEvent.count({
-        where: { organizationId: orgId, receivedAt: { gte: ago7d } },
+        where: { organizationId: orgId, timestamp: { gte: ago7d } },
       }),
       prisma.pixelEvent.findFirst({
         where: { organizationId: orgId },
-        orderBy: { receivedAt: "asc" },
-        select: { receivedAt: true },
+        orderBy: { timestamp: "asc" },
+        select: { timestamp: true },
       }),
       prisma.pixelAttribution.aggregate({
         where: { organizationId: orgId, model: "NITRO" },
@@ -117,24 +131,25 @@ export async function GET() {
       }),
       prisma.pixelEvent.findMany({
         where: { organizationId: orgId },
-        orderBy: { receivedAt: "desc" },
+        orderBy: { timestamp: "desc" },
         take: 10,
         select: {
           id: true,
           type: true,
           pageUrl: true,
-          receivedAt: true,
+          timestamp: true,
           country: true,
           deviceType: true,
         },
       }),
-      // Eventos por día últimos 30 días (raw query para agrupar por fecha)
+      // Eventos por día últimos 30 días — PERF (2026-06-12): desde el rollup
+      // `pixel_daily_aggregates` (day, total_events) en vez de date_trunc+COUNT sobre
+      // ~1-2M eventos crudos (2,6s → ~10ms). Grano diario AR, consistente con los totales.
       prisma.$queryRaw<Array<{ day: Date; count: bigint }>>`
-        SELECT date_trunc('day', "receivedAt") AS day, COUNT(*)::bigint AS count
-        FROM pixel_events
+        SELECT day::timestamp AS day, total_events::bigint AS count
+        FROM pixel_daily_aggregates
         WHERE "organizationId" = ${orgId}
-          AND "receivedAt" >= ${ago30d}
-        GROUP BY day
+          AND day >= (${ago30d} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         ORDER BY day ASC
       `,
       // Top sources de los últimos 7 días desde utmParams.source
@@ -142,17 +157,22 @@ export async function GET() {
         SELECT COALESCE("utmParams"->>'source', 'direct') AS source, COUNT(*)::bigint AS count
         FROM pixel_events
         WHERE "organizationId" = ${orgId}
-          AND "receivedAt" >= ${ago7d}
+          AND "timestamp" >= ${ago7d}
         GROUP BY source
         ORDER BY count DESC
         LIMIT 5
       `,
     ]);
 
+    // Totales all-time desde el rollup (ver nota PERF arriba).
+    const totalEvents = Number(rollupAgg[0]?.total_events ?? 0);
+    const totalVisitors = Number(rollupAgg[0]?.visitors ?? 0);
+    const identifiedVisitors = Number(rollupAgg[0]?.identified ?? 0);
+
     const attributedRevenue = Number(attributedAgg._sum.attributedValue ?? 0);
 
     const daysAlive = firstEvent
-      ? Math.max(1, Math.floor((now.getTime() - firstEvent.receivedAt.getTime()) / MS_DAY))
+      ? Math.max(1, Math.floor((now.getTime() - firstEvent.timestamp.getTime()) / MS_DAY))
       : 0;
 
     const level = computeLevel(totalEvents, identifiedVisitors, attributedRevenue);
@@ -190,13 +210,15 @@ export async function GET() {
         level,
         stage,
         estimatedAssetValueUsd,
-        firstSeenAt: firstEvent?.receivedAt ?? null,
+        firstSeenAt: firstEvent?.timestamp ?? null,
       },
       last10Events: last10Events.map((e) => ({
         id: e.id,
         type: e.type,
         pageUrl: e.pageUrl,
-        receivedAt: e.receivedAt,
+        // Mantiene la key `receivedAt` del response (el frontend la usa en timeAgo);
+        // ahora la alimenta `timestamp` (indexado). Mismo significado práctico.
+        receivedAt: e.timestamp,
         country: e.country,
         deviceType: e.deviceType,
       })),

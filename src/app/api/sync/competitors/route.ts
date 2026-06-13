@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 // Auth: key query param
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { scrapeProductPrice } from "@/lib/connectors/competitor-scraper";
@@ -16,7 +17,7 @@ import { scrapeProductPrice } from "@/lib/connectors/competitor-scraper";
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const CRON_KEY = process.env.CRON_SECRET || "nitrosales-secret-key-2024-production";
+const CRON_KEY = process.env.CRON_SECRET || ADMIN_API_KEY;
 const MAX_RUNTIME_MS = 50000; // 50s safety margin for Vercel
 const DELAY_BETWEEN_SAME_DOMAIN = 1500; // 1.5s rate limit per domain
 

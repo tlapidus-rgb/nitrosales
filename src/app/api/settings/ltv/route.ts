@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidSql } from "@/lib/metrics/orders";
 
 const DEFAULT_LOW = 25000;
 const DEFAULT_MED = 100000;
@@ -41,7 +42,7 @@ export async function GET() {
         SELECT "customerId", SUM("totalValue") AS total_spent
         FROM orders
         WHERE "organizationId" = $1
-          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidSql("")}
           AND "customerId" IS NOT NULL
           AND source != 'MELI'
         GROUP BY "customerId"

@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 // Trae datos de Search Console, guarda en seo_query_daily + seo_page_daily
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     // ── Auth ──
     const { searchParams } = new URL(request.url);
     const key = searchParams.get("key");
-    if (key !== process.env.SYNC_SECRET_KEY && key !== "nitrosales-secret-key-2024-production") {
+    if (key !== process.env.SYNC_SECRET_KEY && key !== ADMIN_API_KEY) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

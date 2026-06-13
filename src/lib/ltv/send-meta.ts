@@ -130,7 +130,7 @@ export async function sendPredictedLtvToMeta(
       where: {
         customerId,
         organizationId: orgId,
-        status: { notIn: ["CANCELLED", "RETURNED"] },
+        status: { notIn: ["CANCELLED", "PENDING", "RETURNED"] }, // canónico (BP-I4)
         source: { not: "MELI" },
       },
       orderBy: { orderDate: "asc" },

@@ -11,6 +11,7 @@
 // Solo internal users (isInternalUser).
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -83,7 +84,7 @@ export async function POST(
           const vtexConfig = await getVtexConfig(ob.createdOrgId);
           const account = vtexConfig.creds.accountName;
           const baseUrl = "https://nitrosales.vercel.app";
-          const secret = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+          const secret = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
           const hookUrl =
             `${baseUrl}/api/webhooks/vtex/orders` +
             `?key=${encodeURIComponent(secret)}` +

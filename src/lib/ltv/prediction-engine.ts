@@ -18,6 +18,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import { ordersValidSql } from "@/lib/metrics/orders";
 
 export interface BatchPredictionResult {
   totalCustomers: number;
@@ -89,7 +90,7 @@ export async function runBatchPrediction(
         END AS avg_days_between
       FROM orders o
       WHERE o."organizationId" = $1
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidSql("o")}
         AND o."customerId" IS NOT NULL
         AND o."source" != 'MELI'
       GROUP BY o."customerId"
@@ -120,7 +121,7 @@ export async function runBatchPrediction(
       FROM orders o
       LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa.model = 'LAST_CLICK'
       WHERE o."organizationId" = $1
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidSql("o")}
         AND o."customerId" IS NOT NULL
       ORDER BY o."customerId", o."orderDate" ASC
     ),

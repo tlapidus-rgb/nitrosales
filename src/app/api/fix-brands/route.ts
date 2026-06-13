@@ -424,7 +424,7 @@ export async function GET(request: NextRequest) {
         order: {
           organizationId: ORG_ID,
           orderDate: { gte: ninetyDaysAgo },
-          status: { notIn: ["CANCELLED", "RETURNED"] },
+          status: { notIn: ["CANCELLED", "PENDING", "RETURNED"] }, // canónico (BP-I4)
         },
         product: {
           organizationId: ORG_ID,
@@ -512,7 +512,7 @@ export async function GET(request: NextRequest) {
         order: {
           organizationId: ORG_ID,
           orderDate: { gte: ninetyDaysAgo },
-          status: { notIn: ["CANCELLED", "RETURNED"] },
+          status: { notIn: ["CANCELLED", "PENDING", "RETURNED"] }, // canónico (BP-I4)
         },
         product: {
           organizationId: ORG_ID,

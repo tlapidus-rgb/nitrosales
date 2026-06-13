@@ -16,6 +16,7 @@
 // Devuelve { processed, updated, hasMore } para retomar.
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -27,7 +28,7 @@ import { waitUntil } from "@vercel/functions";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 const CONCURRENCY = 6;
 const BATCH_SIZE = 500;            // por iteracion interna
 const TIME_BUDGET_MS = 240_000;    // 4 min de las 5 max — deja 1 min para waitUntil + cleanup

@@ -10,12 +10,13 @@
 // GET (sin metodo PUT/DELETE) /api/admin/vtex-configure-broadcaster?key=Y&orgSlug=teve&dryRun=1
 //   Dry-run: arma el payload pero no lo envia. Solo lo devuelve para revision.
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 // Misma config que EMDJ tiene (verificado via GET /api/orders/hook/config)
 const BROADCASTER_FILTER_STATUSES = [

@@ -22,6 +22,7 @@ export const maxDuration = 30;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 import { getCached, setCache } from "@/lib/api-cache";
 
 interface RawTouchpoint {
@@ -163,7 +164,7 @@ export async function GET(request: NextRequest) {
       FROM orders o
       LEFT JOIN customers c ON c.id = o."customerId"
       WHERE o."organizationId" = ${orgId}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND ${ordersValidWhere("o")}
         AND o."totalValue" > 0
         AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         AND o.source IS DISTINCT FROM 'MELI'
@@ -172,7 +173,7 @@ export async function GET(request: NextRequest) {
           SELECT 1 FROM pixel_attributions pa
           WHERE pa."orderId" = o.id
         )
-      ORDER BY o."orderDate" DESC
+      ORDER BY o."orderDate" DESC, o."createdAt" DESC, o.id DESC
       LIMIT ${limit}
     `;
 

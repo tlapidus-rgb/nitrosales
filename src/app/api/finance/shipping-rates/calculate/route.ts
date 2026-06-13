@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function POST() {
       WHERE o."organizationId" = ${ORG_ID}
         AND o."postalCode" IS NOT NULL
         AND o."postalCode" != ''
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
     `;
     const totalWithCP = parseInt(ordersWithCP[0].count);
 
@@ -59,7 +60,7 @@ export async function POST() {
         AND sr."postalCodeTo" IS NULL
         AND o."postalCode" = sr."postalCodeFrom"
         AND o."postalCode" IS NOT NULL
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
         AND (
           (o."shippingCarrier" IS NOT NULL AND o."shippingCarrier" = sr.carrier AND o."shippingService" = sr."serviceType")
           OR
@@ -89,7 +90,7 @@ export async function POST() {
         WHERE o2."organizationId" = ${ORG_ID}
           AND o2."postalCode" IS NOT NULL
           AND o2."realShippingCost" IS NULL
-          AND o2.status NOT IN ('CANCELLED', 'RETURNED')
+          AND ${ordersValidWhere("o2")}
         ORDER BY o2.id, (LENGTH(sr."postalCodeTo") - LENGTH(sr."postalCodeFrom")) ASC
       ) sub
       WHERE o.id = sub.order_id
@@ -105,7 +106,7 @@ export async function POST() {
         AND o."postalCode" IS NOT NULL
         AND o."postalCode" != ''
         AND o."realShippingCost" IS NULL
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
     `;
     const unmatched = parseInt(unmatchedResult[0].count);
 

@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min for index creation
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export async function GET(req: NextRequest) {
   const key = req.nextUrl.searchParams.get("key");
-  if (key !== "nitrosales-secret-key-2024-production") {
+  if (key !== ADMIN_API_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

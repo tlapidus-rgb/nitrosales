@@ -26,6 +26,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 import { calculateCashRunway } from "@/lib/finanzas/runway";
 import { buildNarrative, buildAlerts } from "@/lib/finanzas/narrative";
 import type {
@@ -103,7 +104,7 @@ async function loadWindowTotals(params: {
       SELECT COALESCE(SUM(o."totalValue"), 0)::text as revenue
       FROM orders o
       WHERE o."organizationId" = ${orgId}
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
         AND o."orderDate" >= ${fromDate}
         AND o."orderDate" <= ${toDate}
     `,
@@ -115,7 +116,7 @@ async function loadWindowTotals(params: {
       INNER JOIN orders o ON oi."orderId" = o.id
       LEFT JOIN products p ON oi."productId" = p.id
       WHERE o."organizationId" = ${orgId}
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
         AND o."orderDate" >= ${fromDate}
         AND o."orderDate" <= ${toDate}
     `,
@@ -123,7 +124,7 @@ async function loadWindowTotals(params: {
       SELECT COALESCE(SUM(COALESCE(o."realShippingCost", o."shippingCost")), 0)::text as shipping
       FROM orders o
       WHERE o."organizationId" = ${orgId}
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND ${ordersValidWhere("o")}
         AND o."orderDate" >= ${fromDate}
         AND o."orderDate" <= ${toDate}
     `,
@@ -186,7 +187,7 @@ async function load24MonthRevenue(params: {
       COALESCE(SUM(o."totalValue"), 0)::text as revenue
     FROM orders o
     WHERE o."organizationId" = ${orgId}
-      AND o.status NOT IN ('CANCELLED', 'RETURNED')
+      AND ${ordersValidWhere("o")}
       AND o."orderDate" >= ${fromDate}
       AND o."orderDate" <= ${toDate}
     GROUP BY month

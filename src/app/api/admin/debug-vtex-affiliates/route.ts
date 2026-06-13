@@ -4,12 +4,13 @@
 // Cada afiliado tiene: id (3 letras), name, hookUrl, searchByAffiliateId, etc.
 // Comparar la config nos dice si TVC tiene el afiliado bien armado o no.
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {

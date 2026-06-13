@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
+import { ordersValidSql } from "@/lib/metrics/orders";
 import { getCached, setCache } from "@/lib/api-cache";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
         FROM orders
         WHERE "organizationId" = $1
           AND "orderDate" >= $2 AND "orderDate" < $3
-          AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')
+          AND ${ordersValidSql("")}
         GROUP BY day ORDER BY day`,
         org.id,
         from,

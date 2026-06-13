@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
+import { ordersValidSql } from "@/lib/metrics/orders";
 
 type Slice = { key: string; label: string; value: number; color?: string };
 
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
           FROM orders
           WHERE "organizationId" = $1
             AND "orderDate" >= $2 AND "orderDate" < $3
-            AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')
+            AND ${ordersValidSql("")}
           GROUP BY source
           ORDER BY SUM("totalValue") DESC NULLS LAST`,
           org.id, from, to
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
           LEFT JOIN products p ON p.id = oi."productId"
           WHERE o."organizationId" = $1
             AND o."orderDate" >= $2 AND o."orderDate" < $3
-            AND o.status IN ('INVOICED', 'SHIPPED', 'DELIVERED')
+            AND ${ordersValidSql("o")}
           GROUP BY p.category
           ORDER BY SUM(oi."totalPrice") DESC NULLS LAST
           LIMIT 8`,
@@ -136,7 +137,7 @@ export async function GET(request: Request) {
           FROM orders
           WHERE "organizationId" = $1
             AND "orderDate" >= $2 AND "orderDate" < $3
-            AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')
+            AND ${ordersValidSql("")}
           GROUP BY "deviceType"
           ORDER BY COUNT(*) DESC`,
           org.id, from, to
@@ -158,7 +159,7 @@ export async function GET(request: Request) {
           FROM orders
           WHERE "organizationId" = $1
             AND "orderDate" >= $2 AND "orderDate" < $3
-            AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')
+            AND ${ordersValidSql("")}
           GROUP BY "trafficSource"
           ORDER BY COUNT(*) DESC
           LIMIT 8`,

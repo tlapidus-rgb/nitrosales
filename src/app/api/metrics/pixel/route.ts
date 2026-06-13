@@ -14,47 +14,44 @@ export const dynamic = "force-dynamic";
 // Timezone: Argentina (UTC-3)
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getCachedSWR, setCache } from "@/lib/api-cache";
+import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { waitUntil } from "@vercel/functions";
+import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const revalidate = 0;
+// Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
+// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (25s) corta antes.
+export const maxDuration = 60;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// ── Materialized view refresh (at most every 60 min) ──
-let _lastMvRefresh = 0;
-const MV_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour
-
-async function maybeRefreshMaterializedView() {
-  const now = Date.now();
-  if (now - _lastMvRefresh < MV_REFRESH_INTERVAL) return;
-  _lastMvRefresh = now;
-  try {
-    await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY pixel_daily_summary');
-  } catch {
-    // Non-fatal — view may not exist or concurrent refresh not supported
-    try {
-      await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW pixel_daily_summary');
-    } catch { /* ignore */ }
-  }
-}
+// ══════════════════════════════════════════════════════════════
+// Cache del conteo all-time de eventos por org (ROOT CAUSE del crash).
+// La query #1 hacía COUNT(*) sobre TODA la historia de la org (11M+ filas)
+// en CADA request — ~60s server-side, independiente del rango. Eso solo
+// ya tiraba el endpoint. Ahora se cachea por 1h y se refresca en background
+// (no bloquea el response). Ver EXPLICACION_ERROR.txt.
+const _allTimeEventsCount = new Map<string, { count: number; at: number }>();
+// Guard de "refresh en vuelo" por org: el COUNT(*) all-time tarda y retiene una
+// conexión del pool. Sin este guard, varios requests concurrentes disparan varios
+// counts simultáneos y AGOTAN el pool (limit 24) → todo cae al mock. Con el guard,
+// a lo sumo 1 refresh por org a la vez.
+const _allTimeRefreshing = new Set<string>();
+const ALLTIME_COUNT_TTL = 60 * 60 * 1000; // 1 hora
 
 // Secret key para que el cron de warm-cache pueda llamar este endpoint
 // sin sesion. Mismo KEY que otros endpoints admin (ensure-coherence-indexes,
 // orders-truth, etc).
-const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
+const WARM_CACHE_KEY = ADMIN_API_KEY;
 
-// ══════════════════════════════════════════════════════════════
-// 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
-// ══════════════════════════════════════════════════════════════
-// Hard timeout global del endpoint. Si pasa los N ms sin responder,
-// retornamos mock vacio. Cubre el caso donde el endpoint se cuelga
-// SIN tirar excepcion (Vercel mata la funcion antes que el catch corra).
-//
-// REVERTIR: cambiar DEMO_GLOBAL_TIMEOUT_MS a 0 para deshabilitar.
-// ══════════════════════════════════════════════════════════════
-const DEMO_GLOBAL_TIMEOUT_MS = 10000;
+// Red de seguridad: si el endpoint no responde en N ms, devuelve un mock vacío en
+// vez de colgar la función (degradación graciosa, nunca un 500/cuelgue). Combinado
+// con maxDuration como techo duro de Vercel. Con los rollups de Fase 2 todos los
+// rangos responden muy por debajo de este techo; queda como red de seguridad.
+const GLOBAL_TIMEOUT_MS = 25000;
 
 function buildEmptyMockResponse() {
   const nowIso = new Date().toISOString();
@@ -81,11 +78,12 @@ function buildEmptyMockResponse() {
 }
 
 export async function GET(request: NextRequest) {
-  // 🚧 DEMO: race entre el endpoint real y un timeout global
-  if (DEMO_GLOBAL_TIMEOUT_MS > 0) {
+  // Red de seguridad: corre el handler contra un timeout global; si el handler no
+  // responde a tiempo, devuelve un mock vacío en vez de colgar (nunca 500/cuelgue).
+  if (GLOBAL_TIMEOUT_MS > 0) {
     const realPromise = (async () => realHandler(request))();
     const timeoutPromise = new Promise<NextResponse>((resolve) =>
-      setTimeout(() => resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: DEMO_GLOBAL_TIMEOUT_MS })), DEMO_GLOBAL_TIMEOUT_MS)
+      setTimeout(() => resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: GLOBAL_TIMEOUT_MS })), GLOBAL_TIMEOUT_MS)
     );
     return Promise.race([realPromise, timeoutPromise]);
   }
@@ -108,12 +106,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     }
     const ORG_ID = orgId;
 
-    // S60 EXT-2 BIS++++++++++++ — refresh DESHABILITADO. La vista
-    // pixel_daily_summary se intentaba refrescar cada 60 min pero NINGUNA
-    // de las 29 queries del endpoint la usa. Era trabajo desperdiciado.
-    // Cuando se implemente la Fase 2 (pixel_daily_aggregates) re-habilitar.
-    // maybeRefreshMaterializedView().catch(() => {});
-
     // ── Parse date range (defaults to last 7 days, Argentina timezone UTC-3) ──
     const now = new Date();
     const toParam = searchParams.get("to");
@@ -124,43 +116,23 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // queries c/u = 928 queries simultaneas cada 30 min). Volver al
     // cache simple `getCached` (fresh 5 min, despues miss).
     const cacheKey = [orgId, fromParam || "default", toParam || "default", "v7"];
-    const cached = getCachedSWR("pixel", ...cacheKey);
-    if (cached?.data && !cached.isStale) {
-      return NextResponse.json(cached.data);
-    }
 
-    let dateTo = toParam
+    // ── SWR real (2026-06-12, BP-PERF-DASHBOARD) ──────────────────────────────
+    // El compute completo (29 queries) vive en computeAndCache(). Cache-miss =
+    // bloqueante (SOLO la primera carga). Si hay data en cache (fresh O stale) se
+    // devuelve INSTANT; si está stale se dispara un refresh en background con
+    // waitUntil, protegido por lock anti-thundering-herd. Esto elimina la espera de
+    // ~17s que sufría el primer request tras expirar el fresh window de 5 min (antes,
+    // 'stale' caía al recompute BLOQUEANTE — el route nunca implementó el serve-stale).
+    // El lock por-key evita el problema que motivó el revert previo del SWR: aquel
+    // era el cron warm-cache disparando 32 fetches en paralelo; acá es 1 refresh por key.
+    const computeAndCache = async () => {
+    const dateTo = toParam
       ? new Date(toParam + "T23:59:59.999-03:00")
       : now;
-    let dateFrom = fromParam
+    const dateFrom = fromParam
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 7 * MS_PER_DAY);
-
-    // ══════════════════════════════════════════════════════════════
-    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
-    // ══════════════════════════════════════════════════════════════
-    // Si > 0, fuerza una ventana máxima de N días hacia atrás. Esto
-    // limita la cantidad de pixel_events que cada query del endpoint
-    // tiene que escanear (de millones a ~decenas de miles) y evita el
-    // 500 por timeout del pool de Prisma.
-    //
-    // Para REVERTIR (volver a comportamiento normal):
-    //   Cambiar la siguiente línea a:  const DEMO_FORCE_WINDOW_DAYS = 0;
-    //
-    // Para AJUSTAR (más datos o menos):
-    //   Subir o bajar el valor (ej 14 o 30 días).
-    // ══════════════════════════════════════════════════════════════
-    const DEMO_FORCE_WINDOW_DAYS = 1;
-    if (DEMO_FORCE_WINDOW_DAYS > 0) {
-      const demoFromMs = now.getTime() - DEMO_FORCE_WINDOW_DAYS * MS_PER_DAY;
-      if (dateFrom.getTime() < demoFromMs) {
-        dateFrom = new Date(demoFromMs);
-      }
-      // dateTo no puede ser futuro: lo cap al now si el cliente pidió más
-      if (dateTo.getTime() > now.getTime()) {
-        dateTo = now;
-      }
-    }
 
     // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();
@@ -255,103 +227,100 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // ── Comparacion de modelos: revenue por (model, source) ──
       attributionByModelChannelResult,
     ] = await Promise.all([
-      // 1. Live status
+      // 1. Live status — solo agregados index-friendly. Dos subqueries separadas:
+      //    - MAX(timestamp): index backward scan sobre (organizationId, timestamp) = instante.
+      //    - lastHourEvents: index-range sobre la última hora = barato (no escanea toda la historia).
+      //    El COUNT(*) all-time se removió de acá (contaba 11M+ filas = ~60s/request, root
+      //    cause del crash). Ahora viene del cache _allTimeEventsCount (ver abajo).
       prisma.$queryRaw`
         SELECT
-          MAX(timestamp) as "lastEventAt",
-          COUNT(*)::int as "totalEvents",
-          COUNT(*) FILTER (WHERE timestamp > NOW() - INTERVAL '1 hour')::int as "lastHourEvents"
-        FROM pixel_events
-        WHERE "organizationId" = ${ORG_ID}
-      ` as Promise<Array<{ lastEventAt: Date | null; totalEvents: number; lastHourEvents: number }>>,
+          (SELECT MAX(timestamp) FROM pixel_events WHERE "organizationId" = ${ORG_ID}) as "lastEventAt",
+          (SELECT COUNT(*)::int FROM pixel_events WHERE "organizationId" = ${ORG_ID} AND timestamp > NOW() - INTERVAL '1 hour') as "lastHourEvents"
+      ` as Promise<Array<{ lastEventAt: Date | null; lastHourEvents: number }>>,
 
-      // 2. Visitor KPIs (current period)
+      // 2. Visitor KPIs (current period) — FASE 2: lee del rollup pixel_daily_aggregates
+      //    (HLL ~0.8% error, pageviews exacto). Antes: COUNT(DISTINCT) sobre millones (~73s).
+      //    Nota: el rollup es webhook-filtrado (humanos), así que estos KPIs ahora excluyen
+      //    eventos de webhook (mejora de correctitud vs la versión cruda).
       prisma.$queryRaw`
         SELECT
-          COUNT(DISTINCT pe."visitorId")::int as "totalVisitors",
-          COUNT(DISTINCT pe."sessionId")::int as "totalSessions",
-          COUNT(*) FILTER (WHERE pe.type = 'PAGE_VIEW')::int as "totalPageViews",
-          COUNT(DISTINCT CASE WHEN pe.type = 'IDENTIFY' THEN pe."visitorId" END)::int as "identifiedVisitors",
-          COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "cartVisitors",
-          COUNT(DISTINCT CASE WHEN pe.type = 'PURCHASE' THEN pe."visitorId" END)::int as "purchaseVisitors"
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
+          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as "totalVisitors",
+          COALESCE(hll_cardinality(hll_union_agg(sessions_hll)), 0)::int as "totalSessions",
+          COALESCE(SUM(page_views), 0)::int as "totalPageViews",
+          COALESCE(hll_cardinality(hll_union_agg(identify_visitors_hll)), 0)::int as "identifiedVisitors",
+          COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int as "cartVisitors",
+          COALESCE(hll_cardinality(hll_union_agg(purchase_visitors_hll)), 0)::int as "purchaseVisitors"
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       ` as Promise<Array<{
         totalVisitors: number; totalSessions: number; totalPageViews: number;
         identifiedVisitors: number; cartVisitors: number; purchaseVisitors: number;
       }>>,
 
-      // 3. Previous period KPIs (for comparison)
+      // 3. Previous period KPIs (for comparison) — FASE 2: rollup
       prisma.$queryRaw`
         SELECT
-          COUNT(DISTINCT pe."visitorId")::int as "totalVisitors",
-          COUNT(DISTINCT pe."sessionId")::int as "totalSessions",
-          COUNT(*) FILTER (WHERE pe.type = 'PAGE_VIEW')::int as "totalPageViews"
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${prevFrom}
-          AND pe.timestamp <= ${prevTo}
+          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as "totalVisitors",
+          COALESCE(hll_cardinality(hll_union_agg(sessions_hll)), 0)::int as "totalSessions",
+          COALESCE(SUM(page_views), 0)::int as "totalPageViews"
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${prevFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${prevTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       ` as Promise<Array<{ totalVisitors: number; totalSessions: number; totalPageViews: number }>>,
 
-      // 4. Daily visitors trend
+      // 4. Daily visitors trend — FASE 2: rollup (una fila por día, sin merge)
       prisma.$queryRaw`
         SELECT
-          TO_CHAR(DATE(pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          COUNT(DISTINCT pe."visitorId")::int as visitors,
-          COUNT(DISTINCT pe."sessionId")::int as sessions,
-          COUNT(*) FILTER (WHERE pe.type = 'PAGE_VIEW')::int as "pageViews"
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
-        GROUP BY 1
+          TO_CHAR(day, 'YYYY-MM-DD') as day,
+          hll_cardinality(visitors_hll)::int as visitors,
+          hll_cardinality(sessions_hll)::int as sessions,
+          page_views::int as "pageViews"
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         ORDER BY 1
       ` as Promise<Array<{ day: string; visitors: number; sessions: number; pageViews: number }>>,
 
-      // 5. Device breakdown
+      // 5. Device breakdown — rollup pixel_daily_device (HLL de visitantes por device).
       prisma.$queryRaw`
-        SELECT
-          COALESCE(pe."deviceType", 'unknown') as device,
-          COUNT(DISTINCT pe."visitorId")::int as count
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
+        SELECT device, COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as count
+        FROM pixel_daily_device
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY count DESC
       ` as Promise<Array<{ device: string; count: number }>>,
 
-      // 6. Event types breakdown
+      // 6. Event types breakdown — rollup pixel_daily_type (count aditivo exacto + HLL visitantes).
       prisma.$queryRaw`
         SELECT
-          pe.type,
-          COUNT(*)::int as count,
-          COUNT(DISTINCT pe."visitorId")::int as "uniqueVisitors"
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
+          type,
+          COALESCE(SUM(event_count), 0)::int as count,
+          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as "uniqueVisitors"
+        FROM pixel_daily_type
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY count DESC
       ` as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
 
-      // 7. Popular pages — group by clean path (no query params), use unique visitors
-      //    Uses SPLIT_PART to strip query params (avoids regex escape issues in template literals)
-      //    Excludes checkout (transactional, not content pages)
+      // 7. Popular pages — rollup pixel_daily_page (path limpio sin query params, excluye
+      //    checkout; pageViews aditivo exacto + HLL visitantes). LIMIT 10 por visitantes.
       prisma.$queryRaw`
         SELECT
-          SPLIT_PART(pe."pageUrl", '?', 1) as url,
-          COUNT(DISTINCT pe."visitorId")::int as visitors,
-          COUNT(*)::int as "pageViews"
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
-          AND pe."pageUrl" IS NOT NULL
-          AND pe.type = 'PAGE_VIEW'
-          AND pe."pageUrl" NOT LIKE '%/checkout%'
+          url,
+          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as visitors,
+          COALESCE(SUM(page_views), 0)::int as "pageViews"
+        FROM pixel_daily_page
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY visitors DESC
         LIMIT 10
@@ -370,7 +339,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -413,7 +382,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = 'NITRO'
-              AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND ${ordersValidWhere("o")}
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
@@ -441,7 +410,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
-              AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND ${ordersValidWhere("o")}
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
@@ -469,7 +438,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
-              AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND ${ordersValidWhere("o")}
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
@@ -496,7 +465,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
-              AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND ${ordersValidWhere("o")}
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
@@ -529,7 +498,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
@@ -561,13 +530,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         deviceType: string | null; timestamp: Date; sessionId: string;
       }>>,
 
-      // 12. Total event count for pagination
+      // 12. Total event count for pagination — rollup (SUM aditivo exacto).
       prisma.$queryRaw`
-        SELECT COUNT(*)::int as total
-        FROM pixel_events
+        SELECT COALESCE(SUM(total_events), 0)::int as total
+        FROM pixel_daily_aggregates
         WHERE "organizationId" = ${ORG_ID}
-          AND timestamp >= ${dateFrom}
-          AND timestamp <= ${dateTo}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       ` as Promise<Array<{ total: number }>>,
 
       // ── NEW QUERIES FOR REDESIGNED DASHBOARD ──
@@ -588,7 +557,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${dateFrom}
           AND "orderDate" <= ${dateTo}
-          AND status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("")}
           AND "totalValue" > 0
       ` as Promise<Array<{ total: number; marketplaceOrders: number; marketplaceRevenue: number; webOrders: number; webRevenue: number }>>,
 
@@ -625,14 +594,14 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
           AND o."externalId" NOT LIKE 'FVG-%'
           AND o."externalId" NOT LIKE 'BPR-%'
-        ORDER BY o."orderDate" DESC
+        ORDER BY o."orderDate" DESC, o."createdAt" DESC, o.id DESC
         LIMIT 50
       ` as Promise<Array<{
         orderId: string; orderExternalId: string; revenue: number;
@@ -641,15 +610,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         isAttributed: boolean;
       }>>,
 
-      // 16. Click ID coverage (pixel health)
+      // 16. Click ID coverage (pixel health) — rollup (SUM aditivo exacto de events_with_clickid).
       prisma.$queryRaw`
         SELECT
-          COUNT(*) FILTER (WHERE pe."clickIds" IS NOT NULL AND pe."clickIds"::text != '{}' AND pe."clickIds"::text != 'null')::int as "withClickId",
-          COUNT(*)::int as total
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
+          COALESCE(SUM(events_with_clickid), 0)::int as "withClickId",
+          COALESCE(SUM(total_events), 0)::int as total
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       ` as Promise<Array<{ withClickId: number; total: number }>>,
 
       // 17. Daily revenue from attributions (for revenue chart)
@@ -664,7 +633,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -686,7 +655,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${prevFrom}
           AND o."orderDate" <= ${prevTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
@@ -716,7 +685,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -771,7 +740,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -815,7 +784,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
@@ -832,47 +801,12 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       //        cuyo visitor tuvo first_touch = source. Single source of truth via
       //        ordersValidWebWhere() de lib/metrics/orders.ts.
       // Visitors sigue siendo distinct visitor con PAGE_VIEW (definicion de "trafico").
+      // FASE 2: visitors desde el rollup pixel_daily_source (HLL union → distinct
+      // visitantes con PAGE_VIEW cuyo first_touch GLOBAL = source, en la ventana; sin
+      // sobre-conteo). purchases desde pixel_attributions (tabla chica) cruzado contra
+      // la dimensión pixel_visitor_first_source (first_source inmutable por visitante).
       prisma.$queryRaw`
-        WITH visitor_first_source AS (
-          SELECT DISTINCT ON ("visitorId")
-            "visitorId",
-            CASE
-              WHEN ("clickIds"->>'fbclid') IS NOT NULL AND ("clickIds"->>'fbclid') != '' THEN 'meta'
-              WHEN ("clickIds"->>'gclid') IS NOT NULL AND ("clickIds"->>'gclid') != '' THEN 'google'
-              WHEN ("clickIds"->>'ttclid') IS NOT NULL AND ("clickIds"->>'ttclid') != '' THEN 'tiktok'
-              WHEN ("clickIds"->>'msclkid') IS NOT NULL AND ("clickIds"->>'msclkid') != '' THEN 'microsoft'
-              WHEN ("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '' THEN 'linkedin'
-              WHEN LOWER("utmParams"->>'source') IN ('adwords', 'google_ads', 'google-ads', 'googleads') THEN 'google'
-              WHEN LOWER("utmParams"->>'source') IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') THEN 'meta'
-              WHEN LOWER("utmParams"->>'source') IN ('ig', 'instagram_ads', 'instagram-ads') THEN 'instagram'
-              WHEN ("utmParams"->>'source') IS NOT NULL AND ("utmParams"->>'source') != '' THEN LOWER("utmParams"->>'source')
-              WHEN referrer ~* 'l\.instagram\.com|instagram\.com' THEN 'instagram'
-              WHEN referrer ~* 'facebook\.com|fb\.com|m\.facebook\.com' THEN 'facebook'
-              WHEN referrer ~* 'tiktok\.com' THEN 'tiktok'
-              WHEN referrer ~* 'twitter\.com|x\.com|t\.co' THEN 'twitter'
-              WHEN referrer ~* 'youtube\.com|youtu\.be' THEN 'youtube'
-              WHEN referrer ~* 'linkedin\.com|lnkd\.in' THEN 'linkedin'
-              WHEN referrer ~* 'pinterest\.com' THEN 'pinterest'
-              WHEN referrer ~* 'whatsapp\.com|wa\.me' THEN 'whatsapp'
-              WHEN referrer ~* 't\.me|telegram\.org' THEN 'telegram'
-              WHEN referrer ~* 'mail\.google\.com|gmail\.com|outlook\.com|yahoo\.com/mail' THEN 'email'
-              WHEN referrer ~* 'google\.[a-z]{2,3}' THEN 'google_organic'
-              WHEN referrer ~* 'bing\.com' THEN 'bing_organic'
-              WHEN referrer ~* 'yahoo\.com' THEN 'yahoo_organic'
-              WHEN referrer = '' OR referrer IS NULL THEN 'direct'
-              ELSE 'referral'
-            END AS first_source
-          FROM pixel_events
-          WHERE "organizationId" = ${ORG_ID}
-            AND timestamp >= ${dateFrom}
-            AND timestamp <= ${dateTo}
-            AND ("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')
-          ORDER BY "visitorId", timestamp ASC
-        ),
-        visitor_to_orders AS (
-          -- pe.visitorId y pa.visitorId apuntan AMBOS a pv.id (cuid Prisma) por
-          -- la relacion @relation(references: [id]). NO hace falta JOIN a
-          -- pixel_visitors. Match directo pa.visitorId = pe.visitorId.
+        WITH visitor_to_orders AS (
           SELECT DISTINCT pa."visitorId" as pv_id, o.id as order_id
           FROM orders o
           JOIN pixel_attributions pa ON pa."orderId" = o.id
@@ -880,26 +814,36 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             AND pa.model::text = ${selectedModel}
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
-            AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
+            AND ${ordersValidWhere("o")}
             AND o."totalValue" > 0
             AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             AND o.source IS DISTINCT FROM 'MELI'
             AND o.channel IS DISTINCT FROM 'marketplace'
             AND o."externalId" NOT LIKE 'FVG-%'
             AND o."externalId" NOT LIKE 'BPR-%'
+        ),
+        src_visitors AS (
+          SELECT first_source as source,
+            hll_cardinality(hll_union_agg(pv_visitors_hll))::int as visitors
+          FROM pixel_daily_source
+          WHERE "organizationId" = ${ORG_ID}
+            AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+            AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          GROUP BY 1
+        ),
+        src_purchases AS (
+          SELECT d.first_source as source, COUNT(DISTINCT vto.order_id)::int as purchases
+          FROM visitor_to_orders vto
+          JOIN pixel_visitor_first_source d
+            ON d."organizationId" = ${ORG_ID} AND d."visitorId" = vto.pv_id
+          GROUP BY 1
         )
         SELECT
-          vfs.first_source as source,
-          COUNT(DISTINCT pe."visitorId") FILTER (WHERE pe.type = 'PAGE_VIEW')::int as visitors,
-          COUNT(DISTINCT vto.order_id)::int as purchases
-        FROM pixel_events pe
-        INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
-        LEFT JOIN visitor_to_orders vto ON vto.pv_id = pe."visitorId"
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
-          AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
-        GROUP BY 1
+          COALESCE(sv.source, sp.source) as source,
+          COALESCE(sv.visitors, 0)::int as visitors,
+          COALESCE(sp.purchases, 0)::int as purchases
+        FROM src_visitors sv
+        FULL OUTER JOIN src_purchases sp ON sv.source = sp.source
         ORDER BY visitors DESC
         LIMIT 10
       ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
@@ -930,7 +874,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -941,18 +885,16 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         ORDER BY orders DESC
       ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
-      // 25. Product viewers from NitroPixel (VIEW_PRODUCT events)
-      // Uses crDateFrom to align viewer data with pixel coverage period
+      // 25. Product viewers — rollup pixel_daily_product (HLL de visitantes por producto).
+      // Usa crDateFrom (piso de cobertura del pixel) como límite inferior del rango.
       prisma.$queryRaw`
         SELECT
-          pe.props->>'productId' as "productExternalId",
-          COUNT(DISTINCT pe."visitorId")::int as viewers
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${crDateFrom}
-          AND pe.timestamp <= ${dateTo}
-          AND pe.type = 'VIEW_PRODUCT'
-          AND pe.props->>'productId' IS NOT NULL
+          product_id as "productExternalId",
+          COALESCE(hll_cardinality(hll_union_agg(viewers_hll)), 0)::int as viewers
+        FROM pixel_daily_product
+        WHERE "organizationId" = ${ORG_ID}
+          AND day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY viewers DESC
         LIMIT 500
@@ -975,7 +917,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -1008,7 +950,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
         GROUP BY 1
@@ -1040,7 +982,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND pa."touchpointCount" >= 2
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
         GROUP BY 1, 2
@@ -1090,7 +1032,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND pa.model::text IN ('LAST_CLICK', 'FIRST_CLICK', 'LINEAR', 'NITRO')
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
@@ -1140,6 +1082,29 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       if (minutesAgo < 60) status = "LIVE";
       else if (minutesAgo < 1440) status = "ACTIVE";
     }
+
+    // ── Conteo all-time de eventos (cacheado, ver _allTimeEventsCount) ──
+    // El COUNT(*) all-time costaba ~60s/request (root cause). Lo servimos del
+    // cache; si está vencido o no existe, lo refrescamos en BACKGROUND (no bloquea
+    // el response). Fallback primera vez: el conteo del período (eventCountResult).
+    const allTimeCached = _allTimeEventsCount.get(ORG_ID);
+    const allTimeFresh = allTimeCached && Date.now() - allTimeCached.at < ALLTIME_COUNT_TTL;
+    if (!allTimeFresh && !_allTimeRefreshing.has(ORG_ID)) {
+      _allTimeRefreshing.add(ORG_ID);
+      // waitUntil: en Vercel, sin esto la función se congela al devolver el response
+      // y el COUNT en background NO completa (cache nunca se llena) y el .finally
+      // NO corre (el guard queda trabado). waitUntil mantiene viva la función hasta
+      // que la promesa resuelve. Patrón ya usado en otros endpoints del repo.
+      waitUntil(
+        prisma.$queryRaw<Array<{ c: number }>>`
+          SELECT COUNT(*)::int as c FROM pixel_events WHERE "organizationId" = ${ORG_ID}
+        `
+          .then((r) => { _allTimeEventsCount.set(ORG_ID, { count: r[0]?.c ?? 0, at: Date.now() }); })
+          .catch(() => { /* no romper el dashboard si el refresh falla */ })
+          .finally(() => { _allTimeRefreshing.delete(ORG_ID); })
+      );
+    }
+    const totalEventsAllTime = allTimeCached?.count ?? (eventCountResult[0]?.total || 0);
 
     // Change calculations
     const pctChange = (curr: number, prev: number) =>
@@ -1275,21 +1240,22 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     //   Carrito       → ADD_TO_CART
     //   Checkout      → INITIATE_CHECKOUT o CHECKOUT_SHIPPING
     //   Compra        → PURCHASE
+    // FASE 2: funnel desde el rollup (HLL union por etapa). Antes: 5× COUNT(DISTINCT)
+    // sobre millones (~67s). El rollup ya es webhook-filtrado (humanos), igual semántica.
     const funnelRaw = await prisma.$queryRaw<Array<{
       pageView: number; viewProduct: number; addToCart: number;
       checkoutStart: number; purchase: number;
     }>>`
       SELECT
-        COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
-        COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
-        COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
-        COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart",
-        COUNT(DISTINCT CASE WHEN pe.type = 'PURCHASE' THEN pe."visitorId" END)::int as "purchase"
-      FROM pixel_events pe
-      WHERE pe."organizationId" = ${ORG_ID}
-        AND pe.timestamp >= ${dateFrom}
-        AND pe.timestamp <= ${dateTo}
-        AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
+        COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int as "pageView",
+        COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int as "viewProduct",
+        COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int as "addToCart",
+        COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int as "checkoutStart",
+        COALESCE(hll_cardinality(hll_union_agg(purchase_visitors_hll)), 0)::int as "purchase"
+      FROM pixel_daily_aggregates
+      WHERE "organizationId" = ${ORG_ID}
+        AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+        AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
     `;
     const fRow = funnelRaw[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
     const funnel = {
@@ -1401,7 +1367,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       liveStatus: {
         status,
         lastEventAt: lastEventAt ? new Date(lastEventAt).toISOString() : null,
-        totalEvents: ls?.totalEvents || 0,
+        totalEvents: totalEventsAllTime,
         lastHourEvents: ls?.lastHourEvents || 0,
       },
 
@@ -1659,70 +1625,32 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     };
 
     setCache("pixel", response, ...cacheKey);
-    return NextResponse.json(response);
+    return response;
+    }; // ── fin computeAndCache ──
+
+    // SWR serve: hit (fresh o stale) → instant; stale → refresh background con lock; miss → bloqueante.
+    const cached = getCachedSWR("pixel", ...cacheKey);
+    if (cached?.data) {
+      if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
+        waitUntil(
+          computeAndCache()
+            .catch((e) => { console.error("[pixel] background refresh failed:", e); })
+            .finally(() => releaseRefreshLock("pixel", ...cacheKey))
+        );
+      }
+      return NextResponse.json(cached.data);
+    }
+    const freshResponse = await computeAndCache();
+    return NextResponse.json(freshResponse);
   } catch (error) {
     console.error("[Pixel Metrics API] Error:", error);
 
-    // ══════════════════════════════════════════════════════════════
-    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
-    // ══════════════════════════════════════════════════════════════
-    // Si el endpoint falla (pool timeout, query lenta, etc.), en vez de
-    // tirar 500 que rompe la UI con cartel rojo, devolvemos un shape
-    // mínimo vacío para que la UI cargue silenciosa.
-    //
-    // Para REVERTIR: cambiar DEMO_MODE_MOCK_ON_ERROR = false (línea siguiente)
-    // ══════════════════════════════════════════════════════════════
-    const DEMO_MODE_MOCK_ON_ERROR = true;
-    if (DEMO_MODE_MOCK_ON_ERROR) {
-      const nowIso = new Date().toISOString();
-      return NextResponse.json({
-        kpis: {},
-        funnel: {},
-        sources: [],
-        sourcesPrev: [],
-        devices: [],
-        topCampaigns: [],
-        topPages: [],
-        popularPages: [],
-        perDayCoverage: [],
-        conversionRates: { byChannel: [], byDevice: [], byCategory: [], byBrand: [], byProduct: [] },
-        attribution: { byModel: [], bySource: [], byModelChannel: [], conversionLag: [] },
-        journeyIntelligence: {
-          complexity: [],
-          totalJourneys: 0,
-          multiTouchPercent: 0,
-          multiTouchRevenue: 0,
-          singleTouchRevenue: 0,
-          multiTouchAOV: 0,
-          singleTouchAOV: 0,
-          aovLift: 0,
-          channelPairs: [],
-          conversionLag: [],
-          channelRoles: [],
-        },
-        recentEvents: [],
-        recentOrders: [],
-        pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 },
-        meta: {
-          dateFrom: nowIso,
-          dateTo: nowIso,
-          daysInPeriod: 1,
-          timezone: "America/Argentina/Buenos_Aires",
-          attributionModel: "NITRO",
-          attributionWindowDays: 30,
-          nitroWeights: { first: 30, last: 40, middle: 30 },
-          pixelInstalledAt: null,
-          crDateFrom: nowIso,
-          crDateAdjusted: false,
-        },
-        _demoMode: true,
-        _error: String(error).slice(0, 200),
-      }, { status: 200 });
-    }
-
+    // Degradación graciosa: ante un fallo del handler devolvemos el shape vacío
+    // (no un 500 que rompe la UI con cartel rojo). El error queda logueado arriba
+    // (console.error) y en _error para diagnóstico. Reusa buildEmptyMockResponse.
     return NextResponse.json(
-      { error: "Failed to fetch pixel metrics", details: String(error) },
-      { status: 500 }
+      { ...buildEmptyMockResponse(), _error: String(error).slice(0, 200) },
+      { status: 200 }
     );
   }
 }

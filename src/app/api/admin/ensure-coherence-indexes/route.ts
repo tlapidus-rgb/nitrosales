@@ -12,12 +12,13 @@
 //   - pixel_attributions(orderId) — para JOIN pa.orderId = o.id (NO existe hoy, solo unique con model)
 // ══════════════════════════════════════════════════════════════
 
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-const KEY = "nitrosales-secret-key-2024-production";
+const KEY = ADMIN_API_KEY;
 
 const INDEXES = [
   // Round 1 (S60 EXT-2 BIS+++++++)
@@ -102,6 +103,20 @@ const INDEXES = [
     name: "pixel_attributions_orgId_model_covering_idx",
     sql: `CREATE INDEX IF NOT EXISTS "pixel_attributions_orgId_model_covering_idx" ON "pixel_attributions" ("organizationId", "model") INCLUDE ("attributedValue", "touchpointCount", "orderId")`,
     purpose: "Index covering para queries #8-10 de pixel metrics. Evita lookup a la tabla en SUM/COUNT.",
+  },
+  // Round 5 (Fase 1 fix crash NitroPixel, 2026-06-09) — index-only scans para las
+  // queries de tráfico (#2 KPIs, #4 daily, #23 bySource, funnel) que hacen
+  // COUNT(DISTINCT visitorId) sobre millones de pixel_events. Con el INCLUDE,
+  // visitorId/sessionId/type vienen del índice y no se va al heap.
+  {
+    name: "pixel_events_org_ts_cover_idx",
+    // CONCURRENTLY: pixel_events es hot (writes del pixel en tiempo real, SIN cron
+    // de respaldo). Un CREATE INDEX normal toma ACCESS EXCLUSIVE y bloquea esos
+    // writes durante el build (~minutos en 19M filas) → se perderían eventos.
+    // CONCURRENTLY construye sin bloquear writes. NOTA: no corre dentro de una
+    // transacción; $executeRawUnsafe no envuelve en tx (verificado), así que va.
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_events_org_ts_cover_idx" ON "pixel_events" ("organizationId", "timestamp") INCLUDE ("visitorId", "sessionId", "type")`,
+    purpose: "Index covering (orgId, timestamp) INCLUDE (visitorId, sessionId, type) para COUNT(DISTINCT visitorId) index-only en queries de tráfico del pixel route. CONCURRENTLY para no bloquear writes del pixel.",
   },
 ];
 
