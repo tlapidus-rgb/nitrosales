@@ -38,15 +38,24 @@
   (cero duplicación de SQL). Idempotente (upsert), cubre gaps de hasta 3 días, resumible por cursor, auth
   fail-closed (vercel-cron UA o key). Mismo patrón que `warm-cache`. `vercel.json`: `0 */2 * * *`.
 - **Review (/gstack-review):** sin findings P0/P1. tsc exit 0.
-- **first-source (RESUELTO con cron propio):** se agregó `/api/cron/refresh-pixel-first-source` (1×/día,
-  `0 6 * * *` = 3am ART) que reconstruye `pixel_visitor_first_source` (first-touch, historia completa) para
-  que los visitantes brand-new entren al breakdown `bySource`. Separado del cron de 2 h porque es un scan de
-  historia completa (pesado). Mismo patrón: self-fetch a `phase=first-source`, idempotente, resumible por
-  org, auth fail-closed. `maxDuration=800` (varias llamadas de 250s al setup).
-- **Deuda compartida:** ambos crons mandan `ADMIN_API_KEY` en la URL (queda en logs) — mismo patrón que el
-  resto de los crons; se cierra con la migración a `CRON_SECRET` (BP-M1).
+- **first-source (cron creado pero DESHABILITADO — no escala):** se agregó
+  `/api/cron/refresh-pixel-first-source` y se agendó 1×/día, PERO al verificarlo en prod **falla**:
+  `setup-pixel-rollups?phase=first-source` no termina UN org grande dentro del `maxDuration=300` de la función
+  (Arredo 11,6M / EMDJ 6M → el `DISTINCT ON` de historia completa por org tarda >300s y la función se mata;
+  verificado: POST directo orgCursor=0 → HTTP 000 a los 295s). Esa fase es resumible POR ORG pero NO dentro
+  de un org, así que nunca completa el org grande → el cron devolvía 500 y disparaba un scan pesado e inútil
+  cada noche. **Se quitó el schedule de `vercel.json`** (la route queda en el repo, sin agendar). El cron de
+  rollups (cada 2h) NO se toca y sigue funcionando.
+- **FIX correcto pendiente (BP-ROLLUP-FIRSTSOURCE-INCR):** hacer la fase first-source INCREMENTAL — procesar
+  solo visitantes nuevos (no presentes en `pixel_visitor_first_source`) acotando por ventana de tiempo
+  reciente, en vez de reconstruir toda la historia de cada org. Liviano y dentro del timeout. Requiere tocar
+  `setup-pixel-rollups` con review de correctitud (first-touch). Mientras tanto, el breakdown `bySource` de
+  visitantes brand-new puede quedar levemente atrasado (impacto de segundo orden; los demás rollups OK).
+- **Deuda compartida:** el cron de rollups manda `ADMIN_API_KEY` en la URL (queda en logs) — mismo patrón que
+  el resto de los crons; se cierra con la migración a `CRON_SECRET` (BP-M1).
 
-**Estado:** PASO 1 resuelto en prod. PASO 2 (2 crons: rollups cada 2h + first-source 1×/día) completo.
+**Estado:** PASO 1 resuelto en prod. PASO 2: cron de rollups (cada 2h) DEPLOYADO y verificado funcionando en
+prod. Cron de first-source creado pero DESHABILITADO (no escala) — pendiente fix incremental.
 
 ---
 
