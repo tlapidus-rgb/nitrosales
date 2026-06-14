@@ -88,6 +88,10 @@
     {
       "path": "/api/cron/refresh-pixel-rollups?key=nitrosales-secret-key-2024-production",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/attribution-reconcile?key=nitrosales-secret-key-2024-production",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
