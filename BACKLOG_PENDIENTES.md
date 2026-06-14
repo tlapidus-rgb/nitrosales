@@ -38,15 +38,15 @@
   (cero duplicación de SQL). Idempotente (upsert), cubre gaps de hasta 3 días, resumible por cursor, auth
   fail-closed (vercel-cron UA o key). Mismo patrón que `warm-cache`. `vercel.json`: `0 */2 * * *`.
 - **Review (/gstack-review):** sin findings P0/P1. tsc exit 0.
-- **Limitación conocida (documentada en el código):** NO refresca `pixel_visitor_first_source` (first-touch,
-  scan de historia completa, pesado). Visitantes brand-new de los últimos días pueden faltar del breakdown
-  `bySource` hasta el próximo first-source. Los demás rollups (aggregates/device/type/page/product) SÍ los
-  cuentan. **Follow-up sugerido:** agendar un refresh de first-source MENOS frecuente (ej: 1×/día) — NO se
-  metió en el cron de 2 h para no cargar un scan de historia completa cada 2 h.
-- **Deuda compartida:** el self-fetch manda `ADMIN_API_KEY` en la URL (queda en logs) — mismo patrón que el
+- **first-source (RESUELTO con cron propio):** se agregó `/api/cron/refresh-pixel-first-source` (1×/día,
+  `0 6 * * *` = 3am ART) que reconstruye `pixel_visitor_first_source` (first-touch, historia completa) para
+  que los visitantes brand-new entren al breakdown `bySource`. Separado del cron de 2 h porque es un scan de
+  historia completa (pesado). Mismo patrón: self-fetch a `phase=first-source`, idempotente, resumible por
+  org, auth fail-closed. `maxDuration=800` (varias llamadas de 250s al setup).
+- **Deuda compartida:** ambos crons mandan `ADMIN_API_KEY` en la URL (queda en logs) — mismo patrón que el
   resto de los crons; se cierra con la migración a `CRON_SECRET` (BP-M1).
 
-**Estado:** PASO 1 resuelto en prod. PASO 2 en branch, esperando OK de Tomy para mergear a main.
+**Estado:** PASO 1 resuelto en prod. PASO 2 (2 crons: rollups cada 2h + first-source 1×/día) completo.
 
 ---
 
