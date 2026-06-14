@@ -84,6 +84,10 @@
     {
       "path": "/api/cron/warm-cache?key=nitrosales-secret-key-2024-production",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-pixel-rollups?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 */2 * * *"
     }
   ]
 }

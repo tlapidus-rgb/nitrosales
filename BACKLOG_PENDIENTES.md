@@ -20,6 +20,36 @@
 
 ---
 
+## 🟡 BP-ROLLUP-REFRESH — Rollups del pixel se desactualizaban (sin cron de refresh) (2026-06-14)
+
+> **Detectado** en la auditoría post-merge (2026-06-14): los rollups HLL del pixel tenían datos hasta el
+> 12-jun; 13 y 14-jun salían en **0** en NitroPixel Analytics. **Causa raíz:** el backfill
+> (`setup-pixel-rollups?phase=backfill`) solo se corría a mano; NO existía cron que reconstruyera los días
+> nuevos. `warm-cache` solo calienta el cache SWR, NO reconstruye rollups. Era un prerequisito documentado
+> en `LISTO_PARA_DEPLOY.md §3` que nunca se agendó.
+
+**PASO 1 (hecho, 2026-06-14):** se corrió a mano el backfill 12→14-jun en prod
+(`POST /api/admin/setup-pixel-rollups?phase=backfill&from=2026-06-12&to=2026-06-14`). Verificado: 13-jun
+8.110 visitantes, 14-jun 4.236 (eran 0). `phase=status` → dayRange hasta 2026-06-14.
+
+**PASO 2 (branch `fix/rollup-refresh`, PENDIENTE OK de Tomy para mergear):** cron nuevo
+`/api/cron/refresh-pixel-rollups` (cada 2 h) que reconstruye los últimos 3 días.
+- **Diseño:** self-fetch a `POST setup-pixel-rollups?phase=backfill&from&to` → REUTILIZA la lógica validada
+  (cero duplicación de SQL). Idempotente (upsert), cubre gaps de hasta 3 días, resumible por cursor, auth
+  fail-closed (vercel-cron UA o key). Mismo patrón que `warm-cache`. `vercel.json`: `0 */2 * * *`.
+- **Review (/gstack-review):** sin findings P0/P1. tsc exit 0.
+- **Limitación conocida (documentada en el código):** NO refresca `pixel_visitor_first_source` (first-touch,
+  scan de historia completa, pesado). Visitantes brand-new de los últimos días pueden faltar del breakdown
+  `bySource` hasta el próximo first-source. Los demás rollups (aggregates/device/type/page/product) SÍ los
+  cuentan. **Follow-up sugerido:** agendar un refresh de first-source MENOS frecuente (ej: 1×/día) — NO se
+  metió en el cron de 2 h para no cargar un scan de historia completa cada 2 h.
+- **Deuda compartida:** el self-fetch manda `ADMIN_API_KEY` en la URL (queda en logs) — mismo patrón que el
+  resto de los crons; se cierra con la migración a `CRON_SECRET` (BP-M1).
+
+**Estado:** PASO 1 resuelto en prod. PASO 2 en branch, esperando OK de Tomy para mergear a main.
+
+---
+
 ## ✅/🟡 BP-CONSIST-PIXEL — Inconsistencia "órdenes atribuidas vs funnel compras" (2026-06-12)
 
 > **Reporte del dueño:** "7d: 420 órdenes atribuidas pero 330 compras en el funnel — están mal".
