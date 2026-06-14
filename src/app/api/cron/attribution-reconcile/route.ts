@@ -38,6 +38,13 @@ export async function GET(req: NextRequest) {
   const days = Math.min(14, Math.max(1, Number(url.searchParams.get("days") || DEFAULT_DAYS)));
   const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") || DEFAULT_LIMIT)));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  // Presupuesto global: paramos ANTES del maxDuration de Vercel y devolvemos
+  // budgetHit. calculateAttribution es caro (segundos/orden) y bajo contención de
+  // pool puede arrastrarse; sin esto la función se mataba a los 300s sin devolver
+  // nada (el caller no sabía qué quedó). Con esto el cron periódico va limando el
+  // backlog corrida a corrida sin morir. 250s deja margen de cierre.
+  const TIME_BUDGET_MS = 250_000;
+  const startedAt = Date.now();
 
   try {
     const conns = await prisma.connection.findMany({
@@ -47,7 +54,9 @@ export async function GET(req: NextRequest) {
 
     const perOrg: any[] = [];
     let totalAttributed = 0;
-    for (const c of conns) {
+    let budgetHit = false;
+    outer: for (const c of conns) {
+      if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break; }
       const orgId = c.organizationId;
       // Órdenes web válidas sin atribución NITRO en la ventana.
       const missing = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -64,7 +73,11 @@ export async function GET(req: NextRequest) {
       `);
 
       let attributed = 0;
+      let processed = 0;
       for (const o of missing) {
+        if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; }
+        if (budgetHit) break outer;
+        processed++;
         try {
           const r = await attributeOrderByMatch(o.id, orgId);
           if (r.matched && r.strategy !== "already-attributed" && r.strategy !== "marketplace-skip") attributed++;
@@ -73,10 +86,10 @@ export async function GET(req: NextRequest) {
         }
       }
       totalAttributed += attributed;
-      perOrg.push({ org: c.organization?.name || orgId, candidates: missing.length, attributed });
+      perOrg.push({ org: c.organization?.name || orgId, candidates: missing.length, processed, attributed });
     }
 
-    return NextResponse.json({ ok: true, days, limit, orgs: conns.length, totalAttributed, perOrg });
+    return NextResponse.json({ ok: true, days, limit, orgs: conns.length, totalAttributed, budgetHit, perOrg });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
