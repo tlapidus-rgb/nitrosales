@@ -46,7 +46,25 @@ export async function GET(req: NextRequest) {
   const TIME_BUDGET_MS = 250_000;
   const startedAt = Date.now();
 
+  // No marcar no-match a órdenes fresh: dentro de las 2h aún puede llegar el
+  // journey (race del webhook). Solo se marcan órdenes más viejas que esto.
+  const NO_MATCH_MIN_AGE_MS = 2 * 60 * 60 * 1000;
+
   try {
+    // FIX #2 (BP-PERF-ATTR): marca "intento sin match". Las órdenes sin journey
+    // reconstruible (~2%) reaparecían como candidatas en CADA corrida (ORDER BY
+    // orderDate DESC LIMIT N) y malgastaban presupuesto. Esta tabla las recuerda
+    // para saltearlas. CREATE IF NOT EXISTS → idempotente, sin depender del orden
+    // de deploy (la tabla siempre existe antes de que la query la use).
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS attribution_no_match (
+        "orderId" text PRIMARY KEY,
+        "organizationId" text NOT NULL,
+        "attemptedAt" timestamptz NOT NULL DEFAULT now(),
+        strategy text
+      )
+    `);
+
     const conns = await prisma.connection.findMany({
       where: { platform: "VTEX" as any, status: "ACTIVE" as any },
       select: { organizationId: true, organization: { select: { name: true } } },
@@ -54,18 +72,21 @@ export async function GET(req: NextRequest) {
 
     const perOrg: any[] = [];
     let totalAttributed = 0;
+    let totalMarkedNoMatch = 0;
     let budgetHit = false;
     outer: for (const c of conns) {
       if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break; }
       const orgId = c.organizationId;
-      // Órdenes web válidas sin atribución NITRO en la ventana.
-      const missing = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT o.id
+      // Órdenes web válidas sin atribución NITRO en la ventana, EXCLUYENDO las ya
+      // marcadas como "sin match" (FIX #2) → el cron no las reintenta.
+      const missing = await prisma.$queryRaw<Array<{ id: string; orderDate: Date }>>(Prisma.sql`
+        SELECT o.id, o."orderDate"
         FROM orders o
         LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa.model = 'NITRO'
         WHERE o."organizationId" = ${orgId}
           AND o."orderDate" >= ${since}
           AND pa.id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM attribution_no_match nm WHERE nm."orderId" = o.id)
           AND ${ordersValidWhere("o")}
           AND ${ordersWebWhere("o")}
         ORDER BY o."orderDate" DESC
@@ -74,22 +95,56 @@ export async function GET(req: NextRequest) {
 
       let attributed = 0;
       let processed = 0;
+      let markedNoMatch = 0;
       for (const o of missing) {
         if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; }
         if (budgetHit) break outer;
         processed++;
         try {
           const r = await attributeOrderByMatch(o.id, orgId);
-          if (r.matched && r.strategy !== "already-attributed" && r.strategy !== "marketplace-skip") attributed++;
+          if (r.matched && r.strategy !== "already-attributed" && r.strategy !== "marketplace-skip") {
+            attributed++;
+          } else if (
+            (r.strategy === "no-visitor-match" || r.strategy === "no-email-no-window") &&
+            o.orderDate &&
+            Date.now() - new Date(o.orderDate).getTime() > NO_MATCH_MIN_AGE_MS
+          ) {
+            // Sin journey reconstruible y ya pasó la ventana de race (>2h) → marcar
+            // para que el cron no la reintente en cada corrida. Idempotente.
+            await prisma
+              .$executeRawUnsafe(
+                `INSERT INTO attribution_no_match ("orderId","organizationId","attemptedAt",strategy)
+                 VALUES ($1,$2,now(),$3) ON CONFLICT ("orderId") DO NOTHING`,
+                o.id, orgId, r.strategy
+              )
+              .catch(() => {});
+            markedNoMatch++;
+          }
         } catch {
           /* non-fatal */
         }
       }
       totalAttributed += attributed;
-      perOrg.push({ org: c.organization?.name || orgId, candidates: missing.length, processed, attributed });
+      totalMarkedNoMatch += markedNoMatch;
+      perOrg.push({
+        org: c.organization?.name || orgId,
+        candidates: missing.length,
+        processed,
+        attributed,
+        markedNoMatch,
+      });
     }
 
-    return NextResponse.json({ ok: true, days, limit, orgs: conns.length, totalAttributed, budgetHit, perOrg });
+    return NextResponse.json({
+      ok: true,
+      days,
+      limit,
+      orgs: conns.length,
+      totalAttributed,
+      totalMarkedNoMatch,
+      budgetHit,
+      perOrg,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
