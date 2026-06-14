@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════
-// /api/metrics/pixel/funnel?from=&to=&channel= (S60 EXT — multi-tenant)
+// /api/metrics/pixel/funnel?from=&to=&channel=&model= (S60 EXT — multi-tenant)
 // ══════════════════════════════════════════════════════════════
 // Devuelve el funnel de conversion de NitroPixel filtrado por canal
 // de PRIMER TOQUE (first-touch).
@@ -9,6 +9,7 @@
 // y referrer del primer PAGE_VIEW).
 //
 // Si channel es "all" o vacio, devuelve el funnel sin filtro.
+// Compra (purchase) = órdenes web atribuidas (DATA_COHERENCE Regla 5).
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -34,19 +35,28 @@ export async function GET(req: NextRequest) {
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 7 * MS_PER_DAY);
 
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { settings: true },
+    });
+    const orgSettings = (org?.settings as Record<string, any>) || {};
+    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
+    const settingsModel = validModels.includes(orgSettings.attributionModel)
+      ? orgSettings.attributionModel
+      : "NITRO";
+    const modelParam = (url.searchParams.get("model") || settingsModel).toUpperCase();
+    const selectedModel = validModels.includes(modelParam) ? modelParam : settingsModel;
+
     let funnelRow: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
 
-    // PURCHASE step: usamos ordenes web REALES en el rango (single source of truth
-    // via lib/metrics/orders.ts). Si channel esta seteado, intersectamos con
-    // visitors que tuvieron un evento PURCHASE matcheado (via attribution).
-    // PERF: las 2 queries (purchaseCount + funnelRow) son independientes — Promise.all.
+    // Compra = órdenes web atribuidas (misma definición que businessKpis.ordersAttributed).
     const purchasePromise = channel
       ? prisma.$queryRaw<Array<{ purchase: number }>>`
           SELECT COUNT(DISTINCT o.id)::int as purchase
           FROM orders o
           JOIN pixel_attributions pa ON pa."orderId" = o.id
           WHERE pa."organizationId" = ${orgId}
-            AND pa.model::text = 'NITRO'
+            AND pa.model::text = ${selectedModel}
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWebWhere("o")}
@@ -59,8 +69,10 @@ export async function GET(req: NextRequest) {
         `
       : prisma.$queryRaw<Array<{ purchase: number }>>`
           SELECT COUNT(*)::int as purchase
-          FROM orders o
-          WHERE o."organizationId" = ${orgId}
+          FROM pixel_attributions pa
+          JOIN orders o ON o.id = pa."orderId"
+          WHERE pa."organizationId" = ${orgId}
+            AND pa.model::text = ${selectedModel}
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWebWhere("o")}
@@ -110,7 +122,7 @@ export async function GET(req: NextRequest) {
           COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
           COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
           COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart",
-          COUNT(DISTINCT CASE WHEN pe.type = 'PURCHASE' THEN pe."visitorId" END)::int as "purchase"
+          0::int as "purchase"
         FROM pixel_events pe
         INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
         WHERE pe."organizationId" = ${orgId}
@@ -125,7 +137,7 @@ export async function GET(req: NextRequest) {
           COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
           COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
           COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart",
-          COUNT(DISTINCT CASE WHEN pe.type = 'PURCHASE' THEN pe."visitorId" END)::int as "purchase"
+          0::int as "purchase"
         FROM pixel_events pe
         WHERE pe."organizationId" = ${orgId}
           AND pe.timestamp >= ${dateFrom}
@@ -142,13 +154,12 @@ export async function GET(req: NextRequest) {
       from: dateFrom.toISOString(),
       to: dateTo.toISOString(),
       channel: channel || "all",
+      model: selectedModel,
       funnel: {
         pageView: funnelRow.pageView || 0,
         viewProduct: funnelRow.viewProduct || 0,
         addToCart: funnelRow.addToCart || 0,
         checkoutStart: funnelRow.checkoutStart || 0,
-        // S60 EXT-2 BIS+++++++: purchase = ordenes web REALES (no eventos pixel
-        // distinct visitors). Single source of truth via lib/metrics/orders.ts.
         purchase: purchaseCount,
       },
     });

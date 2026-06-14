@@ -1230,40 +1230,34 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     });
 
     // ── Funnel from NitroPixel (S60 EXT — decision producto) ──
-    // El funnel se arma desde pixel_events propios. NitroSales es fuente de verdad.
-    // Cuenta visitors UNICOS por etapa, excluyendo eventos creados server-side por
-    // el webhook (sessionId LIKE 'webhook-%') que no representan humanos.
-    //
-    // Mapping estandar:
+    // Steps 1–4: visitors UNICOS por etapa desde rollup HLL (webhook-filtrado).
     //   Visitas       → PAGE_VIEW
     //   Vio Producto  → VIEW_PRODUCT
     //   Carrito       → ADD_TO_CART
     //   Checkout      → INITIATE_CHECKOUT o CHECKOUT_SHIPPING
-    //   Compra        → PURCHASE
-    // FASE 2: funnel desde el rollup (HLL union por etapa). Antes: 5× COUNT(DISTINCT)
-    // sobre millones (~67s). El rollup ya es webhook-filtrado (humanos), igual semántica.
+    // Compra: órdenes web atribuidas (misma métrica que businessKpis.ordersAttributed).
+    // Ver DATA_COHERENCE.md Regla 5 — nunca eventos PURCHASE sueltos en el último step.
     const funnelRaw = await prisma.$queryRaw<Array<{
       pageView: number; viewProduct: number; addToCart: number;
-      checkoutStart: number; purchase: number;
+      checkoutStart: number;
     }>>`
       SELECT
         COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int as "pageView",
         COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int as "viewProduct",
         COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int as "addToCart",
-        COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int as "checkoutStart",
-        COALESCE(hll_cardinality(hll_union_agg(purchase_visitors_hll)), 0)::int as "purchase"
+        COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int as "checkoutStart"
       FROM pixel_daily_aggregates
       WHERE "organizationId" = ${ORG_ID}
         AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
     `;
-    const fRow = funnelRaw[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
+    const fRow = funnelRaw[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0 };
     const funnel = {
       pageView: fRow.pageView || 0,
       viewProduct: fRow.viewProduct || 0,
       addToCart: fRow.addToCart || 0,
       checkoutStart: fRow.checkoutStart || 0,
-      purchase: fRow.purchase || 0,
+      purchase: ordersAttributed,
     };
 
     // ── NEW: Daily revenue merged with daily spend ──
