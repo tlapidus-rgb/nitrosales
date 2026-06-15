@@ -22,6 +22,10 @@ import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+// PERF (2026-06-15, CR-4): red de seguridad de tiempo. Tras portar las 3 queries
+// crudas residuales (eventsLast24h/7d + topSources) a rollups, el endpoint corre
+// en <1s; el cap evita que una conexión quede colgada si algo se degrada.
+export const maxDuration = 30;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -78,15 +82,12 @@ export async function GET() {
     }
 
     const now = new Date();
-    const ago24h = new Date(now.getTime() - MS_DAY);
-    const ago7d = new Date(now.getTime() - 7 * MS_DAY);
     const ago30d = new Date(now.getTime() - 30 * MS_DAY);
 
     // Conteos paralelos
     const [
       rollupAgg,
-      eventsLast24h,
-      eventsLast7d,
+      windowAgg,
       firstEvent,
       attributedAgg,
       last10Events,
@@ -108,18 +109,24 @@ export async function GET() {
         FROM pixel_daily_aggregates
         WHERE "organizationId" = ${orgId}
       `,
-      // PERF: filtrar/ordenar por `timestamp` (indexado) en vez de `receivedAt`
-      // (SIN índice). Sobre orgs con millones de eventos cada query por receivedAt
-      // hacía full scan (~60-66s medido) → el endpoint colgaba y la página Asset
-      // mostraba $0. `timestamp` usa el índice (orgId, timestamp). Mismo fix que
-      // install-status / commit c8bfb3d. `timestamp` es además la columna canónica
-      // de tiempo de evento usada por el resto del dashboard (rollups Fase 2).
-      prisma.pixelEvent.count({
-        where: { organizationId: orgId, timestamp: { gte: ago24h } },
-      }),
-      prisma.pixelEvent.count({
-        where: { organizationId: orgId, timestamp: { gte: ago7d } },
-      }),
+      // PERF (2026-06-15, CR-4): eventsLast24h/7d desde el rollup
+      // `pixel_daily_aggregates` (SUM de total_events por día AR) en vez de dos
+      // `pixelEvent.count` sobre `pixel_events`. El count de 7d escaneaba cientos
+      // de miles de filas (1-3s) y contaba eventos sintéticos de webhook; el rollup
+      // lee ~7 filas, excluye webhook (igual que la Fase 2) y deja los números
+      // consistentes con el resto del dashboard.
+      //   - last24h = total_events del día AR de hoy.
+      //   - last7d  = SUM(total_events) de los últimos 7 días AR (hoy y los 6 previos).
+      prisma.$queryRaw<Array<{ last24h: bigint; last7d: bigint }>>`
+        SELECT
+          COALESCE(SUM(total_events) FILTER (
+            WHERE day = (${now} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          ), 0)::bigint AS last24h,
+          COALESCE(SUM(total_events), 0)::bigint AS last7d
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${orgId}
+          AND day >= ((${now} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date - INTERVAL '6 days')
+      `,
       prisma.pixelEvent.findFirst({
         where: { organizationId: orgId },
         orderBy: { timestamp: "asc" },
@@ -152,13 +159,20 @@ export async function GET() {
           AND day >= (${ago30d} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         ORDER BY day ASC
       `,
-      // Top sources de los últimos 7 días desde utmParams.source
+      // PERF (2026-06-15, CR-4): top fuentes de los últimos 7 días desde el rollup
+      // `pixel_daily_source` (visitantes únicos PV por first-source/día, HLL) en vez
+      // de `GROUP BY "utmParams"->>'source'` sobre `pixel_events` crudo (sin índice
+      // funcional → 3-28s medido en prod, era el cuello de botella de /nitropixel).
+      // Cambia la semántica a "visitantes por canal de PRIMER TOQUE" (more meaningful
+      // y consistente con el funnel/dashboard) en vez de "eventos por source del
+      // evento". El conteo es la cardinalidad HLL (aprox ~2%).
       prisma.$queryRaw<Array<{ source: string; count: bigint }>>`
-        SELECT COALESCE("utmParams"->>'source', 'direct') AS source, COUNT(*)::bigint AS count
-        FROM pixel_events
+        SELECT first_source AS source,
+               COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::bigint AS count
+        FROM pixel_daily_source
         WHERE "organizationId" = ${orgId}
-          AND "timestamp" >= ${ago7d}
-        GROUP BY source
+          AND day >= ((${now} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date - INTERVAL '6 days')
+        GROUP BY first_source
         ORDER BY count DESC
         LIMIT 5
       `,
@@ -168,6 +182,10 @@ export async function GET() {
     const totalEvents = Number(rollupAgg[0]?.total_events ?? 0);
     const totalVisitors = Number(rollupAgg[0]?.visitors ?? 0);
     const identifiedVisitors = Number(rollupAgg[0]?.identified ?? 0);
+
+    // Ventanas 24h/7d desde el rollup (ver nota PERF arriba).
+    const eventsLast24h = Number(windowAgg[0]?.last24h ?? 0);
+    const eventsLast7d = Number(windowAgg[0]?.last7d ?? 0);
 
     const attributedRevenue = Number(attributedAgg._sum.attributedValue ?? 0);
 

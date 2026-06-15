@@ -18,6 +18,11 @@ import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWebWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
+// PERF (2026-06-15, /pixel/analytics skeleton): red de seguridad de tiempo. El
+// caso channel="all" ahora lee del rollup (sub-segundo); el caso channel-filtrado
+// sigue escaneando pixel_events crudo (CTE por-visitante), que en ventanas grandes
+// puede tardar — el cap evita que la función serverless quede colgada >timeout.
+export const maxDuration = 60;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
@@ -131,18 +136,24 @@ export async function GET(req: NextRequest) {
           AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
           AND vfs.first_source = ${channel}
       `
-      : prisma.$queryRaw<Array<typeof funnelRow>>`
+      : // PERF (2026-06-15): sin filtro de canal, el funnel sale del rollup
+        // `pixel_daily_aggregates` (HLL por etapa, precisión 14,5) en vez de
+        // `COUNT(DISTINCT visitorId)` sobre pixel_events crudo (full scan,
+        // >30s timeout medido en prod). Misma query EXACTA que el funnel de
+        // /api/metrics/pixel (route.ts ~L1244) → los números coinciden con el
+        // card (consistencia, objetivo de PR #4). La compra sigue saliendo de
+        // órdenes web atribuidas (purchasePromise, intacta).
+        prisma.$queryRaw<Array<typeof funnelRow>>`
         SELECT
-          COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
-          COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
-          COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
-          COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart",
+          COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int as "pageView",
+          COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int as "viewProduct",
+          COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int as "addToCart",
+          COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int as "checkoutStart",
           0::int as "purchase"
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${orgId}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
-          AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
+        FROM pixel_daily_aggregates
+        WHERE "organizationId" = ${orgId}
+          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       `;
 
     const [purchaseRows, funnelRows] = await Promise.all([purchasePromise, funnelPromise]);

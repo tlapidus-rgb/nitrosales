@@ -542,6 +542,9 @@ export default function DashboardPage() {
     if (!prefsLoaded) return;
     setLoading(true);
     setError("");
+    // Guard anti-race: si el effect se re-dispara (cambio de período/layout)
+    // antes de que resuelvan los fetches viejos, descartamos sus updates.
+    let cancelled = false;
 
     // Recorro todos los slots del layout para recolectar widgetIds activos.
     const activeSlotWidgetIds: string[] = [];
@@ -590,24 +593,35 @@ export default function DashboardPage() {
         .catch(() => null);
     }
 
-    const sectionKeys = Object.keys(sectionFetches);
-    const widgetKeys = Object.keys(perWidgetFetches);
-    Promise.all([
-      ...Object.values(sectionFetches),
-      ...Object.values(perWidgetFetches),
-    ])
-      .then(results => {
-        const sectionData: Record<string, any> = {};
-        sectionKeys.forEach((k, i) => { sectionData[k] = results[i]; });
-        setAllData(sectionData);
-        const widgetData: Record<string, any> = {};
-        widgetKeys.forEach((k, i) => {
-          widgetData[k] = results[sectionKeys.length + i];
-        });
-        setPerWidgetData(widgetData);
-      })
-      .catch(() => setError("Error cargando datos"))
-      .finally(() => setLoading(false));
+    // RENDER PROGRESIVO (2026-06-15, fix skeleton): antes esto era un
+    // `Promise.all(...).then(setAllData once).finally(setLoading false)`, así que
+    // el skeleton full-page quedaba hasta que terminaba el endpoint MÁS LENTO
+    // (customers/pnl/products 2-9s) aunque `/api/metrics` (facturación/pedidos/
+    // ROAS) respondiera en ~700ms. El cliente lo veía como "todo en gris / $0".
+    // Ahora mergeamos cada sección APENAS resuelve: el gate del skeleton
+    // full-page es `loading && allData vacío`, así que cuando llega el primero la
+    // grilla aparece y cada widget muestra su propio mini-skeleton (dash-skeleton)
+    // hasta que llega SU dato. Los KPIs rápidos ya no esperan a los lentos.
+    const sectionEntries = Object.entries(sectionFetches);
+    const widgetEntries = Object.entries(perWidgetFetches);
+    for (const [src, p] of sectionEntries) {
+      p.then(data => {
+        if (!cancelled) setAllData(prev => ({ ...prev, [src]: data }));
+      });
+    }
+    for (const [wId, p] of widgetEntries) {
+      p.then(data => {
+        if (!cancelled) setPerWidgetData(prev => ({ ...prev, [wId]: data }));
+      });
+    }
+    Promise.allSettled([
+      ...sectionEntries.map(([, p]) => p),
+      ...widgetEntries.map(([, p]) => p),
+    ]).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => { cancelled = true; };
   }, [layout, periodQuery, prefsLoaded]);
 
   // ── Per-widget filtered data overrides ──

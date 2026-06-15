@@ -20,6 +20,33 @@
 
 ---
 
+## ⏳ BP-SKELETON-001 — Skeleton loading en 3 páginas demo (branch `fix/skeleton-loading`, 2026-06-15)
+
+> **Estado:** ⏳ HECHO EN BRANCH, **sin mergear** (el merge lo decide Tomy). tsc 0 · next build 0.
+> Medido en prod + verificado local (branch prod-local-axel). Detalle completo:
+> `~/Documents/NitroSales-Diagnostico/CHECKLIST_DEMO_JUEVES.md`.
+>
+> **Síntoma:** las páginas cargaban pero los datos quedaban en skeleton gris / $0 mucho tiempo.
+>
+> 1. **/nitropixel (CR-4)** — `asset-stats` 3,6–28s en prod (query cruda `topSources` GROUP BY +
+>    counts 24h/7d). Fix: portadas a rollups (`pixel_daily_aggregates` + `pixel_daily_source`) +
+>    `maxDuration`. → **142–523ms** local. `src/app/api/nitropixel/asset-stats/route.ts`.
+> 2. **Centro de Control** — el loader bloqueaba el skeleton full-page en `Promise.all` (esperaba al
+>    endpoint más lento ~2,5–5s) aunque los KPIs (`/api/metrics`) estaban en 669ms. Fix: render
+>    progresivo (merge incremental + guard anti-race). `src/app/(app)/dashboard/page.tsx`.
+> 3. **/pixel/analytics** — `funnel` `channel="all"` hacía `COUNT(DISTINCT)` crudo → **>30s timeout**.
+>    Fix: portado al rollup `pixel_daily_aggregates` (misma query que el funnel de `/api/metrics/pixel`
+>    → números coinciden con el card, objetivo de PR #4) + `maxDuration`. Compra intacta.
+>    `src/app/api/metrics/pixel/funnel/route.ts`. → **173–652ms** local.
+>
+> **No requiere migración** (solo LEE rollups ya existentes en prod). Backups `.bak` de los 3 archivos.
+>
+> **Residuales (NO en esta branch):** `/api/metrics/conversion` timeout (CR-3, no toca estas páginas) ·
+> `/api/metrics/pixel` cold 30d ~20s (lo sostiene el warm-cron; fix robusto = cache compartido KV) ·
+> funnel con filtro de canal específico sigue crudo.
+
+---
+
 ## 🟡 BP-ROLLUP-REFRESH — Rollups del pixel se desactualizaban (sin cron de refresh) (2026-06-14)
 
 > **Detectado** en la auditoría post-merge (2026-06-14): los rollups HLL del pixel tenían datos hasta el
