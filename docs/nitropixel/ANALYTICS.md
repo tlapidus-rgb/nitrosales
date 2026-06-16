@@ -659,6 +659,8 @@ Export Bronze to BigQuery for BI; **Neon Gold remains app serving layer**.
 | `src/app/api/admin/setup-pixel-rollups/route.ts` | Rollup DDL + backfill pattern |
 | `src/app/api/cron/refresh-pixel-rollups/route.ts` | Existing rollup refresh cadence |
 | `docs/issues/funnel-compra-ordenes-atribuidas.md` | Funnel Compra = orders fix |
+| `docs/nitropixel/ANALYTICS_NEON_SQL_RUNBOOK.md` | Step-by-step Neon SQL execution guide |
+| `docs/nitropixel/ANALYTICS_ORG_RECOVERY_RUNBOOK.md` | Fix empty analytics for a specific org (rollups + orders) |
 
 ---
 
