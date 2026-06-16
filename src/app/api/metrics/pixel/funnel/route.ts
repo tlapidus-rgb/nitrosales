@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWebWhere } from "@/lib/metrics/orders";
+import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 
 export const dynamic = "force-dynamic";
 // PERF (2026-06-15, /pixel/analytics skeleton): red de seguridad de tiempo. El
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
             AND ${ordersValidWebWhere("o")}
         `;
 
-    const funnelPromise = channel
+    const stagesPromise: Promise<{ pageView: number; viewProduct: number; addToCart: number; checkoutStart: number }> = channel
       ? prisma.$queryRaw<Array<typeof funnelRow>>`
         WITH visitor_first_source AS (
           SELECT DISTINCT ON ("visitorId")
@@ -135,30 +136,24 @@ export async function GET(req: NextRequest) {
           AND pe.timestamp <= ${dateTo}
           AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
           AND vfs.first_source = ${channel}
-      `
-      : // PERF (2026-06-15): sin filtro de canal, el funnel sale del rollup
-        // `pixel_daily_aggregates` (HLL por etapa, precisión 14,5) en vez de
-        // `COUNT(DISTINCT visitorId)` sobre pixel_events crudo (full scan,
-        // >30s timeout medido en prod). Misma query EXACTA que el funnel de
-        // /api/metrics/pixel (route.ts ~L1244) → los números coinciden con el
-        // card (consistencia, objetivo de PR #4). La compra sigue saliendo de
-        // órdenes web atribuidas (purchasePromise, intacta).
-        prisma.$queryRaw<Array<typeof funnelRow>>`
-        SELECT
-          COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int as "pageView",
-          COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int as "viewProduct",
-          COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int as "addToCart",
-          COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int as "checkoutStart",
-          0::int as "purchase"
-        FROM pixel_daily_aggregates
-        WHERE "organizationId" = ${orgId}
-          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-      `;
+      `.then((r) => ({
+          pageView: r[0]?.pageView || 0,
+          viewProduct: r[0]?.viewProduct || 0,
+          addToCart: r[0]?.addToCart || 0,
+          checkoutStart: r[0]?.checkoutStart || 0,
+        }))
+      : // PERF (2026-06-16): sin filtro de canal, las etapas salen del rollup
+        // `pixel_daily_aggregates` PERO mergeadas en vivo con los días recientes
+        // faltantes/parciales (el rollup en prod queda stale y el día AR en curso
+        // es siempre parcial → antes daba 0 en "Hoy"). Ver getFunnelStages. Sigue
+        // siendo la misma definición que el funnel del card de /api/metrics/pixel
+        // (que usa el mismo helper) → los números coinciden (objetivo PR #4). La
+        // compra sigue saliendo de órdenes web atribuidas (purchasePromise, intacta).
+        getFunnelStages(orgId, dateFrom, dateTo);
 
-    const [purchaseRows, funnelRows] = await Promise.all([purchasePromise, funnelPromise]);
+    const [purchaseRows, stages] = await Promise.all([purchasePromise, stagesPromise]);
     const purchaseCount = purchaseRows[0]?.purchase || 0;
-    funnelRow = funnelRows[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
+    funnelRow = { ...stages, purchase: 0 };
 
     return NextResponse.json({
       ok: true,

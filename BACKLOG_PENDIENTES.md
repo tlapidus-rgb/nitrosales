@@ -20,6 +20,54 @@
 
 ---
 
+## ⏳ BP-SKELETON-002 — Funnel "Hoy" + datos de hoy + cron de rollup roto (branch `fix/skeleton-loading`, 2026-06-16)
+
+> **Estado:** ⏳ Fixes de código HECHOS EN BRANCH, **sin mergear**. tsc 0 · next build 0.
+> Backfill de rollup en prod EJECUTADO con OK de Tomy. Medido contra **DB de prod real**
+> (el branch Neon `prod-local-axel` fue borrado; el `.env` local ahora apunta a prod, modo lectura).
+> Cuenta de test: `tlapidus@99media.com.ar` (org El Mundo del Juguete).
+
+### 1. Funnel roto al filtrar "Hoy" (Problema Extra 1) — ✅ ARREGLADO (código)
+- **Síntoma:** con "Hoy", el funnel mostraba **solo la compra**, el resto de las etapas en 0.
+- **Causa raíz:** en `src/app/api/metrics/pixel/funnel/route.ts` (caso `channel="all"`), las 4 etapas
+  salían SOLO del rollup `pixel_daily_aggregates` (grano diario), mientras la compra sale en vivo de
+  `orders+attributions`. El rollup no tiene el día en curso (siempre parcial / cron stale) → etapas 0,
+  compra >0. Reproducido en prod: `{pageView:0,viewProduct:0,addToCart:0,checkoutStart:0,purchase:111}`.
+  Es una regresión del propio BP-SKELETON-001 (commit `344c4ba` portó el funnel "all" del crudo al rollup).
+- **Fix:** helper nuevo `src/lib/metrics/pixel-funnel.ts` (`getFunnelStages`) que mergea el rollup
+  histórico con un tramo EN VIVO (mismos params HLL `14,5`) para los días recientes faltantes/parciales,
+  unidos con `hll_union` (deduplica + completa el día parcial). Validado vs `COUNT(DISTINCT)`: error <1,4%.
+  Aplicado al funnel endpoint (caso "all"). El caso channel-filtrado quedó intacto.
+- **NO se tocó el card CORE** `src/app/api/metrics/pixel/route.ts` (protegido). Quedó coincidiendo igual
+  porque el backfill del rollup (abajo) lo dejó al día. Si en el futuro el rollup se vuelve a atrasar, el
+  card volvería a mostrar 0 en "Hoy" → considerar usar el mismo helper en el card (requiere OK fundador).
+
+### 2. "No hay datos de hoy" (Problema Extra 2) — ✅ RESUELTO (datos) + cron a investigar (Vercel)
+- **Causa raíz:** el rollup de prod no se escribía desde **14/06 17:37 UTC** (~53h). `pixel_events` y
+  `orders` SÍ llegaban a hoy. No era timezone — era el rollup desactualizado.
+- **Fix de datos (con OK de Tomy):** se disparó el cron de prod a mano
+  `GET /api/cron/refresh-pixel-rollups?key=…` → backfill idempotente 14-16/06, `{ok:true, daysProcessed:3,
+  ms:120675}`. Rollup al día: 14/06 completado (44.663→100.986), 15/06 y 16/06 agregados. Verificado:
+  card de pixel "Hoy" pasa de 0 → `visitors=6617`. Funnel 30d volvió a **1,2-1,5s** (era 5-16s con rollup stale).
+- **🔴 CRON ROTO (pendiente de Tomy):** el cron `refresh-pixel-rollups` (agendado `0 */2 * * *` en
+  `vercel.json`) **funciona perfecto al invocarlo a mano** pero **Vercel no lo dispara solo**. Causa
+  probable: **límites de crons del plan de Vercel** (Hobby = máx 1 cron/día; el proyecto tiene varios
+  sub-diarios: warm-cache `*/5`, refresh `*/2h`, etc.). **Acción para Tomy:** revisar plan/cron-logs en
+  el dashboard de Vercel. Sin esto, el rollup se vuelve a atrasar en horas y "no hay datos de hoy" vuelve.
+  (Mismo riesgo afecta a `warm-cache` → si no corre, los cold de las páginas no se calientan.)
+
+### 3. Bug extra: `/seo` disparaba 400 + error JS — ✅ ARREGLADO
+- `useSyncStatus("GSC")` (seo/page.tsx:985) con un platform sin mapeo en `TRIGGER_MAP` →
+  `POST /api/sync/trigger?platform=undefined` → 400 + error de consola en cada carga.
+- **Fix:** guard en `src/lib/hooks/useSyncStatus.ts` (si no hay triggerKey, no dispara on-demand; GSC
+  usa cron diario). Verificado: 0 requests malformados, 0 errores JS. Pre-existente, no de skeleton.
+
+### QA de las 12 páginas (cuenta EMDJ, prod)
+0 errores JS reales en las 12 (tras el fix de SEO). Tiempos cold medidos local→DB-prod-remoto (inflados
+3-8× por latencia; en Vercel misma-región + warm-cron + SWR son los warm <2s). Screenshots en `testout-skeleton/`.
+
+---
+
 ## ⏳ BP-SKELETON-001 — Skeleton loading en 3 páginas demo (branch `fix/skeleton-loading`, 2026-06-15)
 
 > **Estado:** ⏳ HECHO EN BRANCH, **sin mergear** (el merge lo decide Tomy). tsc 0 · next build 0.

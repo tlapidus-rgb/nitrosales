@@ -89,6 +89,13 @@ export function useSyncStatus(platform: Platform): SyncStatus {
   const triggerSync = useCallback(async () => {
     if (isSyncing) return;
     const triggerKey = TRIGGER_MAP[platform];
+    // Guard: platform sin mapeo de trigger on-demand (ej: "GSC", que se sincroniza
+    // por cron diario). Sin esto, el fetch salía como `?platform=undefined` → 400
+    // + error de consola en cada carga de /seo. No on-demand para esos casos.
+    if (!triggerKey) {
+      setIsSyncing(false);
+      return;
+    }
 
     try {
       setIsSyncing(true);
