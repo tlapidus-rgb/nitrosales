@@ -41,6 +41,18 @@
 >
 > **No requiere migración** (solo LEE rollups ya existentes en prod). Backups `.bak` de los 3 archivos.
 >
+> **Ronda 2 (2026-06-15, sweep EMDJ 12 páginas en build de prod):**
+> 4. **/products + /rentabilidad + widgets stock del dashboard** — `metrics/products` Query 7 (viewers
+>    por SKU) hacía `JOIN pixel_events ON props->>'productId'` (JSONB sin índice) → **31,6s**, era el
+>    cuello de botella (>30s timeout). Fix: Query 7 → rollup `pixel_daily_product` (319ms, 100x) +
+>    eliminada Query 2 muerta. products cold **>30s → 2,8s**, warm (SWR) 178ms. Sin migración.
+>    `src/app/api/metrics/products/route.ts`.
+> 5. **Bondly** (`pulse`/`ltv-insights`/`behavioral-ltv`/`churn-risk`) — solo guard `maxDuration=60`
+>    (evita 504). Siguen 2,5-4,6s (branch) / 7-8,5s (prod): multi-scan pesado de LTV/cohortes, sin
+>    killer barato. **Pendiente refactor SWR/rollups dedicado** (no apurar pre-demo, riesgo a números LTV).
+>
+> Con warm-cron + SWR, las 12 páginas cargan <2s salvo Bondly. tsc 0 · next build 0.
+>
 > **Residuales (NO en esta branch):** `/api/metrics/conversion` timeout (CR-3, no toca estas páginas) ·
 > `/api/metrics/pixel` cold 30d ~20s (lo sostiene el warm-cron; fix robusto = cache compartido KV) ·
 > funnel con filtro de canal específico sigue crudo.

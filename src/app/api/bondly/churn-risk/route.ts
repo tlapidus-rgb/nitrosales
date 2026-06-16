@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 60; // guard anti-504 (queries de LTV/cohortes pesadas)
 
 // ═══════════════════════════════════════════════════════════════════
 // /api/bondly/churn-risk — Top clientes en riesgo de churn

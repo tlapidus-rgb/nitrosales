@@ -51,6 +51,7 @@ import { ordersValidWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 60; // guard anti-504 (queries de LTV/cohortes pesadas)
 
 const MS_MIN = 60 * 1000;
 const MS_HOUR = 60 * MS_MIN;

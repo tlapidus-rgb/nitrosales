@@ -144,7 +144,6 @@ export async function GET(request: Request) {
     // Execute all 6 queries in parallel
     const [
       orderTotals,
-      ordersWithItems,
       productAggregation,
       stockSyncMetadata,
       weeklySalesByProduct,
@@ -172,22 +171,9 @@ export async function GET(request: Request) {
           AND ${ordersValidWhere("")}
       `,
 
-      // Query 2: Orders with items count
-      prisma.$queryRaw<
-        Array<{
-          orderId: string;
-          itemCount: number;
-        }>
-      >`
-        SELECT
-          id AS "orderId",
-          "itemCount"
-        FROM orders
-        WHERE "organizationId" = ${ORG_ID}
-          AND "orderDate" >= ${thirtyDaysAgo}
-          AND "orderDate" <= ${dateTo}
-          AND ${ordersValidWhere("")}
-      `,
+      // (Query 2 "ordersWithItems" eliminada 2026-06-15: era código muerto —
+      //  se destructuraba pero no se usaba en ningún lado, escaneaba todas las
+      //  órdenes del período al pedo.)
 
       // Query 3: Product aggregation (30 days) CONSOLIDATED BY SKU (Sesion 20).
       // 1. master_products: 1 fila por SKU, priorizando el producto VTEX (tiene imagen,
@@ -327,10 +313,15 @@ export async function GET(request: Request) {
         GROUP BY p.sku
       `,
 
-      // Query 7 (Sesion 22): Pixel viewers per SKU en el periodo
-      // Consolidamos vistas por SKU (un SKU puede existir como producto
-      // VTEX y MELI con distinto externalId, asi que matcheamos pe.productId
-      // -> products.externalId y agrupamos por products.sku).
+      // Query 7 (Sesion 22 · PERF 2026-06-15): Pixel viewers per SKU en el periodo.
+      // ANTES: JOIN de pixel_events (millones de filas) a products por
+      // `props->>'productId'` (JSONB sin índice funcional) → **31,6s medido**, era
+      // EL cuello de botella del endpoint (la página /products quedaba >30s).
+      // AHORA: lee del rollup `pixel_daily_product` (org, day, product_id, viewers_hll
+      // por VIEW_PRODUCT) → JOIN a products por externalId + `hll_union_agg` por SKU
+      // para deduplicar visitantes que vieron varios products del mismo SKU
+      // (VTEX+MELI). Mismo resultado (5.436 SKUs), ~319ms (100x). El conteo es HLL
+      // (aprox ~2%), consistente con el resto del dashboard.
       prisma.$queryRaw<
         Array<{
           sku: string;
@@ -339,16 +330,14 @@ export async function GET(request: Request) {
       >`
         SELECT
           p.sku AS sku,
-          COUNT(DISTINCT pe."visitorId")::bigint AS viewers
-        FROM pixel_events pe
+          COALESCE(hll_cardinality(hll_union_agg(dp.viewers_hll)), 0)::bigint AS viewers
+        FROM pixel_daily_product dp
         JOIN products p
-          ON p."externalId" = pe.props->>'productId'
-          AND p."organizationId" = pe."organizationId"
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${thirtyDaysAgo}
-          AND pe.timestamp <= ${dateTo}
-          AND pe.type = 'VIEW_PRODUCT'
-          AND pe.props->>'productId' IS NOT NULL
+          ON p."externalId" = dp.product_id
+          AND p."organizationId" = dp."organizationId"
+        WHERE dp."organizationId" = ${ORG_ID}
+          AND dp.day >= (${thirtyDaysAgo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
           AND p.sku IS NOT NULL AND p.sku != ''
         GROUP BY p.sku
       `,
