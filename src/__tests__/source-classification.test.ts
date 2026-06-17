@@ -5,6 +5,7 @@ import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
   canonicalMarketingSource,
+  mergeChannelRolesByGroupKey,
 } from "@/lib/pixel/source-classification";
 
 describe("source-classification", () => {
@@ -126,6 +127,32 @@ describe("source-classification", () => {
 
     it("appends _organic for search engines with organic medium", () => {
       expect(canonicalMarketingSource("google", "organic")).toBe("google_organic");
+    });
+  });
+
+  describe("mergeChannelRolesByGroupKey", () => {
+    it("merges fb into meta without touching other sources", () => {
+      const merged = mergeChannelRolesByGroupKey([
+        { source: "meta", firstTouch: 10, assistTouch: 5, lastTouch: 8, soloTouch: 2 },
+        { source: "fb", firstTouch: 3, assistTouch: 1, lastTouch: 2, soloTouch: 0 },
+        { source: "facebook", firstTouch: 7, assistTouch: 0, lastTouch: 1, soloTouch: 4 },
+        { source: "google", firstTouch: 4, assistTouch: 2, lastTouch: 1, soloTouch: 1 },
+      ]);
+      expect(merged.find((r) => r.source === "meta")).toEqual({
+        source: "meta",
+        firstTouch: 13,
+        assistTouch: 6,
+        lastTouch: 10,
+        soloTouch: 2,
+      });
+      expect(merged.find((r) => r.source === "facebook")).toEqual({
+        source: "facebook",
+        firstTouch: 7,
+        assistTouch: 0,
+        lastTouch: 1,
+        soloTouch: 4,
+      });
+      expect(merged.find((r) => r.source === "fb")).toBeUndefined();
     });
   });
 

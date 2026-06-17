@@ -26,6 +26,7 @@ import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
   canonicalMarketingSource,
+  mergeChannelRolesByGroupKey,
 } from "@/lib/pixel/source-classification";
 
 export const revalidate = 0;
@@ -1149,6 +1150,17 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
     const totalEvents = eventCountResult[0]?.total || 0;
 
+    // Channel roles: gateway filter + fold fb → meta only (Role Map + Journey Intelligence).
+    const channelRolesMerged = mergeChannelRolesByGroupKey(
+      (channelRolesResult as Array<{
+        source: string;
+        firstTouch: number;
+        assistTouch: number;
+        lastTouch: number;
+        soloTouch: number;
+      }>).filter((r) => !isNonMarketingChannelSource(r.source))
+    );
+
     // ── NEW: Process business KPIs ──
     const selectedModelData = attributionByModelResult.find((m) => m.model === selectedModel);
     const pixelRevenue = selectedModelData?.revenue || 0;
@@ -1415,9 +1427,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       dailyRevenue,
       dailyChannelBreakdown,
       recentJourneys,
-      channelRoles: channelRolesResult.filter(
-        (r) => !isNonMarketingChannelSource(r.source)
-      ),
+      channelRoles: channelRolesMerged,
       pixelHealth,
 
       // ── Existing fields (unchanged) ──
@@ -1579,9 +1589,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           aovLift: singleTouchAOV > 0 ? Math.round(((multiTouchAOV - singleTouchAOV) / singleTouchAOV) * 100) : 0,
           channelPairs: pairs,
           conversionLag: lag,
-          channelRoles: (channelRolesResult as Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>)
-            .filter(r => !isNonMarketingChannelSource(r.source))
-            .slice(0, 8),
+          channelRoles: channelRolesMerged.slice(0, 8),
         };
       })(),
 

@@ -210,3 +210,35 @@ export function canonicalMarketingSource(
   }
   return canonical;
 }
+
+/** Channel-roles tables only: fold utm_source=fb into meta (duplicate Meta Ads rows). */
+export function channelRoleGroupKey(source: string | null | undefined): string {
+  const s = normalizeSourceKey(source) || "direct";
+  return s === "fb" ? "meta" : s;
+}
+
+export interface ChannelRoleRow {
+  source: string;
+  firstTouch: number;
+  assistTouch: number;
+  lastTouch: number;
+  soloTouch: number;
+}
+
+/** Sum role counts when fb and meta appear as separate touchpoint sources. */
+export function mergeChannelRolesByGroupKey<T extends ChannelRoleRow>(rows: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const row of rows) {
+    const key = channelRoleGroupKey(row.source);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row, source: key });
+      continue;
+    }
+    existing.firstTouch += row.firstTouch;
+    existing.assistTouch += row.assistTouch;
+    existing.lastTouch += row.lastTouch;
+    existing.soloTouch += row.soloTouch;
+  }
+  return Array.from(map.values()).sort((a, b) => b.firstTouch - a.firstTouch);
+}
