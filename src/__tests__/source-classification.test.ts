@@ -1,0 +1,165 @@
+import { describe, it, expect } from "vitest";
+import {
+  isPaymentGatewaySource,
+  shouldSkipSessionForJourney,
+  filterMarketingTouchpoints,
+  isNonMarketingChannelSource,
+  canonicalMarketingSource,
+  mergeChannelRolesByGroupKey,
+} from "@/lib/pixel/source-classification";
+
+describe("source-classification", () => {
+  describe("isPaymentGatewaySource", () => {
+    it("blocks canonical gateway strings", () => {
+      expect(isPaymentGatewaySource("gocuotas")).toBe(true);
+      expect(isPaymentGatewaySource("GoCuotas")).toBe(true);
+      expect(isPaymentGatewaySource("mercadopago")).toBe(true);
+      expect(isPaymentGatewaySource("mercadopago_checkout")).toBe(true);
+      expect(isPaymentGatewaySource("paypal")).toBe(true);
+      expect(isPaymentGatewaySource("vtexpayments")).toBe(true);
+    });
+
+    it("blocks prefix and contains rules", () => {
+      expect(isPaymentGatewaySource("mercadopago_ar")).toBe(true);
+      expect(isPaymentGatewaySource("shop_gocuotas_return")).toBe(true);
+      expect(isPaymentGatewaySource("vtexpay")).toBe(true);
+    });
+
+    it("allows marketing sources", () => {
+      expect(isPaymentGatewaySource("meta")).toBe(false);
+      expect(isPaymentGatewaySource("google")).toBe(false);
+      expect(isPaymentGatewaySource("direct")).toBe(false);
+    });
+  });
+
+  describe("shouldSkipSessionForJourney", () => {
+    it("blocks utm_source=gocuotas even on checkout return with fresh signal", () => {
+      expect(
+        shouldSkipSessionForJourney({
+          source: "gocuotas",
+          medium: "referral",
+          pageUrl: "https://store.com/checkout/orderPlaced?gatewayCallback=1",
+          hasFreshMarketingSignal: true,
+        })
+      ).toBe(true);
+    });
+
+    it("skips checkout return without marketing signals", () => {
+      expect(
+        shouldSkipSessionForJourney({
+          source: "direct",
+          pageUrl: "https://store.com/checkout/orderPlaced",
+        })
+      ).toBe(true);
+
+      expect(
+        shouldSkipSessionForJourney({
+          source: "direct",
+          pageUrl: "https://store.com/foo?gatewayCallback=1",
+        })
+      ).toBe(true);
+    });
+
+    it("keeps checkout session with fresh paid click", () => {
+      expect(
+        shouldSkipSessionForJourney({
+          source: "google",
+          medium: "cpc",
+          pageUrl: "https://store.com/checkout/",
+          clickId: "gclid-abc",
+          hasFreshMarketingSignal: true,
+        })
+      ).toBe(false);
+    });
+
+    it("keeps normal marketing sessions", () => {
+      expect(
+        shouldSkipSessionForJourney({
+          source: "meta",
+          medium: "cpc",
+          pageUrl: "https://store.com/producto/zapatillas",
+          campaign: "spring-sale",
+          hasFreshMarketingSignal: true,
+        })
+      ).toBe(false);
+    });
+  });
+
+  describe("filterMarketingTouchpoints", () => {
+    it("removes gateway touchpoints from stored JSON", () => {
+      const touchpoints = [
+        { source: "meta", medium: "cpc", page: "/producto" },
+        { source: "gocuotas", medium: "referral", page: "/checkout/orderPlaced" },
+        { source: "google", medium: "cpc", page: "/landing" },
+      ];
+      expect(filterMarketingTouchpoints(touchpoints)).toEqual([
+        { source: "meta", medium: "cpc", page: "/producto" },
+        { source: "google", medium: "cpc", page: "/landing" },
+      ]);
+    });
+
+    it("drops checkout-only direct when other touchpoints exist", () => {
+      const touchpoints = [
+        { source: "meta", medium: "cpc" },
+        { source: "direct", medium: undefined, page: "/checkout/cart" },
+      ];
+      expect(filterMarketingTouchpoints(touchpoints)).toEqual([
+        { source: "meta", medium: "cpc" },
+      ]);
+    });
+  });
+
+  describe("canonicalMarketingSource", () => {
+    it("maps fb UTM alias to meta", () => {
+      expect(canonicalMarketingSource("fb")).toBe("meta");
+      expect(canonicalMarketingSource("FB")).toBe("meta");
+      expect(canonicalMarketingSource("meta_ads")).toBe("meta");
+    });
+
+    it("keeps organic facebook separate from meta ads", () => {
+      expect(canonicalMarketingSource("facebook")).toBe("facebook");
+    });
+
+    it("maps google aliases", () => {
+      expect(canonicalMarketingSource("adwords")).toBe("google");
+      expect(canonicalMarketingSource("google_ads")).toBe("google");
+    });
+
+    it("appends _organic for search engines with organic medium", () => {
+      expect(canonicalMarketingSource("google", "organic")).toBe("google_organic");
+    });
+  });
+
+  describe("mergeChannelRolesByGroupKey", () => {
+    it("merges fb into meta without touching other sources", () => {
+      const merged = mergeChannelRolesByGroupKey([
+        { source: "meta", firstTouch: 10, assistTouch: 5, lastTouch: 8, soloTouch: 2 },
+        { source: "fb", firstTouch: 3, assistTouch: 1, lastTouch: 2, soloTouch: 0 },
+        { source: "facebook", firstTouch: 7, assistTouch: 0, lastTouch: 1, soloTouch: 4 },
+        { source: "google", firstTouch: 4, assistTouch: 2, lastTouch: 1, soloTouch: 1 },
+      ]);
+      expect(merged.find((r) => r.source === "meta")).toEqual({
+        source: "meta",
+        firstTouch: 13,
+        assistTouch: 6,
+        lastTouch: 10,
+        soloTouch: 2,
+      });
+      expect(merged.find((r) => r.source === "facebook")).toEqual({
+        source: "facebook",
+        firstTouch: 7,
+        assistTouch: 0,
+        lastTouch: 1,
+        soloTouch: 4,
+      });
+      expect(merged.find((r) => r.source === "fb")).toBeUndefined();
+    });
+  });
+
+  describe("isNonMarketingChannelSource", () => {
+    it("matches isPaymentGatewaySource for API filters", () => {
+      expect(isNonMarketingChannelSource("mobbex")).toBe(true);
+      expect(isNonMarketingChannelSource("instagram")).toBe(false);
+    });
+  });
+});

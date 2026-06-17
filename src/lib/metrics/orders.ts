@@ -69,6 +69,23 @@ export function ordersValidSql(aliasOrders: string = "o"): string {
   return `${p}status NOT IN (${list}) AND ${p}"totalValue" > 0`;
 }
 
+/** String version of ordersWebWhere — for $queryRawUnsafe. */
+export function ordersWebSql(aliasOrders: string = "o"): string {
+  const a = `"${aliasOrders}"`;
+  return (
+    `${a}."trafficSource" IS DISTINCT FROM 'Marketplace'` +
+    ` AND ${a}.source IS DISTINCT FROM 'MELI'` +
+    ` AND ${a}.channel IS DISTINCT FROM 'marketplace'` +
+    ` AND ${a}."externalId" NOT LIKE 'FVG-%'` +
+    ` AND ${a}."externalId" NOT LIKE 'BPR-%'`
+  );
+}
+
+/** String version of ordersValidWebWhere — for $queryRawUnsafe. */
+export function ordersValidWebSql(aliasOrders: string = "o"): string {
+  return `${ordersValidSql(aliasOrders)} AND ${ordersWebSql(aliasOrders)}`;
+}
+
 /**
  * Filtros adicionales que definen "orden WEB" (no marketplace).
  * Usar EN COMBINACION con ordersValidWhere().

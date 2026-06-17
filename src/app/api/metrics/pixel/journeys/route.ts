@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWhere } from "@/lib/metrics/orders";
+import { filterMarketingTouchpoints } from "@/lib/pixel/source-classification";
 import { getCached, setCache } from "@/lib/api-cache";
 
 interface RawTouchpoint {
@@ -233,7 +234,7 @@ export async function GET(request: NextRequest) {
       if (!attr) continue; // safety: should not happen given EXISTS filter
 
       const raw = (attr.touchpoints as unknown as RawTouchpoint[]) || [];
-      const tps = dedupeTouchpoints(raw.map(tpFromRaw));
+      const tps = dedupeTouchpoints(filterMarketingTouchpoints(raw).map(tpFromRaw));
       if (tps.length === 0) continue; // sin touchpoints reales no mostramos la card
 
       orders.push({

@@ -14,17 +14,12 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 
 export const dynamic = "force-dynamic";
 const KEY = ADMIN_API_KEY;
 
-function canonicalSource(source: string): string {
-  const lower = (source || "direct").toLowerCase().trim();
-  if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) return "google";
-  if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads", "fb"].includes(lower)) return "meta";
-  if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) return "instagram";
-  return lower;
-}
+const canonicalSource = canonicalMarketingSource;
 
 export async function GET(req: NextRequest) {
   try {

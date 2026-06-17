@@ -22,6 +22,12 @@ import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } fro
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/lib/metrics/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
+import {
+  filterMarketingTouchpoints,
+  isNonMarketingChannelSource,
+  canonicalMarketingSource,
+  mergeChannelRolesByGroupKey,
+} from "@/lib/pixel/source-classification";
 
 export const revalidate = 0;
 // Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
@@ -1125,11 +1131,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       percentage: totalEventCount > 0 ? Math.round((e.count / totalEventCount) * 100) : 0,
     }));
 
-    // Payment gateway sources to exclude (safety net — attribution engine already filters these,
-    // but historical data may contain them before the exclusion was added)
-    const PAYMENT_GATEWAY_SOURCES = ["gocuotas", "mercadopago", "mobbex", "decidir", "payway", "todopago", "naranjax", "rapipago", "pagofacil"];
     const filteredAttrBySource = attributionBySourceResult.filter(
-      (a) => !PAYMENT_GATEWAY_SOURCES.includes((a.source || "").toLowerCase())
+      (a) => !isNonMarketingChannelSource(a.source)
     );
 
     // Attribution source with percentages
@@ -1146,6 +1149,17 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : 0;
 
     const totalEvents = eventCountResult[0]?.total || 0;
+
+    // Channel roles: gateway filter + fold fb → meta only (Role Map + Journey Intelligence).
+    const channelRolesMerged = mergeChannelRolesByGroupKey(
+      (channelRolesResult as Array<{
+        source: string;
+        firstTouch: number;
+        assistTouch: number;
+        lastTouch: number;
+        soloTouch: number;
+      }>).filter((r) => !isNonMarketingChannelSource(r.source))
+    );
 
     // ── NEW: Process business KPIs ──
     const selectedModelData = attributionByModelResult.find((m) => m.model === selectedModel);
@@ -1346,11 +1360,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     };
 
     // ── NEW: Recent journeys ──
-    const recentJourneys = recentJourneysResult.map((j) => ({
-      ...j,
-      orderDate: new Date(j.orderDate).toISOString(),
-      touchpoints: Array.isArray(j.touchpoints) ? j.touchpoints : (typeof j.touchpoints === "string" ? JSON.parse(j.touchpoints) : j.touchpoints || []),
-    }));
+    const recentJourneys = recentJourneysResult.map((j) => {
+      const rawTouchpoints = Array.isArray(j.touchpoints)
+        ? j.touchpoints
+        : typeof j.touchpoints === "string"
+          ? JSON.parse(j.touchpoints)
+          : j.touchpoints || [];
+      return {
+        ...j,
+        orderDate: new Date(j.orderDate).toISOString(),
+        touchpoints: filterMarketingTouchpoints(rawTouchpoints),
+      };
+    });
 
     const response = {
       liveStatus: {
@@ -1406,9 +1427,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       dailyRevenue,
       dailyChannelBreakdown,
       recentJourneys,
-      channelRoles: channelRolesResult.filter(
-        (r) => !PAYMENT_GATEWAY_SOURCES.includes((r.source || "").toLowerCase())
-      ),
+      channelRoles: channelRolesMerged,
       pixelHealth,
 
       // ── Existing fields (unchanged) ──
@@ -1423,28 +1442,17 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         // S60 EXT-2 BIS: normalizar source canonical en ambos lados (CTE + attributionBySource)
         // para que el JOIN funcione. Filtrar sources con caracteres invalidos (clickIds mal).
 
-        // Helper: canonicaliza source (debe matchear con CTE visitor_first_source)
-        const canonicalSource = (s: string): string => {
-          const lower = (s || "").toLowerCase().trim();
-          if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) return "google";
-          if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads"].includes(lower)) return "meta";
-          if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) return "instagram";
-          return lower;
-        };
+        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
 
-        // Filtrar sources invalidos (caracteres no imprimibles, encoding roto)
-        const isValidSource = (s: string): boolean => {
+        const isValidConversionSource = (s: string): boolean => {
           if (!s || s.length === 0) return false;
-          // Solo ascii printable + algunos chars de utm permitidos
           return /^[a-z0-9_\-\.]+$/i.test(s);
         };
-
-        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
 
         // Construir attrMap con keys canonicalizadas — sumar revenue si hay aliases
         const attrMap = new Map<string, { revenue: number; orders: number }>();
         for (const ch of attributionBySource) {
-          const key = canonicalSource(ch.source);
+          const key = canonicalMarketingSource(ch.source);
           const existing = attrMap.get(key);
           attrMap.set(key, {
             revenue: (existing?.revenue || 0) + (ch.revenue || 0),
@@ -1455,11 +1463,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
         for (const vs of pixelVisitorsBySource) {
           if (vs.visitors <= 5) continue; // skip tiny sources
-          if (!isValidSource(vs.source)) continue; // skip sources con caracteres rotos
-          const key = canonicalSource(vs.source);
+          if (isNonMarketingChannelSource(vs.source)) continue;
+          const key = canonicalMarketingSource(vs.source);
+          if (isNonMarketingChannelSource(key)) continue;
+          if (!isValidConversionSource(key)) continue;
           const existing = channelMap.get(key);
           const attr = attrMap.get(key);
-          // Sumar visitors+purchases si hay aliases (ej: dos rows con mismo canonical)
+          // Sumar visitors+purchases si hay aliases (ej: fb + meta → meta)
           if (existing) {
             existing.visitors += vs.visitors;
             existing.purchases += vs.purchases;
@@ -1562,9 +1572,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         const multiTouchAOV = multiTouchJourneys > 0 ? Math.round(multiTouchRevenue / multiTouchJourneys) : 0;
         const singleTouchAOV = singleTouch ? Math.round(singleTouch.revenue / singleTouch.journeys) : 0;
 
-        // Channel pairs: filter out payment gateways
         const pairs = (channelPairsResult as Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>)
-          .filter(p => !PAYMENT_GATEWAY_SOURCES.includes(p.first_channel.toLowerCase()) && !PAYMENT_GATEWAY_SOURCES.includes(p.last_channel.toLowerCase()));
+          .filter(p => !isNonMarketingChannelSource(p.first_channel) && !isNonMarketingChannelSource(p.last_channel));
 
         // Conversion lag (already have conversionLagResult)
         const lag = conversionLagResult as Array<{ bucket: string; orders: number; revenue: number }>;
@@ -1580,9 +1589,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           aovLift: singleTouchAOV > 0 ? Math.round(((multiTouchAOV - singleTouchAOV) / singleTouchAOV) * 100) : 0,
           channelPairs: pairs,
           conversionLag: lag,
-          channelRoles: (channelRolesResult as Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>)
-            .filter(r => !PAYMENT_GATEWAY_SOURCES.includes((r.source || "").toLowerCase()))
-            .slice(0, 8),
+          channelRoles: channelRolesMerged.slice(0, 8),
         };
       })(),
 

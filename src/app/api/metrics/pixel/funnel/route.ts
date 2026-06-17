@@ -15,8 +15,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidWebWhere } from "@/lib/metrics/orders";
+import { ordersValidWebWhere, ordersValidWebSql } from "@/lib/metrics/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
+import {
+  FIRST_SOURCE_MARKETING_CASE_FILTERED,
+  GOOGLE_UTM_SQL_IN,
+  META_UTM_SQL_IN,
+  WEBHOOK_SESSION_FILTER,
+} from "@/lib/pixel/first-source-sql";
 
 export const dynamic = "force-dynamic";
 // PERF (2026-06-15, /pixel/analytics skeleton): red de seguridad de tiempo. El
@@ -57,22 +63,27 @@ export async function GET(req: NextRequest) {
 
     // Compra = órdenes web atribuidas (misma definición que businessKpis.ordersAttributed).
     const purchasePromise = channel
-      ? prisma.$queryRaw<Array<{ purchase: number }>>`
-          SELECT COUNT(DISTINCT o.id)::int as purchase
-          FROM orders o
-          JOIN pixel_attributions pa ON pa."orderId" = o.id
-          WHERE pa."organizationId" = ${orgId}
-            AND pa.model::text = ${selectedModel}
-            AND o."orderDate" >= ${dateFrom}
-            AND o."orderDate" <= ${dateTo}
-            AND ${ordersValidWebWhere("o")}
-            AND EXISTS (
-              SELECT 1 FROM jsonb_array_elements(pa.touchpoints::jsonb) AS tp
-              WHERE LOWER(COALESCE(tp->>'source', 'direct')) = ${channel}
-                 OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('adwords', 'google_ads', 'google-ads', 'googleads') AND ${channel} = 'google')
-                 OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') AND ${channel} = 'meta')
-            )
-        `
+      ? (prisma.$queryRawUnsafe(
+          `SELECT COUNT(DISTINCT o.id)::int as purchase
+           FROM orders o
+           JOIN pixel_attributions pa ON pa."orderId" = o.id
+           WHERE pa."organizationId" = $1
+             AND pa.model::text = $2
+             AND o."orderDate" >= $3::timestamptz
+             AND o."orderDate" <= $4::timestamptz
+             AND ${ordersValidWebSql("o")}
+             AND EXISTS (
+               SELECT 1 FROM jsonb_array_elements(pa.touchpoints::jsonb) AS tp
+               WHERE LOWER(COALESCE(tp->>'source', 'direct')) = $5
+                  OR (LOWER(COALESCE(tp->>'source', 'direct')) IN (${GOOGLE_UTM_SQL_IN}) AND $5 = 'google')
+                  OR (LOWER(COALESCE(tp->>'source', 'direct')) IN (${META_UTM_SQL_IN}) AND $5 = 'meta')
+             )`,
+          orgId,
+          selectedModel,
+          dateFrom,
+          dateTo,
+          channel
+        ) as Promise<Array<{ purchase: number }>>)
       : prisma.$queryRaw<Array<{ purchase: number }>>`
           SELECT COUNT(*)::int as purchase
           FROM pixel_attributions pa
@@ -85,71 +96,45 @@ export async function GET(req: NextRequest) {
         `;
 
     const stagesPromise: Promise<{ pageView: number; viewProduct: number; addToCart: number; checkoutStart: number }> = channel
-      ? prisma.$queryRaw<Array<typeof funnelRow>>`
-        WITH visitor_first_source AS (
-          SELECT DISTINCT ON ("visitorId")
-            "visitorId",
-            CASE
-              WHEN ("clickIds"->>'fbclid') IS NOT NULL AND ("clickIds"->>'fbclid') != '' THEN 'meta'
-              WHEN ("clickIds"->>'gclid') IS NOT NULL AND ("clickIds"->>'gclid') != '' THEN 'google'
-              WHEN ("clickIds"->>'ttclid') IS NOT NULL AND ("clickIds"->>'ttclid') != '' THEN 'tiktok'
-              WHEN ("clickIds"->>'msclkid') IS NOT NULL AND ("clickIds"->>'msclkid') != '' THEN 'microsoft'
-              WHEN ("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '' THEN 'linkedin'
-              -- Normalizar aliases de utm_source a canonical (S60 EXT)
-              WHEN LOWER("utmParams"->>'source') IN ('adwords', 'google_ads', 'google-ads', 'googleads') THEN 'google'
-              WHEN LOWER("utmParams"->>'source') IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') THEN 'meta'
-              WHEN LOWER("utmParams"->>'source') IN ('ig', 'instagram_ads', 'instagram-ads') THEN 'instagram'
-              WHEN ("utmParams"->>'source') IS NOT NULL AND ("utmParams"->>'source') != '' THEN LOWER("utmParams"->>'source')
-              WHEN referrer ~* 'l\.instagram\.com|instagram\.com' THEN 'instagram'
-              WHEN referrer ~* 'facebook\.com|fb\.com|m\.facebook\.com' THEN 'facebook'
-              WHEN referrer ~* 'tiktok\.com' THEN 'tiktok'
-              WHEN referrer ~* 'twitter\.com|x\.com|t\.co' THEN 'twitter'
-              WHEN referrer ~* 'youtube\.com|youtu\.be' THEN 'youtube'
-              WHEN referrer ~* 'linkedin\.com|lnkd\.in' THEN 'linkedin'
-              WHEN referrer ~* 'pinterest\.com' THEN 'pinterest'
-              WHEN referrer ~* 'whatsapp\.com|wa\.me' THEN 'whatsapp'
-              WHEN referrer ~* 't\.me|telegram\.org' THEN 'telegram'
-              WHEN referrer ~* 'mail\.google\.com|gmail\.com|outlook\.com|yahoo\.com/mail' THEN 'email'
-              WHEN referrer ~* 'google\.[a-z]{2,3}' THEN 'google_organic'
-              WHEN referrer ~* 'bing\.com' THEN 'bing_organic'
-              WHEN referrer ~* 'yahoo\.com' THEN 'yahoo_organic'
-              WHEN referrer = '' OR referrer IS NULL THEN 'direct'
-              ELSE 'referral'
-            END AS first_source
-          FROM pixel_events
-          WHERE "organizationId" = ${orgId}
-            AND timestamp >= ${dateFrom}
-            AND timestamp <= ${dateTo}
-            AND ("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')
-          ORDER BY "visitorId", timestamp ASC
-        )
-        SELECT
-          COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
-          COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
-          COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
-          COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart",
-          0::int as "purchase"
-        FROM pixel_events pe
-        INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
-        WHERE pe."organizationId" = ${orgId}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
-          AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
-          AND vfs.first_source = ${channel}
-      `.then((r) => ({
+      ? (prisma.$queryRawUnsafe(
+          `WITH event_sources AS (
+             SELECT "visitorId", timestamp,
+               (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS first_source
+             FROM pixel_events
+             WHERE "organizationId" = $1
+               AND timestamp >= $2::timestamptz
+               AND timestamp <= $3::timestamptz
+               AND ${WEBHOOK_SESSION_FILTER}
+           ),
+           visitor_first_source AS (
+             SELECT DISTINCT ON ("visitorId") "visitorId", first_source
+             FROM event_sources
+             WHERE first_source IS NOT NULL
+             ORDER BY "visitorId", timestamp ASC
+           )
+           SELECT
+             COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
+             COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
+             COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
+             COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart"
+           FROM pixel_events pe
+           INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
+           WHERE pe."organizationId" = $1
+             AND pe.timestamp >= $2::timestamptz
+             AND pe.timestamp <= $3::timestamptz
+             AND ${WEBHOOK_SESSION_FILTER}
+             AND vfs.first_source = $4`,
+          orgId,
+          dateFrom,
+          dateTo,
+          channel
+        ) as Promise<Array<{ pageView: number; viewProduct: number; addToCart: number; checkoutStart: number }>>).then((r) => ({
           pageView: r[0]?.pageView || 0,
           viewProduct: r[0]?.viewProduct || 0,
           addToCart: r[0]?.addToCart || 0,
           checkoutStart: r[0]?.checkoutStart || 0,
         }))
-      : // PERF (2026-06-16): sin filtro de canal, las etapas salen del rollup
-        // `pixel_daily_aggregates` PERO mergeadas en vivo con los días recientes
-        // faltantes/parciales (el rollup en prod queda stale y el día AR en curso
-        // es siempre parcial → antes daba 0 en "Hoy"). Ver getFunnelStages. Sigue
-        // siendo la misma definición que el funnel del card de /api/metrics/pixel
-        // (que usa el mismo helper) → los números coinciden (objetivo PR #4). La
-        // compra sigue saliendo de órdenes web atribuidas (purchasePromise, intacta).
-        getFunnelStages(orgId, dateFrom, dateTo);
+      : getFunnelStages(orgId, dateFrom, dateTo);
 
     const [purchaseRows, stages] = await Promise.all([purchasePromise, stagesPromise]);
     const purchaseCount = purchaseRows[0]?.purchase || 0;
