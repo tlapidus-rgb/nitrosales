@@ -84,6 +84,16 @@ export async function GET() {
     const now = new Date();
     const ago30d = new Date(now.getTime() - 30 * MS_DAY);
 
+    // FIX (2026-06-17): "Días vivo" daba 17.603 (≈48 años) porque existe al menos un
+    // pixel_event con timestamp basura (1978). El MIN(timestamp) lo tomaba como
+    // "primer evento". Piso = createdAt de la org: el pixel no puede ser más viejo que
+    // el tenant. Cualquier evento previo a eso es corrupto y se ignora. Fallback 2024.
+    const orgRow = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { createdAt: true },
+    });
+    const pixelFloor = orgRow?.createdAt ?? new Date("2024-01-01T00:00:00.000Z");
+
     // Conteos paralelos
     const [
       rollupAgg,
@@ -128,7 +138,7 @@ export async function GET() {
           AND day >= ((${now} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date - INTERVAL '6 days')
       `,
       prisma.pixelEvent.findFirst({
-        where: { organizationId: orgId },
+        where: { organizationId: orgId, timestamp: { gte: pixelFloor } },
         orderBy: { timestamp: "asc" },
         select: { timestamp: true },
       }),

@@ -16,6 +16,18 @@ import {
 const MS_PER_DAY = 86400000;
 
 // ── Helpers ──
+// Parsea "YYYY-MM-DD" como fecha LOCAL (no UTC). `new Date("2026-06-17")` se parsea
+// como UTC medianoche; al renderizar en AR (UTC-3) se corre a las 21:00 del día
+// ANTERIOR → el eje X de los charts mostraba cada barra etiquetada un día atrás
+// ("hoy se ve como ayer"). Construir desde componentes fija el día calendario
+// correcto en cualquier timezone con offset negativo.
+const parseDayLocal = (v: string | number | Date): Date => {
+  if (v instanceof Date) return v;
+  const s = String(v);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(s);
+};
 const fmt = (n: number) => n.toLocaleString("es-AR");
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -1303,13 +1315,13 @@ export default function AnalyticsPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
                     <YAxis yAxisId="rev" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
                     <YAxis yAxisId="spend" orientation="right" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
                     <Tooltip
                       contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
                       formatter={(value: number, name: string) => [fmtARS(value), name === "pixelRevenue" ? "Pixel" : name === "platformRevenue" ? "Plataformas" : "Spend"]}
-                      labelFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                      labelFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
                     />
                     <Area yAxisId="rev" type="monotone" dataKey="pixelRevenue" fill="url(#pixelGrad)" stroke="#06b6d4" strokeWidth={2.5} name="pixelRevenue" />
                     <Area yAxisId="rev" type="monotone" dataKey="platformRevenue" fill="url(#platGrad)" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="6 3" name="platformRevenue" />
@@ -1328,12 +1340,12 @@ export default function AnalyticsPage() {
                     return row;
                   })} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
                     <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
                     <Tooltip
                       contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
                       formatter={(value: number, name: string) => [fmtARS(value), getSourceInfo(name).label]}
-                      labelFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                      labelFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
                     />
                     {allSources.map((src, i) => (
                       <Bar key={src} dataKey={src} stackId="revenue" fill={getSourceInfo(src).color} radius={i === allSources.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
@@ -1647,7 +1659,7 @@ export default function AnalyticsPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `${v}%`} />
                     <Tooltip
                       contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
@@ -1655,7 +1667,7 @@ export default function AnalyticsPage() {
                         if (name === "coverage") return [`${value}%`, "Cobertura"];
                         return [value, name];
                       }}
-                      labelFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                      labelFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
                     />
                     <ReferenceLine y={80} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.5} />
                     <Area type="monotone" dataKey="coverage" fill="url(#coverageGrad)" stroke="#22c55e" strokeWidth={2} />
@@ -1668,7 +1680,7 @@ export default function AnalyticsPage() {
                 <div className="mt-3 bg-gradient-to-r from-amber-50/80 to-transparent p-3 rounded-xl">
                   <p className="text-xs text-gray-600">
                     <span className="font-semibold text-amber-700">Alerta:</span>{" "}
-                    El {new Date(worstDay.day).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} la cobertura cayó a {worstDay.coverage}% ({worstDay.attributedOrders} de {worstDay.totalOrders} órdenes atribuidas). Posible issue técnico con el pixel ese día.
+                    El {parseDayLocal(worstDay.day).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} la cobertura cayó a {worstDay.coverage}% ({worstDay.attributedOrders} de {worstDay.totalOrders} órdenes atribuidas). Posible issue técnico con el pixel ese día.
                   </p>
                 </div>
               )}
