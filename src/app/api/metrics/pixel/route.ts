@@ -21,6 +21,7 @@ import { getOrganizationId } from "@/lib/auth-guard";
 import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/lib/metrics/orders";
+import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 
 export const revalidate = 0;
 // Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
@@ -115,7 +116,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm-cache estaba saturando la DB (32 fetches paralelos × 29
     // queries c/u = 928 queries simultaneas cada 30 min). Volver al
     // cache simple `getCached` (fresh 5 min, despues miss).
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v7"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v8"];
 
     // ── SWR real (2026-06-12, BP-PERF-DASHBOARD) ──────────────────────────────
     // El compute completo (29 queries) vive en computeAndCache(). Cache-miss =
@@ -1237,21 +1238,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     //   Checkout      → INITIATE_CHECKOUT o CHECKOUT_SHIPPING
     // Compra: órdenes web atribuidas (misma métrica que businessKpis.ordersAttributed).
     // Ver DATA_COHERENCE.md Regla 5 — nunca eventos PURCHASE sueltos en el último step.
-    const funnelRaw = await prisma.$queryRaw<Array<{
-      pageView: number; viewProduct: number; addToCart: number;
-      checkoutStart: number;
-    }>>`
-      SELECT
-        COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int as "pageView",
-        COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int as "viewProduct",
-        COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int as "addToCart",
-        COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int as "checkoutStart"
-      FROM pixel_daily_aggregates
-      WHERE "organizationId" = ${ORG_ID}
-        AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-    `;
-    const fRow = funnelRaw[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0 };
+    // PERF + FIX "Hoy" (2026-06-17): las etapas del funnel salían SOLO del rollup
+    // `pixel_daily_aggregates`, que queda stale/parcial para el/los día(s) reciente(s)
+    // (el cron de refresh corre cada 2h y el día AR en curso es SIEMPRE parcial).
+    // Resultado: al filtrar por "Hoy" las etapas daban 0 mientras la compra (órdenes
+    // web atribuidas, en vivo) daba >0 → "el funnel muestra solo las compras". El
+    // endpoint dedicado /api/metrics/pixel/funnel ya usaba getFunnelStages (live-merge
+    // rollup+crudo); este card (NitroPixel "Activo Vivo" + dashboard) había quedado
+    // afuera. Ahora usa el MISMO helper → números coherentes entre ambas vistas.
+    const fRow = await getFunnelStages(ORG_ID, dateFrom, dateTo);
     const funnel = {
       pageView: fRow.pageView || 0,
       viewProduct: fRow.viewProduct || 0,
