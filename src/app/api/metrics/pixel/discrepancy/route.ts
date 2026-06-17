@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { isNonMarketingChannelSource } from "@/lib/pixel/source-classification";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -297,11 +298,8 @@ export async function GET(request: NextRequest) {
     // Source-level discrepancy (Meta vs NitroPixel, Google vs NitroPixel)
     const platformMap = new Map(platformBySourceResult.map(p => [p.source, p]));
 
-    // Payment gateway sources to exclude (safety net)
-    const PAYMENT_GATEWAY_SOURCES = ["gocuotas", "mercadopago", "mobbex", "decidir", "payway", "todopago", "naranjax", "rapipago", "pagofacil"];
-
     const sourceDiscrepancy = pixelBySourceResult
-      .filter(p => p.source !== 'direct' && !PAYMENT_GATEWAY_SOURCES.includes((p.source || "").toLowerCase()))
+      .filter(p => p.source !== 'direct' && !isNonMarketingChannelSource(p.source))
       .map(pixel => {
         const platform = platformMap.get(pixel.source);
         const platformRevenue = platform?.revenue || 0;

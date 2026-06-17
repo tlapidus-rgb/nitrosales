@@ -22,6 +22,10 @@ import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } fro
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/lib/metrics/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
+import {
+  filterMarketingTouchpoints,
+  isNonMarketingChannelSource,
+} from "@/lib/pixel/source-classification";
 
 export const revalidate = 0;
 // Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
@@ -1125,11 +1129,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       percentage: totalEventCount > 0 ? Math.round((e.count / totalEventCount) * 100) : 0,
     }));
 
-    // Payment gateway sources to exclude (safety net — attribution engine already filters these,
-    // but historical data may contain them before the exclusion was added)
-    const PAYMENT_GATEWAY_SOURCES = ["gocuotas", "mercadopago", "mobbex", "decidir", "payway", "todopago", "naranjax", "rapipago", "pagofacil"];
     const filteredAttrBySource = attributionBySourceResult.filter(
-      (a) => !PAYMENT_GATEWAY_SOURCES.includes((a.source || "").toLowerCase())
+      (a) => !isNonMarketingChannelSource(a.source)
     );
 
     // Attribution source with percentages
@@ -1346,11 +1347,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     };
 
     // ── NEW: Recent journeys ──
-    const recentJourneys = recentJourneysResult.map((j) => ({
-      ...j,
-      orderDate: new Date(j.orderDate).toISOString(),
-      touchpoints: Array.isArray(j.touchpoints) ? j.touchpoints : (typeof j.touchpoints === "string" ? JSON.parse(j.touchpoints) : j.touchpoints || []),
-    }));
+    const recentJourneys = recentJourneysResult.map((j) => {
+      const rawTouchpoints = Array.isArray(j.touchpoints)
+        ? j.touchpoints
+        : typeof j.touchpoints === "string"
+          ? JSON.parse(j.touchpoints)
+          : j.touchpoints || [];
+      return {
+        ...j,
+        orderDate: new Date(j.orderDate).toISOString(),
+        touchpoints: filterMarketingTouchpoints(rawTouchpoints),
+      };
+    });
 
     const response = {
       liveStatus: {
@@ -1407,7 +1415,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       dailyChannelBreakdown,
       recentJourneys,
       channelRoles: channelRolesResult.filter(
-        (r) => !PAYMENT_GATEWAY_SOURCES.includes((r.source || "").toLowerCase())
+        (r) => !isNonMarketingChannelSource(r.source)
       ),
       pixelHealth,
 
@@ -1562,9 +1570,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         const multiTouchAOV = multiTouchJourneys > 0 ? Math.round(multiTouchRevenue / multiTouchJourneys) : 0;
         const singleTouchAOV = singleTouch ? Math.round(singleTouch.revenue / singleTouch.journeys) : 0;
 
-        // Channel pairs: filter out payment gateways
         const pairs = (channelPairsResult as Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>)
-          .filter(p => !PAYMENT_GATEWAY_SOURCES.includes(p.first_channel.toLowerCase()) && !PAYMENT_GATEWAY_SOURCES.includes(p.last_channel.toLowerCase()));
+          .filter(p => !isNonMarketingChannelSource(p.first_channel) && !isNonMarketingChannelSource(p.last_channel));
 
         // Conversion lag (already have conversionLagResult)
         const lag = conversionLagResult as Array<{ bucket: string; orders: number; revenue: number }>;
@@ -1581,7 +1588,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           channelPairs: pairs,
           conversionLag: lag,
           channelRoles: (channelRolesResult as Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>)
-            .filter(r => !PAYMENT_GATEWAY_SOURCES.includes((r.source || "").toLowerCase()))
+            .filter(r => !isNonMarketingChannelSource(r.source))
             .slice(0, 8),
         };
       })(),

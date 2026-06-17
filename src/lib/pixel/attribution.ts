@@ -10,6 +10,11 @@
 // Soporta 5 modelos: LAST_CLICK, FIRST_CLICK, LINEAR, TIME_DECAY, NITRO.
 
 import { prisma } from '@/lib/db/client';
+import {
+  isPaymentGatewayReferrerHostname,
+  isPaymentGatewaySource,
+  shouldSkipSessionForJourney,
+} from '@/lib/pixel/source-classification';
 
 // ─── Types ───
 
@@ -106,27 +111,7 @@ function detectSourceFromReferrer(
     // count as traffic sources. When a user pays via MercadoPago/Payway/etc.,
     // they get redirected back to the store with the gateway as referrer.
     // We treat these like self-referrals (return null → preserves previous touchpoint).
-    const PAYMENT_GATEWAY_PATTERNS = [
-      /mercadopago\.com/,           // MercadoPago (AR, BR, MX, etc.)
-      /mercadolivre\.com/,          // MercadoLivre (BR)
-      /payway\.com/,                // Payway (AR)
-      /todopago\.com/,              // TodoPago (AR)
-      /decidir\.com/,               // Decidir/Prisma (AR)
-      /sps-decidir\.com/,           // SPS Decidir (AR)
-      /prismamediosdepago\.com/,    // Prisma Medios de Pago (AR)
-      /naranjax\.com/,              // Naranja X (AR)
-      /rapipago\.com/,              // Rapipago (AR)
-      /pagofacil\.com/,             // PagoFácil (AR)
-      /paypal\.com/,                // PayPal
-      /stripe\.com/,                // Stripe
-      /checkout\.vtex\.com/,        // VTEX Checkout (internal)
-      /vtexpayments\.com/,          // VTEX Payments
-      /mobbex\.com/,                // Mobbex (AR)
-      /getnet\.com/,                // Getnet (BR/AR)
-      /payu\.com/,                  // PayU (LATAM)
-      /gocuotas\.com/,             // GoCuotas (AR) — installment payment gateway
-    ];
-    if (PAYMENT_GATEWAY_PATTERNS.some(p => p.test(hostname))) {
+    if (isPaymentGatewayReferrerHostname(hostname)) {
       return null;
     }
 
@@ -586,6 +571,23 @@ export async function calculateAttribution(
       if (finalSource.toLowerCase() === 'remarketing' && finalMedium === 'email') {
         finalSource = 'email-remarketing';
         finalMedium = 'email';
+      }
+
+      const hasFreshMarketingSignal =
+        signalsFresh &&
+        (hasClicks || (hasUtms && !isPaymentGatewaySource(utms.source)));
+
+      if (
+        shouldSkipSessionForJourney({
+          source: finalSource,
+          medium: finalMedium,
+          pageUrl: landingUrl,
+          campaign: finalCampaign,
+          clickId: confidence === 'referrer' ? undefined : clickId,
+          hasFreshMarketingSignal,
+        })
+      ) {
+        continue;
       }
 
       sessionSources.push({
