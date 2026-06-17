@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 
 // ══════════════════════════════════════════════════════════════
 // NitroPixel — Atribución · Dark Premium
@@ -128,25 +129,9 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
 }
 
 // Canonicaliza un source para que aliases del mismo canal queden agrupados.
-// Mantener en sync con la canonicalizacion del backend (CTE visitor_first_source).
-//
-// medium opcional: si es organic/social/referral y el source es un buscador
-// (google/bing/yahoo/duckduckgo), separa como '${source}_organic' para NO
-// mezclar trafico paid con organico (ej: Google Shopping Free Listings con
-// srsltid son organic, no Google Ads paid con gclid).
+// Mantener en sync con first-source-sql.ts + source-classification.ts.
 function canonicalSource(source: string, medium?: string | null): string {
-  const lower = (source || "direct").toLowerCase().trim();
-  let canonical = lower;
-  if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) canonical = "google";
-  else if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads", "fb"].includes(lower)) canonical = "meta";
-  else if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) canonical = "instagram";
-
-  // Organic-merge: replica el comportamiento del backend (query #9, #20).
-  const med = (medium || "").toLowerCase().trim();
-  if (["organic", "social", "referral"].includes(med) && ["google", "bing", "yahoo", "duckduckgo"].includes(canonical)) {
-    return `${canonical}_organic`;
-  }
-  return canonical;
+  return canonicalMarketingSource(source, medium);
 }
 
 function getSourceInfo(source: string) {

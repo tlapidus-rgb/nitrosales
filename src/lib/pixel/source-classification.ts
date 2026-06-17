@@ -154,3 +154,59 @@ export function filterMarketingTouchpoints<T extends TouchpointLike>(touchpoints
 export function isNonMarketingChannelSource(source: string | null | undefined): boolean {
   return isPaymentGatewaySource(source);
 }
+
+// ── Marketing channel aliases (UTM shorthand → canonical) ─────────────────
+
+/** UTM `source` values that map to Meta Ads (paid). Does NOT include organic `facebook`. */
+export const META_UTM_ALIASES: readonly string[] = [
+  "meta_ads",
+  "meta-ads",
+  "metaads",
+  "fb_ads",
+  "fb-ads",
+  "fbads",
+  "facebook_ads",
+  "facebook-ads",
+  "fb",
+];
+
+export const GOOGLE_UTM_ALIASES: readonly string[] = [
+  "adwords",
+  "google_ads",
+  "google-ads",
+  "googleads",
+];
+
+export const INSTAGRAM_UTM_ALIASES: readonly string[] = [
+  "ig",
+  "instagram_ads",
+  "instagram-ads",
+];
+
+const META_UTM_SET = new Set(META_UTM_ALIASES);
+const GOOGLE_UTM_SET = new Set(GOOGLE_UTM_ALIASES);
+const INSTAGRAM_UTM_SET = new Set(INSTAGRAM_UTM_ALIASES);
+
+/**
+ * Canonical marketing channel key for aggregates / funnel filters.
+ * Mirrors first-source SQL in `first-source-sql.ts`.
+ */
+export function canonicalMarketingSource(
+  source: string | null | undefined,
+  medium?: string | null
+): string {
+  const lower = normalizeSourceKey(source) || "direct";
+  let canonical = lower;
+  if (GOOGLE_UTM_SET.has(lower)) canonical = "google";
+  else if (META_UTM_SET.has(lower)) canonical = "meta";
+  else if (INSTAGRAM_UTM_SET.has(lower)) canonical = "instagram";
+
+  const med = (medium || "").toLowerCase().trim();
+  if (
+    ["organic", "social", "referral"].includes(med) &&
+    ["google", "bing", "yahoo", "duckduckgo"].includes(canonical)
+  ) {
+    return `${canonical}_organic`;
+  }
+  return canonical;
+}

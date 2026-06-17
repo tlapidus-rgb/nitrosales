@@ -40,6 +40,10 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import {
+  FIRST_SOURCE_MARKETING_CASE_FILTERED,
+  WEBHOOK_SESSION_FILTER,
+} from "@/lib/pixel/first-source-sql";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -53,37 +57,14 @@ const P14 = "14, 5";
 const P16 = "16, 5";
 const ARDAY = `(timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date`;
 // Excluye eventos sintéticos de webhook (sessionId 'webhook-*'); NULL cuenta.
-const WH = `("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')`;
+const WH = WEBHOOK_SESSION_FILTER;
 const HV14 = `hll_add_agg(hll_hash_text("visitorId"), ${P14})`;
 const HV16 = `hll_add_agg(hll_hash_text("visitorId"), ${P16})`;
 // Evento que trae un click-id de ads (para events_with_clickid).
 const CLICKID = `("clickIds" IS NOT NULL AND "clickIds"::text != '{}' AND "clickIds"::text != 'null')`;
 
-// Atribución de first-touch source por evento (idéntico a p2b-backfill.cjs).
-const SRC = `CASE
-  WHEN ("clickIds"->>'fbclid') IS NOT NULL AND ("clickIds"->>'fbclid') != '' THEN 'meta'
-  WHEN ("clickIds"->>'gclid') IS NOT NULL AND ("clickIds"->>'gclid') != '' THEN 'google'
-  WHEN ("clickIds"->>'ttclid') IS NOT NULL AND ("clickIds"->>'ttclid') != '' THEN 'tiktok'
-  WHEN ("clickIds"->>'msclkid') IS NOT NULL AND ("clickIds"->>'msclkid') != '' THEN 'microsoft'
-  WHEN ("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '' THEN 'linkedin'
-  WHEN LOWER("utmParams"->>'source') IN ('adwords','google_ads','google-ads','googleads') THEN 'google'
-  WHEN LOWER("utmParams"->>'source') IN ('meta_ads','meta-ads','metaads','fb_ads','fb-ads','fbads','facebook_ads','facebook-ads') THEN 'meta'
-  WHEN LOWER("utmParams"->>'source') IN ('ig','instagram_ads','instagram-ads') THEN 'instagram'
-  WHEN ("utmParams"->>'source') IS NOT NULL AND ("utmParams"->>'source') != '' THEN LOWER("utmParams"->>'source')
-  WHEN referrer ~* 'l\\.instagram\\.com|instagram\\.com' THEN 'instagram'
-  WHEN referrer ~* 'facebook\\.com|fb\\.com|m\\.facebook\\.com' THEN 'facebook'
-  WHEN referrer ~* 'tiktok\\.com' THEN 'tiktok'
-  WHEN referrer ~* 'twitter\\.com|x\\.com|t\\.co' THEN 'twitter'
-  WHEN referrer ~* 'youtube\\.com|youtu\\.be' THEN 'youtube'
-  WHEN referrer ~* 'linkedin\\.com|lnkd\\.in' THEN 'linkedin'
-  WHEN referrer ~* 'pinterest\\.com' THEN 'pinterest'
-  WHEN referrer ~* 'whatsapp\\.com|wa\\.me' THEN 'whatsapp'
-  WHEN referrer ~* 't\\.me|telegram\\.org' THEN 'telegram'
-  WHEN referrer ~* 'mail\\.google\\.com|gmail\\.com|outlook\\.com|yahoo\\.com/mail' THEN 'email'
-  WHEN referrer ~* 'google\\.[a-z]{2,3}' THEN 'google_organic'
-  WHEN referrer ~* 'bing\\.com' THEN 'bing_organic'
-  WHEN referrer ~* 'yahoo\\.com' THEN 'yahoo_organic'
-  WHEN referrer = '' OR referrer IS NULL THEN 'direct' ELSE 'referral' END`;
+// Atribución first-touch por evento — ver first-source-sql.ts (fuente única).
+const SRC = FIRST_SOURCE_MARKETING_CASE_FILTERED;
 
 // ── DDL de las 7 tablas (idempotente) ───────────────────────────────────────
 const DDL: string[] = [
@@ -297,9 +278,14 @@ async function backfillDay(d: string, orgs: string[]): Promise<number> {
 async function firstSourceForOrg(org: string): Promise<number> {
   return await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
-     SELECT DISTINCT ON ("visitorId") "organizationId","visitorId", ${SRC}
-     FROM pixel_events
-     WHERE "organizationId"=$1 AND timestamp BETWEEN '2023-01-01' AND NOW() AND ${WH}
+     SELECT DISTINCT ON ("visitorId") "organizationId","visitorId", marketing_source
+     FROM (
+       SELECT "organizationId","visitorId", timestamp,
+         (${SRC}) AS marketing_source
+       FROM pixel_events
+       WHERE "organizationId"=$1 AND timestamp BETWEEN '2023-01-01' AND NOW() AND ${WH}
+     ) e
+     WHERE marketing_source IS NOT NULL
      ORDER BY "visitorId", timestamp ASC
      ON CONFLICT ("organizationId","visitorId") DO UPDATE SET first_source=EXCLUDED.first_source`,
     org

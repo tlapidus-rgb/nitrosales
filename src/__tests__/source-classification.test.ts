@@ -4,6 +4,7 @@ import {
   shouldSkipSessionForJourney,
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
+  canonicalMarketingSource,
 } from "@/lib/pixel/source-classification";
 
 describe("source-classification", () => {
@@ -104,6 +105,27 @@ describe("source-classification", () => {
       expect(filterMarketingTouchpoints(touchpoints)).toEqual([
         { source: "meta", medium: "cpc" },
       ]);
+    });
+  });
+
+  describe("canonicalMarketingSource", () => {
+    it("maps fb UTM alias to meta", () => {
+      expect(canonicalMarketingSource("fb")).toBe("meta");
+      expect(canonicalMarketingSource("FB")).toBe("meta");
+      expect(canonicalMarketingSource("meta_ads")).toBe("meta");
+    });
+
+    it("keeps organic facebook separate from meta ads", () => {
+      expect(canonicalMarketingSource("facebook")).toBe("facebook");
+    });
+
+    it("maps google aliases", () => {
+      expect(canonicalMarketingSource("adwords")).toBe("google");
+      expect(canonicalMarketingSource("google_ads")).toBe("google");
+    });
+
+    it("appends _organic for search engines with organic medium", () => {
+      expect(canonicalMarketingSource("google", "organic")).toBe("google_organic");
     });
   });
 

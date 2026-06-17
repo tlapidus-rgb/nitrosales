@@ -6,6 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, ComposedChart, Line, Cell, PieChart, Pie, ReferenceLine,
 } from "recharts";
+import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 
 // ══════════════════════════════════════════════════════════════
 // NitroPixel Analytics — World-Class Intelligence Dashboard
@@ -73,19 +74,13 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string 
 };
 
 function getSourceInfo(source: string) {
-  const key = (source || "direct").toLowerCase();
+  const key = canonicalMarketingSource(source);
   return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B7280", label: source };
 }
 
-// Devuelve el source CANONICAL para un alias dado (S60 EXT — fix bug filtro funnel)
-// El backend CTE normaliza a canonical, asi que el filter del funnel debe usar el
-// canonical para que matchee. Mismo mapping que el CTE en /api/metrics/pixel/funnel.
+// Alias wrapper — same canonical map as backend first-source SQL + conversionRates API.
 function canonicalSource(source: string): string {
-  const s = (source || "").toLowerCase();
-  if (["adwords", "google_ads", "google-ads", "googleads"].includes(s)) return "google";
-  if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads"].includes(s)) return "meta";
-  if (["ig", "instagram_ads", "instagram-ads"].includes(s)) return "instagram";
-  return s;
+  return canonicalMarketingSource(source);
 }
 
 // SVG channel logos — white icons inside colored circles

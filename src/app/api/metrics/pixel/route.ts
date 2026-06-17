@@ -25,6 +25,7 @@ import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
+  canonicalMarketingSource,
 } from "@/lib/pixel/source-classification";
 
 export const revalidate = 0;
@@ -1431,28 +1432,17 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         // S60 EXT-2 BIS: normalizar source canonical en ambos lados (CTE + attributionBySource)
         // para que el JOIN funcione. Filtrar sources con caracteres invalidos (clickIds mal).
 
-        // Helper: canonicaliza source (debe matchear con CTE visitor_first_source)
-        const canonicalSource = (s: string): string => {
-          const lower = (s || "").toLowerCase().trim();
-          if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) return "google";
-          if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads"].includes(lower)) return "meta";
-          if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) return "instagram";
-          return lower;
-        };
+        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
 
-        // Filtrar sources invalidos (caracteres no imprimibles, encoding roto)
-        const isValidSource = (s: string): boolean => {
+        const isValidConversionSource = (s: string): boolean => {
           if (!s || s.length === 0) return false;
-          // Solo ascii printable + algunos chars de utm permitidos
           return /^[a-z0-9_\-\.]+$/i.test(s);
         };
-
-        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
 
         // Construir attrMap con keys canonicalizadas — sumar revenue si hay aliases
         const attrMap = new Map<string, { revenue: number; orders: number }>();
         for (const ch of attributionBySource) {
-          const key = canonicalSource(ch.source);
+          const key = canonicalMarketingSource(ch.source);
           const existing = attrMap.get(key);
           attrMap.set(key, {
             revenue: (existing?.revenue || 0) + (ch.revenue || 0),
@@ -1463,11 +1453,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
         for (const vs of pixelVisitorsBySource) {
           if (vs.visitors <= 5) continue; // skip tiny sources
-          if (!isValidSource(vs.source)) continue; // skip sources con caracteres rotos
-          const key = canonicalSource(vs.source);
+          if (isNonMarketingChannelSource(vs.source)) continue;
+          const key = canonicalMarketingSource(vs.source);
+          if (isNonMarketingChannelSource(key)) continue;
+          if (!isValidConversionSource(key)) continue;
           const existing = channelMap.get(key);
           const attr = attrMap.get(key);
-          // Sumar visitors+purchases si hay aliases (ej: dos rows con mismo canonical)
+          // Sumar visitors+purchases si hay aliases (ej: fb + meta → meta)
           if (existing) {
             existing.visitors += vs.visitors;
             existing.purchases += vs.purchases;
