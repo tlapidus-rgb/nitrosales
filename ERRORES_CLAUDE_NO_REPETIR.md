@@ -4,7 +4,39 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-10 — Sesión 60 EXT-3 (3 errores nuevos: documentar un plan en backlog NO equivale a ejecutarlo; copiar archivo del Desktop sin verificar contenido; re-caer en el patrón S53 de "VTEX tiene 2 mecanismos de webhook").**
+> **Última actualización: 2026-06-19 — Sesión RBAC (2 bugs latentes del repo encontrados al implementar acceso por roles: middleware en la raíz NO corre con directorio `src/`; NextAuth con config inline divergente que ignora `authOptions`).**
+
+---
+
+## Error #RBAC-MIDDLEWARE-EN-RAIZ-CON-SRC — `middleware.ts` en la raíz no se ejecuta cuando el proyecto usa `src/`
+
+**Cuándo pasó**: Sesión RBAC (19 jun 2026). Implementé gating de secciones (capa C) en `middleware.ts` en la **raíz** del repo. tsc 0, `next build` 0, todo "verde". Pero en el QA E2E el gating no bloqueaba NADA: `/api/bondly/pulse` daba 200 (no 403), `/bondly` 200 (no redirect). El endpoint lento tardaba 154s → o sea **llegaba al handler**, el middleware no lo interceptaba. En los logs del dev server NO aparecía `✓ Compiled /middleware`.
+
+### Causa raíz
+- Next.js con **directorio `src/`** (este repo tiene `src/app/`) busca el middleware en **`src/middleware.ts`**, NO en la raíz. El `middleware.ts` de la raíz se ignora silenciosamente (sin warning).
+- **Esto era un bug pre-existente del repo**: el `middleware.ts` de la raíz que tenía el read-only de impersonate (S59) **tampoco corría nunca** — era dead code desde que se agregó.
+
+### Regla
+**Si el proyecto usa directorio `src/`, el middleware DEBE estar en `src/middleware.ts`.** Verificar empíricamente que corre: en `npm run dev`, al hacer una request que matchee el `matcher`, debe loguearse `✓ Compiled /src/middleware`. Si ese log no aparece, el middleware NO está corriendo aunque tsc/build pasen.
+
+Fix aplicado: `git mv middleware.ts src/middleware.ts`. Tras eso apareció `✓ Compiled /src/middleware` y el gating funcionó.
+
+---
+
+## Error #RBAC-NEXTAUTH-SPLIT-BRAIN — Handler `[...nextauth]` con config inline que ignora `authOptions`
+
+**Cuándo pasó**: Sesión RBAC (19 jun 2026). Tras arreglar la ubicación del middleware, el gating SEGUÍA sin andar. Diagnóstico con un endpoint debug (`getToken`): el JWT de un usuario logueado tenía solo `[role, organizationId, sub, ...]` — **faltaban `isStaff` y `allowedSections`** que yo seteaba en el callback `jwt` de `authOptions` (`src/lib/auth.ts`). Pero el handler real `src/app/api/auth/[...nextauth]/route.ts` tenía una **config INLINE propia** (`NextAuth({...})`) que **no importaba `authOptions`** y cuyo callback `jwt` solo seteaba `role` + `organizationId`.
+
+### Causa raíz
+- Había DOS configs de NextAuth divergentes: la del handler (inline, mintea el JWT) y `authOptions` (que solo se usaba vía `getServerSession(authOptions)` para LEER la sesión). Mis cambios a `authOptions` (isStaff, allowedSections, impersonate provider, View-as-Org) **nunca llegaban al token** porque el handler no usaba `authOptions`.
+- El `getServerSession(authOptions)` corre el callback `session` de authOptions al LEER, por eso `/api/me/permissions` resolvía bien — pero el **middleware** lee el JWT crudo con `getToken`, que solo tiene lo que minteó el handler inline.
+
+### Regla
+**Tiene que haber UNA sola config de NextAuth.** El handler `[...nextauth]/route.ts` debe ser `NextAuth(authOptions)` importando de `@/lib/auth`. Si ves una config inline en el handler, es un footgun: cualquier callback/provider que agregues a `authOptions` se ignora al mintear el token.
+
+Para verificar qué hay realmente en el JWT (lo que ve el middleware): endpoint debug temporal con `getToken({ req, secret })` y mirar `Object.keys(token)`. NO confiar en `/api/auth/session` (esa pasa por el callback `session` y puede tener campos que el token crudo no tiene).
+
+Fix aplicado: el handler ahora es `NextAuth(authOptions)`. Esto además activó impersonate + View-as-Org + login logging que estaban desconectados del handler real.
 
 ---
 

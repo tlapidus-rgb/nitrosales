@@ -20,9 +20,21 @@
 
 ---
 
-## 🚧 BP-ROLES-001 — Acceso por roles (RBAC) para entregar el producto a clientes (branch `feat/role-based-access`, 2026-06-19)
+## ✅ BP-ROLES-001 — Acceso por roles (RBAC) para entregar el producto a clientes (2026-06-19) — RESUELTO + DEPLOYADO
 
-> **Estado:** 🚧 EN CURSO en branch `feat/role-based-access`, **sin mergear a main**. Implementación por etapas.
+> **Estado:** ✅ RESUELTO. Mergeado a `main` (`2fff6f7`) y **verificado en producción** (`app.nitrosales.ai`,
+> canary): usuario STANDARD → `/bondly` 307 (redirect /unauthorized), `/api/bondly/pulse` 403, `/dashboard`
+> 200; staff → todo. La branch `feat/role-based-access` se borró (ya mergeada).
+>
+> **⚠️ FOLLOW-UPS PENDIENTES:**
+> - **Password de Leandro:** quedó temporal `Prueba2026!` (a pedido de Tomy, para seguir probando). El hash
+>   ORIGINAL está en `scripts-tmp-leandro-pw-rollback.json` (raíz del repo). **Restaurar cuando termine la
+>   prueba** (o que Leandro lo resetee). NO borrar ese json hasta restaurar.
+> - **Flow de "asignar roles" (lo que haría el OWNER desde `/settings/team/permisos`) NO se testeó en vivo.**
+>   La UI + endpoints `/api/settings/custom-roles` existen y están protegidos, pero falta QA del alta/edición de
+>   roles por un OWNER. Probar en una próxima sesión.
+> - Limpieza ya hecha: usuario de prueba `qa-standard@nitrosales.local` borrado; `.bak` de RBAC borrados.
+>
 > **Contexto:** se entrega acceso a TeVeCompras. Los usuarios de cliente (no-staff) deben ver SOLO 3 secciones
 > (NitroPixel [Analytics/Atribución/Activo Vivo], Centro de Control, Productos+Rentabilidad) y el staff de
 > NitroSales ("nosotros") sigue viendo todo + todas las orgs.

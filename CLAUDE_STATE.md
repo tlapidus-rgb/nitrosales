@@ -3,6 +3,36 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
+## Ultima actualizacion: 2026-06-19 (Sesion RBAC — Acceso por roles entregado y deployado a prod)
+
+**Que se hizo (BP-ROLES-001):** sistema de acceso por roles para entregar el producto a clientes. Se reuso
+el RBAC que YA existia en el repo (`@/lib/permissions.ts` + `permission-guard.ts` + `usePermissions` +
+tabla `CustomRole`) en vez de crear un enum nuevo. Cambios:
+- **Staff cross-org**: nueva columna `users.isStaff` (bool). Staff = bypass total del RBAC + View-as-Org.
+  Fuente unica en `src/lib/staff.ts` (flag DB + allowlist de transicion). Reemplaza 3 allowlists hardcodeadas.
+- **Rol "Standard"** (CustomRole por org): ve solo `dashboard, products, rentabilidad, pixel, nitropixel`.
+  Todo lo demas (incl. Configuracion) oculto. Asignado a TeVeCompras (`leandroc` paso de OWNER a MEMBER+Standard).
+- **Capa C (defensa en profundidad)**: gating por seccion centralizado en `src/middleware.ts` usando
+  `allowedSections` snapshoteado en el JWT al login (`permissions-resolve.ts` + `section-access.ts` edge-safe).
+  API restringida → 403; pagina restringida → redirect `/unauthorized`. Endpoints compartidos
+  (orders/products/pixel/pnl/customers del dashboard) NO se listan → pasan.
+- **Asignaciones en prod**: rol Standard creado, `leandroc`→MEMBER+Standard, `tlapidus`→isStaff=true.
+
+**2 bugs LATENTES del repo encontrados y arreglados** (ver ERRORES_CLAUDE_NO_REPETIR.md):
+1. `middleware.ts` en la raiz NO corria (con dir `src/` Next lo busca en `src/middleware.ts`). El read-only de
+   impersonate tampoco corria. Fix: movido a `src/middleware.ts`.
+2. NextAuth split-brain: el handler `[...nextauth]/route.ts` tenia config inline que ignoraba `authOptions`
+   → isStaff/allowedSections nunca llegaban al token. Fix: handler ahora usa `NextAuth(authOptions)`.
+
+**Verificado en PROD** (`app.nitrosales.ai`, canary): STANDARD → `/bondly` 307, `/api/bondly/pulse` 403,
+`/dashboard` 200; staff → todo. Mergeado a `main` = `2fff6f7`. tsc 0 + next build 0.
+
+**Follow-ups (ver BP-ROLES-001):** (a) password de Leandro quedo temporal `Prueba2026!` — original en
+`scripts-tmp-leandro-pw-rollback.json`, RESTAURAR despues; (b) flow de "asignar roles" (OWNER desde
+`/settings/team/permisos`) NO testeado en vivo.
+
+---
+
 ## Ultima actualizacion: 2026-05-10 (Sesion 60 EXT-3 — TVC atribucion bug + BP-S60-002 cerrado. Causa raiz: TVC tenia solo "Afiliados" configurado (UI VTEX, ~7% cobertura), faltaba "Orders Broadcaster" (API, retry policy). Cobertura cayo del 100% al 41% el 6/5 cuando HotSale superó el techo de 30 ordenes del cron-30min. 7 deploys: (1) endpoint POST/DELETE Orders Broadcaster + ejecutado en TVC; (2) cron-30min max 30→100 + maxDuration trigger-vtex-sync 60s→300s; (3) endpoint retroactivo reattribute-missing-vtex + 2 corridas recuperaron 70 de 116 huerfanos; (4) auto-config Orders Broadcaster en activate-client (multi-tenant, fix para Arredo+futuros); (5) endpoint /api/me/vtex-affiliate-info que arma URL con orgId server-side; (6) componente unico VtexAffiliateInstructions (DRY) usado en wizard overlay + settings + preview admin; (7) captura real VTEX afiliado en public/onboarding/vtex-afiliado.jpg. Cobertura TVC 14d: 66.9% → 88.6%. BP-S60-002 cerrado despues de quedar pendiente desde 30/4. Pendientes restantes intactos.)
 
 ### Sesion 60 EXT-3 (2026-05-10) — TVC atribucion: causa raiz + BP-S60-002 cerrado
