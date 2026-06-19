@@ -27,6 +27,7 @@ interface PermissionsData {
   authenticated: boolean;
   role: Role | null;
   customRoleId: string | null;
+  isStaff: boolean;
   permissions: Record<Section, AccessLevel>;
   loading: boolean;
   canAccess: (section: Section, level?: AccessLevel) => boolean;
@@ -44,6 +45,7 @@ const PermissionsContext = createContext<PermissionsData>({
   authenticated: false,
   role: null,
   customRoleId: null,
+  isStaff: false,
   permissions: {},
   loading: true,
   canAccess: () => false,
@@ -55,11 +57,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     authenticated: boolean;
     role: Role | null;
     customRoleId: string | null;
+    isStaff: boolean;
     permissions: Record<Section, AccessLevel>;
   }>({
     authenticated: false,
     role: null,
     customRoleId: null,
+    isStaff: false,
     permissions: {},
   });
   const [loading, setLoading] = useState(true);
@@ -78,6 +82,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
             authenticated: json.authenticated ?? false,
             role: json.role ?? null,
             customRoleId: json.customRoleId ?? null,
+            isStaff: json.isStaff ?? false,
             permissions: json.permissions ?? {},
           });
         }

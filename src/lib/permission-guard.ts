@@ -23,6 +23,7 @@ import {
   DEFAULT_PERMISSIONS,
   mergePermissions,
   resolveUserPermissions,
+  fullAccessPermissions,
   canAccess,
   type Role,
   type Section,
@@ -30,6 +31,7 @@ import {
   type PermissionsMatrix,
   type CustomRolePermissions,
 } from "@/lib/permissions";
+import { isStaffUser } from "@/lib/staff";
 
 export interface PermissionCheck {
   allowed: boolean;
@@ -37,6 +39,7 @@ export interface PermissionCheck {
   userId?: string;
   role?: Role;
   customRoleId?: string | null;
+  isStaff?: boolean;
   effectiveLevel?: AccessLevel;
   response?: NextResponse; // pre-armada 401/403 para return directo
 }
@@ -54,6 +57,7 @@ async function getEffectivePermissions(
   userId: string;
   role: Role;
   customRoleId: string | null;
+  isStaff: boolean;
   permissions: Record<Section, AccessLevel>;
 } | null> {
   const user = await prisma.user.findUnique({
@@ -62,10 +66,23 @@ async function getEffectivePermissions(
       id: true,
       role: true,
       customRoleId: true,
+      isStaff: true,
       organizationId: true,
     },
   });
   if (!user) return null;
+
+  // Staff interno de NitroSales: bypass total del RBAC. No leemos
+  // matriz ni custom roles — full access a todas las secciones.
+  if (isStaffUser({ isStaff: user.isStaff, email })) {
+    return {
+      userId: user.id,
+      role: user.role as Role,
+      customRoleId: user.customRoleId,
+      isStaff: true,
+      permissions: fullAccessPermissions(),
+    };
+  }
 
   const [org, customRoles] = await Promise.all([
     prisma.organization.findUnique({
@@ -99,6 +116,7 @@ async function getEffectivePermissions(
     userId: user.id,
     role: user.role as Role,
     customRoleId: user.customRoleId,
+    isStaff: false,
     permissions,
   };
 }
@@ -153,6 +171,7 @@ export async function requirePermission(
       userId: eff.userId,
       role: eff.role,
       customRoleId: eff.customRoleId,
+      isStaff: eff.isStaff,
       effectiveLevel: userLevel,
       response: NextResponse.json(
         {
@@ -171,6 +190,7 @@ export async function requirePermission(
     userId: eff.userId,
     role: eff.role,
     customRoleId: eff.customRoleId,
+    isStaff: eff.isStaff,
     effectiveLevel: userLevel,
   };
 }
@@ -216,6 +236,7 @@ export async function getCurrentUserPermissions(): Promise<{
   authenticated: boolean;
   role: Role | null;
   customRoleId: string | null;
+  isStaff: boolean;
   permissions: Record<Section, AccessLevel>;
 }> {
   const session = await getServerSession(authOptions);
@@ -225,6 +246,7 @@ export async function getCurrentUserPermissions(): Promise<{
       authenticated: false,
       role: null,
       customRoleId: null,
+      isStaff: false,
       permissions: {} as Record<Section, AccessLevel>,
     };
   }
@@ -235,6 +257,7 @@ export async function getCurrentUserPermissions(): Promise<{
       authenticated: false,
       role: null,
       customRoleId: null,
+      isStaff: false,
       permissions: {} as Record<Section, AccessLevel>,
     };
   }
@@ -243,6 +266,7 @@ export async function getCurrentUserPermissions(): Promise<{
     authenticated: true,
     role: eff.role,
     customRoleId: eff.customRoleId,
+    isStaff: eff.isStaff,
     permissions: eff.permissions,
   };
 }

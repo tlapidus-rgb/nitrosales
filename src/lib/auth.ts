@@ -4,13 +4,12 @@ import { compare } from "bcryptjs";
 import { createHmac } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { cookies } from "next/headers";
+import { isStaffUser } from "@/lib/staff";
 
-// S59 BIS: lista de emails con poder de "View as Org" (override de
-// session.organizationId via cookie). Los demas users no pueden
-// usar esa cookie aunque la setean.
-const INTERNAL_VIEW_AS_EMAILS = new Set([
-  "tlapidus@99media.com.ar",
-]);
+// El poder de "View as Org" (override de session.organizationId via
+// cookie) lo tiene SOLO el staff interno de NitroSales. La fuente de
+// verdad de "quién es staff" vive en src/lib/staff.ts (flag users.isStaff
+// + allowlist de transición). Ver feat/role-based-access.
 const VIEW_AS_COOKIE = "nitro-view-org";
 
 // ─────────────────────────────────────────────────────────────
@@ -129,6 +128,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          isStaff: user.isStaff,
           organizationId: user.organizationId,
           organizationName: user.organization.name,
         };
@@ -170,6 +170,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          isStaff: user.isStaff,
           organizationId: user.organizationId,
           organizationName: user.organization.name,
           // Flags impersonate (van al JWT y de ahí a session)
@@ -188,6 +189,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        token.isStaff = (user as any).isStaff === true;
         token.organizationId = (user as any).organizationId;
         token.organizationName = (user as any).organizationName;
         // S59: propagar flags de impersonate
@@ -202,6 +204,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).isStaff = token.isStaff === true;
         (session.user as any).organizationId = token.organizationId;
         (session.user as any).organizationName = token.organizationName;
         if (token.impersonatedBy) {
@@ -209,11 +212,11 @@ export const authOptions: NextAuthOptions = {
           (session.user as any).impersonatorEmail = token.impersonatorEmail;
         }
 
-        // S59 BIS: View as Org. Si user es internal Y hay cookie, override
+        // S59 BIS: View as Org. Si user es staff Y hay cookie, override
         // organizationId/Name. Nunca aplica si esta impersonando (la
         // impersonate session ya hizo el switch de identidad).
         const email = (session.user.email || "").toLowerCase();
-        const isInternal = INTERNAL_VIEW_AS_EMAILS.has(email);
+        const isInternal = isStaffUser({ isStaff: token.isStaff === true, email });
         if (isInternal && !token.impersonatedBy) {
           try {
             const c = await cookies();

@@ -8,27 +8,21 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isStaffUser } from "@/lib/staff";
 
 /**
- * Usuarios internos / beta-testers.
- * Solo estos emails pueden ver features marcadas como beta.
- *
- * Para agregar uno: editar el array y desplegar.
- */
-const INTERNAL_EMAILS = new Set<string>([
-  "tlapidus@99media.com.ar",
-]);
-
-/**
- * Devuelve true si el usuario actual está en la allowlist interna.
+ * Devuelve true si el usuario actual es staff interno de NitroSales.
  * Server-side only — usar en layouts/pages para gatekeeping.
+ *
+ * La fuente de verdad ("quién es staff") vive en src/lib/staff.ts:
+ * flag `users.isStaff` (DB) + allowlist de transición por email.
  */
 export async function isInternalUser(): Promise<boolean> {
   try {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email;
-    if (!email) return false;
-    return INTERNAL_EMAILS.has(email.toLowerCase());
+    const isStaff = (session?.user as any)?.isStaff === true;
+    return isStaffUser({ isStaff, email });
   } catch {
     return false;
   }

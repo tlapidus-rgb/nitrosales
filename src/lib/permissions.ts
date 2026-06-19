@@ -197,6 +197,18 @@ export function validateLevel(v: unknown): v is AccessLevel {
   return v === "none" || v === "read" || v === "write" || v === "admin";
 }
 
+/**
+ * Matriz "todo admin" para el staff interno de NitroSales (bypass de
+ * RBAC). El staff ve TODAS las secciones con nivel admin, sin importar
+ * su base role ni custom role. Ver src/lib/staff.ts.
+ */
+export function fullAccessPermissions(): Record<Section, AccessLevel> {
+  return SECTIONS.reduce(
+    (acc, s) => ({ ...acc, [s.key]: "admin" as AccessLevel }),
+    {} as Record<Section, AccessLevel>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Custom roles — helpers
 // ─────────────────────────────────────────────────────────────

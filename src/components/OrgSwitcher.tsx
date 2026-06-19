@@ -18,19 +18,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ChevronDown, Building2, Check, ArrowLeft } from "lucide-react";
+import { isStaffUser } from "@/lib/staff";
 
 type Org = { id: string; name: string; slug: string };
-
-// Mantener en sync con src/lib/feature-flags.ts INTERNAL_EMAILS.
-// Replicado aca porque la sesion NextAuth no expone el flag isInternalUser al cliente.
-const INTERNAL_EMAILS = new Set<string>([
-  "tlapidus@99media.com.ar",
-]);
 
 export function OrgSwitcher() {
   const { data: session } = useSession();
   const email = (session?.user?.email || "").toLowerCase();
-  const isAdmin = INTERNAL_EMAILS.has(email);
+  // Staff interno de NitroSales: fuente de verdad en src/lib/staff.ts
+  // (flag users.isStaff propagado a la sesion + allowlist de transicion).
+  const isAdmin = isStaffUser({
+    isStaff: (session?.user as any)?.isStaff === true,
+    email,
+  });
 
   // S60 EXT-2 BIS++++++++++ FIX: antes leiamos viewingAsOrg/organizationId
   // de useSession() del cliente, pero esa session esta CACHEADA por NextAuth
