@@ -107,6 +107,10 @@ model User {
   name           String?
   hashedPassword String
   role           UserRole  @default(MEMBER)
+  // Staff interno de NitroSales ("nosotros"): bypass total del RBAC +
+  // acceso a View-as-Org (todas las orgs). Reemplaza la allowlist de
+  // emails hardcodeada. Ver feat/role-based-access.
+  isStaff        Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

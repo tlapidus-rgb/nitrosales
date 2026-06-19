@@ -20,6 +20,40 @@
 
 ---
 
+## 🚧 BP-ROLES-001 — Acceso por roles (RBAC) para entregar el producto a clientes (branch `feat/role-based-access`, 2026-06-19)
+
+> **Estado:** 🚧 EN CURSO en branch `feat/role-based-access`, **sin mergear a main**. Implementación por etapas.
+> **Contexto:** se entrega acceso a TeVeCompras. Los usuarios de cliente (no-staff) deben ver SOLO 3 secciones
+> (NitroPixel [Analytics/Atribución/Activo Vivo], Centro de Control, Productos+Rentabilidad) y el staff de
+> NitroSales ("nosotros") sigue viendo todo + todas las orgs.
+
+### Diseño aprobado (reusa el RBAC existente, NO se crea enum nuevo)
+- **Staff "nosotros"** → nueva columna `users.isStaff` (bool, default false). Bypass total del RBAC + View-as-Org.
+  Reemplaza la allowlist de emails hardcodeada (auth.ts / feature-flags.ts / OrgSwitcher.tsx).
+- **Clientes nunca son OWNER** → pasan a `MEMBER` + CustomRole "Standard".
+- **Preset "Standard"** → CustomRole por org (tabla `custom_roles` + UI `/settings/team/permisos` ya existentes).
+  Matriz: `dashboard, products, rentabilidad, pixel, nitropixel` = read; todo lo demás = none. Settings solo
+  accesible para cuenta/seguridad. Pedidos/Alertas ocultos por ahora.
+- **Capa C (API)** → agregar `requirePermission(section,"read")` (con bypass staff) a endpoints EXCLUSIVOS de
+  secciones restringidas. NO tocar endpoints compartidos con páginas permitidas (orders/products/pixel los usa
+  el dashboard) para no romperlo.
+
+### Hallazgos clave de la investigación
+- Ya existe RBAC completo: `@/lib/permissions.ts` (matriz role×section×level) + `permission-guard.ts`
+  (`requirePermission`) + `usePermissions` (gates de sidebar `NavItemGate`/`NavGroupGate` + `PathnameGuard`
+  client-side) + tabla `CustomRole`. **Faltaba:** (1) staff cross-org formal, (2) preset restringido,
+  (3) **`requirePermission` solo se usa en `/api/settings/*` — ningún endpoint de datos valida rol** (agujero capa C).
+- TeVeCompras: 1 user `leandroc@tevecompras.com` (OWNER hoy = god-mode). Staff "nosotros" hoy = allowlist
+  hardcodeada `tlapidus@99media.com.ar` en 3 archivos + mecanismo View-as-Org.
+
+### Progreso por etapas
+- ✅ **Etapa 1 — Migración `isStaff`:** endpoint admin idempotente `migrate-user-isstaff` + columna creada en
+  prod (ADD COLUMN IF NOT EXISTS, 5 users / 0 staff) + campo en `schema.prisma`. tsc 0. Backup `schema.prisma.bak`.
+- ⏳ Etapa 2 — Helper único de staff + bypass en RBAC (server + cliente), unificar las 3 allowlists.
+- ⏳ Etapa 3 — Capa C: `requirePermission` en endpoints de secciones restringidas (cuidado con compartidos).
+- ⏸️ Etapa 4 — Asignaciones en PROD (CustomRole "Standard" en TeVeCompras, leandroc→MEMBER+Standard,
+  tlapidus→isStaff=true). **PAUSA OBLIGATORIA: requiere OK explícito del founder antes de tocar usuarios reales.**
+
 ## ⏳ BP-SKELETON-002 — Funnel "Hoy" + datos de hoy + cron de rollup roto (branch `fix/skeleton-loading`, 2026-06-16)
 
 > **Estado:** ⏳ Fixes de código HECHOS EN BRANCH, **sin mergear**. tsc 0 · next build 0.
