@@ -60,8 +60,24 @@
   sigue disponible. tsc 0 + `next build` 0. Backup `middleware.ts.bak`.
   - ⚠️ Trade-off: `allowedSections` es snapshot del login → cambios de rol requieren re-login. Fail-open si
     el token viejo no trae snapshot (no lockea users existentes).
-- ⏸️ **Etapa 4 — Asignaciones en PROD** (CustomRole "Standard" en TeVeCompras, leandroc→MEMBER+Standard,
-  tlapidus→isStaff=true). **PAUSA OBLIGATORIA: requiere OK explícito del founder antes de tocar usuarios reales.**
+- ✅ **Etapa 4 — Asignaciones en PROD** (con OK del founder): CustomRole "Standard" creado en TeVeCompras
+  (`cmql7utae0001yi481dzbis6g`), `leandroc`→MEMBER+Standard, `tlapidus`→isStaff=true. 3 escrituras confirmadas.
+  Rollback guardado en `scripts-tmp-etapa4-rollback.json` (leandro era OWNER+null, tomy isStaff=false).
+- ✅ **PASO 4 — QA E2E (Chromium + HTTP, dev contra DB prod):** Leandro (STANDARD) sidebar = solo NitroPixel
+  + Centro de Control + Productos + Rentabilidad; `/bondly`→/unauthorized; `/api/bondly/pulse`→403;
+  `/api/finanzas/pnl`→403; permitidas 200. tlapidus (staff) ve las 28 secciones, `/api/bondly/pulse`→200.
+  Screenshots en `testout-rbac/`.
+
+### 🐛 Dos bugs LATENTES del repo encontrados durante el QA (arreglados)
+1. **Middleware nunca corría:** el proyecto usa `src/`, así que Next.js busca el middleware en `src/middleware.ts`,
+   no en la raíz. El `middleware.ts` de la raíz (mío + el read-only de impersonate pre-existente) **nunca se
+   ejecutó**. Fix: movido a `src/middleware.ts`. (El impersonate read-only ahora SÍ se aplica — antes era dead code.)
+2. **Split-brain de NextAuth:** `src/app/api/auth/[...nextauth]/route.ts` tenía una config inline divergente que
+   ignoraba `authOptions` de `@/lib/auth` (solo seteaba role+organizationId en el JWT). Por eso `allowedSections`/
+   `isStaff` nunca llegaban al token que lee el middleware. Fix: el handler ahora usa `authOptions` (config única).
+   Activa también impersonate + View-as-Org + login logging que antes estaban desconectados del handler real.
+
+> **PENDIENTE: NADA mergeado a main.** Falta OK final del founder para el merge de `feat/role-based-access`.
 
 ## ⏳ BP-SKELETON-002 — Funnel "Hoy" + datos de hoy + cron de rollup roto (branch `fix/skeleton-loading`, 2026-06-16)
 
