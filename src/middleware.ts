@@ -108,5 +108,6 @@ export const config = {
     "/sinapsis/:path*",
     "/boveda/:path*",
     "/memory/:path*",
+    "/settings/:path*",
   ],
 };

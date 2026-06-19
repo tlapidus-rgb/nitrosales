@@ -50,6 +50,10 @@ const PAGE_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
   { prefix: "/sinapsis", section: "sinapsis" },
   { prefix: "/boveda", section: "boveda" },
   { prefix: "/memory", section: "memory" },
+  // Configuración: ADMIN/OWNER (settings_org admin/read) y MEMBER (read) la
+  // ven; el rol Standard (settings_org=none) NO. Mapeamos todo /settings/* a
+  // settings_org — suficiente para la regla actual (Standard no ve config).
+  { prefix: "/settings", section: "settings_org" },
 ];
 
 function matchPrefix(
