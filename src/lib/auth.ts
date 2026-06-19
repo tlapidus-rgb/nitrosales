@@ -5,6 +5,10 @@ import { createHmac } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { cookies } from "next/headers";
 import { isStaffUser } from "@/lib/staff";
+import {
+  resolveEffectivePermissionsByEmail,
+  allowedSectionsFrom,
+} from "@/lib/permissions-resolve";
 
 // El poder de "View as Org" (override de session.organizationId via
 // cookie) lo tiene SOLO el staff interno de NitroSales. La fuente de
@@ -192,6 +196,21 @@ export const authOptions: NextAuthOptions = {
         token.isStaff = (user as any).isStaff === true;
         token.organizationId = (user as any).organizationId;
         token.organizationName = (user as any).organizationName;
+        // Snapshot de secciones accesibles (read+) para que el middleware
+        // (edge runtime, sin acceso a DB) decida acceso por ruta. Se calcula
+        // 1× al login. Cambios de rol requieren re-login para reflejarse.
+        // Si falla, dejamos undefined → middleware fail-open (no bloquea;
+        // no queremos lockear a un user existente por un error transitorio).
+        try {
+          const eff = await resolveEffectivePermissionsByEmail(
+            (user as any).email
+          );
+          token.allowedSections = eff
+            ? allowedSectionsFrom(eff.permissions)
+            : undefined;
+        } catch {
+          token.allowedSections = undefined;
+        }
         // S59: propagar flags de impersonate
         if ((user as any).impersonatedBy) {
           token.impersonatedBy = (user as any).impersonatedBy;

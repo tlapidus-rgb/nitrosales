@@ -50,8 +50,17 @@
 - ✅ **Etapa 1 — Migración `isStaff`:** endpoint admin idempotente `migrate-user-isstaff` + columna creada en
   prod (ADD COLUMN IF NOT EXISTS, 5 users / 0 staff) + campo en `schema.prisma`. tsc 0. Backup `schema.prisma.bak`.
 - ⏳ Etapa 2 — Helper único de staff + bypass en RBAC (server + cliente), unificar las 3 allowlists.
-- ⏳ Etapa 3 — Capa C: `requirePermission` en endpoints de secciones restringidas (cuidado con compartidos).
-- ⏸️ Etapa 4 — Asignaciones en PROD (CustomRole "Standard" en TeVeCompras, leandroc→MEMBER+Standard,
+- ✅ **Etapa 2 — Staff helper + bypass:** `src/lib/staff.ts` (fuente única) + `fullAccessPermissions()` +
+  bypass en `permission-guard` + `isStaff` propagado a JWT/sesión/cliente + 3 allowlists unificadas. tsc 0.
+- ✅ **Etapa 3 — Capa C (middleware, no per-endpoint):** en vez de pegar `requirePermission` en ~70 archivos,
+  se centralizó en `middleware.ts`: gating por sección con `allowedSections` snapshoteado en el JWT al login
+  (`permissions-resolve.ts` resolver compartido + `section-access.ts` mapa ruta→sección edge-safe). API
+  restringida → 403; página restringida → redirect `/unauthorized`. Bypass staff. Endpoints COMPARTIDOS
+  (orders/products/pixel/customers/pnl del dashboard) NO se listan → pasan. `requirePermission` (DB-fresh)
+  sigue disponible. tsc 0 + `next build` 0. Backup `middleware.ts.bak`.
+  - ⚠️ Trade-off: `allowedSections` es snapshot del login → cambios de rol requieren re-login. Fail-open si
+    el token viejo no trae snapshot (no lockea users existentes).
+- ⏸️ **Etapa 4 — Asignaciones en PROD** (CustomRole "Standard" en TeVeCompras, leandroc→MEMBER+Standard,
   tlapidus→isStaff=true). **PAUSA OBLIGATORIA: requiere OK explícito del founder antes de tocar usuarios reales.**
 
 ## ⏳ BP-SKELETON-002 — Funnel "Hoy" + datos de hoy + cron de rollup roto (branch `fix/skeleton-loading`, 2026-06-16)

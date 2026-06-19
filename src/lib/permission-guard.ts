@@ -18,20 +18,15 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/db/client";
 import {
-  DEFAULT_PERMISSIONS,
-  mergePermissions,
-  resolveUserPermissions,
-  fullAccessPermissions,
-  canAccess,
   type Role,
   type Section,
   type AccessLevel,
-  type PermissionsMatrix,
-  type CustomRolePermissions,
 } from "@/lib/permissions";
-import { isStaffUser } from "@/lib/staff";
+import {
+  resolveEffectivePermissionsByEmail,
+  type EffectivePermissions,
+} from "@/lib/permissions-resolve";
 
 export interface PermissionCheck {
   allowed: boolean;
@@ -45,80 +40,15 @@ export interface PermissionCheck {
 }
 
 /**
- * Dado un user logueado, resuelve sus permisos efectivos leyendo:
- *   - base role (users.role)
- *   - customRoleId (si tiene)
- *   - system matrix (organization.settings.rolePermissions)
- *   - custom roles activos de la org
+ * Resuelve los permisos efectivos del user logueado. Delega en el
+ * resolver compartido (src/lib/permissions-resolve.ts) para que el
+ * guard de endpoints y el snapshot del JWT (auth.ts) usen la MISMA
+ * lógica. Staff → full access. Devuelve null si el user no existe.
  */
 async function getEffectivePermissions(
   email: string
-): Promise<{
-  userId: string;
-  role: Role;
-  customRoleId: string | null;
-  isStaff: boolean;
-  permissions: Record<Section, AccessLevel>;
-} | null> {
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: {
-      id: true,
-      role: true,
-      customRoleId: true,
-      isStaff: true,
-      organizationId: true,
-    },
-  });
-  if (!user) return null;
-
-  // Staff interno de NitroSales: bypass total del RBAC. No leemos
-  // matriz ni custom roles — full access a todas las secciones.
-  if (isStaffUser({ isStaff: user.isStaff, email })) {
-    return {
-      userId: user.id,
-      role: user.role as Role,
-      customRoleId: user.customRoleId,
-      isStaff: true,
-      permissions: fullAccessPermissions(),
-    };
-  }
-
-  const [org, customRoles] = await Promise.all([
-    prisma.organization.findUnique({
-      where: { id: user.organizationId },
-      select: { settings: true },
-    }),
-    prisma.customRole.findMany({
-      where: { organizationId: user.organizationId, isActive: true },
-      select: { id: true, isActive: true, permissions: true },
-    }),
-  ]);
-
-  const settings = (org?.settings as Record<string, unknown>) || {};
-  const override = settings.rolePermissions as Partial<PermissionsMatrix> | null;
-  const systemMatrix = mergePermissions(override);
-
-  const mappedCustomRoles = customRoles.map((r) => ({
-    id: r.id,
-    isActive: r.isActive,
-    permissions: (r.permissions ?? {}) as CustomRolePermissions,
-  }));
-
-  const permissions = resolveUserPermissions({
-    baseRole: user.role as Role,
-    customRoleId: user.customRoleId,
-    systemMatrix,
-    customRoles: mappedCustomRoles,
-  });
-
-  return {
-    userId: user.id,
-    role: user.role as Role,
-    customRoleId: user.customRoleId,
-    isStaff: false,
-    permissions,
-  };
+): Promise<EffectivePermissions | null> {
+  return resolveEffectivePermissionsByEmail(email);
 }
 
 /**
