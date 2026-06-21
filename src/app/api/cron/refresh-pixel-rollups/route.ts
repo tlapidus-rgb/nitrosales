@@ -41,6 +41,7 @@
 
 import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -48,6 +49,14 @@ export const maxDuration = 300;
 // Reconstruye HOY + los (DAYS_BACK-1) días previos (AR-date). 3 = cubre huecos
 // de hasta 3 días con un solo run (tolerante a fallos del cron).
 const DAYS_BACK = 3;
+// AUTO-REPARABLE (2026-06-21, BP-ROLLUP-CRON): si el cron de Vercel se saltea
+// ejecuciones por varios días (pasó del 16 al 21-jun: 5 días sin refresh, los
+// gráficos en 0), `DAYS_BACK=3` NO tapa el hueco solo. Por eso, si el rollup
+// quedó atrás del rango default, arrancamos `from` desde el último día presente
+// (`MAX(day)`) y backfilleamos hasta hoy, con TOPE de seguridad de MAX_GAP_DAYS
+// días para no escanear historia infinita en un run. El loop de cursor +
+// runs sucesivos cada 2h cierran gaps grandes en pocas corridas.
+const MAX_GAP_DAYS = 14;
 // Tope de llamadas al backfill por run (3 días << este tope; evita loop infinito).
 const MAX_CALLS = 6;
 
@@ -71,7 +80,26 @@ export async function GET(req: NextRequest) {
   const startedAt = Date.now();
   const baseUrl = `${url.protocol}//${url.host}`;
   const to = arDate(0); // hoy AR
-  const from = arDate(DAYS_BACK - 1); // hoy - (N-1)
+  const defaultFrom = arDate(DAYS_BACK - 1); // hoy - (N-1): comportamiento normal
+  const floorFrom = arDate(MAX_GAP_DAYS - 1); // tope: nunca más de MAX_GAP_DAYS días
+
+  // Gap-aware: si el rollup quedó atrás del rango default (Vercel se salteó
+  // ejecuciones), arrancamos desde el último día presente para tapar el hueco.
+  // Las date strings YYYY-MM-DD comparan lexicográfico = cronológico.
+  // Usamos el MAX(day) GLOBAL: el cron procesa todas las orgs juntas cada run,
+  // así que cuando se corta, todas quedan en el mismo día (gap uniforme).
+  let lastRollupDay: string | null = null;
+  try {
+    const mr = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
+      `SELECT MAX(day)::text AS d FROM pixel_daily_aggregates`
+    );
+    lastRollupDay = mr?.[0]?.d || null;
+  } catch {
+    // Si falla la lectura, caemos al comportamiento default (no romper el cron).
+  }
+  let from = defaultFrom;
+  if (lastRollupDay && lastRollupDay < defaultFrom) from = lastRollupDay;
+  if (from < floorFrom) from = floorFrom; // tope de seguridad
 
   const setupBase =
     `${baseUrl}/api/admin/setup-pixel-rollups?phase=backfill` +
@@ -123,6 +151,11 @@ export async function GET(req: NextRequest) {
       ok: done && !error,
       window: { from, to },
       daysBack: DAYS_BACK,
+      lastRollupDay,
+      gapDays:
+        lastRollupDay && lastRollupDay < defaultFrom
+          ? `gap detectado desde ${lastRollupDay}`
+          : null,
       done,
       callsCount: calls.length,
       calls,

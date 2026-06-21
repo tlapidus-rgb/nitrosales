@@ -28,11 +28,45 @@
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { sendEmail } from "@/lib/email/send";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — warm de N orgs puede tardar
 
 const WARM_CACHE_KEY = ADMIN_API_KEY;
+
+// ── BP-ROLLUP-CRON (2026-06-21): alerta de rollup stale ──────────────────────
+// El cron `refresh-pixel-rollups` (cada 2h) puede dejar de dispararse en Vercel
+// sin aviso (pasó del 16 al 21-jun: 5 días con los gráficos del pixel en 0 y
+// nadie se enteró hasta que se quejó el cliente). warm-cache corre cada 5 min →
+// es buen lugar para detectarlo. Si el último refresh del rollup tiene más de
+// STALE_HOURS horas, log + email (con cooldown para no spamear cada 5 min).
+const STALE_HOURS = 5;
+const ALERT_COOLDOWN_H = 6;
+const ROLLUP_ALERT_TO = "tlapidus@99media.com.ar";
+
+// Cooldown en memoria (módulo). No depende de ninguna tabla. En serverless,
+// Vercel reusa instancias calientes para crons frecuentes, así que en la
+// práctica evita el spam cada 5 min. Si rotan instancias podría mandar algún
+// mail extra dentro de la ventana — aceptable para una alerta de respaldo rara.
+let lastRollupAlertSent = 0;
+
+async function maybeAlertRollupStale(hours: number, lastRefresh: string | null) {
+  if (Date.now() - lastRollupAlertSent < ALERT_COOLDOWN_H * 3600_000) return; // cooldown
+  lastRollupAlertSent = Date.now(); // marcar ANTES del await (evita doble envío en carrera)
+  try {
+    await sendEmail({
+      to: ROLLUP_ALERT_TO,
+      subject: `⚠️ NitroSales: rollups del pixel sin refrescar hace ${hours}h`,
+      html: `<p>El rollup <code>pixel_daily_aggregates</code> no se refresca hace <b>${hours}h</b> (último refresh: ${lastRefresh || "?"}).</p>
+<p>Causa probable: el cron <code>refresh-pixel-rollups</code> dejó de dispararse en Vercel. Mientras tanto, los gráficos de <code>/pixel/analytics</code> (eventos por día, dispositivos, top páginas) muestran 0 en los días sin refresh.</p>
+<p>Acción: revisar <b>Vercel → Cron Jobs → refresh-pixel-rollups</b>. El cron ahora es auto-reparable: en cuanto vuelva a correr, tapa el hueco solo.</p>`,
+      context: "rollup-stale-alert",
+    });
+  } catch (e: any) {
+    console.error("[warm-cache] alert rollup stale falló:", e?.message);
+  }
+}
 
 // Rangos comunes que precalentamos para cada org.
 // Formato: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }
@@ -143,8 +177,41 @@ export async function GET(req: NextRequest) {
     const totalMs = results.reduce((s, r) => s + r.ms, 0);
     const avgMs = results.length > 0 ? Math.round(totalMs / results.length) : 0;
 
+    // ── Chequeo de rollup stale (detección del cron de rollups caído) ──
+    let rollupStale: {
+      stale: boolean;
+      hoursStale: number | null;
+      lastRefresh: string | null;
+    } = { stale: false, hoursStale: null, lastRefresh: null };
+    try {
+      const rs = await prisma.$queryRawUnsafe<
+        Array<{ last: Date | null; hours: number | null }>
+      >(
+        `SELECT MAX(refreshed_at) AS last,
+                EXTRACT(EPOCH FROM (NOW() - MAX(refreshed_at)))/3600 AS hours
+         FROM pixel_daily_aggregates`
+      );
+      const hours =
+        rs?.[0]?.hours != null ? Math.round(Number(rs[0].hours) * 10) / 10 : null;
+      const last = rs?.[0]?.last ? new Date(rs[0].last).toISOString() : null;
+      rollupStale = {
+        stale: hours != null && hours > STALE_HOURS,
+        hoursStale: hours,
+        lastRefresh: last,
+      };
+      if (rollupStale.stale) {
+        console.error(
+          `[warm-cache] ⚠️ ROLLUP STALE: pixel_daily_aggregates sin refrescar hace ${hours}h (último: ${last}). El cron refresh-pixel-rollups no está corriendo.`
+        );
+        await maybeAlertRollupStale(hours as number, last);
+      }
+    } catch (e: any) {
+      console.error("[warm-cache] check rollup stale falló:", e?.message);
+    }
+
     return NextResponse.json({
       ok: true,
+      rollupStale,
       orgsWarmed: activeOrgs.length,
       rangesWarmed: ranges.length,
       endpointsWarmed: endpoints.length,

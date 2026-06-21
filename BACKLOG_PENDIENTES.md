@@ -20,6 +20,40 @@
 
 ---
 
+## 🚧 BP-ROLLUP-CRON — Cron de rollups del pixel se cortó (gráficos en 0) (branch `fix/rollup-cron-broken`, 2026-06-21)
+
+> **Estado:** 🚧 Fix HECHO EN BRANCH, **sin mergear**. tsc 0. **PAUSA: requiere OK del founder para (a) mergear
+> a main y (b) correr el backfill grande del 17-18-jun.**
+
+### Síntoma (reportado por Tomy en /pixel/analytics de TeVeCompras)
+"Eventos capturados día a día" cae a 0 los últimos días; Dispositivos/Top Páginas "Sin datos". Investigación:
+dos problemas independientes, ninguno causado por el deploy RBAC (19-jun):
+1. **Cron `refresh-pixel-rollups` cortado GLOBALMENTE desde el 16-jun 22:50** (TVC y EMDJ con `MAX(day)=16-jun`).
+   El cron corre OK invocado a mano (200, 3 días/112s) → NO es timeout ni bug de código → **Vercel dejó de
+   dispararlo** (lapso de la plataforma; `vercel.json` no cambió desde el 14-jun). Por eso los gráficos
+   (que leen del rollup, sin live-merge) muestran 0 del 17-jun en adelante para TODAS las orgs.
+2. **Pixel de TVC dejó de capturar eventos a las ~17:00 del 18-jun** (su sitio; EMDJ y Arredo siguen normales,
+   sin deploy nuestro ese día). Eso explica el funnel roto (carrito/checkout 0 con compra >0) y la cobertura
+   cayendo (sin eventos → menos match de atribución). **Lado TVC**, no nuestro. Pedir a su dev qué cambió ~17h
+   del 18-jun en su VTEX (apareció workspace `tomasdev--tevecompras.myvtex.com`).
+
+### Fix (branch, aprobado por Tomy)
+- **Cron auto-reparable** (`cron/refresh-pixel-rollups`): lee `MAX(day)` del rollup y backfillea desde el último
+  día presente hasta hoy (gap-aware), con tope de `MAX_GAP_DAYS=14`. Caso normal (rollup al día) = idéntico a
+  antes (3 días). Si Vercel se saltea runs, el próximo run exitoso tapa el hueco solo.
+- **Alerta de rollup stale** (`cron/warm-cache`, cada 5 min): si `MAX(refreshed_at)` > 5h → `console.error`
+  (Vercel logs) + email a `tlapidus@99media.com.ar` con cooldown 6h (en memoria, sin dependencia de tablas) +
+  flag `rollupStale` en la respuesta. Para enterarnos nosotros la próxima, no el cliente.
+- Backups `.bak` de ambos crons. `/gstack-review` (critical-pass): se corrigió que el cooldown dependía de la
+  tabla fantasma `system_setting` → movido a cooldown en memoria.
+
+### Pendiente (con OK explícito por separado)
+- **Mergear a main** (dispara deploy). 
+- **Backfill grande del 17-18-jun para TODAS las orgs** (los días de tráfico alto que faltan; el 19-21 ya se
+  tapó al invocar el cron una vez para diagnóstico). Es una escritura masiva → OK aparte.
+- **Confirmar en Vercel** (Tomy) si el cron figura "sin ejecuciones" (lapso plataforma) vs "ejecuciones
+  fallidas" (error a revisar) desde el 16-jun.
+
 ## ✅ BP-ROLES-001 — Acceso por roles (RBAC) para entregar el producto a clientes (2026-06-19) — RESUELTO + DEPLOYADO
 
 > **Estado:** ✅ RESUELTO. Mergeado a `main` (`2fff6f7`) y **verificado en producción** (`app.nitrosales.ai`,
