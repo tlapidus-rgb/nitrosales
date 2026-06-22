@@ -449,7 +449,10 @@ export default function PixelPage() {
 
   const fetchData = useCallback(async () => {
     const apiModel = selectedModel === "CUSTOM" ? "NITRO" : selectedModel;
-    const cacheKey = `${dateFrom}|${dateTo}|${currentPage}|${apiModel}`;
+    // La paginación de atribuciones es client-side (slice sobre los journeys ya
+    // traídos), así que NO depende de currentPage → no se refetchea al cambiar
+    // de página. La API devuelve el set de journeys recientes en una sola llamada.
+    const cacheKey = `${dateFrom}|${dateTo}|${apiModel}`;
     const cached = dataCacheRef.current.get(cacheKey);
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       setData(cached.data);
@@ -460,7 +463,7 @@ export default function PixelPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${apiModel}`);
+      const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=${apiModel}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: PixelData = await res.json();
       dataCacheRef.current.set(cacheKey, { data: json, ts: Date.now() });
@@ -471,9 +474,15 @@ export default function PixelPage() {
       }
       setData(json);
     } catch (e) { setError(String(e)); } finally { setLoading(false); }
-  }, [dateFrom, dateTo, currentPage, selectedModel]);
+  }, [dateFrom, dateTo, selectedModel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Reset a la página 1 cuando cambian filtros / rango / modelo, para no quedar
+  // parado en una página fuera de rango (ej: estabas en pág 4 y un filtro deja 1).
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [journeyChannelFilter, journeyMinValue, journeyMinTouchpoints, dateFrom, dateTo, selectedModel]);
 
   // Cmd+K listener
   useEffect(() => {
@@ -1163,7 +1172,14 @@ export default function PixelPage() {
             }
             return true;
           });
-          const visibleJourneys = filteredJourneys.slice(0, 12);
+          // Paginación client-side de las atribuciones: cada página muestra
+          // PER_PAGE journeys. totalPages se calcula de los journeys filtrados
+          // (NO de la cantidad de eventos, que era el bug: el paginador avanzaba
+          // pero la lista mostraba siempre los mismos 12).
+          const PER_PAGE = 12;
+          const journeyTotalPages = Math.max(1, Math.ceil(filteredJourneys.length / PER_PAGE));
+          const pageClamped = Math.min(Math.max(1, currentPage), journeyTotalPages);
+          const visibleJourneys = filteredJourneys.slice((pageClamped - 1) * PER_PAGE, pageClamped * PER_PAGE);
           const hasFilters = journeyChannelFilter.length > 0 || journeyMinValue > 0 || journeyMinTouchpoints > 0;
           const totalAvailable = journeys.length;
 
@@ -1245,7 +1261,7 @@ export default function PixelPage() {
                       {totalAvailable} órdenes
                     </span>
                   ) : (
-                    <span>{Math.min(visibleJourneys.length, totalAvailable)} órdenes</span>
+                    <span>{totalAvailable} órdenes</span>
                   )}
                 </span>
                 {hasFilters && (
@@ -1365,14 +1381,14 @@ export default function PixelPage() {
             );
           })}
 
-                  {/* Pagination — solo cuando NO hay filtros activos */}
-                  {!hasFilters && data && data.pagination.totalPages > 1 && (
+                  {/* Pagination — client-side sobre los journeys (filtrados o no) */}
+                  {journeyTotalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 pt-4">
-                      {currentPage > 1 && (
-                        <button onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Anterior</button>
+                      {pageClamped > 1 && (
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Anterior</button>
                       )}
-                      <span className="text-xs text-white/20 font-mono">{currentPage} / {data.pagination.totalPages}</span>
-                      {currentPage < data.pagination.totalPages && (
+                      <span className="text-xs text-white/20 font-mono">{pageClamped} / {journeyTotalPages}</span>
+                      {pageClamped < journeyTotalPages && (
                         <button onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Siguiente</button>
                       )}
                     </div>
