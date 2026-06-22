@@ -39,9 +39,10 @@
 // cargar un scan de historia completa en un cron de 2 h.
 // ══════════════════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
+import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { runRollupBackfill } from "@/lib/pixel/rollup-backfill";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -78,7 +79,6 @@ export async function GET(req: NextRequest) {
   }
 
   const startedAt = Date.now();
-  const baseUrl = `${url.protocol}//${url.host}`;
   const to = arDate(0); // hoy AR
   const defaultFrom = arDate(DAYS_BACK - 1); // hoy - (N-1): comportamiento normal
   const floorFrom = arDate(MAX_GAP_DAYS - 1); // tope: nunca más de MAX_GAP_DAYS días
@@ -101,10 +101,11 @@ export async function GET(req: NextRequest) {
   if (lastRollupDay && lastRollupDay < defaultFrom) from = lastRollupDay;
   if (from < floorFrom) from = floorFrom; // tope de seguridad
 
-  const setupBase =
-    `${baseUrl}/api/admin/setup-pixel-rollups?phase=backfill` +
-    `&from=${from}&to=${to}&key=${encodeURIComponent(ADMIN_API_KEY)}`;
-
+  // Llamada DIRECTA al runner del backfill (import + función), SIN self-fetch
+  // HTTP. Antes esto era `fetch(${url.host}/api/admin/setup-pixel-rollups)` que,
+  // cuando Vercel cron lo disparaba, apuntaba a la URL del deployment (protegida
+  // por Deployment Protection) → 401 en 112ms. Llamando la función directo no hay
+  // HTTP, ni URL, ni auth, ni protección. (BP-ROLLUP-CRON / Fix 1.)
   const calls: Array<{
     cursor: string;
     ok: boolean;
@@ -117,33 +118,32 @@ export async function GET(req: NextRequest) {
   let error: string | null = null;
 
   for (let i = 0; i < MAX_CALLS; i++) {
-    const target = `${setupBase}&cursor=${cursor}`;
-    let json: any;
+    let body: any;
     try {
-      const r = await fetch(target, { method: "POST", cache: "no-store" });
-      json = await r.json();
+      const r = await runRollupBackfill({ from, to, cursor });
+      body = r.body;
     } catch (e: any) {
-      error = `fetch failed: ${e?.message?.slice(0, 200)}`;
+      error = `backfill failed: ${e?.message?.slice(0, 200)}`;
       break;
     }
     calls.push({
       cursor,
-      ok: json?.ok === true,
-      done: json?.done === true,
-      daysProcessed: json?.daysProcessedThisCall ?? 0,
-      ms: json?.ms ?? 0,
+      ok: body?.ok === true,
+      done: body?.done === true,
+      daysProcessed: body?.daysProcessedThisCall ?? 0,
+      ms: body?.ms ?? 0,
     });
-    if (json?.ok === false) {
-      error = (json?.error || "backfill devolvió ok:false")?.toString().slice(0, 200);
+    if (body?.ok === false) {
+      error = (body?.error || "backfill devolvió ok:false")?.toString().slice(0, 200);
       break;
     }
-    if (json?.done === true) {
+    if (body?.done === true) {
       done = true;
       break;
     }
     // No terminó pero tampoco trae cursor de avance → cortar para no loopear.
-    if (!json?.nextCursor || json.nextCursor === cursor) break;
-    cursor = json.nextCursor;
+    if (!body?.nextCursor || body.nextCursor === cursor) break;
+    cursor = body.nextCursor;
   }
 
   return NextResponse.json(

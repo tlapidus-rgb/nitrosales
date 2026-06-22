@@ -147,7 +147,18 @@ export async function GET(req: NextRequest) {
             org.id
           )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}`;
           try {
-            const r = await fetch(target, { method: "GET", cache: "no-store" });
+            const r = await fetch(target, {
+              method: "GET",
+              cache: "no-store",
+              // Bypass de Vercel Deployment Protection (BP-ROLLUP-CRON / Fix 2b):
+              // sin esto, cuando Vercel cron dispara warm-cache el self-fetch va a
+              // la URL del deployment (protegida) y da 401. El secret lo provee
+              // Vercel como System env var al activar "Protection Bypass for
+              // Automation". En local (sin la env) no se manda header (no aplica).
+              headers: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+                ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+                : undefined,
+            });
             results.push({
               orgId: org.id,
               orgName: org.name,

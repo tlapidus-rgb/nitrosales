@@ -22,8 +22,16 @@
 
 ## 🚧 BP-ROLLUP-CRON — Cron de rollups del pixel se cortó (gráficos en 0) (branch `fix/rollup-cron-broken`, 2026-06-21)
 
-> **Estado:** 🚧 Fix HECHO EN BRANCH, **sin mergear**. tsc 0. **PAUSA: requiere OK del founder para (a) mergear
-> a main y (b) correr el backfill grande del 17-18-jun.**
+> **Estado:** 🚧 Fix HECHO EN BRANCH, **sin mergear**. tsc 0 + `next build` 0. **PAUSA: requiere OK del founder
+> para mergear a main.** (El backfill grande 17-21-jun ya se corrió en una sesión previa con OK.)
+>
+> **2026-06-21 UPDATE — CAUSA RAÍZ REAL ENCONTRADA (no era lapso de Vercel):** el cron SÍ se disparaba. Fallaba
+> con **401 en su self-fetch interno**. Log real Vercel: `GET /api/cron/refresh-pixel-rollups` → 500,
+> `vercel-cron/1.0`; `POST /api/admin/setup-pixel-rollups` → **401** en 112ms. El cron hacía
+> `fetch(${url.host}/api/admin/setup-pixel-rollups)`; cuando lo dispara Vercel cron, `url.host` = URL del
+> deployment, **protegida por Vercel Deployment Protection** → 401 antes de llegar al código (por eso 112ms y no
+> el 403 de nuestra auth). El dominio custom `app.nitrosales.ai` está exento → por eso invocado a mano funcionaba.
+> Mismo patrón roto en `warm-cache` y `refresh-pixel-first-source` (también self-fetch). **2 fixes nuevos abajo.**
 
 ### Síntoma (reportado por Tomy en /pixel/analytics de TeVeCompras)
 "Eventos capturados día a día" cae a 0 los últimos días; Dispositivos/Top Páginas "Sin datos". Investigación:
@@ -47,12 +55,26 @@ dos problemas independientes, ninguno causado por el deploy RBAC (19-jun):
 - Backups `.bak` de ambos crons. `/gstack-review` (critical-pass): se corrigió que el cooldown dependía de la
   tabla fantasma `system_setting` → movido a cooldown en memoria.
 
+### Fix del 401 (2026-06-21, branch `fix/rollup-cron-broken`, aprobado por Tomy) — elimina el self-fetch
+- **Fix 1 — `refresh-pixel-rollups` sin self-fetch HTTP.** Extraje la lógica del backfill a
+  `src/lib/pixel/rollup-backfill.ts` (lib COMPARTIDO; export `runRollupBackfill`, `globalRange`, `TIME_BUDGET_MS`).
+  El SQL HLL es **copia textual** del original (verificado con diff: solo difieren comentarios). El cron ahora
+  llama `runRollupBackfill({from,to,cursor})` directo (import + función) → **cero HTTP, cero URL, cero auth, cero
+  Deployment Protection** → el 401 desaparece. El endpoint admin `setup-pixel-rollups` también delega en el
+  mismo lib (fuente única; misma respuesta). Backup `setup-pixel-rollups/route.ts.bak`.
+- **Fix 2b — `warm-cache` con header de bypass.** El self-fetch a `/api/metrics/*` ahora manda
+  `x-vercel-protection-bypass: process.env.VERCEL_AUTOMATION_BYPASS_SECRET` (Tomy activó "Protection Bypass for
+  Automation" en Vercel → el secret está como System env var en todos los deployments). En local (sin la env) no
+  se manda header. Esto destraba el 401 de warm-cache (que también alimenta la alerta de stale).
+- **Pendiente similar (no en este fix):** `refresh-pixel-first-source` usa el mismo patrón de self-fetch roto.
+  No se tocó ahora (scan de historia pesado, fuera de scope); aplicarle el header de bypass o refactor en un
+  follow-up → ver BP nuevo si reaparece.
+- Validación: `tsc --noEmit` exit 0, `next build` exit 0, diff SQL idéntico. **El header de bypass solo surte
+  efecto en deployments reales** (local no tiene Deployment Protection) → la prueba definitiva es post-merge,
+  invocando el cron a mano.
+
 ### Pendiente (con OK explícito por separado)
-- **Mergear a main** (dispara deploy). 
-- **Backfill grande del 17-18-jun para TODAS las orgs** (los días de tráfico alto que faltan; el 19-21 ya se
-  tapó al invocar el cron una vez para diagnóstico). Es una escritura masiva → OK aparte.
-- **Confirmar en Vercel** (Tomy) si el cron figura "sin ejecuciones" (lapso plataforma) vs "ejecuciones
-  fallidas" (error a revisar) desde el 16-jun.
+- **Mergear a main** (dispara deploy). Tras el merge: invocar el cron a mano 1 vez para confirmar que ya no da 401.
 
 ## ✅ BP-ROLES-001 — Acceso por roles (RBAC) para entregar el producto a clientes (2026-06-19) — RESUELTO + DEPLOYADO
 
