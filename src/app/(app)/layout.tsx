@@ -106,8 +106,10 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/aura/inicio", label: "Inicio" },
           { href: "/aura/creadores", label: "Creadores", group: "Creadores" },
           { href: "/aura/creadores/aplicaciones", label: "Aplicaciones", group: "Creadores" },
-          { href: "/aura/campanas", label: "Campañas", group: "Campañas" },
-          { href: "/aura/campanas/nueva", label: "Nueva campaña", group: "Campañas" },
+          // Lote 2A: concepto de "Campaña" escondido hasta nuevo aviso (Tomy). Se ocultan
+          // del nav pero la maquinaria (páginas/endpoints/datos) queda intacta para volver.
+          // { href: "/aura/campanas", label: "Campañas", group: "Campañas" },
+          // { href: "/aura/campanas/nueva", label: "Nueva campaña", group: "Campañas" },
           { href: "/aura/contenido", label: "Overview", group: "Contenido" },
           { href: "/aura/contenido/briefings", label: "Briefings", group: "Contenido" },
           { href: "/aura/contenido/aprobaciones", label: "Aprobaciones", group: "Contenido" },

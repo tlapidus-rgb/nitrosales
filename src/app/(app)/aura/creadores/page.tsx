@@ -439,6 +439,9 @@ export default function CreadoresPage() {
   const [stateFilter, setStateFilter] = useState<string>("all");
   const [sort, setSort] = useState<"revenue" | "recent" | "name" | "orders">("revenue");
   const [applicationsCount, setApplicationsCount] = useState(0);
+  // Lote 2A (item A): link público de postulación de afiliados, para copiar/compartir.
+  const [applyUrl, setApplyUrl] = useState<string | null>(null);
+  const [applyCopied, setApplyCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -480,6 +483,24 @@ export default function CreadoresPage() {
       .then((d) => setApplicationsCount(d?.totals?.pending ?? 0))
       .catch(() => {});
   }, []);
+
+  // Lote 2A (item A): arma el link de postulación ${origin}/i/<slug>/apply desde el slug
+  // de la org (endpoint existente settings/organization; no se toca el endpoint de apply).
+  useEffect(() => {
+    fetch("/api/settings/organization", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.slug) setApplyUrl(`${window.location.origin}/i/${d.slug}/apply`);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleCopyApply = () => {
+    if (!applyUrl) return;
+    navigator.clipboard.writeText(applyUrl);
+    setApplyCopied(true);
+    setTimeout(() => setApplyCopied(false), 1800);
+  };
 
   return (
     <div
@@ -538,6 +559,21 @@ export default function CreadoresPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Lote 2A (item A): copiar/compartir el link público de postulación de afiliados */}
+              <button
+                type="button"
+                onClick={handleCopyApply}
+                disabled={!applyUrl}
+                title={applyUrl || "Generando link de postulación…"}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium tracking-tight transition-all disabled:opacity-50"
+                style={{
+                  background: THEME.bgCard,
+                  border: `1px solid ${THEME.border}`,
+                  color: THEME.textPrimary,
+                }}
+              >
+                {applyCopied ? "¡Link copiado!" : "Copiar link de postulación"}
+              </button>
               <Link
                 href="/aura/creadores/aplicaciones"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium tracking-tight transition-all"
@@ -561,9 +597,19 @@ export default function CreadoresPage() {
                   </span>
                 ) : null}
               </Link>
-              <Link
-                href="/influencers/new"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all hover:brightness-110"
+              {/* Lote 2A (item E): el link iba a /influencers/new (no existe → 404).
+                  Las alternativas violan reglas: el alta manual (/influencers/manage) crea
+                  el creador SIN campaña ni comisión (viola "siempre campaña+comisión"), y
+                  aprobar-postulación (/aura/creadores/aplicaciones) solo procesa postulaciones
+                  YA existentes (no es alta general). El alta manual con campaña+comisión es
+                  lógica de plata = 2B. Hasta entonces: botón deshabilitado con tooltip — sin
+                  404 y sin crear creadores sin comisión. (Aprobar postulaciones sigue en el
+                  botón "Aplicaciones" de al lado.) */}
+              <button
+                type="button"
+                disabled
+                title="Alta manual disponible próximamente"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight opacity-50 cursor-not-allowed"
                 style={{
                   background:
                     "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
@@ -574,7 +620,7 @@ export default function CreadoresPage() {
               >
                 <Plus size={14} strokeWidth={2.4} />
                 Nuevo creador
-              </Link>
+              </button>
             </div>
           </div>
         </header>

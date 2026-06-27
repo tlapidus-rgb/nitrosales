@@ -15,6 +15,18 @@ import { prisma } from "@/lib/db/client";
 
 export async function POST(req: NextRequest) {
   try {
+    // Lote 2A: creación de campañas DESHABILITADA (concepto "Campaña" escondido por Tomy).
+    // La campaña base de un creador se crea al darlo de alta (no por este endpoint), y
+    // editar la existente sigue disponible vía PATCH /aura/campaigns/[id]. Gated por env
+    // para NO dejar código muerto (tsc deja el resto alcanzable): sin AURA_CAMPAIGNS_ENABLED=1
+    // devuelve 403. La lógica de creación queda intacta debajo para reactivar más adelante.
+    if (process.env.AURA_CAMPAIGNS_ENABLED !== "1") {
+      return NextResponse.json(
+        { error: "disabled", message: "La creación de campañas está deshabilitada por ahora." },
+        { status: 403 },
+      );
+    }
+
     const org = await getOrganization(req);
     const body = await req.json().catch(() => ({}));
 

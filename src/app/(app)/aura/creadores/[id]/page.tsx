@@ -1067,18 +1067,9 @@ export default function CreatorProfilePage() {
                       : `${campaigns.filter((c) => c.status === "ACTIVE").length} activas de ${campaigns.length} totales`}
                   </p>
                 </div>
-                <Link
-                  href={`/aura/campanas/nueva?creatorId=${creator.id}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold tracking-tight"
-                  style={{
-                    background: THEME.gradient,
-                    color: "#fff",
-                    boxShadow: "0 4px 14px rgba(255, 0, 128, 0.28)",
-                  }}
-                >
-                  <Plus size={12} strokeWidth={2.8} />
-                  Nueva campaña
-                </Link>
+                {/* Lote 2A: botón "Nueva campaña" oculto — no se crean campañas nuevas
+                    (concepto escondido por Tomy). La card de campañas de abajo queda para
+                    ver/editar la existente. La campaña base se crea al dar de alta al creador. */}
               </div>
 
               {campaigns.length === 0 ? (
