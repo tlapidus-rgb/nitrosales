@@ -96,24 +96,42 @@ export async function POST(
       return NextResponse.json({ error: "tiers array is required" }, { status: 400 });
     }
 
-    // Replace all tiers — delete existing and create new
-    await prisma.influencerCommissionTier.deleteMany({
-      where: { influencerId: params.id },
-    });
+    // Validación de robustez (D6/D7): rechazar tiers imposibles ANTES de tocar la DB.
+    // Sin esto entraban % fuera de 0-100, montos negativos, o max<=min (tier que nunca aplica).
+    for (const t of tiersInput) {
+      const min = Number(t.minRevenue);
+      const pct = Number(t.commissionPercent);
+      const max = t.maxRevenue == null ? null : Number(t.maxRevenue);
+      if (!Number.isFinite(min) || min < 0) {
+        return NextResponse.json({ error: "minRevenue debe ser un número ≥ 0" }, { status: 400 });
+      }
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        return NextResponse.json({ error: "commissionPercent debe estar entre 0 y 100" }, { status: 400 });
+      }
+      if (max != null && (!Number.isFinite(max) || max <= min)) {
+        return NextResponse.json({ error: "maxRevenue debe ser mayor que minRevenue" }, { status: 400 });
+      }
+    }
 
-    const created = await Promise.all(
-      tiersInput.map((t) =>
-        prisma.influencerCommissionTier.create({
-          data: {
-            influencerId: params.id,
-            minRevenue: t.minRevenue,
-            maxRevenue: t.maxRevenue ?? null,
-            commissionPercent: t.commissionPercent,
-            label: t.label || null,
-          },
-        })
-      )
-    );
+    // Reemplazo ATÓMICO (D8): delete + creates en UNA transacción.
+    // Antes era deleteMany + Promise.all SIN transacción → si fallaba a mitad, el creador
+    // quedaba con tiers parciales/vacíos y comisiones mal calculadas en órdenes en vivo.
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.influencerCommissionTier.deleteMany({ where: { influencerId: params.id } });
+      return Promise.all(
+        tiersInput.map((t) =>
+          tx.influencerCommissionTier.create({
+            data: {
+              influencerId: params.id,
+              minRevenue: t.minRevenue,
+              maxRevenue: t.maxRevenue ?? null,
+              commissionPercent: t.commissionPercent,
+              label: t.label || null,
+            },
+          })
+        )
+      );
+    });
 
     return NextResponse.json({ tiers: created });
   } catch (error: any) {

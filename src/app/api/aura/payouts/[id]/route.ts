@@ -85,7 +85,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.periodEnd !== undefined) data.periodEnd = body.periodEnd ? new Date(body.periodEnd) : null;
 
     const updated = await prisma.payout.update({
-      where: { id: params.id },
+      // org en el where (no solo en el findFirst previo): cierra el TOCTOU de aislamiento por org.
+      where: { id: params.id, organizationId: org.id },
       data,
       include: {
         influencer: { select: { id: true, name: true, code: true } },
@@ -112,7 +113,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (existing.status === "PAID") {
       return NextResponse.json({ error: "No se puede eliminar un payout ya pagado. Cancelalo en su lugar." }, { status: 400 });
     }
-    await prisma.payout.delete({ where: { id: params.id } });
+    await prisma.payout.delete({ where: { id: params.id, organizationId: org.id } });
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

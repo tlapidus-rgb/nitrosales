@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { validateDealInput } from "@/lib/aura/deal-validation";
 
 const ALLOWED_TYPES = [
   "COMMISSION",
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "type inválido" }, { status: 400 });
     }
     if (!influencerId) return NextResponse.json({ error: "influencerId requerido" }, { status: 400 });
+
+    // Robustez (D6/D7): rechazar inputs imposibles (rango %, montos negativos,
+    // type sin su campo requerido, tiers malformados). NO valida unicidad de comisión (D1).
+    const v = validateDealInput(body);
+    if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
 
     const inf = await prisma.influencer.findFirst({
       where: { id: influencerId, organizationId: org.id },
