@@ -597,19 +597,12 @@ export default function CreadoresPage() {
                   </span>
                 ) : null}
               </Link>
-              {/* Lote 2A (item E): el link iba a /influencers/new (no existe → 404).
-                  Las alternativas violan reglas: el alta manual (/influencers/manage) crea
-                  el creador SIN campaña ni comisión (viola "siempre campaña+comisión"), y
-                  aprobar-postulación (/aura/creadores/aplicaciones) solo procesa postulaciones
-                  YA existentes (no es alta general). El alta manual con campaña+comisión es
-                  lógica de plata = 2B. Hasta entonces: botón deshabilitado con tooltip — sin
-                  404 y sin crear creadores sin comisión. (Aprobar postulaciones sigue en el
-                  botón "Aplicaciones" de al lado.) */}
-              <button
-                type="button"
-                disabled
-                title="Alta manual disponible próximamente"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight opacity-50 cursor-not-allowed"
+              {/* Lote 2B (Pieza 3): alta manual reactivada. El flujo /aura/creadores/nuevo
+                  crea creador + campaña Always-On + comisión OBLIGATORIA, atómico (misma lib
+                  que aprobar-postulación). Ya no crea creadores sin comisión. */}
+              <Link
+                href="/aura/creadores/nuevo"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all hover:brightness-110"
                 style={{
                   background:
                     "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
@@ -620,7 +613,7 @@ export default function CreadoresPage() {
               >
                 <Plus size={14} strokeWidth={2.4} />
                 Nuevo creador
-              </button>
+              </Link>
             </div>
           </div>
         </header>

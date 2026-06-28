@@ -4,24 +4,21 @@ export const dynamic = "force-dynamic";
 // Aura — Decidir sobre una aplicación
 // ══════════════════════════════════════════════════════════════
 // PATCH /api/aura/applications/[id]
-// Body: { status: "APPROVED" | "REJECTED" | "PENDING", notes?: string }
+// Body: { status: "APPROVED" | "REJECTED" | "PENDING", notes?: string, deal?: {...} }
 //
-// Si se aprueba: crea un Influencer con código auto-generado a partir
-// del nombre (kebab) y commissionPercent 10% por defecto.
+// Lote 2B (Pieza 3): aprobar una postulación AHORA EXIGE comisión obligatoria.
+// Crea creador + campaña Always-On + deal de comisión vía la lib compartida
+// createCreatorWithCommission, atómico junto con el update de la application.
+// El mismo flujo lo usa el alta manual (POST /api/aura/creators).
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
-
-function slugifyCode(name: string) {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 20);
-}
+import {
+  createCreatorWithCommission,
+  validateCreatorCommissionInput,
+} from "@/lib/aura/create-creator";
 
 export async function PATCH(
   req: NextRequest,
@@ -45,115 +42,57 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const isNewApproval = status === "APPROVED" && existing.status !== "APPROVED";
+
     let createdInfluencerId: string | null = null;
     let createdDealId: string | null = null;
     let createdCampaignId: string | null = null;
-    if (status === "APPROVED" && existing.status !== "APPROVED") {
-      // generar código único a partir del nombre
-      const base = slugifyCode(existing.name) || "creator";
-      let code = base;
-      let tries = 0;
-      while (tries < 20) {
-        const clash = await prisma.influencer.findUnique({
-          where: {
-            organizationId_code: { organizationId: org.id, code },
-          },
-          select: { id: true },
-        });
-        if (!clash) break;
-        tries++;
-        code = `${base}${tries}`;
+    let updated;
+
+    if (isNewApproval) {
+      // Comisión obligatoria: el deal debe venir y ser de un tipo que paga comisión.
+      const check = validateCreatorCommissionInput({ name: existing.name, deal: body.deal });
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 });
       }
 
-      // Si viene un deal, la commissionPercent del influencer la dejamos
-      // alineada con la del deal (si es COMMISSION/HYBRID); si no, 10%.
-      const deal = body.deal;
-      const infCommission =
-        deal && (deal.type === "COMMISSION" || deal.type === "HYBRID") && deal.commissionPercent != null
-          ? Number(deal.commissionPercent)
-          : 10;
-
-      const created = await prisma.influencer.create({
-        data: {
+      // Atómico: creador+campaña+deal Y el cambio de estado de la application juntos.
+      const result = await prisma.$transaction(async (tx) => {
+        const creator = await createCreatorWithCommission(tx, {
           organizationId: org.id,
           name: existing.name,
-          code,
           email: existing.email,
-          commissionPercent: infCommission,
-          status: "ACTIVE",
-        },
-        select: { id: true },
+          deal: body.deal,
+        });
+        const app = await tx.influencerApplication.update({
+          // org en el where (no solo en el findFirst previo): cierra el TOCTOU de
+          // aislamiento por org, consistente con el hardening D9 de Lote 1.
+          where: { id, organizationId: org.id },
+          data: {
+            status,
+            reviewedAt: new Date(),
+            ...(notes !== undefined ? { notes } : {}),
+          },
+        });
+        return { creator, app };
       });
-      createdInfluencerId = created.id;
 
-      // Crear campaña "Always On" + deal principal atado a esa campaña
-      if (deal && typeof deal === "object") {
-        const ALLOWED_DEAL_TYPES = [
-          "COMMISSION",
-          "FLAT_FEE",
-          "PERFORMANCE_BONUS",
-          "TIERED_COMMISSION",
-          "CPM",
-          "GIFTING",
-          "HYBRID",
-        ];
-        if (deal.type && ALLOWED_DEAL_TYPES.includes(deal.type)) {
-          // 1. Crear la campaña Always On
-          const campaign = await prisma.influencerCampaign.create({
-            data: {
-              organizationId: org.id,
-              influencerId: created.id,
-              name: `Always On · ${existing.name}`,
-              description: "Campaña base creada automáticamente al aprobar al creador.",
-              startDate: new Date(),
-              isAlwaysOn: true,
-              status: "ACTIVE",
-            },
-            select: { id: true },
-          });
-          createdCampaignId = campaign.id;
-
-          // 2. Crear el deal principal dentro de esa campaña
-          const dealData: any = {
-            organizationId: org.id,
-            influencerId: created.id,
-            campaignId: campaign.id,
-            name: (deal.name || "").trim() || `Deal inicial · ${existing.name}`,
-            type: deal.type,
-            status: "ACTIVE",
-            currency: deal.currency || "ARS",
-            notes: deal.notes || null,
-            startDate: deal.startDate ? new Date(deal.startDate) : new Date(),
-            endDate: deal.endDate ? new Date(deal.endDate) : null,
-          };
-          if (deal.commissionPercent != null) dealData.commissionPercent = Number(deal.commissionPercent);
-          if (deal.flatAmount != null) dealData.flatAmount = Number(deal.flatAmount);
-          if (deal.flatUnit) dealData.flatUnit = deal.flatUnit;
-          if (deal.bonusAmount != null) dealData.bonusAmount = Number(deal.bonusAmount);
-          if (deal.bonusMetric) dealData.bonusMetric = deal.bonusMetric;
-          if (deal.bonusTarget != null) dealData.bonusTarget = Number(deal.bonusTarget);
-          if (deal.tiers) dealData.tiers = deal.tiers;
-          if (deal.cpmRate != null) dealData.cpmRate = Number(deal.cpmRate);
-          if (deal.productValue != null) dealData.productValue = Number(deal.productValue);
-          if (deal.productDescription) dealData.productDescription = deal.productDescription;
-
-          const createdDeal = await prisma.influencerDeal.create({
-            data: dealData,
-            select: { id: true },
-          });
-          createdDealId = createdDeal.id;
-        }
-      }
+      createdInfluencerId = result.creator.influencerId;
+      createdDealId = result.creator.dealId;
+      createdCampaignId = result.creator.campaignId;
+      updated = result.app;
+    } else {
+      // REJECTED / PENDING / re-aprobar algo ya aprobado: solo cambia el estado.
+      updated = await prisma.influencerApplication.update({
+        // org en el where (cierra TOCTOU, patrón D9).
+        where: { id, organizationId: org.id },
+        data: {
+          status,
+          reviewedAt: status !== "PENDING" ? new Date() : null,
+          ...(notes !== undefined ? { notes } : {}),
+        },
+      });
     }
-
-    const updated = await prisma.influencerApplication.update({
-      where: { id },
-      data: {
-        status,
-        reviewedAt: status !== "PENDING" ? new Date() : null,
-        ...(notes !== undefined ? { notes } : {}),
-      },
-    });
 
     return NextResponse.json({
       ok: true,
@@ -164,7 +103,7 @@ export async function PATCH(
       },
       createdInfluencerId,
       createdDealId,
-      createdCampaignId: createdCampaignId ?? null,
+      createdCampaignId,
     });
   } catch (e: any) {
     console.error("[aura/applications/[id] PATCH] error:", e);

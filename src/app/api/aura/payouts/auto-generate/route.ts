@@ -28,6 +28,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { accruesCommission } from "@/lib/aura/commission";
 
 type GenResult = {
   dealId: string;
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     const deals = await prisma.influencerDeal.findMany({
       where,
       include: {
-        influencer: { select: { id: true, name: true, code: true } },
+        influencer: { select: { id: true, name: true, code: true, status: true } },
         campaign: { select: { id: true, name: true } },
       },
     });
@@ -77,6 +78,22 @@ export async function POST(req: NextRequest) {
     const toCreate: any[] = [];
 
     for (const deal of deals) {
+      // Lote 2B (Pieza 4): un creador INACTIVE no genera comisión de Aura. Se omite acá
+      // (la atribución del pixel sigue intacta y es independiente). El motor CORE ya no
+      // crea atribuciones nuevas para inactivos; esto es la red en el cálculo de pagos.
+      if (!accruesCommission(deal.influencer.status)) {
+        results.push({
+          dealId: deal.id,
+          dealName: deal.name,
+          influencer: deal.influencer.name,
+          type: deal.type,
+          amount: 0,
+          concept: deal.name,
+          skipped: "Creador inactivo — no genera comisión",
+        });
+        continue;
+      }
+
       // Filtros de attributions: por influencer (siempre) y por campaign (si el deal lo tiene)
       const attrWhere: any = {
         organizationId: org.id,
