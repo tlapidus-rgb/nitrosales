@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { PaymentsCard } from "./PaymentsCard";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -1036,6 +1037,11 @@ export default function CreatorProfilePage() {
 
         {/* ─── ACCESO AL DASHBOARD (contraseña + enviar por mail) ─── */}
         <DashboardAccessSection creator={creator} onReload={load} />
+
+        {/* ─── PAGOS POR MES (Lote 2B · Pieza 2: corresponde vs registrado, sin saldo) ─── */}
+        <div className="mt-5">
+          <PaymentsCard creatorId={creator.id} />
+        </div>
 
         {/* ─── MAIN GRID: 2 cols en desktop ───────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

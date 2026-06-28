@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { isValidPeriodMonth, monthRange } from "@/lib/aura/payout-period";
+
+const ALLOWED_METHODS = ["TRANSFER", "CASH", "MERCADOPAGO", "CRYPTO", "PRODUCT", "OTHER"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,9 +26,26 @@ export async function POST(req: NextRequest) {
     const currency: string = body.currency || "ARS";
     const dealId: string | null = body.dealId || null;
     const campaignId: string | null = body.campaignId || null;
-    const periodStart: string | null = body.periodStart || null;
-    const periodEnd: string | null = body.periodEnd || null;
     const notes: string | null = body.notes || null;
+
+    // Lote 2B (Pieza 2): un pago se REGISTRA (nace PAID), atado a un mes, monto libre.
+    // periodMonth ("YYYY-MM") deriva periodStart/periodEnd → no requiere columna nueva.
+    // markPaid (o status PAID / paidAt presente) = es un registro de pago ya hecho.
+    const periodMonth: string | null = isValidPeriodMonth(body.periodMonth) ? body.periodMonth : null;
+    let periodStartDate: Date | null = body.periodStart ? new Date(body.periodStart) : null;
+    let periodEndDate: Date | null = body.periodEnd ? new Date(body.periodEnd) : null;
+    if (periodMonth) {
+      const r = monthRange(periodMonth);
+      periodStartDate = r.start;
+      periodEndDate = r.end;
+    }
+
+    const markPaid = body.markPaid === true || body.status === "PAID" || body.paidAt != null;
+    const method: string | null = body.method || null;
+    if (method && !ALLOWED_METHODS.includes(method)) {
+      return NextResponse.json({ error: "method inválido" }, { status: 400 });
+    }
+    const reference: string | null = body.reference || null;
 
     if (!influencerId) return NextResponse.json({ error: "influencerId requerido" }, { status: 400 });
     if (!concept) return NextResponse.json({ error: "concept requerido" }, { status: 400 });
@@ -65,10 +85,14 @@ export async function POST(req: NextRequest) {
         currency,
         dealId,
         campaignId,
-        periodStart: periodStart ? new Date(periodStart) : null,
-        periodEnd: periodEnd ? new Date(periodEnd) : null,
+        periodStart: periodStartDate,
+        periodEnd: periodEndDate,
         notes,
-        status: "PENDING",
+        method,
+        reference,
+        // Registro de pago → nace PAID con paidAt. Sin registro → PENDING (compat).
+        status: markPaid ? "PAID" : "PENDING",
+        paidAt: markPaid ? (body.paidAt ? new Date(body.paidAt) : new Date()) : null,
       },
       include: {
         influencer: { select: { id: true, name: true, code: true } },
