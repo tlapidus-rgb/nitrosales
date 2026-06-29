@@ -1537,10 +1537,31 @@ model InfluencerDeal {
   campaignId          String?
   campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   payouts             Payout[]
+  commissionRates     InfluencerDealCommissionRate[]
 
   @@index([organizationId, influencerId, status])
   @@index([organizationId, campaignId])
   @@map("influencer_deals")
+}
+
+// Pieza 1 — Vigencia mensual del % de comisión de un deal.
+// NO se sobreescribe: cada cambio inserta una fila con effectiveFrom = 1° del mes desde el que
+// rige (un cambio a mitad de mes rige el 1° del mes SIGUIENTE). El % vigente del mes M es la
+// fila con el mayor effectiveFrom <= primerDía(M). Historial completo = todas las filas del deal.
+// Tabla creada + backfilleada en prod 2026-06-28; el motor todavía NO lee de acá (paso 3 pendiente).
+model InfluencerDealCommissionRate {
+  id                String   @id @default(cuid())
+  commissionPercent Decimal  @db.Decimal(5, 2)
+  effectiveFrom     DateTime @db.Date
+  createdAt         DateTime @default(now())
+
+  organizationId    String
+  dealId            String
+  deal              InfluencerDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, effectiveFrom])
+  @@index([organizationId])
+  @@map("influencer_deal_commission_rates")
 }
 
 // Pago concreto al creador (Pendiente → Pagado)

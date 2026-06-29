@@ -34,3 +34,27 @@ ALTER TABLE payouts ADD CONSTRAINT "payouts_campaignId_fkey"
 ALTER TABLE influencer_deals DROP CONSTRAINT IF EXISTS "influencer_deals_campaignId_fkey";
 ALTER TABLE influencer_deals ADD CONSTRAINT "influencer_deals_campaignId_fkey"
   FOREIGN KEY ("campaignId") REFERENCES influencer_campaigns(id) ON UPDATE NO ACTION ON DELETE RESTRICT;
+
+-- ── Pieza 1 (paso 1+2) — vigencia mensual del % de comisión (2026-06-28) ──
+-- Tabla additive: el motor todavia NO lee de aca (el switch del engine es el paso 3).
+CREATE TABLE IF NOT EXISTS influencer_deal_commission_rates (
+  id TEXT PRIMARY KEY,
+  "dealId" TEXT NOT NULL,
+  "commissionPercent" DECIMAL(5,2) NOT NULL,
+  "effectiveFrom" DATE NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "organizationId" TEXT NOT NULL,
+  CONSTRAINT "influencer_deal_commission_rates_dealId_fkey"
+    FOREIGN KEY ("dealId") REFERENCES influencer_deals(id) ON UPDATE NO ACTION ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "influencer_deal_commission_rates_dealId_effectiveFrom_idx" ON influencer_deal_commission_rates ("dealId", "effectiveFrom");
+CREATE INDEX IF NOT EXISTS "influencer_deal_commission_rates_organizationId_idx" ON influencer_deal_commission_rates ("organizationId");
+
+-- Backfill: 1 fila por deal de comision ACTIVO, % = el que el motor usa hoy (influencer.commissionPercent),
+-- effectiveFrom = 1° del mes de creacion del deal. Idempotente.
+INSERT INTO influencer_deal_commission_rates (id, "dealId", "commissionPercent", "effectiveFrom", "organizationId", "createdAt")
+SELECT gen_random_uuid()::text, d.id, i."commissionPercent", date_trunc('month', d."createdAt")::date, d."organizationId", CURRENT_TIMESTAMP
+FROM influencer_deals d
+JOIN influencers i ON i.id = d."influencerId"
+WHERE d.status='ACTIVE' AND d.type IN ('COMMISSION','TIERED_COMMISSION','HYBRID')
+  AND NOT EXISTS (SELECT 1 FROM influencer_deal_commission_rates r WHERE r."dealId" = d.id);
