@@ -43,6 +43,22 @@ type GenResult = {
 
 export async function POST(req: NextRequest) {
   try {
+    // CR-3 (Lote 2B): auto-generate DEPRECADO. El registro de pago oficial es la
+    // PaymentsCard del perfil del creador (nace PAID, atado al mes). auto-generate
+    // creaba payouts PENDING sin coordinar con la card (la card no manda dealId) →
+    // riesgo de DOBLE PAGO. Se deja la lógica abajo gated por env por si se necesita
+    // un backfill puntual; sin AURA_AUTOGEN_ENABLED=1 devuelve 410.
+    if (process.env.AURA_AUTOGEN_ENABLED !== "1") {
+      return NextResponse.json(
+        {
+          error: "deprecated",
+          message:
+            "Auto-generar pagos está deshabilitado. Registrá los pagos desde la card de pagos del perfil del creador.",
+        },
+        { status: 410 },
+      );
+    }
+
     const org = await getOrganization(req);
     const body = await req.json();
 
@@ -241,7 +257,11 @@ export async function POST(req: NextRequest) {
           skipReason = `Tipo desconocido: ${deal.type}`;
       }
 
-      if (skipReason || amount <= 0) {
+      // D7 (robustez): NaN<=0 es false, así que un tier con commissionPercent no-numérico
+      // (JSON viejo/malo) colaba NaN hasta payout.createMany y reventaba TODO el batch (500).
+      // Number.isFinite lo atrapa y lo skipea con razón clara, sin tumbar el resto.
+      if (skipReason || !Number.isFinite(amount) || amount <= 0) {
+        if (!skipReason && !Number.isFinite(amount)) skipReason = "Monto no numérico (tier/deal con dato inválido)";
         results.push({
           dealId: deal.id,
           dealName: deal.name,
