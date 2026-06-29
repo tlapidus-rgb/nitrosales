@@ -20,6 +20,28 @@
 
 ---
 
+## 🚧 BP-AURA-P1 — Aura: completar para mover plata real (2026-06-28)
+
+> Sesión AURA 2026-06-28: auditoría profunda (5 agentes + consulta DB prod) + 8 commits de endurecimiento
+> en prod (D1/D3/Always-On índices, FK RESTRICT, TOCTOU, D5/D10 motor, Q5/Q6, auto-generate deprecado,
+> Pieza 1 paso 1+2). Detalle en `CLAUDE_STATE.md` (2026-06-28) y `NitroSales-Diagnostico/AURA_ESTADO_Y_PENDIENTES.md`.
+> **El "todo en 0" NO era bug: Aura está vacía de data real** (8 creadores de prueba, 0 cupones, 1 atribución).
+
+**Pendiente para que Aura funcione 100% (prioridad alta primero):**
+1. **Pieza 1 pasos 3-6** 🔴 CORE — el motor (`influencer-attribution.ts:236`) debe leer el % VIGENTE del mes
+   desde `influencer_deal_commission_rates` (ya creada + backfilleada, additive, el motor aún NO la lee).
+   + endpoint cambiar % (vigencia = 1° mes siguiente) + UI actual/programado + tests. Tanda dedicada
+   (toca el cálculo de cada venta). Tiers DIFERIDOS por orden de Tomy. Seam listo: `getCommissionRate` en `commission.ts`.
+2. **Endpoint gestión de deals (`deals/[id]` PATCH/DELETE)** — hoy NO existe: solo se puede crear un deal,
+   no editar/desactivar. El check D1 dice "desactivá el existente" pero no hay API para hacerlo. Gap real de manejo.
+3. **Correr test de integración** `aura-payments.integration.test.ts` (Neon branch + `AURA_INTEGRATION=1` + `AURA_TEST_ORG_ID`)
+   ANTES del primer creador real. Bloqueante (verifica el cálculo de pagos con datos reales).
+4. **Cargar data real** (creadores + cupones + tráfico atribuido) — operativo, no código.
+
+**Deuda consciente (decidida, NO bloquea):** S1 password plano · D2 excludeFromCommission · tiers · tipado estricto.
+
+---
+
 ## 🚧 BP-ROLLUP-CRON — Cron de rollups del pixel se cortó (gráficos en 0) (branch `fix/rollup-cron-broken`, 2026-06-21)
 
 > **Estado:** 🚧 Fix HECHO EN BRANCH, **sin mergear**. tsc 0 + `next build` 0. **PAUSA: requiere OK del founder

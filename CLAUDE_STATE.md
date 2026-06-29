@@ -3,6 +3,39 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
+## Ultima actualizacion: 2026-06-28 (Sesion AURA — auditoria profunda + endurecimiento + Pieza 1 paso 1+2)
+
+**Causa raiz del "todo en 0" (Tomy):** NO es bug, es FALTA DE DATA (verificado por consulta a DB prod).
+Aura esta vacia — solo 8 creadores de PRUEBA (abril) en la org "El Mundo del Juguete" (cmmmga...),
+1 atribucion all-time, 0 payouts, 0 cupones de influencer. Las otras 3 orgs (Prueb, Arredo, TeVe) sin
+un solo creador. Con admin se ve "todas" por impersonate. El codigo filtra bien por org/fecha; falta
+DATA REAL (creadores + cupones + trafico atribuido).
+
+**Auditoria profunda (5 agentes ECC + consulta DB) + 8 commits en prod (2c836dc→924794b):**
+- **DB (idempotente, en prisma/migrations/aura_dedup_and_fk_hardening.sql):** D1 indice unico parcial
+  "1 comision activa/creador"; D3 indice anti-payout-duplicado; Always-On unico; 3 FK SET NULL→RESTRICT
+  (no huerfanos financieros); tabla influencer_deal_commission_rates (Pieza 1 paso 1+2) + backfill 8 filas
+  (ADDITIVE: el motor NO la lee aun).
+- **Robustez:** D1 check en deals/route.ts (via primaria) + P2002→409; D7 NaN guard; S2 TOCTOU org en 8 sitios;
+  fallos silenciosos de /aura/pagos (res.ok+alert); validacion de periodo; monthRange guard.
+- **Motor (CORE, OK Tomy):** D5 (no congela comision $0 silenciosa); D10 (logs con orderId → atribucion rastreable).
+- **Decisiones:** auto-generate DEPRECADO (410, CR-3; la card es la via oficial); Q5 pago PAID inmutable;
+  ventana modular en creadores (chips 30/60/90/120/365 default 30, estilo NitroPixel, colores Aura);
+  form /aura/pagos nace PAID; modal de aprobar solo tipos con comision.
+
+**Decisiones Tomy/Axel:** S1 (password plano) se deja · D2 (excludeFromCommission) a futuro · tiers DIFERIDOS.
+
+**QUEDA para que Aura funcione 100% (ver BACKLOG BP-AURA-P1 + NitroSales-Diagnostico/AURA_ESTADO_Y_PENDIENTES.md):**
+1. **Pieza 1 pasos 3-6** 🔴 CORE: motor lee % vigente del mes desde la tabla nueva + endpoint cambiar % + UI + tests. Tanda dedicada.
+2. **Endpoint gestion de deals (deals/[id])**: hoy solo se CREA, no se puede editar/desactivar un deal (gap real).
+3. **Correr test integracion** aura-payments (Neon branch + AURA_INTEGRATION=1) ANTES del primer creador real. Bloqueante.
+4. **Cargar data real** (creadores + cupones + trafico).
+
+Verificado: tsc 0, next build 0, 163 tests (+ integration gate skipped). origin/main = 924794b.
+Tests unitarios de Aura quedan LOCAL (convencion del repo). CLAUDE.md tiene una edicion previa sin commitear (no de esta sesion).
+
+---
+
 ## Ultima actualizacion: 2026-06-19 (Sesion RBAC — Acceso por roles entregado y deployado a prod)
 
 **Que se hizo (BP-ROLES-001):** sistema de acceso por roles para entregar el producto a clientes. Se reuso
