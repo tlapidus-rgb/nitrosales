@@ -708,8 +708,8 @@ export default function CreadoresPage() {
                 className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all"
                 style={
                   windowDays === d
-                    ? { background: "rgba(6,182,212,0.15)", color: "#67e8f9", border: "1px solid rgba(6,182,212,0.3)" }
-                    : { color: "rgba(148,163,184,0.5)" }
+                    ? { background: THEME.goldSoft, color: THEME.gold, border: `1px solid ${THEME.goldBorder}` }
+                    : { color: THEME.textMuted }
                 }
               >
                 {d}d
