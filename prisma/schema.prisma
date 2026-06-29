@@ -1535,7 +1535,7 @@ model InfluencerDeal {
   influencerId        String
   influencer          Influencer @relation(fields: [influencerId], references: [id])
   campaignId          String?
-  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   payouts             Payout[]
 
   @@index([organizationId, influencerId, status])
@@ -1571,9 +1571,9 @@ model Payout {
   influencerId        String
   influencer          Influencer @relation(fields: [influencerId], references: [id])
   dealId              String?
-  deal                InfluencerDeal? @relation(fields: [dealId], references: [id])
+  deal                InfluencerDeal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
   campaignId          String?
-  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, influencerId, status])
   @@index([organizationId, status, createdAt])
