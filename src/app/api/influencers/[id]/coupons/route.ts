@@ -119,7 +119,7 @@ export async function PUT(
     }
 
     const coupon = await prisma.influencerCoupon.update({
-      where: { id: couponId },
+      where: { id: couponId, organizationId: org.id }, // org en el where (TOCTOU, D9)
       data: {
         ...(body.discountPercent !== undefined && { discountPercent: body.discountPercent }),
         ...(body.discountFixed !== undefined && { discountFixed: body.discountFixed }),
@@ -157,7 +157,7 @@ export async function DELETE(
 
     // Soft deactivate
     await prisma.influencerCoupon.update({
-      where: { id: couponId },
+      where: { id: couponId, organizationId: org.id }, // org en el where (TOCTOU, D9)
       data: { isActive: false },
     });
 

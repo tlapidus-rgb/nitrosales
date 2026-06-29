@@ -52,6 +52,17 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "amount debe ser > 0" }, { status: 400 });
     }
+    // Robustez: rango de período coherente (la vía cruda periodStart/End no se validaba).
+    if (
+      periodStartDate &&
+      periodEndDate &&
+      periodStartDate.getTime() > periodEndDate.getTime()
+    ) {
+      return NextResponse.json(
+        { error: "periodStart no puede ser posterior a periodEnd" },
+        { status: 400 },
+      );
+    }
 
     // Validar ownership del influencer
     const inf = await prisma.influencer.findFirst({

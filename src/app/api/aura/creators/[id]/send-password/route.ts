@@ -59,7 +59,7 @@ export async function POST(
       plainPassword = generatePassword();
       didRegenerate = true;
       await prisma.influencer.update({
-        where: { id: influencer.id },
+        where: { id: influencer.id, organizationId: org.id }, // org en el where (TOCTOU, D9)
         data: {
           dashboardPassword: hashPassword(plainPassword),
           dashboardPasswordPlain: plainPassword,

@@ -53,6 +53,32 @@ export async function POST(req: NextRequest) {
     });
     if (!inf) return NextResponse.json({ error: "Influencer no encontrado" }, { status: 404 });
 
+    // D1 (robustez): solo 1 deal de comisión ACTIVO por creador. Esta es la vía PRIMARIA de
+    // creación de deals y antes no tenía el check (vivía solo en campaigns/route.ts, env-gated).
+    // El índice único parcial en DB es el guard final contra races; esto cierra la vía de app.
+    const COMMISSION_TYPES = ["COMMISSION", "TIERED_COMMISSION", "HYBRID"];
+    if (COMMISSION_TYPES.includes(type)) {
+      const existingCommission = await prisma.influencerDeal.findFirst({
+        where: {
+          organizationId: org.id,
+          influencerId,
+          status: "ACTIVE",
+          type: { in: COMMISSION_TYPES },
+        },
+        select: { id: true, name: true },
+      });
+      if (existingCommission) {
+        return NextResponse.json(
+          {
+            error: "commission_conflict",
+            message: `Este creador ya tiene un deal de comisión activo ("${existingCommission.name}"). Desactivá el existente antes de crear uno nuevo.`,
+            existingDealId: existingCommission.id,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     if (campaignId) {
       const camp = await prisma.influencerCampaign.findFirst({
         where: { id: campaignId, organizationId: org.id },
@@ -96,6 +122,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, deal: created });
   } catch (error: unknown) {
+    // D1: el índice único parcial atrapó un 2º deal de comisión en una race concurrente
+    // (el check de arriba cubre el caso secuencial; esto cubre el simultáneo).
+    if (error && typeof error === "object" && (error as { code?: string }).code === "P2002") {
+      return NextResponse.json(
+        {
+          error: "commission_conflict",
+          message: "Este creador ya tiene un deal de comisión activo (conflicto concurrente).",
+        },
+        { status: 409 },
+      );
+    }
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

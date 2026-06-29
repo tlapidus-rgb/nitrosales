@@ -83,6 +83,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
     if (body.periodStart !== undefined) data.periodStart = body.periodStart ? new Date(body.periodStart) : null;
     if (body.periodEnd !== undefined) data.periodEnd = body.periodEnd ? new Date(body.periodEnd) : null;
+    // Robustez: si vienen ambos, el rango debe ser coherente.
+    if (
+      data.periodStart instanceof Date &&
+      data.periodEnd instanceof Date &&
+      data.periodStart.getTime() > data.periodEnd.getTime()
+    ) {
+      return NextResponse.json(
+        { error: "periodStart no puede ser posterior a periodEnd" },
+        { status: 400 },
+      );
+    }
 
     const updated = await prisma.payout.update({
       // org en el where (no solo en el findFirst previo): cierra el TOCTOU de aislamiento por org.

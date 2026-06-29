@@ -473,7 +473,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.influencer.update({
-      where: { id },
+      where: { id, organizationId: org.id }, // org en el where (cierra TOCTOU del PATCH de %, patrón D9)
       data: allowed,
       select: {
         id: true,

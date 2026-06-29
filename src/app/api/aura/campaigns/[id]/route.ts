@@ -314,7 +314,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.influencerCampaign.update({
-      where: { id },
+      where: { id, organizationId: org.id }, // org en el where (cierra TOCTOU, patrón D9)
       data,
       select: { id: true, status: true, name: true },
     });
@@ -354,7 +354,7 @@ export async function DELETE(
       );
     }
 
-    await prisma.influencerCampaign.delete({ where: { id } });
+    await prisma.influencerCampaign.delete({ where: { id, organizationId: org.id } }); // org en el where (TOCTOU, D9)
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[aura/campaigns/[id] DELETE] error:", error);

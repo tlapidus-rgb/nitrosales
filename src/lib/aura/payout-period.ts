@@ -26,6 +26,11 @@ export function isValidPeriodMonth(periodMonth: unknown): periodMonth is string 
  * end es 23:59:59.999 del último día (día 0 del mes siguiente).
  */
 export function monthRange(periodMonth: string): { start: Date; end: Date } {
+  // Robustez: con un periodMonth inválido, split/Number daban Invalid Date y la query
+  // de Prisma devolvía 0 filas en SILENCIO (parecía "mes sin datos"). Mejor fallar claro.
+  if (!isValidPeriodMonth(periodMonth)) {
+    throw new Error(`periodMonth inválido: "${periodMonth}" (se espera "YYYY-MM")`);
+  }
   const [y, m] = periodMonth.split("-").map(Number);
   const start = new Date(y, m - 1, 1, 0, 0, 0, 0);
   const end = new Date(y, m, 0, 23, 59, 59, 999);

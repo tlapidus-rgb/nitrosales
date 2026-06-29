@@ -96,6 +96,12 @@ export default function PagosPage() {
       params.set("status", status);
       if (q) params.set("q", q);
       const res = await fetch(`/api/aura/payouts/list?${params.toString()}`);
+      // Robustez: si la API falla, NO blanquear la lista como si no hubiera pagos
+      // (antes un 500 mostraba lista vacía → parecía "no hay pagos pendientes").
+      if (!res.ok) {
+        console.error("[pagos] load falló:", res.status);
+        return;
+      }
       const data = await res.json();
       setItems(data.items || []);
       setTotals(data.totals || null);
@@ -109,16 +115,28 @@ export default function PagosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // Robustez: fetch no lanza en 4xx/5xx. Sin este check, una acción fallida
+  // refrescaba la lista y "parecía exitosa" (riesgo: creer que cancelaste/borraste y no).
+  async function okOrThrow(res: Response) {
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || d.message || `Error ${res.status}`);
+    }
+  }
+
   async function cancelPayout(id: string) {
     if (!confirm("¿Cancelar este pago?")) return;
     setActingId(id);
     try {
-      await fetch(`/api/aura/payouts/${id}`, {
+      const res = await fetch(`/api/aura/payouts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "CANCELLED" }),
       });
+      await okOrThrow(res);
       await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "No se pudo cancelar el pago");
     } finally {
       setActingId(null);
     }
@@ -128,8 +146,11 @@ export default function PagosPage() {
     if (!confirm("Eliminar este pago definitivamente?")) return;
     setActingId(id);
     try {
-      await fetch(`/api/aura/payouts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/aura/payouts/${id}`, { method: "DELETE" });
+      await okOrThrow(res);
       await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "No se pudo eliminar el pago");
     } finally {
       setActingId(null);
     }
@@ -138,12 +159,15 @@ export default function PagosPage() {
   async function restorePayout(id: string) {
     setActingId(id);
     try {
-      await fetch(`/api/aura/payouts/${id}`, {
+      const res = await fetch(`/api/aura/payouts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "PENDING" }),
       });
+      await okOrThrow(res);
       await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "No se pudo restaurar el pago");
     } finally {
       setActingId(null);
     }
@@ -736,7 +760,7 @@ function MarkPaidModal({
   async function save() {
     setSaving(true);
     try {
-      await fetch(`/api/aura/payouts/${payout.id}`, {
+      const res = await fetch(`/api/aura/payouts/${payout.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -748,7 +772,15 @@ function MarkPaidModal({
           notes: notes || null,
         }),
       });
+      // Robustez: sin este check, un PATCH fallido cerraba el modal como si hubiera
+      // marcado PAGADO (riesgo: creer que pagaste y el payout sigue PENDING).
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || d.message || `Error ${res.status}`);
+      }
       onDone();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "No se pudo marcar el pago");
     } finally {
       setSaving(false);
     }

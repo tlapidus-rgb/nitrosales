@@ -89,7 +89,7 @@ export async function PUT(
     }
 
     const influencer = await prisma.influencer.update({
-      where: { id: params.id },
+      where: { id: params.id, organizationId: org.id }, // org en el where (TOCTOU, D9)
       data: {
         ...(body.name !== undefined && { name: body.name }),
         ...(body.email !== undefined && { email: body.email }),
@@ -137,7 +137,7 @@ export async function DELETE(
 
     // Soft delete — set to INACTIVE instead of destroying data
     await prisma.influencer.update({
-      where: { id: params.id },
+      where: { id: params.id, organizationId: org.id }, // org en el where (TOCTOU, D9)
       data: { status: "INACTIVE" },
     });
 
