@@ -838,7 +838,9 @@ function ApprovalModal({
               Elegí el modelo de compensación que mejor encaje con este creador.
             </p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {(Object.keys(DEAL_TYPE_META) as DealType[]).map((k) => {
+              {/* Q6c: aprobar EXIGE comisión (backend lo valida). Solo mostramos los tipos
+                  que llevan comisión; los demás daban error al enviar. */}
+              {(["COMMISSION", "TIERED_COMMISSION", "HYBRID"] as DealType[]).map((k) => {
                 const meta = DEAL_TYPE_META[k];
                 const Icon = meta.Icon;
                 const selected = type === k;

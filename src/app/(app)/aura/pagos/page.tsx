@@ -583,6 +583,7 @@ function CreatePayoutModal({ onClose, onCreated }: { onClose: () => void; onCrea
           periodStart: periodStart || null,
           periodEnd: periodEnd || null,
           notes: notes || null,
+          markPaid: true, // Q6b: alinear con "no pendiente" — el pago manual nace PAGADO
         }),
       });
       const data = await res.json();

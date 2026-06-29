@@ -46,6 +46,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!existing) return NextResponse.json({ error: "Payout no encontrado" }, { status: 404 });
 
     const body = await req.json();
+
+    // Q5: un payout PAGADO es inmutable salvo CANCELAR. No se puede editar monto/período ni
+    // volverlo a PENDING (cierra el bypass PAID→PENDING→DELETE y la edición post-pago).
+    if (existing.status === "PAID") {
+      const wantsUnpay =
+        body.status !== undefined && body.status !== "PAID" && body.status !== "CANCELLED";
+      const wantsMoneyEdit =
+        body.amount !== undefined || body.periodStart !== undefined || body.periodEnd !== undefined;
+      if (wantsUnpay || wantsMoneyEdit) {
+        return NextResponse.json(
+          {
+            error: "paid_locked",
+            message:
+              "Un pago marcado como PAGADO no se puede editar ni volver a pendiente. Si fue un error, cancelalo.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     const data: any = {};
 
     if (body.status !== undefined) {

@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     const sort = searchParams.get("sort") || "revenue";
 
     const now = new Date();
-    const defaultFrom = new Date(now.getTime() - 30 * DAY);
+    const defaultFrom = new Date(now.getTime() - 30 * DAY); // default 30d; la UI manda from/to según la ventana elegida
     const from = fromParam ? new Date(fromParam) : defaultFrom;
     const to = toParam ? new Date(toParam) : now;
     const since14days = new Date(now.getTime() - 14 * DAY);

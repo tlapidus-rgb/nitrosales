@@ -438,6 +438,7 @@ export default function CreadoresPage() {
   const [q, setQ] = useState("");
   const [stateFilter, setStateFilter] = useState<string>("all");
   const [sort, setSort] = useState<"revenue" | "recent" | "name" | "orders">("revenue");
+  const [windowDays, setWindowDays] = useState<number>(30); // ventana modular (default 30d)
   const [applicationsCount, setApplicationsCount] = useState(0);
   // Lote 2A (item A): link público de postulación de afiliados, para copiar/compartir.
   const [applyUrl, setApplyUrl] = useState<string | null>(null);
@@ -453,6 +454,11 @@ export default function CreadoresPage() {
         if (stateFilter !== "all") params.set("state", stateFilter);
         if (sort) params.set("sort", sort);
         if (q) params.set("q", q);
+        // Ventana modular: from = hoy - windowDays, to = hoy.
+        const toDate = new Date();
+        const fromDate = new Date(toDate.getTime() - windowDays * 24 * 60 * 60 * 1000);
+        params.set("from", fromDate.toISOString());
+        params.set("to", toDate.toISOString());
         const r = await fetch(`/api/aura/creators/list?${params.toString()}`, {
           cache: "no-store",
         });
@@ -474,7 +480,7 @@ export default function CreadoresPage() {
     return () => {
       cancelled = true;
     };
-  }, [q, stateFilter, sort]);
+  }, [q, stateFilter, sort, windowDays]);
 
   // load applications count for top banner
   useEffect(() => {
@@ -692,6 +698,23 @@ export default function CreadoresPage() {
               <option value="orders">Ordenar: Más órdenes</option>
               <option value="name">Ordenar: Nombre</option>
             </select>
+          </div>
+          {/* Ventana modular — mismo patrón que la analítica de NitroPixel (chips), días 30/60/90/120/365, default 30 */}
+          <div className="flex items-center gap-1">
+            {[30, 60, 90, 120, 365].map((d) => (
+              <button
+                key={d}
+                onClick={() => setWindowDays(d)}
+                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all"
+                style={
+                  windowDays === d
+                    ? { background: "rgba(6,182,212,0.15)", color: "#67e8f9", border: "1px solid rgba(6,182,212,0.3)" }
+                    : { color: "rgba(148,163,184,0.5)" }
+                }
+              >
+                {d}d
+              </button>
+            ))}
           </div>
         </div>
 
