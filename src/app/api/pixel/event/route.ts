@@ -322,11 +322,12 @@ export async function POST(request: NextRequest) {
               // ── Influencer attribution (non-blocking, fire-and-forget) ──
               try {
                 const { attributeOrderToInfluencer } = await import('@/lib/pixel/influencer-attribution');
+                // D10: loguear orderId/org para poder RASTREAR y re-correr atribuciones perdidas.
                 attributeOrderToInfluencer(order.id, orgId).catch((e: unknown) =>
-                  console.error('[NitroPixel] Influencer attribution error:', e)
+                  console.error(`[NitroPixel] Influencer attribution error (order ${order.id}, org ${orgId}):`, e)
                 );
-              } catch {
-                // Module not found or import error — non-fatal
+              } catch (impErr) {
+                console.error(`[NitroPixel] Influencer attribution import failed (order ${order.id}, org ${orgId}):`, impErr);
               }
             }
           } catch (attrError) {

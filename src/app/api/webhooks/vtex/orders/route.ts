@@ -689,11 +689,12 @@ export async function POST(req: NextRequest) {
         // ── Influencer attribution (non-blocking, fire-and-forget) ──
         try {
           const { attributeOrderToInfluencer } = await import('@/lib/pixel/influencer-attribution');
+          // D10: loguear orderId/org para poder RASTREAR y re-correr atribuciones perdidas.
           attributeOrderToInfluencer(order.id, org.id).catch((e: unknown) =>
-            console.error('[Webhook] Influencer attribution error:', e)
+            console.error(`[Webhook] Influencer attribution error (order ${order.id}, org ${org.id}):`, e)
           );
-        } catch {
-          // Module not found or import error — non-fatal
+        } catch (impErr) {
+          console.error(`[Webhook] Influencer attribution import failed (order ${order.id}, org ${org.id}):`, impErr);
         }
 
         // Create server-side PURCHASE event if client-side didn't already

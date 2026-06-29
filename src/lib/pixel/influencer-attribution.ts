@@ -233,6 +233,14 @@ export async function attributeOrderToInfluencer(
 
   // 5. Calculate commission (with tier support)
   const orderValue = Number(order.totalValue);
+  // D5: no congelar una comisión sobre un valor inválido/null EN SILENCIO (antes Number(null)=0
+  // creaba una atribución $0 engañosa). Mejor loguear con orderId y omitir.
+  if (!Number.isFinite(orderValue) || orderValue <= 0) {
+    console.error(
+      `[Influencer Attribution] Order ${order.externalId} (${orderId}) con totalValue inválido (${order.totalValue}) — atribución a @${influencer.code} OMITIDA (no se congela $0).`,
+    );
+    return { attributed: false, influencerCode };
+  }
   const basePercent = Number(influencer.commissionPercent);
   const { percent: effectivePercent, tierLabel } = await getEffectiveCommission(
     influencer.id,
