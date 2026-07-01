@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 type Locale = "es" | "en";
 
@@ -54,7 +54,7 @@ function detectLocale(input: string | null): Locale {
   return input?.toLowerCase().startsWith("en") ? "en" : "es";
 }
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const locale = detectLocale(searchParams.get("locale"));
@@ -169,5 +169,24 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,94,26,0.15),_transparent_35%),linear-gradient(180deg,#09090f_0%,#0f111a_100%)] px-4 flex items-center justify-center">
+          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/5 p-8 text-white shadow-2xl shadow-black/30 backdrop-blur-md">
+            <div className="h-8 w-40 rounded bg-white/10" />
+            <div className="mt-4 h-10 w-56 rounded bg-white/10" />
+            <div className="mt-6 h-4 w-full rounded bg-white/10" />
+            <div className="mt-8 h-12 w-full rounded-2xl bg-white/10" />
+          </div>
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
