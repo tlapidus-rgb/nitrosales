@@ -10,6 +10,22 @@ function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
 }
 
+// Rate limit best-effort (in-memory, por instancia): evita bombardear de mails a
+// una víctima y quemar quota de Resend. NOTA: en serverless es per-instancia →
+// migrar a store compartido (Redis/Upstash). Ver BP-DASH-SEC.
+const rlHits = new Map<string, { count: number; resetAt: number }>();
+const RL_WINDOW_MS = 15 * 60 * 1000;
+function rateLimited(key: string, max: number): boolean {
+  const now = Date.now();
+  const rec = rlHits.get(key);
+  if (!rec || now > rec.resetAt) {
+    rlHits.set(key, { count: 1, resetAt: now + RL_WINDOW_MS });
+    return false;
+  }
+  rec.count++;
+  return rec.count > max;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -17,6 +33,18 @@ export async function POST(req: NextRequest) {
     const locale = normalizeEmailLocale(body?.locale || req.headers.get("accept-language"));
     if (!email) {
       return NextResponse.json({ error: "email requerido" }, { status: 400 });
+    }
+
+    // Respuesta SIEMPRE genérica: no revelar si el email existe (anti-enumeración).
+    const generic = () =>
+      NextResponse.json({
+        ok: true,
+        message: "Si el email existe, vas a recibir un link para cambiar la contraseña.",
+      });
+
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+    if (rateLimited(`ip:${ip}`, 10) || rateLimited(`email:${email}`, 5)) {
+      return generic();
     }
 
     const user = await prisma.user.findUnique({
@@ -40,14 +68,12 @@ export async function POST(req: NextRequest) {
         context: "auth.password-reset",
       });
       if (!result.ok) {
-        return NextResponse.json({ error: result.error || "No se pudo enviar el email" }, { status: 500 });
+        // No filtrar existencia por un fallo de envío: log server-side, respuesta genérica.
+        console.error("[auth/forgot-password] envío falló:", result.error);
       }
     }
 
-    return NextResponse.json({
-      ok: true,
-      message: "Si el email existe, vas a recibir un link para cambiar la contraseña.",
-    });
+    return generic();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[auth/forgot-password] error:", msg);

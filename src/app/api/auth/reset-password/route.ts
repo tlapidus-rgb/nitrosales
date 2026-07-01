@@ -35,10 +35,16 @@ export async function POST(req: NextRequest) {
     }
 
     const hashedPassword = await hash(newPassword, 12);
-    await prisma.user.update({
-      where: { id: user.id },
+    // Escritura ATÓMICA (compare-and-swap): solo setea si el hash no cambió desde
+    // que lo leímos → single-use real bajo requests concurrentes con el mismo token.
+    const res = await prisma.user.updateMany({
+      where: { id: user.id, hashedPassword: user.hashedPassword },
       data: { hashedPassword },
     });
+    if (res.count === 0) {
+      // El link ya se usó (el password cambió entre el read y el write).
+      return NextResponse.json({ error: "El link expiró o no es válido" }, { status: 400 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
