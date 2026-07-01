@@ -23,7 +23,7 @@ export default function LoginPage() {
       setError("Email o password incorrectos");
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      router.push("/nitropixel");
     }
   };
 

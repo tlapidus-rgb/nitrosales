@@ -111,14 +111,14 @@ export function isPathAllowed(params: {
 
 // ══════════════════════════════════════════════════════════════
 // Landing inteligente: a qué ruta mandar al entrar en "/".
-// Prioridad: dashboard (la mayoría de los users) y si no lo tiene,
-// la primera sección permitida con página propia. Así un user
-// restringido (ej: solo-pixel) NO cae en /dashboard (que tendría
-// bloqueado) sino en su sección.
+// Prioridad: NitroPixel como landing por defecto y, si no está
+// disponible por alguna razón, la primera sección permitida con
+// página propia. Así la sesión arranca directamente en
+// /nitropixel, que es la pantalla principal que Tomy quiere ver.
 // ══════════════════════════════════════════════════════════════
 const SECTION_LANDING: Array<{ section: Section; path: string }> = [
-  { section: "dashboard", path: "/dashboard" },
   { section: "nitropixel", path: "/nitropixel" },
+  { section: "dashboard", path: "/dashboard" },
   { section: "pixel", path: "/pixel" },
   { section: "products", path: "/products" },
   { section: "rentabilidad", path: "/rentabilidad" },
@@ -135,8 +135,8 @@ const SECTION_LANDING: Array<{ section: Section; path: string }> = [
 
 /**
  * Ruta de landing para el set de secciones permitidas.
- * - undefined (staff / token viejo sin snapshot) → /dashboard (comportamiento previo).
- * - incluye "dashboard" → /dashboard (todos los users normales).
+ * - undefined (staff / token viejo sin snapshot) → /dashboard (fallback previo).
+ * - si incluye "nitropixel" → /nitropixel.
  * - sino → primera sección permitida con página (ej: solo-pixel → /pixel).
  */
 export function landingPathForAllowedSections(
