@@ -77,6 +77,61 @@ function changeBadge(value: number | null): string {
   return `<span style="color:${color};font-size:12px;font-weight:600;">${arrow} ${Math.abs(value)}%</span>`;
 }
 
+export type EmailLocale = "es" | "en";
+
+export function normalizeEmailLocale(input: string | null | undefined): EmailLocale {
+  const value = String(input || "").toLowerCase();
+  return value.startsWith("en") ? "en" : "es";
+}
+
+// ── Password Reset Email ─────────────────────
+
+export function passwordResetEmail(
+  name: string,
+  resetLink: string,
+  locale: EmailLocale = "es",
+): { subject: string; html: string } {
+  if (locale === "en") {
+    const subject = "Reset your NitroSales password";
+    const content = `
+      <h2 style="color:${TEXT_PRIMARY};font-size:18px;font-weight:600;margin:0 0 16px;">Hi, ${name}.</h2>
+      <p style="color:${TEXT_SECONDARY};font-size:14px;line-height:1.6;margin:0 0 20px;">
+        You requested a secure link to create a new password for <strong style="color:${BRAND_ORANGE};">NitroSales</strong>.
+        Click the button below to continue.
+      </p>
+      <div style="text-align:center;margin:0 0 20px;">
+        <a href="${resetLink}" style="display:inline-block;padding:12px 28px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">Create new password</a>
+      </div>
+      <p style="color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;margin:0;">
+        This link expires in 24 hours and becomes invalid as soon as you change your password. If you didn't request this, you can ignore this email.
+      </p>
+      <p style="color:${TEXT_SECONDARY};font-size:11px;line-height:1.5;margin:12px 0 0;word-break:break-all;">
+        If the button doesn't work, copy and paste this link: <a href="${resetLink}" style="color:${BRAND_ORANGE};text-decoration:none;">${resetLink}</a>
+      </p>
+    `;
+    return { subject, html: baseLayout(subject, content) };
+  }
+
+  const subject = "Reset de tu contraseña en NitroSales";
+  const content = `
+    <h2 style="color:${TEXT_PRIMARY};font-size:18px;font-weight:600;margin:0 0 16px;">Hola, ${name}.</h2>
+    <p style="color:${TEXT_SECONDARY};font-size:14px;line-height:1.6;margin:0 0 20px;">
+      Pediste un link para crear una nueva contraseña en <strong style="color:${BRAND_ORANGE};">NitroSales</strong>.
+      Tocá el botón de abajo para continuar.
+    </p>
+    <div style="text-align:center;margin:0 0 20px;">
+      <a href="${resetLink}" style="display:inline-block;padding:12px 28px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">Crear nueva contraseña</a>
+    </div>
+    <p style="color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;margin:0;">
+      Este link vence en 24 horas y se invalida apenas cambies tu contraseña. Si no pediste este cambio, podés ignorar este mail.
+    </p>
+    <p style="color:${TEXT_SECONDARY};font-size:11px;line-height:1.5;margin:12px 0 0;word-break:break-all;">
+      Si el botón no funciona, copiá y pegá este link: <a href="${resetLink}" style="color:${BRAND_ORANGE};text-decoration:none;">${resetLink}</a>
+    </p>
+  `;
+  return { subject, html: baseLayout(subject, content) };
+}
+
 // ── Anomaly Alert Email ──────────────────────
 
 export interface AnomalyForEmail {

@@ -2,11 +2,13 @@
 // Test Email: Verify Resend configuration works
 // ══════════════════════════════════════════════════════════════
 // GET /api/test-email?key=<NEXTAUTH_SECRET>&to=email@example.com
+// Optional: &template=password-reset&locale=es|en&name=Juan&link=https://...
 // Sends a test email to verify Resend is properly configured.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
+import { normalizeEmailLocale, passwordResetEmail } from "@/lib/email/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Falta parámetro 'to' (email destino)" }, { status: 400 });
   }
 
+  const template = req.nextUrl.searchParams.get("template") || "test";
+  const locale = normalizeEmailLocale(req.nextUrl.searchParams.get("locale"));
+
   // Check if RESEND_API_KEY is configured
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({
@@ -33,6 +38,27 @@ export async function GET(req: NextRequest) {
         "4. Redeploy la app",
         "5. Llamar este endpoint de nuevo",
       ],
+    });
+  }
+
+  if (template === "password-reset") {
+    const name = req.nextUrl.searchParams.get("name") || "Hola";
+    const link = req.nextUrl.searchParams.get("link") || "https://app.nitrosales.ai/reset-password?token=demo";
+    const body = passwordResetEmail(name, link, locale);
+    const result = await sendEmail({
+      to,
+      subject: body.subject,
+      html: body.html,
+      context: `test.email.password-reset.${locale}`,
+    });
+
+    return NextResponse.json({
+      ok: result.ok,
+      ...(result.id ? { emailId: result.id } : {}),
+      ...(result.error ? { error: result.error } : {}),
+      sentTo: to,
+      template,
+      locale,
     });
   }
 
@@ -57,5 +83,7 @@ export async function GET(req: NextRequest) {
     ...(result.id ? { emailId: result.id } : {}),
     ...(result.error ? { error: result.error } : {}),
     sentTo: to,
+    template,
+    locale,
   });
 }
