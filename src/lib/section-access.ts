@@ -37,6 +37,15 @@ const API_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
 
 // Prefijos de páginas (rutas no-/api) → sección requerida (read).
 const PAGE_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
+  // Core "shared" pages: hasta S60 pasaban siempre. Se gatean para poder
+  // ENTREGAR una org con acceso restringido (ej: TeVeCompras solo-pixel).
+  // Solo afecta a users con customRole que NO tenga la sección; los base
+  // roles (OWNER/ADMIN/MEMBER) tienen read+ en las tres → no se ven afectados.
+  // OJO: acá van las PÁGINAS (/dashboard). Los endpoints /api/metrics/* que
+  // alimentan el dashboard NO se listan (no empiezan con estos prefijos) → pasan.
+  { prefix: "/dashboard", section: "dashboard" },
+  { prefix: "/products", section: "products" },
+  { prefix: "/rentabilidad", section: "rentabilidad" },
   { prefix: "/bondly", section: "bondly" },
   { prefix: "/aura", section: "aura" },
   { prefix: "/finanzas", section: "pulso" },
@@ -98,4 +107,44 @@ export function isPathAllowed(params: {
   if (section === null) return true;
   if (!Array.isArray(params.allowedSections)) return true; // fail-open
   return params.allowedSections.includes(section);
+}
+
+// ══════════════════════════════════════════════════════════════
+// Landing inteligente: a qué ruta mandar al entrar en "/".
+// Prioridad: dashboard (la mayoría de los users) y si no lo tiene,
+// la primera sección permitida con página propia. Así un user
+// restringido (ej: solo-pixel) NO cae en /dashboard (que tendría
+// bloqueado) sino en su sección.
+// ══════════════════════════════════════════════════════════════
+const SECTION_LANDING: Array<{ section: Section; path: string }> = [
+  { section: "dashboard", path: "/dashboard" },
+  { section: "pixel", path: "/pixel" },
+  { section: "nitropixel", path: "/nitropixel" },
+  { section: "products", path: "/products" },
+  { section: "rentabilidad", path: "/rentabilidad" },
+  { section: "orders", path: "/orders" },
+  { section: "bondly", path: "/bondly" },
+  { section: "aura", path: "/aura" },
+  { section: "campaigns", path: "/campaigns" },
+  { section: "mercadolibre", path: "/mercadolibre" },
+  { section: "competencia", path: "/competitors" },
+  { section: "seo", path: "/seo" },
+  { section: "pulso", path: "/finanzas" },
+  { section: "alertas", path: "/alertas" },
+];
+
+/**
+ * Ruta de landing para el set de secciones permitidas.
+ * - undefined (staff / token viejo sin snapshot) → /dashboard (comportamiento previo).
+ * - incluye "dashboard" → /dashboard (todos los users normales).
+ * - sino → primera sección permitida con página (ej: solo-pixel → /pixel).
+ */
+export function landingPathForAllowedSections(
+  allowed: string[] | undefined
+): string {
+  if (!Array.isArray(allowed)) return "/dashboard";
+  for (const { section, path } of SECTION_LANDING) {
+    if (allowed.includes(section)) return path;
+  }
+  return "/dashboard";
 }

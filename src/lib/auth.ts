@@ -226,6 +226,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).isStaff = token.isStaff === true;
         (session.user as any).organizationId = token.organizationId;
         (session.user as any).organizationName = token.organizationName;
+        (session.user as any).allowedSections = token.allowedSections;
         if (token.impersonatedBy) {
           (session.user as any).impersonatedBy = token.impersonatedBy;
           (session.user as any).impersonatorEmail = token.impersonatorEmail;
