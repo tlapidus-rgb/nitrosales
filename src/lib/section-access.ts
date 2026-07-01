@@ -118,8 +118,8 @@ export function isPathAllowed(params: {
 // ══════════════════════════════════════════════════════════════
 const SECTION_LANDING: Array<{ section: Section; path: string }> = [
   { section: "dashboard", path: "/dashboard" },
-  { section: "pixel", path: "/pixel" },
   { section: "nitropixel", path: "/nitropixel" },
+  { section: "pixel", path: "/pixel" },
   { section: "products", path: "/products" },
   { section: "rentabilidad", path: "/rentabilidad" },
   { section: "orders", path: "/orders" },
