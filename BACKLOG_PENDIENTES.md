@@ -20,6 +20,33 @@
 
 ---
 
+## 🚧 BP-DASH-SEC — Seguridad del dashboard público del afiliado (deuda PRE-EXISTENTE, 2026-07-01)
+
+> Detectado por el review de seguridad independiente del onboarding (FASE B). Estos hallazgos
+> **predatan** el trabajo de onboarding (el dashboard `/i/[slug]/[code]` ya funcionaba así) — NO se
+> introdujeron en esta tanda. Se dejan para una tanda dedicada de seguridad (con OK de Tomy),
+> porque tocan el auth del dashboard y algunos requieren re-setup de claves existentes.
+
+- 🔴 **HIGH — password hasheada con SHA-256, no bcrypt/argon2.** `content/route.ts:14`, `route.ts:19`,
+  `verify/route.ts:14`, `set-password/route.ts:19` (y el `hashPassword` que comparten). Sin salt, rápido de
+  crackear si se filtra la DB. **Arreglarlo toca los 4 archivos + obliga a re-setup de las claves ya seteadas
+  → tanda propia.** Es lo primero de esta BP.
+- ⚠️ **MEDIUM — password viaja en la query string** en los GET del dashboard (`route.ts:91`, `content/route.ts:50`
+  `?password=`) → queda en logs (Vercel/access). Mover a body/header.
+- ⚠️ **MEDIUM — rate-limiter del `/verify` es in-memory** → inútil en serverless (brute-force del `code`).
+  Migrar a Redis/Upstash antes de exponer plata real detrás del gate. (Ya flaggeado en AURA_ONBOARDING_PLAN.md.)
+- 🟢 **LOW — `content/route.ts:110,148`** devuelve `error.message` crudo en endpoints públicos → sanitizar
+  a "Error interno" (como hace `set-password/route.ts:93`). + `verify/route.ts:47` usa `===` para el hash
+  (timing) → `timingSafeEqual`.
+
+**NO bloquea el onboarding** (que ya está sólido en token/authz/org/S1). Es seguridad del dashboard de fondo.
+
+**Nota S59 (multi-tenant):** el review marcó "admin sin auth en single-tenant" (`auth-guard.ts:92-98` fallback
+de 1-org). **NO es live** hoy: hay 4 orgs → `getOrganization` sin sesión TIRA `AmbiguousOrgError`. Volvería a
+ser un problema si el sistema volviera a 1 sola org.
+
+---
+
 ## 🚧 BP-AURA-P1 — Aura: completar para mover plata real (2026-06-28)
 
 > Sesión AURA 2026-06-28: auditoría profunda (5 agentes + consulta DB prod) + 8 commits de endurecimiento
