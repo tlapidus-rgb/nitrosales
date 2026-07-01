@@ -13,11 +13,13 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import {
   createCreatorWithCommission,
   validateCreatorCommissionInput,
+  sendOnboardingEmail,
 } from "@/lib/aura/create-creator";
 
 export async function PATCH(
@@ -51,7 +53,7 @@ export async function PATCH(
 
     if (isNewApproval) {
       // Comisión obligatoria: el deal debe venir y ser de un tipo que paga comisión.
-      const check = validateCreatorCommissionInput({ name: existing.name, deal: body.deal });
+      const check = validateCreatorCommissionInput({ name: existing.name, email: existing.email, deal: body.deal });
       if (!check.ok) {
         return NextResponse.json({ error: check.error }, { status: 400 });
       }
@@ -81,6 +83,20 @@ export async function PATCH(
       createdDealId = result.creator.dealId;
       createdCampaignId = result.creator.campaignId;
       updated = result.app;
+
+      // Onboarding: mail con el link de set-password, POST-commit, fire-and-forget visible.
+      waitUntil(
+        sendOnboardingEmail({
+          influencerId: result.creator.influencerId,
+          organizationId: org.id,
+          name: existing.name,
+          email: existing.email,
+          code: result.creator.code,
+          dashboardPassword: null,
+          orgSlug: org.slug,
+          orgName: org.name,
+        }),
+      );
     } else {
       // REJECTED / PENDING / re-aprobar algo ya aprobado: solo cambia el estado.
       updated = await prisma.influencerApplication.update({

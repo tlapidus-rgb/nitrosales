@@ -31,12 +31,12 @@ async function verifyInfluencer(slug: string, code: string, password: string | n
   });
   if (!influencer || !influencer.isPublicDashboardEnabled) return null;
 
-  // Check password if required
-  if (influencer.dashboardPassword) {
-    if (!password) return null;
-    const hashed = hashPassword(password);
-    if (hashed !== influencer.dashboardPassword) return null;
-  }
+  // Sin clave definida → denegar (antes: contenido abierto sin clave). El creador debe
+  // definir su clave con el link de set-password primero.
+  if (!influencer.dashboardPassword) return null;
+  if (!password) return null;
+  const hashed = hashPassword(password);
+  if (hashed !== influencer.dashboardPassword) return null;
 
   return { org, influencer };
 }

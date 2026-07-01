@@ -309,6 +309,33 @@ export function welcomeInfluencerEmail(
   return { subject, html: baseLayout(subject, content) };
 }
 
+// ── Affiliate Onboarding (set-password link) — Opción B ─────────
+// El afiliado define su propia clave desde el link. La clave NUNCA viaja en el mail.
+export function affiliateOnboardingEmail(
+  influencerName: string,
+  orgName: string,
+  setPasswordLink: string,
+): { subject: string; html: string } {
+  const subject = `Activá tu acceso al programa de ${orgName} 🎉`;
+  const content = `
+    <h2 style="color:${TEXT_PRIMARY};font-size:18px;font-weight:600;margin:0 0 16px;">Bienvenido/a, ${influencerName}! 🎉</h2>
+    <p style="color:${TEXT_SECONDARY};font-size:14px;line-height:1.6;margin:0 0 20px;">
+      Ya sos parte del programa de embajadores de <strong style="color:${BRAND_ORANGE};">${orgName}</strong>.
+      Para entrar a tu dashboard (ventas, comisiones y métricas en tiempo real) definí tu contraseña:
+    </p>
+    <div style="text-align:center;margin:0 0 20px;">
+      <a href="${setPasswordLink}" style="display:inline-block;padding:12px 28px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">Definí tu contraseña</a>
+    </div>
+    <p style="color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;margin:0;">
+      La contraseña es tuya — nosotros no la vemos. Este link vence en 72 horas; si expira, pedí uno nuevo.
+    </p>
+    <p style="color:${TEXT_SECONDARY};font-size:11px;line-height:1.5;margin:12px 0 0;word-break:break-all;">
+      Si el botón no funciona, copiá y pegá este link: <a href="${setPasswordLink}" style="color:${BRAND_ORANGE};text-decoration:none;">${setPasswordLink}</a>
+    </p>
+  `;
+  return { subject, html: baseLayout(subject, content) };
+}
+
 // ── Monthly Commission Summary Email ─────────
 
 export interface MonthlyInfluencerSummary {

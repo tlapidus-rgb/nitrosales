@@ -176,6 +176,7 @@ export default function PublicInfluencerDashboard() {
 
   // ── Password ──
   const [requiresPassword, setRequiresPassword] = useState(false);
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState(false);
   const [authenticatedPassword, setAuthenticatedPassword] = useState<string | null>(null);
@@ -210,6 +211,12 @@ export default function PublicInfluencerDashboard() {
     fetch(url)
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((d) => {
+        if (d.needsPasswordSetup) {
+          setNeedsPasswordSetup(true);
+          setLockedInfo({ name: d.influencer?.name || "", profileImage: d.influencer?.profileImage || null, orgName: d.organization?.name || "" });
+          setLoading(false);
+          return;
+        }
         if (d.requiresPassword) {
           setRequiresPassword(true);
           setLockedInfo({ name: d.influencer?.name || "", profileImage: d.influencer?.profileImage || null, orgName: d.organization?.name || "" });
@@ -246,11 +253,11 @@ export default function PublicInfluencerDashboard() {
 
   useEffect(() => {
     fetchDashboard();
-    if (!requiresPassword) {
+    if (!requiresPassword && !needsPasswordSetup) {
       const interval = setInterval(fetchDashboard, 30000);
       return () => clearInterval(interval);
     }
-  }, [fetchDashboard, requiresPassword]);
+  }, [fetchDashboard, requiresPassword, needsPasswordSetup]);
 
   // Lazy load content data when tab switches
   useEffect(() => {
@@ -339,6 +346,33 @@ export default function PublicInfluencerDashboard() {
   }
 
   // ── Password gate ──
+  // Pendiente de definir contraseña: el creador todavía no la seteó (link de set-password).
+  // Estado "pendiente", no bloqueado — NO se muestra data.
+  if (needsPasswordSetup) {
+    return (
+      <div className={`min-h-screen ${bg} flex items-center justify-center px-4`}>
+        <div className="w-full max-w-sm text-center">
+          {lockedInfo?.profileImage ? (
+            <img src={lockedInfo.profileImage} alt="" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-fuchsia-500/40" />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ff0080] via-[#a855f7] to-[#00d4ff] flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
+              {lockedInfo?.name?.[0]?.toUpperCase() || "?"}
+            </div>
+          )}
+          <h1 className={`text-xl font-bold ${textPrimary}`}>{lockedInfo?.name}</h1>
+          <p className={`text-sm ${textMuted} mt-1 mb-6`}>{lockedInfo?.orgName}</p>
+          <div className={`${card} rounded-2xl p-6`}>
+            <p className={`text-sm ${textSecondary}`}>
+              Todavía no definiste tu contraseña. Te enviamos un link por mail para hacerlo —
+              revisá tu casilla (y el spam). Si no lo encontrás, pediselo a {lockedInfo?.orgName || "la marca"}.
+            </p>
+          </div>
+          <p className={`text-[10px] ${textFooterBrand} text-center mt-6`}>Powered by <span className="text-fuchsia-500 font-medium">NitroSales</span></p>
+        </div>
+      </div>
+    );
+  }
+
   if (requiresPassword) {
     return (
       <div className={`min-h-screen ${bg} flex items-center justify-center px-4`}>

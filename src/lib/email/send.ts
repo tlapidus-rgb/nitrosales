@@ -66,7 +66,7 @@ export async function sendEmail({ to, subject, html, from, context }: SendEmailP
   const sender = from || process.env.RESEND_FROM || "NitroSales <team@nitrosales.ai>";
 
   if (!apiKey) {
-    console.warn("[email] RESEND_API_KEY not set — skipping email");
+    console.error("[email] RESEND_API_KEY not set — TODO email is silently skipped");
     await persistEmailLog({
       toEmail, fromEmail: sender, subject, htmlLength,
       ok: false, errorMessage: "RESEND_API_KEY not configured",

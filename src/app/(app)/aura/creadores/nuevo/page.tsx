@@ -35,8 +35,10 @@ export default function NuevoCreadorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const pct = parseFloat(commissionPercent);
+  // Email OBLIGATORIO: se le manda el acceso (link de set-password) por mail.
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const canSubmit =
-    name.trim().length > 0 && Number.isFinite(pct) && pct >= 0 && pct <= 100 && !saving;
+    name.trim().length > 0 && emailValid && Number.isFinite(pct) && pct >= 0 && pct <= 100 && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -104,7 +106,7 @@ export default function NuevoCreadorPage() {
             />
           </Field>
 
-          <Field label="Email (opcional)">
+          <Field label="Email" required hint="Se le manda su acceso al dashboard por mail.">
             <input
               type="email"
               value={email}

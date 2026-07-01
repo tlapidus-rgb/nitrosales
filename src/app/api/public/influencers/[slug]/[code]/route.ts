@@ -71,8 +71,22 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Sin clave definida → NO se sirve data (antes el dashboard quedaba ABIERTO sin clave).
+    // El creador tiene que definir su clave con el link de set-password (mail de onboarding
+    // o reenvío del admin). Estado "pendiente", no bloqueado para siempre.
+    if (!influencer.dashboardPassword) {
+      return NextResponse.json({
+        needsPasswordSetup: true,
+        influencer: {
+          name: influencer.publicName || influencer.name,
+          profileImage: influencer.profileImage,
+        },
+        organization: { name: org.name },
+      });
+    }
+
     // Password protection check
-    if (influencer.dashboardPassword) {
+    {
       const url = new URL(req.url);
       const password = url.searchParams.get("password");
       if (!password || hashPassword(password) !== influencer.dashboardPassword) {

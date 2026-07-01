@@ -12,11 +12,13 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import {
   createCreatorWithCommission,
   validateCreatorCommissionInput,
+  sendOnboardingEmail,
 } from "@/lib/aura/create-creator";
 
 export async function POST(req: NextRequest) {
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
     const email = typeof body.email === "string" && body.email.trim() ? body.email.trim() : null;
 
     // Comisión obligatoria: nombre + deal de un tipo que paga comisión, forma coherente.
-    const check = validateCreatorCommissionInput({ name, deal: body.deal });
+    const check = validateCreatorCommissionInput({ name, email, deal: body.deal });
     if (!check.ok) {
       return NextResponse.json({ error: check.error }, { status: 400 });
     }
@@ -39,6 +41,21 @@ export async function POST(req: NextRequest) {
         name,
         email,
         deal: body.deal,
+      }),
+    );
+
+    // Onboarding: mail con el link de set-password, POST-commit, fire-and-forget visible.
+    // email es no-null acá (validateCreatorCommissionInput lo exige).
+    waitUntil(
+      sendOnboardingEmail({
+        influencerId: result.influencerId,
+        organizationId: org.id,
+        name,
+        email: email as string,
+        code: result.code,
+        dashboardPassword: null,
+        orgSlug: org.slug,
+        orgName: org.name,
       }),
     );
 

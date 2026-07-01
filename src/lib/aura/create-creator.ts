@@ -17,6 +17,9 @@
 
 import { Prisma } from "@prisma/client";
 import { validateDealInput } from "@/lib/aura/deal-validation";
+import { sendEmail } from "@/lib/email/send";
+import { affiliateOnboardingEmail } from "@/lib/email/templates";
+import { signSetPasswordToken, passwordFingerprint } from "@/lib/aura/set-password-token";
 
 // Tipos de deal que LLEVAN comisión (alineado con D1 en aura/campaigns/route.ts).
 export const COMMISSION_DEAL_TYPES = ["COMMISSION", "TIERED_COMMISSION", "HYBRID"] as const;
@@ -76,10 +79,19 @@ export function slugifyCode(name: string): string {
  */
 export function validateCreatorCommissionInput(input: {
   name?: unknown;
+  email?: unknown;
   deal?: unknown;
 }): { ok: true } | { ok: false; error: string } {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (!name) return { ok: false, error: "Nombre requerido" };
+
+  // Email OBLIGATORIO: el onboarding (link de set-password) se manda por mail; sin email
+  // el creador nunca recibe su acceso. Mismo formato que el apply público.
+  const email = typeof input.email === "string" ? input.email.trim() : "";
+  if (!email) return { ok: false, error: "Email requerido (se le manda su acceso por mail)" };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "Email inválido" };
+  }
 
   const deal = input.deal;
   if (!deal || typeof deal !== "object") {
@@ -207,4 +219,52 @@ export async function createCreatorWithCommission(
     dealId: createdDeal.id,
     code,
   };
+}
+
+/** Base URL para los links del mail (mismo resolver que el dashboard existente). */
+function appBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+}
+
+/**
+ * Manda el mail de onboarding con el LINK de set-password (Opción B; la clave NO viaja).
+ * DEBE llamarse DESPUÉS del commit de la transacción (no dentro), envuelto en waitUntil por el
+ * caller. Fire-and-forget con fallo VISIBLE: sendEmail no tira, así que se chequea r.ok y se
+ * loguea con creatorId+email. Nunca rompe el alta (todo va en try/catch).
+ */
+export async function sendOnboardingEmail(input: {
+  influencerId: string;
+  organizationId: string;
+  name: string;
+  email: string;
+  code: string;
+  dashboardPassword: string | null;
+  orgSlug: string;
+  orgName: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const token = signSetPasswordToken({
+      influencerId: input.influencerId,
+      organizationId: input.organizationId,
+      code: input.code,
+      pwFingerprint: passwordFingerprint(input.dashboardPassword),
+    });
+    const link = `${appBaseUrl()}/i/${input.orgSlug}/${input.code}/set-password?token=${encodeURIComponent(token)}`;
+    const { subject, html } = affiliateOnboardingEmail(input.name, input.orgName, link);
+    const r = await sendEmail({ to: input.email, subject, html, context: "aura.creator.onboarding" });
+    if (!r.ok) {
+      // Fallo VISIBLE (para el caso fire-and-forget donde nadie chequea el return).
+      console.error(
+        `[aura/onboarding-email] envío FALLÓ (creador ${input.influencerId} / ${input.email}): ${r.error}`,
+      );
+    }
+    return { ok: r.ok, error: r.error };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[aura/onboarding-email] excepción (creador ${input.influencerId} / ${input.email}):`,
+      msg,
+    );
+    return { ok: false, error: msg };
+  }
 }
