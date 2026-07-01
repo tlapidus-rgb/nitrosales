@@ -429,12 +429,9 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Date range
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(Date.now() - 7 * MS_PER_DAY);
-    return d.toISOString().slice(0, 10);
-  });
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
-  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(7);
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(null);
 
   // UI states
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
