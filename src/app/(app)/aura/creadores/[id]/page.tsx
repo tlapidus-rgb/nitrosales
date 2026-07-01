@@ -138,7 +138,7 @@ type CreatorInfo = {
   commissionPercent: number;
   publicName: string | null;
   isPublicDashboardEnabled: boolean;
-  dashboardPasswordPlain: string | null;
+  hasDashboardPassword?: boolean;
   attributionWindowDays: number;
   createdAt: string;
   whatsapp: string | null;
@@ -342,64 +342,38 @@ function DashboardAccessSection({
   creator: CreatorInfo;
   onReload: () => void;
 }) {
-  const [reveal, setReveal] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState<"send" | "regen" | null>(null);
+  const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const pwd = creator.dashboardPasswordPlain;
+  const hasPassword = !!creator.hasDashboardPassword;
 
-  async function copyPwd() {
-    if (!pwd) return;
-    try {
-      await navigator.clipboard.writeText(pwd);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
-  }
-
-  async function send(regenerate: boolean) {
+  async function sendLink() {
     if (!creator.email) {
       setToast({ ok: false, msg: "El creador no tiene email configurado" });
       setTimeout(() => setToast(null), 3000);
       return;
     }
-    if (
-      regenerate &&
-      !confirm(
-        `¿Generar contraseña nueva y enviársela a ${creator.email}? La anterior va a dejar de funcionar.`
-      )
-    ) {
-      return;
-    }
-    setSending(regenerate ? "regen" : "send");
+    setSending(true);
     try {
       const res = await fetch(`/api/aura/creators/${creator.id}/send-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regenerate }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        setToast({
-          ok: true,
-          msg: regenerate
-            ? `Contraseña nueva enviada a ${creator.email} ✓`
-            : `Email enviado a ${creator.email} ✓`,
-        });
-        if (regenerate) onReload();
+        setToast({ ok: true, msg: `Link de acceso enviado a ${creator.email} ✓` });
+        onReload();
       } else {
         setToast({ ok: false, msg: data.error || "No se pudo enviar el email" });
       }
     } catch (err: any) {
       setToast({ ok: false, msg: err?.message || "Error de red" });
     } finally {
-      setSending(null);
+      setSending(false);
       setTimeout(() => setToast(null), 3000);
     }
   }
-
-  const masked = pwd ? "•".repeat(pwd.length) : "—";
 
   return (
     <section
@@ -434,8 +408,8 @@ function DashboardAccessSection({
               style={{ color: THEME.textTertiary }}
             >
               {creator.email
-                ? `Credenciales que puede usar el creador · email registrado: ${creator.email}`
-                : "Sin email configurado — no se pueden enviar las credenciales"}
+                ? `Email: ${creator.email}`
+                : "Sin email configurado — no se puede enviar el acceso"}
             </p>
           </div>
         </div>
@@ -443,119 +417,32 @@ function DashboardAccessSection({
 
       <div
         className="rounded-xl p-4 flex items-center gap-3 flex-wrap"
-        style={{
-          background: THEME.bgSoft,
-          border: `1px solid ${THEME.border}`,
-        }}
+        style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}` }}
       >
-        <div
-          className="text-[10px] tracking-[0.14em] uppercase font-semibold"
-          style={{ color: THEME.textMuted }}
-        >
-          Contraseña
+        <div className="flex-1 min-w-[160px]">
+          <div className="text-[13px]" style={{ color: THEME.textSecondary }}>
+            {hasPassword
+              ? "El creador ya definió su contraseña de acceso."
+              : "Pendiente: el creador todavía no definió su contraseña."}
+          </div>
+          <div className="text-[11.5px] mt-1" style={{ color: THEME.textTertiary }}>
+            Define su propia clave desde el link que le mandás por mail — nosotros no la vemos.
+          </div>
         </div>
-        <div
-          className="flex-1 min-w-[140px] font-mono text-[15px] tabular-nums select-all"
+        <button
+          onClick={sendLink}
+          disabled={sending || !creator.email}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
           style={{
-            color: pwd ? THEME.textPrimary : THEME.textMuted,
-            letterSpacing: reveal && pwd ? "0.08em" : "0.2em",
+            background: "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+            color: "#fff",
+            boxShadow: "0 4px 12px rgba(255,0,128,0.25)",
           }}
+          title={creator.email ? `Enviar link de acceso a ${creator.email}` : "Sin email"}
         >
-          {pwd ? (reveal ? pwd : masked) : "sin contraseña configurada"}
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {pwd && (
-            <>
-              <button
-                onClick={() => setReveal((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition"
-                style={{
-                  background: THEME.bgCard,
-                  border: `1px solid ${THEME.border}`,
-                  color: THEME.textSecondary,
-                }}
-                title={reveal ? "Ocultar contraseña" : "Ver contraseña"}
-              >
-                {reveal ? (
-                  <EyeOff size={13} strokeWidth={2.2} />
-                ) : (
-                  <Eye size={13} strokeWidth={2.2} />
-                )}
-                {reveal ? "Ocultar" : "Ver"}
-              </button>
-              <button
-                onClick={copyPwd}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition"
-                style={{
-                  background: THEME.bgCard,
-                  border: `1px solid ${THEME.border}`,
-                  color: copied ? THEME.green : THEME.textSecondary,
-                }}
-                title="Copiar contraseña"
-              >
-                {copied ? (
-                  <>
-                    <Check size={13} strokeWidth={2.4} />
-                    Copiado
-                  </>
-                ) : (
-                  <>
-                    <Copy size={13} strokeWidth={2.2} />
-                    Copiar
-                  </>
-                )}
-              </button>
-            </>
-          )}
-
-          <button
-            onClick={() => send(false)}
-            disabled={sending !== null || !creator.email}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: THEME.bgCard,
-              border: `1px solid ${THEME.border}`,
-              color: THEME.textPrimary,
-            }}
-            title={
-              creator.email
-                ? `Reenviar credenciales a ${creator.email}`
-                : "Sin email"
-            }
-          >
-            <Mail
-              size={13}
-              strokeWidth={2.2}
-              className={sending === "send" ? "animate-pulse" : ""}
-            />
-            {sending === "send" ? "Enviando..." : "Enviar por mail"}
-          </button>
-
-          <button
-            onClick={() => send(true)}
-            disabled={sending !== null || !creator.email}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
-            style={{
-              background:
-                "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-              color: "#fff",
-              boxShadow: "0 4px 12px rgba(255,0,128,0.25)",
-            }}
-            title="Genera una contraseña nueva y la envía por mail"
-          >
-            <RefreshCw
-              size={13}
-              strokeWidth={2.4}
-              className={sending === "regen" ? "animate-spin" : ""}
-            />
-            {sending === "regen"
-              ? "Generando..."
-              : pwd
-                ? "Generar nueva"
-                : "Crear y enviar"}
-          </button>
-        </div>
+          <Mail size={13} strokeWidth={2.4} className={sending ? "animate-pulse" : ""} />
+          {sending ? "Enviando…" : hasPassword ? "Reenviar link de acceso" : "Enviar link de acceso"}
+        </button>
       </div>
 
       {toast && (

@@ -113,7 +113,6 @@ type Creator = {
   contentPieces: number;
   state: CreatorState;
   daysSinceLastSale: number | null;
-  dashboardPasswordPlain: string | null;
 };
 type StateCounts = { all: number; champion: number; active: number; new: number; silent: number; paused: number };
 

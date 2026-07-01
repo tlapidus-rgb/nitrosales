@@ -49,7 +49,7 @@ export async function GET(
         commissionPercent: true,
         publicName: true,
         isPublicDashboardEnabled: true,
-        dashboardPasswordPlain: true,
+        dashboardPassword: true,
         attributionWindowDays: true,
         createdAt: true,
       },
@@ -351,7 +351,7 @@ export async function GET(
         commissionPercent: Number(influencer.commissionPercent),
         publicName: influencer.publicName,
         isPublicDashboardEnabled: influencer.isPublicDashboardEnabled,
-        dashboardPasswordPlain: influencer.dashboardPasswordPlain ?? null,
+        hasDashboardPassword: !!influencer.dashboardPassword, // S1: no exponemos la clave; solo si ya la definió
         attributionWindowDays: influencer.attributionWindowDays ?? 14,
         createdAt: influencer.createdAt.toISOString(),
         whatsapp,

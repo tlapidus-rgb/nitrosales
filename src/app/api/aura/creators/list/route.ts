@@ -33,7 +33,6 @@ type CreatorRow = {
   email: string | null;
   profileImage: string | null;
   status: string;
-  dashboardPasswordPlain: string | null;
   commissionPercent: number;
   attributionWindowDays: number;
   revenue: number;
@@ -75,7 +74,6 @@ export async function GET(req: NextRequest) {
         profileImage: true,
         status: true,
         commissionPercent: true,
-        dashboardPasswordPlain: true,
         attributionWindowDays: true,
         createdAt: true,
       },
@@ -187,7 +185,6 @@ export async function GET(req: NextRequest) {
         email: inf.email,
         profileImage: inf.profileImage,
         status: inf.status,
-        dashboardPasswordPlain: inf.dashboardPasswordPlain ?? null,
         commissionPercent: Number(inf.commissionPercent),
         attributionWindowDays: inf.attributionWindowDays ?? 14,
         revenue: a.revenue,
