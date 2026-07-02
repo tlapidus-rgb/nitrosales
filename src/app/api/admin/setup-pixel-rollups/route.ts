@@ -113,6 +113,13 @@ const DDL: string[] = [
     "organizationId" text NOT NULL, day date NOT NULL, first_source text NOT NULL,
     pv_visitors_hll hll, refreshed_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY ("organizationId", day, first_source))`,
+  // 8) Funnel por first-source/día (pasos PV/VP/ATC/checkout, HLL 14,5). Depende
+  //    de la dimensión #6. Lo consume /api/metrics/pixel/funnel?channel=... rápido.
+  `CREATE TABLE IF NOT EXISTS pixel_daily_funnel_by_source (
+    "organizationId" text NOT NULL, day date NOT NULL, first_source text NOT NULL,
+    pv_hll hll, vp_hll hll, atc_hll hll, co_hll hll,
+    refreshed_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY ("organizationId", day, first_source))`,
 ];
 
 

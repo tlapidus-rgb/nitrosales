@@ -162,6 +162,33 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
     ...args
   );
 
+  // 7) funnel by source (14,5) — pasos del funnel (PV/VP/ATC/checkout) por canal
+  //    de primer toque. JOIN contra la dimensión first-source (igual que #6). Lo
+  //    consume /api/metrics/pixel/funnel?channel=... en sub-segundo (antes escaneaba
+  //    pixel_events crudo → >75s en rangos amplios). Misma precisión (14,5) que la
+  //    tabla, para poder unir los HLL entre días.
+  touched += await prisma.$executeRawUnsafe(
+    `INSERT INTO pixel_daily_funnel_by_source ("organizationId",day,first_source,pv_hll,vp_hll,atc_hll,co_hll,refreshed_at)
+     SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date, d.first_source,
+       hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='PAGE_VIEW'),
+       hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='VIEW_PRODUCT'),
+       hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='ADD_TO_CART'),
+       hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type IN ('INITIATE_CHECKOUT','CHECKOUT_SHIPPING')),
+       now()
+     FROM pixel_events pe
+     JOIN pixel_visitor_first_source d
+       ON d."organizationId"=pe."organizationId" AND d."visitorId"=pe."visitorId"
+     WHERE pe."organizationId"=$1
+       AND pe.timestamp >= $2::timestamptz AND pe.timestamp < $3::timestamptz
+       AND (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= $4::date
+       AND (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <  $5::date
+       AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
+     GROUP BY 1,2,3
+     ON CONFLICT ("organizationId",day,first_source) DO UPDATE SET
+       pv_hll=EXCLUDED.pv_hll, vp_hll=EXCLUDED.vp_hll, atc_hll=EXCLUDED.atc_hll, co_hll=EXCLUDED.co_hll, refreshed_at=now()`,
+    ...args
+  );
+
   return touched;
 }
 
