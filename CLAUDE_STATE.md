@@ -3,6 +3,59 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
+## Ultima actualizacion: 2026-07-02 (Sesion Arredo/Pixel — perf del pixel a escala + onboarding TeVe + password-reset + auditoria pixel)
+
+**Contexto:** se onboardea **Arredo** (org GRANDE: ~24M pixel_events / 43GB, 1,3M eventos/semana, 1,2M visitantes).
+La pagina /pixel/analytics se caia/cargaba lento en rangos >7 dias. Varios frentes en la sesion:
+
+**1. Arredo — rollups del pixel (PROD DB, no via HTTP — deployment protection bloquea el admin endpoint):**
+- **Causa raiz del crash:** el pipeline de rollups saca su lista de orgs de `pixel_visitor_first_source`,
+  que llena la fase `first-source` (manual, pesada) — que NUNCA se corrio para Arredo → 0 rollups → las
+  queries rapidas daban vacio y las de eventos crudos explotaban.
+- **Fix ejecutado:** corri `firstSourceForOrg(Arredo)` (1,21M visitantes, ~16 min) + backfill de los 73 dias
+  de historia (2025-04-30 → hoy) directo con `runRollupBackfill`/`backfillDayOrg` via tsx contra prod.
+  ⚠️ **Neon se degrado/cayo repetidas veces bajo la carga** (statements colgados; use timeout JS + reconnect).
+  Cobertura final: aggregates 74d, device/type/page/source 73d, product 66d, SIN huecos.
+- Verificado: queries individuales ≤2s; batch de 19 queries en paralelo = **~300ms Neon caliente** / ~3s cold-start.
+
+**2. Funnel-por-canal — rollup nuevo (deployado a main `9bd1eb14`):** el funnel filtrado por canal escaneaba
+pixel_events crudo 2x → **>75s hasta en orgs chicas**. Nuevo rollup `pixel_daily_funnel_by_source` (HLL 14,5 de
+visitantes por paso×canal×dia). Medido: **>75s → ~50ms, numeros identicos.** `funnel/route.ts` usa el rollup si
+cubre el rango, si no cae a la query en vivo con statement_timeout 18s. `backfillDayOrg` lo mantiene (#7 tabla).
+**PENDIENTE:** backfill masivo del rollup de canal (todas las orgs/historia) cuando Neon este estable — hoy solo
+tiene los ultimos ~7-8 dias de Arredo/ElMundo; rangos viejos+canal caen al fallback lento.
+
+**3. Analytics UX (deployado a main `5f28133d`):** "queda en blanco / tarda / muestra 3 dias" NO era la data
+(Arredo tiene 8d de trend + 5 buckets de conversion, igual que ElMundo) — era **render parcial/stale**. Fix:
+guard anti-stale en fetchAll (reqIdRef) + primera carga=skeleton, cambio de rango=silent (shimmer + mantiene
+lo viejo hasta que llega lo nuevo). Backend ya estaba rapido.
+
+**4. TeVeCompras solo-pixel (deployado a main, `e687cd2`/`4952fbd`/`5bcc8f68`):** entrega al cliente viendo SOLO
+el pixel. Se cambio el custom role "Standard" (leandroc@tevecompras.com) a `{pixel,nitropixel}` (DB, con backup),
+se gatearon /dashboard,/products,/rentabilidad en section-access, y el landing "/" ahora va a la 1ra seccion
+permitida (nitropixel primero, pedido de Tomy). leandroc necesita RE-LOGIN (el JWT snapshotea al login).
+
+**5. Password-reset flow (branch `preview/password-reset-flow`, NO en main):** Axel armo el flujo (token HMAC,
+bcrypt, /api/auth/forgot-password + reset-password). Lo revise y endureci: Suspense (build), single-use atomico,
+anti-enumeracion + rate-limit, y **borre /api/test-email** (usaba NEXTAUTH_SECRET en la URL = fuga del secret que
+firma TODOS los tokens). Commits `8e43f461`/`c09878d4`/`59d91ac1` en esa branch.
+
+**6. Auditoria del pixel (6 agentes) → `PLAN_PIXEL_HARDENING.md`** (raiz del repo, untracked). Hallazgos CRITICOS:
+ingesta sin auth (forjar PURCHASE → fraude de comision Aura), CAPI doble-envio, dashboard-en-cero-HTTP200,
+y CORE de atribucion (toque post-compra = last-click, ventana por-creador capada, "IP+UA" es solo-IP). NADA
+arreglado — es un plan para tanda dedicada (CORE requiere OK de Tomy por item).
+
+**PENDIENTES de esta sesion:**
+- Backfill masivo del rollup de canal (Neon estable).
+- Evaluar **subir el tier de compute de Neon** — se cayo repetidas veces bajo carga; es el cuello a la escala de Arredo.
+- Ejecutar el plan del pixel (`PLAN_PIXEL_HARDENING.md`), empezando por seguridad de la ingesta.
+- Mergear/decidir la branch `preview/password-reset-flow` a main.
+- Deuda pre-existente del dashboard publico: `BACKLOG BP-DASH-SEC` (SHA-256, password-en-URL, rate-limit).
+
+Verificado: tsc 0, build 0. main = `5f28133d`.
+
+---
+
 ## Ultima actualizacion: 2026-06-28 (Sesion AURA — auditoria profunda + endurecimiento + Pieza 1 paso 1+2)
 
 **Causa raiz del "todo en 0" (Tomy):** NO es bug, es FALTA DE DATA (verificado por consulta a DB prod).

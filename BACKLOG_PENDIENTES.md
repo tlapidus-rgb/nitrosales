@@ -8,7 +8,12 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-06-12 — Agregado **BP-ROLLUPS-001**: endpoint admin `setup-pixel-rollups`
+> **Última actualización**: 2026-07-02 — Sesión Arredo/Pixel. Agregados **BP-PIXEL-CHANNEL-ROLLUP**
+> (backfill masivo del rollup de funnel-por-canal), **BP-NEON-CAPACITY** (evaluar tier de Neon a la escala
+> de Arredo) y **BP-PIXEL-AUDIT** (endurecimiento post-auditoría, ver `PLAN_PIXEL_HARDENING.md`). Antes:
+> **BP-DASH-SEC** (deuda de seguridad del dashboard público del afiliado).
+>
+> _(Anterior: 2026-06-12 — Agregado **BP-ROLLUPS-001**: endpoint admin `setup-pixel-rollups`
 > (crea hll + 7 tablas rollup + backfill chunked, idempotente y resumible) que destraba el BLOCKER #1 del
 > deploy. Pasó /gstack-review + /gstack-cso, tsc exit 0, NADA pusheado. Ver también BP-I1/BP-I4/BP-M1/BP-CORE-001
 > de la misma tanda de deploy. Agregado **BP-PERF-CONVERSION** (hallazgo del QA: `/api/metrics/conversion`
@@ -17,6 +22,46 @@
 > _(Anterior: 2026-05-02 noche tarde — Sesion 60 EXT-2 BIS. 5 bugs: unificacion Funnel+Conversion por Canal a
 > first-touch, fix guard marketplace prefijos, cron VTEX 30 min, recuperacion autonomia Claude via WebFetch,
 > tooltips por modulo. Pendientes BP-S60-002/004/005 sin cambios.)_
+
+---
+
+## 🚧 BP-PIXEL-CHANNEL-ROLLUP — Backfill masivo del rollup de funnel-por-canal (2026-07-02)
+
+**Contexto:** se creó el rollup `pixel_daily_funnel_by_source` (deployado a main `9bd1eb14`) que hace el
+funnel filtrado-por-canal sub-segundo (>75s → ~50ms). El código lee del rollup si cubre el rango, si no cae
+a la query en vivo con timeout de 18s. El `backfillDayOrg` lo mantiene vía el cron de 2h de acá en más.
+**Falta:** correr el **backfill masivo de la historia** (todas las orgs, todos los meses) para que el
+funnel-por-canal vuele también en 30/90 días. Hoy solo tiene los últimos ~7-8 días de Arredo/ElMundo.
+**Cómo:** `runRollupBackfill` (via tsx contra prod) o el endpoint `setup-pixel-rollups?phase=backfill`.
+**Bloqueante:** hacerlo con **Neon estable** (ver BP-NEON-CAPACITY) — el backfill es pesado.
+Prioridad: media. Estado: pendiente.
+
+---
+
+## 🚧 BP-NEON-CAPACITY — Evaluar subir el tier de compute de Neon para la escala de Arredo (2026-07-02)
+
+**Contexto:** durante el onboarding de Arredo (~24M eventos / 43GB), Neon se **degradó/cayó repetidas veces**
+bajo la carga de los backfills ("Can't reach database server", statements colgados). Las queries en sí son
+rápidas con Neon caliente (~300ms un batch de 19 en paralelo), pero: (a) los backfills pesados lo tumban, y
+(b) hay cold-start (~3s) cuando se suspende. A la escala de Arredo (1,3M eventos/semana de ingesta + dashboard
+concurrente) el tier actual puede no dar. **Acción:** revisar el plan/tier de Neon y evaluar subir compute
+y/o el autosuspend. Es config de infra (no código). Prioridad: media-alta (impacta la experiencia del cliente).
+Estado: pendiente — falta confirmar si es crónico o fue el estrés de los backfills de esta sesión.
+
+---
+
+## 🚧 BP-PIXEL-AUDIT — Endurecimiento del pixel post-auditoría (2026-07-01) → ver PLAN_PIXEL_HARDENING.md
+
+**Contexto:** auditoría con 6 agentes sobre ~11k líneas del pixel. Plan completo (4 fases) en
+`PLAN_PIXEL_HARDENING.md` (raíz del repo). Hallazgos 🔴 CRÍTICOS a atacar en tanda dedicada:
+- **Ingesta sin auth** (`api/pixel/event`): el orgId es público → se puede forjar un PURCHASE y robar la
+  atribución de una venta real → **fraude de comisión de Aura**. Fix: el PURCHASE del cliente NO dispara
+  atribución, solo el webhook VTEX/MELI (autenticado).
+- **CAPI doble-envío** (orden "client-side-purchase" contada 2x en Meta).
+- **Dashboard miente en cero** (`metrics/pixel:1641`: cualquier fallo → HTTP 200 con todo en 0).
+- **CORE de atribución** (NO tocar sin OK de Tomy): toque post-compra se vuelve last-click; ventana por-creador
+  capada por la global (creador no cobra); "IP+UA" es solo-IP (cruce bajo CGNAT → comisión a quien no vendió).
+Prioridad: alta (seguridad/plata). Estado: plan listo, nada ejecutado. Aura todavía no mueve plata real (ventana favorable).
 
 ---
 
