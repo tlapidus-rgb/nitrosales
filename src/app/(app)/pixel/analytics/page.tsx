@@ -457,7 +457,13 @@ export default function AnalyticsPage() {
   const [isRefetching, setIsRefetching] = useState(false);
 
   // ── Fetch all data in parallel ──
+  // reqIdRef: guard anti-stale. Cada fetch incrementa el id; si al volver la
+  // respuesta ya se disparó un fetch más nuevo (ej: cambiaste el rango rápido),
+  // se descarta la vieja. Sin esto, una respuesta lenta (Arredo, más data)
+  // pisaba a una más nueva → el gráfico quedaba mostrando datos parciales/viejos.
+  const reqIdRef = useRef(0);
   const fetchAll = useCallback(async (silent = false) => {
+    const reqId = ++reqIdRef.current;
     if (!silent) setLoading(true);
     else setIsRefetching(true);
     setError(null);
@@ -475,17 +481,28 @@ export default function AnalyticsPage() {
         discRes.ok ? discRes.json() : null,
       ]);
 
+      if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
       setPixelData(pixelJson);
       setDiscrepancy(discJson);
     } catch (e: any) {
+      if (reqId !== reqIdRef.current) return;
       setError(e.message || "Error cargando datos");
     } finally {
-      setLoading(false);
-      setIsRefetching(false);
+      if (reqId === reqIdRef.current) {
+        setLoading(false);
+        setIsRefetching(false);
+      }
     }
   }, [dateFrom, dateTo]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Primera carga → no-silent (muestra el skeleton). Cambios de rango → silent
+  // (mantiene los datos viejos visibles con el indicador de refetch en vez de
+  // quedar en blanco, y el guard anti-stale evita que se vea data parcial).
+  const firstLoadRef = useRef(true);
+  useEffect(() => {
+    fetchAll(!firstLoadRef.current);
+    firstLoadRef.current = false;
+  }, [fetchAll]);
 
   // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
   useEffect(() => {
