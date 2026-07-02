@@ -1,14 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 type Locale = "es" | "en";
-
-function detectLocale(): Locale {
-  if (typeof navigator === "undefined") return "es";
-  return navigator.language.toLowerCase().startsWith("en") ? "en" : "es";
-}
 
 const COPY: Record<Locale, {
   eyebrow: string;
@@ -50,12 +45,9 @@ export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [locale, setLocale] = useState<Locale>("es");
-
-  useEffect(() => {
-    setLocale(detectLocale());
-  }, []);
-
+  // App 100% en español: fijamos "es" (antes detectaba el idioma del navegador →
+  // en browsers en inglés la página y el mail salían en inglés).
+  const locale: Locale = "es";
   const copy = useMemo(() => COPY[locale], [locale]);
 
   const handleSubmit = async (e: React.FormEvent) => {
