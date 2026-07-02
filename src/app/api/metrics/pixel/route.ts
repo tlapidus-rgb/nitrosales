@@ -855,28 +855,22 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         LIMIT 10
       ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
-      // 24. Orders by device — derive device from pixel_events of the attributed visitor
+      // 24. Orders by device — device del visitante atribuido.
       // CRITICAL: pa."visitorId" guarda pv.id (cuid Prisma), NO pv.visitorId (UUID cookie).
-      // Mismo case con pe."visitorId". Por eso JOIN debe ser pv.id = pa.visitorId.
-      // Antes el JOIN era pv.visitorId = pa.visitorId → 0 matches → CR vacio.
-      // Uses crDateFrom to only count orders from when pixel was active.
+      // Por eso JOIN debe ser pv.id = pa.visitorId.
+      // PERF (2026-07-02): antes hacía un LATERAL a pixel_events (24M filas) POR CADA
+      // orden atribuida → 33s+ en orgs con muchas atribuciones (Arredo, post-backfill)
+      // → superaba el timeout de 25s y la página crasheaba en 30 días. Ahora usa
+      // pv."deviceTypes"[1] (el device del visitante, que ya estaba como fallback) →
+      // simple JOIN+agregación, sub-segundo. Uses crDateFrom (piso de cobertura del pixel).
       prisma.$queryRaw`
         SELECT
-          COALESCE(pe_dev.dev, pv."deviceTypes"[1], 'unknown') as device,
+          COALESCE(pv."deviceTypes"[1], 'unknown') as device,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(pa."attributedValue")::float as revenue
         FROM pixel_attributions pa
         JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
         JOIN orders o ON o.id = pa."orderId"
-        LEFT JOIN LATERAL (
-          SELECT pe2."deviceType" as dev
-          FROM pixel_events pe2
-          WHERE pe2."visitorId" = pa."visitorId"
-            AND pe2."organizationId" = pa."organizationId"
-            AND pe2."deviceType" IS NOT NULL
-          ORDER BY pe2.timestamp DESC
-          LIMIT 1
-        ) pe_dev ON true
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
