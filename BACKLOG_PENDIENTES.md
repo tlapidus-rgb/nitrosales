@@ -46,7 +46,11 @@ rápidas con Neon caliente (~300ms un batch de 19 en paralelo), pero: (a) los ba
 (b) hay cold-start (~3s) cuando se suspende. A la escala de Arredo (1,3M eventos/semana de ingesta + dashboard
 concurrente) el tier actual puede no dar. **Acción:** revisar el plan/tier de Neon y evaluar subir compute
 y/o el autosuspend. Es config de infra (no código). Prioridad: media-alta (impacta la experiencia del cliente).
-Estado: pendiente — falta confirmar si es crónico o fue el estrés de los backfills de esta sesión.
+**Estado (2026-07-03): DIAGNOSTICADO + ACCIONADO.** Las métricas de Neon confirmaron que el cuello NO era
+CPU/conexiones/deadlocks (todo sano) sino **memoria/cache**: working set ~28GB vs local file cache ~7GB (cap
+por 8GB RAM en Max 2 CU) → **hit rate 44%**. Axel subió el **Max a 4 CU (16GB RAM)**. Efecto medido: queries
+sobre pixel_events crudo pasaron de 9-33s a **0,3-1,5s** (caliente). Autosuspend en 5 min. **Follow-up opcional:**
+si se quiere 90 días instantáneo siempre (working set 28GB > cache 16GB), subir a 7-8 CU. Con 4 CU + rollups alcanza.
 
 ---
 

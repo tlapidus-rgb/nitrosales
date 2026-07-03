@@ -8,6 +8,32 @@
 
 ---
 
+## Error #ONBOARDING-BACKFILL-ORDENES-FALTANTE — al onboardear una org, correr el backfill histórico de ÓRDENES (no solo el pixel)
+
+**Cuándo pasó**: Onboarding de Arredo (jul 2026). El cliente reportó "todos los gráficos muestran 3 días" en `/pixel/analytics`. No era un bug de código ni de rango: Arredo tenía solo **310 órdenes** (últimos ~3 días) porque **al onboardear NUNCA se corrió el backfill histórico de órdenes de VTEX** — solo entraban las nuevas por webhook. Los gráficos de cobertura/revenue son POR ÓRDENES → mostraban 3 días. El TRÁFICO del pixel sí iba a abril 2025, lo que despistaba (otros gráficos mostraban el rango completo).
+
+### Causa raíz
+- El backfill histórico de órdenes se crea con `createBackfillJob({org, platform, monthsRequested})` (lib/backfill/job-manager) → el cron `backfill-runner` lo procesa. Es parte del flujo de onboarding (`/api/admin/onboardings/[id]/approve-backfill`). A Arredo **se le saltó ese paso**.
+
+### Regla que lo previene
+- Al onboardear una org, **verificar que el backfill de órdenes históricas se haya creado y completado** (`SELECT * FROM backfill_jobs WHERE organizationId=...`), NO solo el backfill del pixel (`setup-pixel-rollups`). Son dos cosas distintas.
+- Síntoma diagnóstico: si los gráficos por-orden (cobertura/revenue) muestran pocos días pero los gráficos por-tráfico (visitantes/canales) muestran el rango completo → **faltan órdenes históricas**, correr el backfill. Fix aplicado a Arredo: `monthsRequested:24` → 310 → 252.701 órdenes.
+
+---
+
+## Error #DASHBOARD-LATERAL-EN-TABLA-GRANDE — no usar `LATERAL`/subquery por-fila contra tablas enormes en queries de dashboard
+
+**Cuándo pasó**: Post-backfill de Arredo (jul 2026). La query #24 (device breakdown) de `/api/metrics/pixel` hacía un `LEFT JOIN LATERAL (SELECT ... FROM pixel_events WHERE visitorId=... LIMIT 1)` **por cada orden atribuida**. Con 1.545 atribuciones tardaba ~2s (OK). Cuando el backfill subió las atribuciones a ~20k, pasó a **33,8s** → superó el timeout de 25s del endpoint → devolvió el mock vacío → la página **crasheaba en 30 días** (7 días andaba, menos atribuciones).
+
+### Causa raíz
+- Un `LATERAL` per-row hace N lookups a `pixel_events` (24M filas / 43GB). El costo **escala con la cantidad de filas del resultado** (atribuciones), que crece con el tiempo → la query se degrada sola hasta reventar el timeout.
+
+### Regla que lo previene
+- En queries de dashboard, **evitar LATERAL/subquery correlacionado por-fila contra tablas grandes** (pixel_events, orders). Usar un campo **pre-computado** en una tabla chica (ej: `pv."deviceTypes"[1]` de pixel_visitors, que ya estaba como fallback) o un rollup. Fix: se sacó el LATERAL → **33,8s → 0,30s**.
+- Relacionado: la escala también se atacó con Neon (BP-NEON-CAPACITY: subir Max CU → más RAM → cache que abarca el working set). Ver también REGLA #3b de CLAUDE.md.
+
+---
+
 ## Error #RBAC-MIDDLEWARE-EN-RAIZ-CON-SRC — `middleware.ts` en la raíz no se ejecuta cuando el proyecto usa `src/`
 
 **Cuándo pasó**: Sesión RBAC (19 jun 2026). Implementé gating de secciones (capa C) en `middleware.ts` en la **raíz** del repo. tsc 0, `next build` 0, todo "verde". Pero en el QA E2E el gating no bloqueaba NADA: `/api/bondly/pulse` daba 200 (no 403), `/bondly` 200 (no redirect). El endpoint lento tardaba 154s → o sea **llegaba al handler**, el middleware no lo interceptaba. En los logs del dev server NO aparecía `✓ Compiled /middleware`.

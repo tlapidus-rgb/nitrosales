@@ -3,6 +3,50 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
+## Ultima actualizacion: 2026-07-03 (CIERRE Arredo — backfill de ordenes + perf + Neon 4CU + password-reset LIVE + cuentas)
+
+**Continuacion/cierre de la sesion 07-02. Todo en `main` (prod), deployado.**
+
+**1. "Todos los graficos muestran 3 dias" — RESUELTO (no era bug):** Arredo tenia solo **310 ordenes**
+(ultimos ~3 dias) porque **al onboardear NUNCA se corrio el backfill historico de ordenes de VTEX**
+(solo entraban las nuevas por webhook). Los graficos de cobertura/revenue son POR ORDENES → mostraban 3 dias.
+Fix: cree un **backfill job VTEX** con `createBackfillJob({org:Arredo, platform:'VTEX', monthsRequested:24})`
+(el cron `backfill-runner` lo proceso solo). **Resultado: 310 → 252.701 ordenes, historia completa
+2024-07-02 → hoy (2 anios).** LECCION: al onboardear una org, correr el backfill de ordenes historicas
+(no solo el pixel) — ver ERRORES.
+
+**2. Device breakdown #24 — fix de perf (main `75d9b6fb`):** el backfill disparo las atribuciones de Arredo
+(1.545 → ~20k). La query #24 hacia un `LATERAL` a pixel_events (24M) POR CADA orden atribuida → **33,8s en 30d
+→ superaba el timeout de 25s → crash**. Fix: sacar el LATERAL, usar `pv."deviceTypes"[1]` (ya estaba como
+fallback) → **0,30s caliente**. Sirve para todas las orgs.
+
+**3. Neon 4 CU — BP-NEON-CAPACITY diagnosticado + accionado:** las metricas de Neon mostraron que el cuello
+NO era CPU/conexiones/deadlocks (todo sano) sino **MEMORIA/CACHE**: working set ~28GB vs local file cache ~7GB
+(cap por 8GB RAM en Max 2 CU) → **hit rate 44%** → lecturas lentas al storage. Axel **subio el Max a 4 CU (16GB)**.
+Efecto medido: device 30d 9,6s frio → **0,30s caliente**, batch 30d ~1,5s. Autosuspend queda en 5 min (default).
+Los rollups (tablas chicas) caben en cache → vuelan; las queries sobre pixel_events crudo son las que sufrian.
+
+**4. Password-reset — MERGEADO a main y LIVE (`97495d05` + Spanish fix `1a8efa23`):** el flujo (branch
+`preview/password-reset-flow`) se mergeo a main sin conflictos. Probado e2e (10/10, usuario descartable) +
+unit (4/4). `/forgot-password` esta vivo en prod. Fix: la pagina detectaba el idioma del navegador → salia en
+ingles; se fijo `locale='es'` (pagina + mail en espaniol siempre).
+
+**5. Cuentas creadas (prod):**
+- **axelfarina3@gmail.com** — ADMIN (isStaff=true + role OWNER, org El Mundo). Password temporal: la cambia Axel.
+- **mromero@arredo.com.ar** — solo-pixel de Arredo (igual que TeVeCompras/leandroc). **YA EXISTIA como OWNER de
+  Arredo (onboarding) → se CONVIRTIO a MEMBER + custom role "Standard" {pixel,nitropixel}.** allowedSections
+  resuelto = [pixel,nitropixel]. Necesita re-login para tomar el acceso restringido.
+
+**PENDIENTES abiertos (siguen):**
+- **BP-PIXEL-CHANNEL-ROLLUP**: backfill masivo del rollup de funnel-por-canal (todas las orgs/historia). Hoy
+  solo cubre ~ultimos dias. Ahora que Neon esta en 4 CU y libre, es buen momento.
+- **BP-PIXEL-AUDIT**: ejecutar `PLAN_PIXEL_HARDENING.md` (ingesta sin auth, CAPI doble, CORE atribucion).
+- **BP-DASH-SEC**: deuda de seguridad del dashboard publico del afiliado (SHA-256, password-en-URL, rate-limit).
+
+Verificado: tsc 0, build 0. main = `1a8efa23`.
+
+---
+
 ## Ultima actualizacion: 2026-07-02 (Sesion Arredo/Pixel — perf del pixel a escala + onboarding TeVe + password-reset + auditoria pixel)
 
 **Contexto:** se onboardea **Arredo** (org GRANDE: ~24M pixel_events / 43GB, 1,3M eventos/semana, 1,2M visitantes).
