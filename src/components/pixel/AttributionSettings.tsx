@@ -159,7 +159,10 @@ export function AttributionSettings() {
         if (v !== null && v !== draft.attributionWindowDays) cleanCw[ch] = v;
         else cleanCw[ch] = null;
       }
-      const modelToPersist = draft.attributionModel === "CUSTOM" ? "NITRO" : draft.attributionModel;
+      // "Precisión" (CUSTOM) se persiste tal cual para que la selección vuelva
+      // en el GET. Antes lo pisábamos con NITRO → se perdía la elección del
+      // cliente y el editor de pesos no reabría (parecía que no guardaba).
+      const modelToPersist = draft.attributionModel;
       const res = await fetch("/api/settings/attribution", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

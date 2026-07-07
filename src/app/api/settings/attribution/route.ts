@@ -15,7 +15,11 @@ const DEFAULT_WEIGHTS = { first: 30, last: 40, middle: 30 };
 const DEFAULT_WINDOW = 30;
 const DEFAULT_MODEL = "NITRO";
 const VALID_GLOBAL_WINDOWS = [7, 14, 30, 60];
-const VALID_MODELS = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
+// CUSTOM = "Precisión": Nitro con pesos definidos por el cliente. Se persiste
+// como modelo propio para que la selección vuelva en el GET (sino la UI reabre
+// en "Nitro" y esconde el editor de pesos → parece que no se guardó). El motor
+// de métricas lo trata como NITRO (mismo nitroWeights) al calcular.
+const VALID_MODELS = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO", "CUSTOM"];
 const MIN_CHANNEL_WINDOW = 1;
 const MAX_CHANNEL_WINDOW = 90;
 const VALID_CHANNELS = [
