@@ -872,14 +872,13 @@ export default function CreatorProfilePage() {
             sub={`${fmtNum(kpis.lifetime.orders)} órdenes · ${fmtARS(kpis.lifetime.commissionEarned)} en comisiones`}
             icon={<Trophy size={14} strokeWidth={2.2} />}
           />
-          {/* Attribution window — destacado con borde gradient */}
-          <button
-            onClick={() => setEditOpen(true)}
-            className="relative p-4 text-left transition hover:brightness-110"
+          {/* Attribution window — destacado con borde gradient. Display no
+              interactivo: la edición salió del modal de creador (item 10). */}
+          <div
+            className="relative p-4 text-left"
             style={{
               background: THEME.bgCard,
             }}
-            title="Click para editar la ventana de atribución"
           >
             <div
               className="absolute inset-0 pointer-events-none"
@@ -919,7 +918,7 @@ export default function CreatorProfilePage() {
                 Powered by NitroPixel
               </div>
             </div>
-          </button>
+          </div>
         </section>
 
         {/* ─── ACCESO AL DASHBOARD (contraseña + enviar por mail) ─── */}
@@ -1107,25 +1106,31 @@ export default function CreatorProfilePage() {
                 animation: `cardIn 720ms ${ES} 240ms both`,
               }}
             >
+              {/* Renombrada a "Órdenes generadas" y filtrada a ventas por pedido
+                  de Tomy (reunión 08/07/26, item 28). El detalle clickeable de
+                  cada orden (item 29) queda para el paso con el API de detalle. */}
               <h2
                 className="text-[16px] font-semibold tracking-tight mb-4"
                 style={{ color: THEME.textPrimary }}
               >
-                Actividad reciente
+                Órdenes generadas
               </h2>
-              {activity.length === 0 ? (
-                <EmptyBlock
-                  icon={<Clock size={22} strokeWidth={1.6} style={{ color: THEME.textMuted }} />}
-                  title="Sin actividad aún"
-                  subtitle=""
-                />
-              ) : (
-                <div className="space-y-0">
-                  {activity.map((a, i) => (
-                    <ActivityRow key={i} activity={a} isLast={i === activity.length - 1} />
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const orders = activity.filter((a) => a.kind === "sale");
+                return orders.length === 0 ? (
+                  <EmptyBlock
+                    icon={<Clock size={22} strokeWidth={1.6} style={{ color: THEME.textMuted }} />}
+                    title="Sin órdenes aún"
+                    subtitle=""
+                  />
+                ) : (
+                  <div className="space-y-0">
+                    {orders.map((a, i) => (
+                      <ActivityRow key={i} activity={a} isLast={i === orders.length - 1} />
+                    ))}
+                  </div>
+                );
+              })()}
             </section>
           </div>
         </div>
@@ -1631,29 +1636,22 @@ function EditModal({
 }) {
   const [name, setName] = useState(creator.name);
   const [email, setEmail] = useState(creator.email ?? "");
-  const [commissionPercent, setCommissionPercent] = useState(creator.commissionPercent);
   const [publicName, setPublicName] = useState(creator.publicName ?? "");
-  const [attributionWindowDays, setAttributionWindowDays] = useState<number>(
-    creator.attributionWindowDays ?? 14
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const WINDOW_PRESETS = [7, 14, 30, 45, 60, 90];
-  const isPreset = WINDOW_PRESETS.includes(attributionWindowDays);
 
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
+      // Solo email + nombre público (item 10): comisión y ventana ya no se
+      // editan acá. El PATCH ignora los campos que no vienen.
       const r = await fetch(`/api/aura/creators/${creator.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          commissionPercent: Number(commissionPercent),
           publicName,
-          attributionWindowDays: Number(attributionWindowDays),
         }),
       });
       const data = await r.json();
@@ -1717,22 +1715,10 @@ function EditModal({
               }}
             />
           </Field>
-          <Field label="Comisión (%)">
-            <input
-              type="number"
-              step="0.5"
-              min="0"
-              max="100"
-              value={commissionPercent}
-              onChange={(e) => setCommissionPercent(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-lg text-[13px] tracking-tight outline-none"
-              style={{
-                background: THEME.bgCard,
-                border: `1px solid ${THEME.border}`,
-                color: THEME.textPrimary,
-              }}
-            />
-          </Field>
+          {/* Comisión y Ventana de atribución quitadas del editar creador por
+              pedido de Tomy (reunión 08/07/26, item 10): solo nombre, email y
+              nombre público. La comisión pasa a asignarse por campaña ("Comenzar
+              campaña"). */}
           <Field label="Nombre público (opcional)">
             <input
               value={publicName}
@@ -1745,55 +1731,6 @@ function EditModal({
                 color: THEME.textPrimary,
               }}
             />
-          </Field>
-          <Field label="Ventana de atribución">
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {WINDOW_PRESETS.map((d) => {
-                const active = attributionWindowDays === d;
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setAttributionWindowDays(d)}
-                    className="px-3 py-1.5 rounded-lg text-[12px] font-semibold tracking-tight transition-all"
-                    style={{
-                      background: active ? THEME.gradient : THEME.bgSoft,
-                      border: `1px solid ${active ? "transparent" : THEME.border}`,
-                      color: active ? "#fff" : THEME.textSecondary,
-                      boxShadow: active
-                        ? "0 2px 10px rgba(255,0,128,0.25), inset 0 1px 0 rgba(255,255,255,0.16)"
-                        : "none",
-                    }}
-                  >
-                    {d}d
-                  </button>
-                );
-              })}
-            </div>
-            <input
-              type="number"
-              min={1}
-              max={180}
-              step={1}
-              value={attributionWindowDays}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                if (Number.isFinite(n)) setAttributionWindowDays(Math.max(1, Math.min(180, n)));
-              }}
-              placeholder="Custom (1-180 días)"
-              className="w-full px-3 py-2 rounded-lg text-[13px] tracking-tight outline-none"
-              style={{
-                background: THEME.bgCard,
-                border: `1px solid ${isPreset ? THEME.border : THEME.goldBorder}`,
-                color: THEME.textPrimary,
-              }}
-            />
-            <div
-              className="mt-1.5 text-[11px] leading-relaxed"
-              style={{ color: THEME.textMuted }}
-            >
-              Cuántos días puede pasar desde que el usuario hace clic en el link del creador hasta que compra. Default 14d. NitroPixel rompe la limitación de las UTMs (solo primera sesión).
-            </div>
           </Field>
           {error ? (
             <div
