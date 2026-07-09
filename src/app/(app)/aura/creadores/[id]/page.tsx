@@ -59,6 +59,12 @@ import {
   Shuffle,
   Gift,
   X,
+  Package,
+  Store,
+  Truck,
+  CreditCard,
+  Loader2,
+  Tag,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -207,7 +213,7 @@ type ContentItem = {
   engagement: number;
 };
 type Activity =
-  | { kind: "sale"; at: string; amount: number; commission: number; campaign: { id: string; name: string } | null }
+  | { kind: "sale"; at: string; orderId: string | null; amount: number; commission: number; campaign: { id: string; name: string } | null }
   | { kind: "content"; at: string; type: string; platform: string; status: string };
 type Deal = {
   id: string;
@@ -473,6 +479,8 @@ export default function CreatorProfilePage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedDashboard, setCopiedDashboard] = useState(false);
+  // item 29: orden abierta en el modal de detalle (solo admin — esta página lo es).
+  const [orderModalId, setOrderModalId] = useState<string | null>(null);
 
   const load = useMemo(
     () => async () => {
@@ -1126,7 +1134,12 @@ export default function CreatorProfilePage() {
                 ) : (
                   <div className="space-y-0">
                     {orders.map((a, i) => (
-                      <ActivityRow key={i} activity={a} isLast={i === orders.length - 1} />
+                      <ActivityRow
+                        key={i}
+                        activity={a}
+                        isLast={i === orders.length - 1}
+                        onOpenOrder={setOrderModalId}
+                      />
                     ))}
                   </div>
                 );
@@ -1145,6 +1158,15 @@ export default function CreatorProfilePage() {
             setEditOpen(false);
             load();
           }}
+        />
+      ) : null}
+
+      {/* ─── ORDER DETAIL MODAL (item 29 — solo admin) ─── */}
+      {orderModalId ? (
+        <OrderDetailModal
+          creatorId={creator.id}
+          orderId={orderModalId}
+          onClose={() => setOrderModalId(null)}
         />
       ) : null}
 
@@ -1509,9 +1531,11 @@ function PaymentRow({
 function ActivityRow({
   activity,
   isLast,
+  onOpenOrder,
 }: {
   activity: Activity;
   isLast: boolean;
+  onOpenOrder?: (orderId: string) => void;
 }) {
   const iconBg = activity.kind === "sale" ? THEME.goldSoft : THEME.bgSoft;
   const iconColor = activity.kind === "sale" ? THEME.gold : THEME.textSecondary;
@@ -1521,8 +1545,17 @@ function ActivityRow({
     ) : (
       <Play size={13} strokeWidth={2.2} />
     );
+  // item 29: una venta con orderId se puede abrir para ver el detalle de la transacción.
+  const clickable = activity.kind === "sale" && !!activity.orderId && !!onOpenOrder;
+  const handleClick = () => {
+    if (activity.kind === "sale" && activity.orderId && onOpenOrder) onOpenOrder(activity.orderId);
+  };
   return (
-    <div className="flex gap-3 py-2.5">
+    <div
+      className={`flex gap-3 py-2.5 ${clickable ? "cursor-pointer rounded-lg -mx-2 px-2 transition-colors hover:bg-white/[0.03]" : ""}`}
+      onClick={clickable ? handleClick : undefined}
+      role={clickable ? "button" : undefined}
+      title={clickable ? "Ver detalle de la transacción" : undefined}>
       <div className="flex flex-col items-center">
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
@@ -1583,6 +1616,253 @@ function ActivityRow({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────── ORDER DETAIL MODAL (item 29) ───────────────────────
+type OrderDetail = {
+  order: {
+    id: string;
+    externalId: string;
+    status: string;
+    totalValue: number;
+    currency: string;
+    itemCount: number;
+    source: string;
+    channel: string | null;
+    paymentMethod: string | null;
+    shippingCost: number | null;
+    discountValue: number | null;
+    couponCode: string | null;
+    promotionNames: string | null;
+    deliveryType: string | null;
+    pickupStoreName: string | null;
+    shippingCarrier: string | null;
+    shippingService: string | null;
+    orderDate: string;
+    customer: { name: string | null; email: string | null; city: string | null } | null;
+    items: Array<{
+      id: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+      name: string;
+      sku: string | null;
+      ean: string | null;
+      imageUrl: string | null;
+      brand: string | null;
+    }>;
+  };
+  attribution: {
+    attributedValue: number;
+    commissionAmount: number;
+    attributionModel: string;
+    attributionSource: string;
+  };
+};
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  PENDING: "Pendiente",
+  APPROVED: "Aprobada",
+  INVOICED: "Facturada",
+  SHIPPED: "Enviada",
+  DELIVERED: "Entregada",
+  CANCELLED: "Cancelada",
+  RETURNED: "Devuelta",
+};
+
+function OrderDetailModal({
+  creatorId,
+  orderId,
+  onClose,
+}: {
+  creatorId: string;
+  orderId: string;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<OrderDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    setError(null);
+    fetch(`/api/aura/creators/${creatorId}/orders/${orderId}`, { cache: "no-store" })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Error");
+        if (!cancelled) setData(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [creatorId, orderId]);
+
+  const o = data?.order;
+  const attr = data?.attribution;
+  const isPickup = o?.deliveryType === "pickup";
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", animation: `fadeIn 200ms ${ES} both` }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl"
+        style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}`, boxShadow: "0 24px 72px rgba(0,0,0,0.55)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 p-5 border-b" style={{ borderColor: THEME.border }}>
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: THEME.gold }}>
+              <ShoppingBag size={11} /> Detalle de la transacción
+            </div>
+            <h2 className="text-[17px] font-semibold tracking-tight" style={{ color: THEME.textPrimary }}>
+              {o ? `Orden #${o.externalId}` : "Cargando orden…"}
+            </h2>
+            {o ? (
+              <div className="text-[12px] mt-0.5" style={{ color: THEME.textTertiary }}>
+                {fmtDate(o.orderDate)} · {o.source}
+                {o.channel ? ` · ${o.channel}` : ""}
+              </div>
+            ) : null}
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5" style={{ color: THEME.textSecondary }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {error ? (
+          <div className="p-6 text-center text-[13px]" style={{ color: "#f87171" }}>
+            No se pudo cargar la orden: {error}
+          </div>
+        ) : !data ? (
+          <div className="p-10 flex items-center justify-center gap-2 text-[13px]" style={{ color: THEME.textTertiary }}>
+            <Loader2 size={16} className="animate-spin" /> Cargando…
+          </div>
+        ) : (
+          <div className="p-5 space-y-5">
+            {/* Chips resumen */}
+            <div className="flex flex-wrap gap-2">
+              <span
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold"
+                style={{ background: THEME.goldSoft, color: THEME.gold, border: `1px solid ${THEME.goldBorder}` }}
+              >
+                {ORDER_STATUS_LABEL[o!.status] || o!.status}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg text-[11px]" style={{ background: THEME.bgSoft, color: THEME.textSecondary, border: `1px solid ${THEME.border}` }}>
+                {o!.itemCount} {o!.itemCount === 1 ? "ítem" : "ítems"}
+              </span>
+              {o!.paymentMethod ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px]" style={{ background: THEME.bgSoft, color: THEME.textSecondary, border: `1px solid ${THEME.border}` }}>
+                  <CreditCard size={11} /> {o!.paymentMethod}
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px]" style={{ background: THEME.bgSoft, color: THEME.textSecondary, border: `1px solid ${THEME.border}` }}>
+                {isPickup ? <Store size={11} /> : <Truck size={11} />}
+                {isPickup ? `Retiro${o!.pickupStoreName ? ` · ${o!.pickupStoreName}` : ""}` : `Envío${o!.shippingCarrier ? ` · ${o!.shippingCarrier}` : ""}`}
+              </span>
+              {o!.couponCode ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px]" style={{ background: THEME.bgSoft, color: THEME.textSecondary, border: `1px solid ${THEME.border}` }}>
+                  <Tag size={11} /> {o!.couponCode}
+                </span>
+              ) : null}
+            </div>
+
+            {/* Atribución de este creador */}
+            <div className="rounded-xl p-4" style={{ background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: THEME.textMuted }}>Revenue atribuido</div>
+                  <div className="text-[18px] font-semibold tabular-nums" style={{ color: THEME.textPrimary }}>{fmtARS(attr!.attributedValue)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: THEME.textMuted }}>Comisión del creador</div>
+                  <div className="text-[18px] font-semibold tabular-nums" style={{ color: THEME.gold }}>{fmtARS(attr!.commissionAmount)}</div>
+                </div>
+              </div>
+              <div className="text-[10.5px] mt-2" style={{ color: THEME.textTertiary }}>
+                Atribución {attr!.attributionSource} · modelo {attr!.attributionModel}
+              </div>
+            </div>
+
+            {/* Ítems */}
+            <div>
+              <div className="flex items-center gap-1.5 text-[12px] font-semibold mb-2" style={{ color: THEME.textSecondary }}>
+                <Package size={13} /> Productos
+              </div>
+              <div className="flex flex-col gap-px rounded-xl overflow-hidden" style={{ background: THEME.border }}>
+                {o!.items.length === 0 ? (
+                  <div className="px-4 py-4 text-[12px]" style={{ background: "#12121c", color: THEME.textTertiary }}>
+                    Sin detalle de ítems para esta orden.
+                  </div>
+                ) : (
+                  o!.items.map((it) => (
+                    <div key={it.id} className="flex items-center gap-3 px-3 py-2.5" style={{ background: "#12121c" }}>
+                      <div
+                        className="w-11 h-11 rounded-lg flex-shrink-0 bg-center bg-cover flex items-center justify-center"
+                        style={{ background: it.imageUrl ? `url(${it.imageUrl}) center/cover` : THEME.bgSoft, border: `1px solid ${THEME.border}` }}
+                      >
+                        {!it.imageUrl ? <Package size={16} style={{ color: THEME.textMuted }} /> : null}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-medium truncate" style={{ color: THEME.textPrimary }}>{it.name}</div>
+                        <div className="text-[11px] tracking-tight" style={{ color: THEME.textTertiary }}>
+                          {it.sku ? `SKU ${it.sku}` : ""}{it.sku && it.ean ? " · " : ""}{it.ean ? `EAN ${it.ean}` : ""}
+                          {!it.sku && !it.ean && it.brand ? it.brand : ""}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[12.5px] font-semibold tabular-nums" style={{ color: THEME.textPrimary }}>{fmtARS(it.totalPrice)}</div>
+                        <div className="text-[11px] tabular-nums" style={{ color: THEME.textTertiary }}>
+                          {it.quantity} × {fmtARS(it.unitPrice)}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Totales */}
+            <div className="rounded-xl p-4 space-y-1.5" style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}` }}>
+              {o!.discountValue ? (
+                <Row label="Descuento" value={`- ${fmtARS(o!.discountValue)}`} muted />
+              ) : null}
+              {o!.shippingCost != null ? (
+                <Row label="Envío" value={fmtARS(o!.shippingCost)} muted />
+              ) : null}
+              <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t" style={{ borderColor: THEME.border }}>
+                <span className="text-[13px] font-semibold" style={{ color: THEME.textPrimary }}>Total de la orden</span>
+                <span className="text-[16px] font-semibold tabular-nums" style={{ color: THEME.textPrimary }}>{fmtARS(o!.totalValue)}</span>
+              </div>
+            </div>
+
+            {/* Cliente */}
+            {o!.customer && (o!.customer.name || o!.customer.email) ? (
+              <div className="text-[11.5px]" style={{ color: THEME.textTertiary }}>
+                Cliente: <span style={{ color: THEME.textSecondary }}>{o!.customer.name || o!.customer.email}</span>
+                {o!.customer.city ? ` · ${o!.customer.city}` : ""}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-center justify-between text-[12px]">
+      <span style={{ color: muted ? THEME.textTertiary : THEME.textSecondary }}>{label}</span>
+      <span className="tabular-nums" style={{ color: muted ? THEME.textTertiary : THEME.textPrimary }}>{value}</span>
     </div>
   );
 }

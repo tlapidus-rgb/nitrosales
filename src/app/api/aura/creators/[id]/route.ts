@@ -158,6 +158,7 @@ export async function GET(
         take: 10,
         select: {
           id: true,
+          orderId: true, // item 29: para abrir el detalle de la orden al clickear
           attributedValue: true,
           commissionAmount: true,
           createdAt: true,
@@ -294,6 +295,7 @@ export async function GET(
       ...recentAttrs.map((a) => ({
         kind: "sale" as const,
         at: a.createdAt.toISOString(),
+        orderId: a.orderId, // item 29
         amount: Number(a.attributedValue),
         commission: Number(a.commissionAmount),
         campaign: a.campaign ? { id: a.campaign.id, name: a.campaign.name } : null,
