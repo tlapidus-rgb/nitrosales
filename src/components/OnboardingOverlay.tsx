@@ -146,17 +146,19 @@ export default function OnboardingOverlay() {
           </div>
         )}
 
-        {/* Botón horizontal "Hablá con Aurum" — Fase 0 del roadmap */}
-        <AurumChatButton onClick={() => setChatOpen(true)} />
+        {/* Aurum oculto en el onboarding por pedido de Tomy (reunión 08/07/26,
+            item 2). Es solo un asistente opcional — el wizard no depende de él.
+            Reactivar: descomentar el botón y el drawer. */}
+        {/* <AurumChatButton onClick={() => setChatOpen(true)} /> */}
       </div>
 
-      {/* Drawer del chat */}
-      <OnboardingAurumChat
+      {/* Drawer del chat (deshabilitado — ver nota arriba) */}
+      {/* <OnboardingAurumChat
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         currentPhase={state.phase}
         currentStep={currentStep}
-      />
+      /> */}
 
       <style jsx global>{`
         @keyframes spin { to { transform: rotate(360deg); } }

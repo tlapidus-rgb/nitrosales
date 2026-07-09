@@ -104,21 +104,23 @@ const NAV_GROUPS: NavGroup[] = [
           glowColor: "rgba(244,114,182,0.38)",
           description: "Tu nuevo canal de ventas.",
         },
+        // Separadores de grupo ("CREADORES", "PAGOS", …) quitados por pedido de
+        // Tomy (reunión 08/07/26, item 25): lista plana, sin `group`.
         children: [
           { href: "/aura/inicio", label: "Inicio" },
-          { href: "/aura/creadores", label: "Creadores", group: "Creadores" },
-          { href: "/aura/creadores/aplicaciones", label: "Aplicaciones", group: "Creadores" },
+          { href: "/aura/creadores", label: "Creadores" },
+          { href: "/aura/creadores/aplicaciones", label: "Aplicaciones" },
           // Lote 2A: concepto de "Campaña" escondido hasta nuevo aviso (Tomy). Se ocultan
           // del nav pero la maquinaria (páginas/endpoints/datos) queda intacta para volver.
-          // { href: "/aura/campanas", label: "Campañas", group: "Campañas" },
-          // { href: "/aura/campanas/nueva", label: "Nueva campaña", group: "Campañas" },
+          // { href: "/aura/campanas", label: "Campañas" },
+          // { href: "/aura/campanas/nueva", label: "Nueva campaña" },
           // Contenido (item 18) y Deals (item 19) ocultos por pedido de Tomy (reunión
           // 08/07/26). Páginas/endpoints intactos; se ocultan solo del nav.
-          // { href: "/aura/contenido", label: "Overview", group: "Contenido" },
-          // { href: "/aura/contenido/briefings", label: "Briefings", group: "Contenido" },
-          // { href: "/aura/contenido/aprobaciones", label: "Aprobaciones", group: "Contenido" },
-          // { href: "/aura/deals", label: "Deals", group: "Pagos" },
-          { href: "/aura/pagos", label: "Pagos", group: "Pagos" },
+          // { href: "/aura/contenido", label: "Overview" },
+          // { href: "/aura/contenido/briefings", label: "Briefings" },
+          // { href: "/aura/contenido/aprobaciones", label: "Aprobaciones" },
+          // { href: "/aura/deals", label: "Deals" },
+          { href: "/aura/pagos", label: "Pagos" },
         ],
       },
     ],
