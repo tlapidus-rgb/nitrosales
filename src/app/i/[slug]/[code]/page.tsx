@@ -464,6 +464,11 @@ export default function PublicInfluencerDashboard() {
           </div>
 
           {/* ── Tab Switcher ── */}
+          {/* "Mi Contenido" deshabilitado por pedido de Tomy (reunión 08/07/26,
+              item 30). El afiliado solo ve "Mis Ganancias" (tab por defecto). Se
+              oculta el switcher entero para no dejar un tab solitario. Reactivar:
+              cambiar false → true. */}
+          {false && (
           <div className={`flex rounded-xl ${darkMode ? "bg-white/5" : "bg-gray-100"} p-1`}>
             <button
               onClick={() => setActiveTab("ganancias")}
@@ -486,6 +491,7 @@ export default function PublicInfluencerDashboard() {
               Mi Contenido
             </button>
           </div>
+          )}
 
           {/* ── Attribution window badge — trust signal ── */}
           <div className="mt-3">

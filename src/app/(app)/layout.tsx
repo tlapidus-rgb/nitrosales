@@ -41,12 +41,14 @@ const NAV_GROUPS: NavGroup[] = [
         icon: "M13 10V3L4 14h7v7l9-11h-7z",
         premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
       },
-      {
-        href: "/chat",
-        label: "Aurum",
-        icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
-        premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
-      },
+      // Aurum oculto por pedido de Tomy (reunión 08/07/26): no se muestra en
+      // ningún lado pero NO se elimina — reactivar descomentando este item.
+      // {
+      //   href: "/chat",
+      //   label: "Aurum",
+      //   icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
+      //   premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
+      // },
     ],
   },
   // ─── Tier 2 — CONTROL DE GESTIÓN (día a día ejecutivo) ───
@@ -110,10 +112,12 @@ const NAV_GROUPS: NavGroup[] = [
           // del nav pero la maquinaria (páginas/endpoints/datos) queda intacta para volver.
           // { href: "/aura/campanas", label: "Campañas", group: "Campañas" },
           // { href: "/aura/campanas/nueva", label: "Nueva campaña", group: "Campañas" },
-          { href: "/aura/contenido", label: "Overview", group: "Contenido" },
-          { href: "/aura/contenido/briefings", label: "Briefings", group: "Contenido" },
-          { href: "/aura/contenido/aprobaciones", label: "Aprobaciones", group: "Contenido" },
-          { href: "/aura/deals", label: "Deals", group: "Pagos" },
+          // Contenido (item 18) y Deals (item 19) ocultos por pedido de Tomy (reunión
+          // 08/07/26). Páginas/endpoints intactos; se ocultan solo del nav.
+          // { href: "/aura/contenido", label: "Overview", group: "Contenido" },
+          // { href: "/aura/contenido/briefings", label: "Briefings", group: "Contenido" },
+          // { href: "/aura/contenido/aprobaciones", label: "Aprobaciones", group: "Contenido" },
+          // { href: "/aura/deals", label: "Deals", group: "Pagos" },
           { href: "/aura/pagos", label: "Pagos", group: "Pagos" },
         ],
       },
@@ -289,7 +293,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <PermissionsProvider>
     <AurumProvider>
     <div className="h-screen bg-nitro-bg flex overflow-hidden">
-      <FloatingAurum />
+      {/* Aurum oculto por pedido de Tomy (reunión 08/07/26): botón flotante
+          desactivado. El provider/contexto queda para reactivar sin romper nada. */}
+      {/* <FloatingAurum /> */}
       {/* Aurum global animations */}
       <style jsx global>{`
         @keyframes aurumShimmer {

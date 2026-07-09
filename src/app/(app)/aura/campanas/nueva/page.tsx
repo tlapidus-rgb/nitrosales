@@ -74,10 +74,13 @@ const DEAL_TYPES: Array<{
   { value: "COMMISSION", label: "Comisión %", desc: "Porcentaje sobre ventas atribuidas por UTM", icon: <Percent size={14} strokeWidth={2.2} /> },
   { value: "FLAT_FEE", label: "Monto fijo", desc: "Pago fijo por pieza / mes / campaña", icon: <DollarSign size={14} strokeWidth={2.2} /> },
   { value: "PERFORMANCE_BONUS", label: "Bono por objetivo", desc: "Bono al alcanzar meta de revenue / órdenes", icon: <Trophy size={14} strokeWidth={2.2} /> },
-  { value: "TIERED_COMMISSION", label: "Tramos escalonados", desc: "Comisión que sube por volumen de ventas", icon: <Layers size={14} strokeWidth={2.2} /> },
   { value: "CPM", label: "CPM", desc: "Pago por cada 1.000 views / impresiones", icon: <Eye size={14} strokeWidth={2.2} /> },
-  { value: "GIFTING", label: "Gifting", desc: "Compensación en producto (sin cash)", icon: <Gift size={14} strokeWidth={2.2} /> },
-  { value: "HYBRID", label: "Híbrido", desc: "Combiná varios modelos en un solo deal", icon: <Shuffle size={14} strokeWidth={2.2} /> },
+  // Tramos escalonados, Gifting e Híbrido ocultos por pedido de Tomy (reunión
+  // 08/07/26). La lógica queda (motor de pagos los sigue soportando); solo se
+  // sacan como opción del form. Reactivar descomentando.
+  // { value: "TIERED_COMMISSION", label: "Tramos escalonados", desc: "Comisión que sube por volumen de ventas", icon: <Layers size={14} strokeWidth={2.2} /> },
+  // { value: "GIFTING", label: "Gifting", desc: "Compensación en producto (sin cash)", icon: <Gift size={14} strokeWidth={2.2} /> },
+  // { value: "HYBRID", label: "Híbrido", desc: "Combiná varios modelos en un solo deal", icon: <Shuffle size={14} strokeWidth={2.2} /> },
 ];
 
 const COMMISSION_TYPES = ["COMMISSION", "TIERED_COMMISSION", "HYBRID"];

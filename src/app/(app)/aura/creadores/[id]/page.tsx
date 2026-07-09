@@ -980,7 +980,9 @@ export default function CreatorProfilePage() {
               )}
             </section>
 
-            {/* CONTENIDO */}
+            {/* CONTENIDO — card "Contenido publicado" deshabilitada por pedido de
+                Tomy (reunión 08/07/26, item 27). Reactivar: cambiar false → true. */}
+            {false && (
             <section
               className="rounded-2xl p-5"
               style={{
@@ -1022,6 +1024,7 @@ export default function CreatorProfilePage() {
                 </div>
               )}
             </section>
+            )}
           </div>
 
           {/* ─── COL DERECHA (1/3): PAGOS + ACTIVIDAD ─── */}

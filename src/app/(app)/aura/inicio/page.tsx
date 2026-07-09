@@ -3434,6 +3434,10 @@ export default function AuraInicioPage() {
           <HallOfFlameZone state={podium} />
         </section>
 
+        {/* Zonas 4-7 (Bandeja de acciones, Campañas en vuelo, Content radar,
+            Insights rápidos) deshabilitadas por pedido de Tomy (reunión 08/07/26).
+            Queda de Hall of flame para arriba. Reactivar: cambiar false → true. */}
+        {false && (<>
         {/* ─── Zona 4: Bandeja de acciones ───────────────────────── */}
         <section className="mt-10">
           <div className="flex items-center gap-2.5 mb-4">
@@ -3513,6 +3517,7 @@ export default function AuraInicioPage() {
           </div>
           <QuickInsightsZone state={insights} />
         </section>
+        </>)}
       </div>
     </div>
   );

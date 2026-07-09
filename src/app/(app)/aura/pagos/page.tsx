@@ -651,6 +651,9 @@ function CreatePayoutModal({ onClose, onCreated }: { onClose: () => void; onCrea
                 style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
               />
             </Field>
+            {/* Deals deshabilitados en la sección de Pagos por pedido de Tomy
+                (reunión 08/07/26, item 19). Reactivar: cambiar false → true. */}
+            {false && (
             <Field label="Deal (opcional)">
               <select
                 value={dealId}
@@ -667,6 +670,7 @@ function CreatePayoutModal({ onClose, onCreated }: { onClose: () => void; onCrea
                 ))}
               </select>
             </Field>
+            )}
           </div>
 
           <Field label="Campaña (opcional)">

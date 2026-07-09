@@ -864,7 +864,7 @@ export default function AnalyticsPage() {
                   <th className="text-right px-4 py-3 font-medium">Spend</th>
                   <th className="text-right px-4 py-3 font-medium">ROAS Real</th>
                   <th className="text-right px-4 py-3 font-medium">ROAS Plat.</th>
-                  <th className="text-right px-6 py-3 font-medium">Órdenes</th>
+                  <th className="text-right px-6 py-3 font-medium">Participaciones</th>
                 </tr>
               </thead>
               <tbody>
