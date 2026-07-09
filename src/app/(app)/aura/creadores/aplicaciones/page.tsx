@@ -31,6 +31,8 @@ import {
   Shuffle,
   Layers,
   Sparkles,
+  Copy,
+  Link2,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -98,6 +100,9 @@ export default function AplicacionesPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [approvalApp, setApprovalApp] = useState<Application | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Slug de la org → URL pública de aplicación para compartir (item 26).
+  const [slug, setSlug] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = async () => {
     try {
@@ -105,6 +110,7 @@ export default function AplicacionesPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Error");
       setGroups(data.groups);
+      if (data.slug) setSlug(data.slug);
     } catch (e: any) {
       setError(e?.message || "Error");
     } finally {
@@ -214,6 +220,58 @@ export default function AplicacionesPage() {
                 : "Todas las aplicaciones están revisadas"}
             </p>
           </div>
+
+          {/* Link público de aplicación para compartir con futuros afiliados
+              (item 26, reunión Tomy 08/07/26). */}
+          {slug && (() => {
+            const applyUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/i/${slug}/apply`;
+            return (
+              <div
+                className="rounded-xl p-3 min-w-[300px] max-w-full"
+                style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}` }}
+              >
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Link2 size={13} style={{ color: THEME.textSecondary }} />
+                  <span className="text-[11px] font-medium tracking-tight" style={{ color: THEME.textSecondary }}>
+                    Link de aplicación — compartilo con tus futuros creadores
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code
+                    className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg text-[12px]"
+                    style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                    title={applyUrl}
+                  >
+                    {applyUrl}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(applyUrl).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }).catch(() => {});
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white shrink-0 transition-all hover:brightness-110"
+                    style={{ background: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)" }}
+                  >
+                    {copied ? <Check size={13} strokeWidth={2.4} /> : <Copy size={13} strokeWidth={2.2} />}
+                    {copied ? "Copiado" : "Copiar"}
+                  </button>
+                  <a
+                    href={applyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center p-1.5 rounded-lg shrink-0 transition-all hover:bg-white/5"
+                    style={{ border: `1px solid ${THEME.border}`, color: THEME.textSecondary }}
+                    title="Abrir en una pestaña nueva"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              </div>
+            );
+          })()}
         </header>
 
         {error ? (

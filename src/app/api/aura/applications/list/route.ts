@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
+      // slug de la org → el front arma la URL pública de aplicación
+      // (/i/{slug}/apply) para que el owner la copie y comparta (item 26).
+      slug: org.slug,
       groups,
       totals: {
         pending: groups.PENDING.length,

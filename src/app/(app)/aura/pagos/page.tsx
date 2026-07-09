@@ -207,8 +207,9 @@ export default function PagosPage() {
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        {/* KPIs — "Total comprometido" y "Cancelados" ocultos por pedido de Tomy
+            (reunión 08/07/26, item 23): solo Pendiente y Pagado. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <KpiCard
             icon={<Clock size={18} />}
             label="Pendiente"
@@ -223,26 +224,14 @@ export default function PagosPage() {
             sub={totals ? `${totals.paidCount} pagos` : ""}
             color={THEME.green}
           />
-          <KpiCard
-            icon={<DollarSign size={18} />}
-            label="Total comprometido"
-            value={totals ? fmtAR(totals.pendingAmount + totals.paidAmount) : "—"}
-            sub=""
-            color={THEME.purple}
-          />
-          <KpiCard
-            icon={<XCircle size={18} />}
-            label="Cancelados"
-            value={totals ? String(totals.cancelledCount) : "—"}
-            sub=""
-            color={THEME.rose}
-          />
         </div>
 
         {/* Filters */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}` }}>
-            {(["PENDING", "PAID", "CANCELLED", "all"] as const).map((s) => (
+            {/* Solo Pendientes/Pagados por pedido de Tomy (reunión 08/07/26,
+                item 22): se sacan "Cancelados" y "Todos". */}
+            {(["PENDING", "PAID"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatus(s)}
@@ -252,7 +241,7 @@ export default function PagosPage() {
                   color: status === s ? THEME.textPrimary : THEME.textSecondary,
                 }}
               >
-                {s === "all" ? "Todos" : s === "PENDING" ? "Pendientes" : s === "PAID" ? "Pagados" : "Cancelados"}
+                {s === "PENDING" ? "Pendientes" : "Pagados"}
               </button>
             ))}
           </div>
@@ -309,12 +298,8 @@ export default function PagosPage() {
           )}
         </div>
 
-        {/* Nota migración */}
-        <p className="text-[11px] mt-6 text-center" style={{ color: THEME.textMuted }}>
-          <Sparkles size={10} className="inline mr-1" />
-          Tip: antes de usar Pagos por primera vez, corré{" "}
-          <code style={{ color: THEME.textTertiary }}>/api/admin/migrate-aura-payouts?key=…</code> para crear las tablas.
-        </p>
+        {/* Nota de migración ("Tip: …") quitada por pedido de Tomy (reunión
+            08/07/26, item 21). */}
       </div>
 
       {showCreate && (
@@ -464,6 +449,9 @@ function PayoutRow({
               Restaurar
             </button>
           )}
+          {/* 3 puntitos ocultos para pagos PAGADOS por pedido de Tomy (reunión
+              08/07/26, item 21). En pendientes se mantienen (cancelar/eliminar). */}
+          {payout.status !== "PAID" && (
           <div className="relative">
             <button
               onClick={() => setMenu((v) => !v)}
@@ -491,18 +479,17 @@ function PayoutRow({
                       Cancelar pago
                     </button>
                   )}
-                  {payout.status !== "PAID" && (
-                    <button
-                      onClick={() => {
-                        setMenu(false);
-                        onDelete();
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-white/5"
-                      style={{ color: THEME.rose }}
-                    >
-                      Eliminar
-                    </button>
-                  )}
+                  {/* Siempre visible acá: el menú entero ya está gated a status !== PAID. */}
+                  <button
+                    onClick={() => {
+                      setMenu(false);
+                      onDelete();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-white/5"
+                    style={{ color: THEME.rose }}
+                  >
+                    Eliminar
+                  </button>
                   {payout.proofUrl && (
                     <a
                       href={payout.proofUrl}
@@ -518,6 +505,7 @@ function PayoutRow({
               </>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>
