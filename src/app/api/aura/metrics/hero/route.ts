@@ -75,14 +75,16 @@ export async function GET(req: NextRequest) {
           organizationId: org.id,
           createdAt: { gte: from, lte: to },
         },
-        _sum: { attributedValue: true },
+        _sum: { attributedValue: true, commissionAmount: true },
+        _count: { _all: true },
       }),
       prisma.influencerAttribution.aggregate({
         where: {
           organizationId: org.id,
           createdAt: { gte: prevFrom, lte: prevTo },
         },
-        _sum: { attributedValue: true },
+        _sum: { attributedValue: true, commissionAmount: true },
+        _count: { _all: true },
       }),
       prisma.influencerAttribution.groupBy({
         by: ["influencerId"],
@@ -144,6 +146,12 @@ export async function GET(req: NextRequest) {
     // Revenue
     const revenueCurrent = Number(currAttrAgg._sum.attributedValue || 0);
     const revenuePrevious = Number(prevAttrAgg._sum.attributedValue || 0);
+
+    // Comisiones generadas + órdenes (item 17)
+    const commissionsCurrent = Number(currAttrAgg._sum.commissionAmount || 0);
+    const commissionsPrevious = Number(prevAttrAgg._sum.commissionAmount || 0);
+    const ordersCurrent = currAttrAgg._count._all;
+    const ordersPrevious = prevAttrAgg._count._all;
 
     // Active creators (que vendieron)
     const activeCurrent = currCreatorsWhoSold.length;
@@ -211,12 +219,18 @@ export async function GET(req: NextRequest) {
           previous: activePrevious,
           delta: delta(activeCurrent, activePrevious),
         },
-        publishedContent: {
-          current: contentCurrent,
-          previous: contentPrevious,
-          delta: delta(contentCurrent, contentPrevious),
+        commissionsGenerated: {
+          current: commissionsCurrent,
+          previous: commissionsPrevious,
+          delta: delta(commissionsCurrent, commissionsPrevious),
         },
-        emv: {
+        orders: {
+          current: ordersCurrent,
+          previous: ordersPrevious,
+          delta: delta(ordersCurrent, ordersPrevious),
+        },
+        // Rename de "EMV estimado" → "Sesiones generadas" (item 17). Mismo cálculo.
+        sessionsGenerated: {
           current: emvCurrent,
           previous: emvPrevious,
           delta: delta(emvCurrent, emvPrevious),

@@ -30,6 +30,8 @@ import {
   Users,
   Play,
   Eye,
+  DollarSign,
+  ShoppingBag,
   HelpCircle,
   Clock,
   Zap,
@@ -517,8 +519,9 @@ type Hero = {
   kpis: {
     revenue: Kpi;
     activeCreators: Kpi;
-    publishedContent: Kpi;
-    emv: Kpi & { totalViews: number };
+    commissionsGenerated: Kpi;
+    orders: Kpi;
+    sessionsGenerated: Kpi & { totalViews: number };
   };
   topAvatars: { id: string; name: string; code: string; revenue: number }[];
 };
@@ -795,57 +798,50 @@ function CreatorsKpi({
   );
 }
 
-// ─── KPI 3 — Contenido publicado (violet + play beat) ─────────────────
-function ContentKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
+// ─── KPI 3 — Comisiones generadas (item 17) ───────────────────────────
+function CommissionsKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
+  const v = useCountUp(kpi.current, 900);
+  return (
+    <KpiShell
+      accent="gold"
+      label="Comisiones generadas"
+      icon={<DollarSign size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
+      delay={delay}
+    >
+      <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
+        {fmtARSCompact(v)}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <DeltaPill value={kpi.delta} />
+        <span className="text-[10.5px] text-white/35">en comisiones</span>
+      </div>
+    </KpiShell>
+  );
+}
+
+// ─── KPI 4 — Órdenes (item 17) ────────────────────────────────────────
+function OrdersKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
   const v = useCountUp(kpi.current, 800);
   return (
     <KpiShell
       accent="gold"
-      label="Contenido publicado"
-      icon={<Play size={12} strokeWidth={2.4} color={ACCENT.gold.text} fill={ACCENT.gold.text} />}
+      label="Órdenes"
+      icon={<ShoppingBag size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
       delay={delay}
-      decoration={
-        <div
-          aria-hidden
-          className="absolute bottom-3 right-4 pointer-events-none"
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 999,
-            background: "rgba(255, 0, 128,0.10)",
-            border: "1px solid rgba(255, 0, 128,0.22)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            animation: "reelBeat 2.6s ease-in-out infinite",
-          }}
-        >
-          <span
-            style={{
-              width: 0,
-              height: 0,
-              borderLeft: "9px solid #ff99c7",
-              borderTop: "6px solid transparent",
-              borderBottom: "6px solid transparent",
-              marginLeft: 2,
-            }}
-          />
-        </div>
-      }
     >
       <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
         {fmtNum(v)}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35">piezas publicadas</span>
+        <span className="text-[10.5px] text-white/35">ventas atribuidas</span>
       </div>
     </KpiShell>
   );
 }
 
-// ─── KPI 4 — EMV estimado (gold + camera flash sweep) ─────────────────
-function EmvKpi({
+// ─── KPI 5 — Sesiones generadas (item 17: rename de EMV estimado) ──────
+function SessionsKpi({
   kpi,
   delay,
 }: {
@@ -858,8 +854,8 @@ function EmvKpi({
       accent="gold"
       label={
         <span className="inline-flex items-center gap-1.5">
-          EMV estimado
-          <InfoTip text="Earned Media Value: valor mediático ganado. Se estima como alcance total × CPM promedio LATAM (Meta + Google + TikTok). Aproximación." />
+          Sesiones generadas
+          <InfoTip text="Valor mediático ganado (EMV) estimado como alcance total × CPM promedio LATAM (Meta + Google + TikTok). Aproximación." />
         </span>
       }
       icon={<Eye size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
@@ -1353,8 +1349,8 @@ function HallOfFlameZone({ state }: { state: PodiumState }) {
 function HeroMetricsZone({ state }: { state: HeroState }) {
   if (state.status === "loading") {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[0, 1, 2, 3].map((i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
             className="rounded-2xl h-[140px]"
@@ -1384,11 +1380,12 @@ function HeroMetricsZone({ state }: { state: HeroState }) {
   }
   const { kpis, topAvatars } = state;
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
       <RevenueKpi kpi={kpis.revenue} delay={0} />
       <CreatorsKpi kpi={kpis.activeCreators} avatars={topAvatars} delay={80} />
-      <ContentKpi kpi={kpis.publishedContent} delay={160} />
-      <EmvKpi kpi={kpis.emv} delay={240} />
+      <CommissionsKpi kpi={kpis.commissionsGenerated} delay={160} />
+      <OrdersKpi kpi={kpis.orders} delay={240} />
+      <SessionsKpi kpi={kpis.sessionsGenerated} delay={320} />
     </div>
   );
 }
