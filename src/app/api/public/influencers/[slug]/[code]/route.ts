@@ -299,6 +299,25 @@ export async function GET(
       LIMIT 3
     `);
 
+    // Bloque D4 (item 31): pagos del afiliado — pendiente a pagar, comisión
+    // histórica y historial de pagos recibidos. pending = comisión histórica −
+    // pagado (mismo criterio resumido que la vista del owner).
+    const [paidAgg, paidPayouts] = await Promise.all([
+      prisma.payout.aggregate({
+        where: { influencerId: influencer.id, organizationId: org.id, status: "PAID" },
+        _sum: { amount: true },
+      }),
+      prisma.payout.findMany({
+        where: { influencerId: influencer.id, organizationId: org.id, status: "PAID" },
+        orderBy: { paidAt: "desc" },
+        take: 30,
+        select: { id: true, amount: true, method: true, reference: true, paidAt: true, concept: true, campaign: { select: { name: true } } },
+      }),
+    ]);
+    const totalPaid = Number(paidAgg._sum.amount || 0);
+    const historicalCommission = Number(allTimeAgg._sum.commissionAmount || 0);
+    const pendingToPay = Math.max(0, Math.round((historicalCommission - totalPaid) * 100) / 100);
+
     const monthRevenue = Number(monthAgg._sum.attributedValue || 0);
     const monthCommission = Number(monthAgg._sum.commissionAmount || 0);
     const monthConversions = monthAgg._count.id || 0;
@@ -429,6 +448,21 @@ export async function GET(
       })),
       dailyChart,
       topProducts: influencer.isProductBreakdownEnabled ? topProducts : undefined,
+      // Bloque D4 (item 31): lo que el owner ve en "Pagos y comisiones".
+      payments: {
+        pendingToPay,
+        totalPaid: Math.round(totalPaid * 100) / 100,
+        historicalCommission: Math.round(historicalCommission * 100) / 100,
+        history: paidPayouts.map((p) => ({
+          id: p.id,
+          amount: Number(p.amount || 0),
+          method: p.method,
+          reference: p.reference,
+          paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+          concept: p.concept,
+          campaign: p.campaign?.name || null,
+        })),
+      },
       updatedAt: now.toISOString(),
     };
 

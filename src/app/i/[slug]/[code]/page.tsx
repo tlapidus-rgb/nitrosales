@@ -74,6 +74,13 @@ interface DashboardData {
   recentSales: Array<{ timestamp: string; amount: number; commission: number }>;
   dailyChart: Array<{ date: string; sales: number; conversions: number }>;
   topProducts?: Array<{ name: string; imageUrl: string | null; units: number; revenue: number }>;
+  // Bloque D4 (item 31): lo que el owner ve en "Pagos y comisiones".
+  payments?: {
+    pendingToPay: number;
+    totalPaid: number;
+    historicalCommission: number;
+    history: Array<{ id: string; amount: number; method: string | null; reference: string | null; paidAt: string | null; concept: string; campaign: string | null }>;
+  };
   updatedAt: string;
 }
 
@@ -951,6 +958,47 @@ export default function PublicInfluencerDashboard() {
                   </div>
                 )}
               </div>
+
+              {/* Pagos y comisiones (Bloque D4 · item 31) */}
+              {data.payments && (
+                <div className={`${card} rounded-2xl p-5`}>
+                  <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Pagos y comisiones</p>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-2xl font-bold text-amber-400">{fmtARS(data.payments.pendingToPay)}</p>
+                      <p className={`text-[10px] ${textMuted} mt-0.5`}>Pendiente a pagar</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.payments.historicalCommission)}</p>
+                      <p className={`text-[10px] ${textMuted} mt-0.5`}>Comisión histórica (todo lo que generaste)</p>
+                    </div>
+                  </div>
+                  <div className={`text-[11px] ${textMuted} mb-2`}>
+                    Ya cobraste <span className="text-green-400 font-medium">{fmtARS(data.payments.totalPaid)}</span> en total.
+                  </div>
+
+                  <p className={`text-[11px] ${textSecondary} uppercase tracking-wider font-medium mt-4 mb-2`}>Pagos recibidos</p>
+                  {data.payments.history.length === 0 ? (
+                    <p className={`text-xs ${textMuted}`}>Todavía no registraron pagos hacia vos.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {data.payments.history.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{p.concept}</p>
+                            <p className={`text-[10px] ${textMuted}`}>
+                              {p.paidAt ? new Date(p.paidAt).toLocaleDateString("es-AR") : "—"}
+                              {p.method ? ` · ${p.method}` : ""}
+                              {p.reference ? ` · ${p.reference}` : ""}
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-green-400 shrink-0">{fmtARS(p.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Footer */}
               <div className="text-center pt-4">
