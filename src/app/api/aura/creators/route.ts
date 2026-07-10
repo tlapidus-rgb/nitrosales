@@ -16,8 +16,8 @@ import { waitUntil } from "@vercel/functions";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import {
-  createCreatorWithCommission,
-  validateCreatorCommissionInput,
+  createCreatorSimple,
+  validateCreatorSimpleInput,
   sendOnboardingEmail,
 } from "@/lib/aura/create-creator";
 
@@ -29,19 +29,15 @@ export async function POST(req: NextRequest) {
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const email = typeof body.email === "string" && body.email.trim() ? body.email.trim() : null;
 
-    // Comisión obligatoria: nombre + deal de un tipo que paga comisión, forma coherente.
-    const check = validateCreatorCommissionInput({ name, email, deal: body.deal });
+    // Item 9 (reunión Tomy 08/07/26): el afiliado se crea SIN comisión. Solo se
+    // pide nombre + email; la comisión se asigna después por campaña.
+    const check = validateCreatorSimpleInput({ name, email });
     if (!check.ok) {
       return NextResponse.json({ error: check.error }, { status: 400 });
     }
 
     const result = await prisma.$transaction((tx) =>
-      createCreatorWithCommission(tx, {
-        organizationId: org.id,
-        name,
-        email,
-        deal: body.deal,
-      }),
+      createCreatorSimple(tx, { organizationId: org.id, name, email }),
     );
 
     // Onboarding: mail con el link de set-password, POST-commit, fire-and-forget visible.
@@ -64,8 +60,6 @@ export async function POST(req: NextRequest) {
       creator: {
         id: result.influencerId,
         code: result.code,
-        campaignId: result.campaignId,
-        dealId: result.dealId,
       },
     });
   } catch (error: unknown) {

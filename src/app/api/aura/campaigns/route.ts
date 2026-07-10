@@ -15,18 +15,9 @@ import { prisma } from "@/lib/db/client";
 
 export async function POST(req: NextRequest) {
   try {
-    // Lote 2A: creación de campañas DESHABILITADA (concepto "Campaña" escondido por Tomy).
-    // La campaña base de un creador se crea al darlo de alta (no por este endpoint), y
-    // editar la existente sigue disponible vía PATCH /aura/campaigns/[id]. Gated por env
-    // para NO dejar código muerto (tsc deja el resto alcanzable): sin AURA_CAMPAIGNS_ENABLED=1
-    // devuelve 403. La lógica de creación queda intacta debajo para reactivar más adelante.
-    if (process.env.AURA_CAMPAIGNS_ENABLED !== "1") {
-      return NextResponse.json(
-        { error: "disabled", message: "La creación de campañas está deshabilitada por ahora." },
-        { status: 403 },
-      );
-    }
-
+    // Bloque D5 (reunión Tomy 08/07/26): "Comenzar campaña" es el flujo central del
+    // nuevo modelo (el afiliado se crea SIN comisión y se le asigna por campaña), así
+    // que la creación de campañas vuelve a estar habilitada.
     const org = await getOrganization(req);
     const body = await req.json().catch(() => ({}));
 
@@ -91,80 +82,92 @@ export async function POST(req: NextRequest) {
     ];
     const COMMISSION_TYPES = ["COMMISSION", "TIERED_COMMISSION", "HYBRID"];
 
-    // Validar uniqueness de comisión activa
-    if (deal && COMMISSION_TYPES.includes(deal.type)) {
-      const existingCommissionDeal = await prisma.influencerDeal.findFirst({
-        where: {
-          organizationId: org.id,
-          influencerId: influencer.id,
-          status: "ACTIVE",
-          type: { in: COMMISSION_TYPES },
-        },
-        select: { id: true, name: true, type: true },
-      });
-      if (existingCommissionDeal) {
-        return NextResponse.json(
-          {
-            error: "commission_conflict",
-            message: `Este creador ya tiene un deal de comisión activo ("${existingCommissionDeal.name}"). Desactivá el existente antes de crear uno nuevo.`,
-            existingDealId: existingCommissionDeal.id,
-          },
-          { status: 409 },
-        );
-      }
-    }
-
-    const created = await prisma.influencerCampaign.create({
-      data: {
-        organizationId: org.id,
-        influencerId: influencer.id,
-        name,
-        description:
-          typeof body.description === "string" && body.description.trim()
-            ? body.description.trim()
-            : null,
-        startDate,
-        endDate,
-        bonusAmount,
-        bonusTarget,
-        status: "ACTIVE",
-      },
+    void COMMISSION_TYPES;
+    // Bloque D5: una sola campaña activa a la vez. Si ya hay una ACTIVE, hay que
+    // finalizarla antes de comenzar otra (item 12). Reemplaza el viejo chequeo de
+    // "deal de comisión activo".
+    const existingActive = await prisma.influencerCampaign.findFirst({
+      where: { organizationId: org.id, influencerId: influencer.id, status: "ACTIVE" },
       select: { id: true, name: true },
     });
-
-    // Crear el deal dentro de la campaña si se pasaron datos
-    let createdDealId: string | null = null;
-    if (deal && deal.type && ALLOWED_DEAL_TYPES.includes(deal.type)) {
-      const dealData: any = {
-        organizationId: org.id,
-        influencerId: influencer.id,
-        campaignId: created.id,
-        name: (deal.name || "").trim() || `${name} · ${influencer.name}`,
-        type: deal.type,
-        status: "ACTIVE",
-        currency: deal.currency || "ARS",
-        notes: deal.notes || null,
-        startDate: startDate,
-        endDate: endDate,
-        excludeFromCommission: !!deal.excludeFromCommission,
-      };
-      if (deal.commissionPercent != null) dealData.commissionPercent = Number(deal.commissionPercent);
-      if (deal.flatAmount != null) dealData.flatAmount = Number(deal.flatAmount);
-      if (deal.flatUnit) dealData.flatUnit = deal.flatUnit;
-      if (deal.bonusAmount != null) dealData.bonusAmount = Number(deal.bonusAmount);
-      if (deal.bonusMetric) dealData.bonusMetric = deal.bonusMetric;
-      if (deal.bonusTarget != null) dealData.bonusTarget = Number(deal.bonusTarget);
-      if (deal.tiers) dealData.tiers = deal.tiers;
-      if (deal.cpmRate != null) dealData.cpmRate = Number(deal.cpmRate);
-      if (deal.productValue != null) dealData.productValue = Number(deal.productValue);
-      if (deal.productDescription) dealData.productDescription = deal.productDescription;
-
-      const d = await prisma.influencerDeal.create({
-        data: dealData,
-        select: { id: true },
-      });
-      createdDealId = d.id;
+    if (existingActive) {
+      return NextResponse.json(
+        {
+          error: "active_campaign_exists",
+          message: `Este creador ya tiene una campaña activa ("${existingActive.name}"). Finalizala antes de comenzar otra.`,
+          existingCampaignId: existingActive.id,
+        },
+        { status: 409 },
+      );
     }
+
+    // Comisión de la campaña → se aplica al creador (el motor de atribución lee
+    // influencer.commissionPercent). Así "asignar comisión por campaña" (item 9)
+    // afecta de verdad las comisiones que se generan durante la campaña.
+    const campaignCommission =
+      deal && deal.type === "COMMISSION" && deal.commissionPercent != null
+        ? Number(deal.commissionPercent)
+        : null;
+
+    const { created, createdDealId } = await prisma.$transaction(async (tx) => {
+      const created = await tx.influencerCampaign.create({
+        data: {
+          organizationId: org.id,
+          influencerId: influencer.id,
+          name,
+          description:
+            typeof body.description === "string" && body.description.trim()
+              ? body.description.trim()
+              : null,
+          startDate,
+          endDate,
+          bonusAmount,
+          bonusTarget,
+          status: "ACTIVE",
+        },
+        select: { id: true, name: true },
+      });
+
+      let createdDealId: string | null = null;
+      if (deal && deal.type && ALLOWED_DEAL_TYPES.includes(deal.type)) {
+        const dealData: any = {
+          organizationId: org.id,
+          influencerId: influencer.id,
+          campaignId: created.id,
+          name: (deal.name || "").trim() || `${name} · ${influencer.name}`,
+          type: deal.type,
+          status: "ACTIVE",
+          currency: deal.currency || "ARS",
+          notes: deal.notes || null,
+          startDate: startDate,
+          endDate: endDate,
+          excludeFromCommission: !!deal.excludeFromCommission,
+        };
+        if (deal.commissionPercent != null) dealData.commissionPercent = Number(deal.commissionPercent);
+        if (deal.flatAmount != null) dealData.flatAmount = Number(deal.flatAmount);
+        if (deal.flatUnit) dealData.flatUnit = deal.flatUnit;
+        if (deal.bonusAmount != null) dealData.bonusAmount = Number(deal.bonusAmount);
+        if (deal.bonusMetric) dealData.bonusMetric = deal.bonusMetric;
+        if (deal.bonusTarget != null) dealData.bonusTarget = Number(deal.bonusTarget);
+        if (deal.tiers) dealData.tiers = deal.tiers;
+        if (deal.cpmRate != null) dealData.cpmRate = Number(deal.cpmRate);
+        if (deal.productValue != null) dealData.productValue = Number(deal.productValue);
+        if (deal.productDescription) dealData.productDescription = deal.productDescription;
+
+        const d = await tx.influencerDeal.create({ data: dealData, select: { id: true } });
+        createdDealId = d.id;
+      }
+
+      // Aplicar la comisión de la campaña al creador (motor CORE).
+      if (campaignCommission != null && campaignCommission >= 0 && campaignCommission <= 100) {
+        await tx.influencer.update({
+          where: { id: influencer.id, organizationId: org.id },
+          data: { commissionPercent: campaignCommission },
+        });
+      }
+
+      return { created, createdDealId };
+    });
 
     return NextResponse.json({ ok: true, campaign: created, createdDealId });
   } catch (error) {

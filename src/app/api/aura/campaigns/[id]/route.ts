@@ -276,47 +276,42 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
+    // Item 32b (reunión Tomy 08/07/26): una vez definida, la campaña NO se
+    // modifica. Solo se permite cambiar el ESTADO (finalizar/pausar) y el endDate
+    // que acompaña a la finalización. Nombre, fechas de inicio, bonus, etc. quedan
+    // fijos. Se ignora cualquier otro campo.
     const data: any = {};
-    if (typeof body.name === "string" && body.name.trim())
-      data.name = body.name.trim();
-    if (typeof body.description === "string")
-      data.description = body.description.trim() || null;
-    if (body.startDate) data.startDate = new Date(body.startDate);
-    if (body.endDate !== undefined)
-      data.endDate = body.endDate ? new Date(body.endDate) : null;
-    if (body.bonusAmount !== undefined)
-      data.bonusAmount =
-        body.bonusAmount === null || body.bonusAmount === ""
-          ? null
-          : Number(body.bonusAmount);
-    if (body.bonusTarget !== undefined)
-      data.bonusTarget =
-        body.bonusTarget === null || body.bonusTarget === ""
-          ? null
-          : Number(body.bonusTarget);
     if (
       typeof body.status === "string" &&
       ["ACTIVE", "PAUSED", "COMPLETED"].includes(body.status.toUpperCase())
     ) {
       data.status = body.status.toUpperCase();
     }
-    if (typeof body.influencerId === "string" && body.influencerId.trim()) {
-      // verificar que el influencer pertenezca a la org
-      const inf = await prisma.influencer.findFirst({
-        where: { organizationId: org.id, id: body.influencerId },
-        select: { id: true },
-      });
-      if (inf) data.influencerId = inf.id;
-    }
+    if (body.endDate !== undefined)
+      data.endDate = body.endDate ? new Date(body.endDate) : null;
 
     if (Object.keys(data).length === 0) {
-      return NextResponse.json({ error: "no_fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "no_editable", message: "Una campaña definida no se puede modificar; solo finalizar." },
+        { status: 400 },
+      );
     }
 
-    const updated = await prisma.influencerCampaign.update({
-      where: { id, organizationId: org.id }, // org en el where (cierra TOCTOU, patrón D9)
-      data,
-      select: { id: true, status: true, name: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      const updated = await tx.influencerCampaign.update({
+        where: { id, organizationId: org.id }, // org en el where (cierra TOCTOU, patrón D9)
+        data,
+        select: { id: true, status: true, name: true },
+      });
+      // Al finalizar la campaña, sus deals dejan de estar activos (item 12/32b):
+      // así el creador queda libre para comenzar otra campaña con nueva comisión.
+      if (data.status === "COMPLETED") {
+        await tx.influencerDeal.updateMany({
+          where: { organizationId: org.id, campaignId: id, status: "ACTIVE" },
+          data: { status: "ENDED" },
+        });
+      }
+      return updated;
     });
     return NextResponse.json({ ok: true, campaign: updated });
   } catch (error) {

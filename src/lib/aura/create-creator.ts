@@ -221,6 +221,49 @@ export async function createCreatorWithCommission(
   };
 }
 
+/**
+ * Valida el input mínimo para el alta SIN comisión (item 9, reunión Tomy
+ * 08/07/26): nombre + email. La comisión ya NO se pide al dar de alta — se
+ * asigna después por campaña ("Comenzar campaña"). Testeable sin DB.
+ */
+export function validateCreatorSimpleInput(input: {
+  name?: unknown;
+  email?: unknown;
+}): { ok: true } | { ok: false; error: string } {
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (!name) return { ok: false, error: "Nombre requerido" };
+  const email = typeof input.email === "string" ? input.email.trim() : "";
+  if (!email) return { ok: false, error: "Email requerido (se le manda su acceso por mail)" };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Email inválido" };
+  return { ok: true };
+}
+
+/**
+ * Alta de creador SIN comisión (item 9). Crea SOLO el influencer con
+ * commissionPercent = 0 (sin campaña ni deal). La comisión y las campañas se
+ * asignan después con "Comenzar campaña", que actualiza influencer.commissionPercent.
+ * DEBE correr dentro de un tx.
+ */
+export async function createCreatorSimple(
+  tx: Prisma.TransactionClient,
+  input: { organizationId: string; name: string; email?: string | null },
+): Promise<{ influencerId: string; code: string }> {
+  const name = input.name.trim();
+  const code = await generateUniqueCode(tx, input.organizationId, name);
+  const influencer = await tx.influencer.create({
+    data: {
+      organizationId: input.organizationId,
+      name,
+      code,
+      email: input.email ?? null,
+      commissionPercent: 0, // sin comisión hasta que una campaña se la asigne
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  return { influencerId: influencer.id, code };
+}
+
 /** Base URL para los links del mail (mismo resolver que el dashboard existente). */
 function appBaseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";

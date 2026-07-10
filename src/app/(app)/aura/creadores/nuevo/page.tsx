@@ -30,29 +30,26 @@ export default function NuevoCreadorPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [commissionPercent, setCommissionPercent] = useState("10");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pct = parseFloat(commissionPercent);
   // Email OBLIGATORIO: se le manda el acceso (link de set-password) por mail.
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const canSubmit =
-    name.trim().length > 0 && emailValid && Number.isFinite(pct) && pct >= 0 && pct <= 100 && !saving;
+  const canSubmit = name.trim().length > 0 && emailValid && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSaving(true);
     setError(null);
     try {
+      // Item 9: el afiliado se crea SIN comisión. La comisión se asigna después
+      // con "Comenzar campaña".
       const r = await fetch("/api/aura/creators", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim() || null,
-          // Comisión obligatoria: deal base de tipo COMMISSION con el % ingresado.
-          deal: { type: "COMMISSION", commissionPercent: pct },
         }),
       });
       const d = await r.json().catch(() => ({}));
@@ -87,8 +84,8 @@ export default function NuevoCreadorPage() {
         <div className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight mb-1">Nuevo creador</h1>
           <p className="text-[13px]" style={{ color: THEME.textSecondary }}>
-            Se crea con su campaña base y su comisión. La comisión es obligatoria —
-            un creador nunca queda sin ella.
+            Se crea el afiliado y se le manda el acceso por mail. La comisión se
+            asigna después, al comenzar una campaña.
           </p>
         </div>
 
@@ -117,18 +114,7 @@ export default function NuevoCreadorPage() {
             />
           </Field>
 
-          <Field label="Comisión (%)" required hint="Porcentaje sobre las ventas atribuidas. 0 a 100.">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.5}
-              value={commissionPercent}
-              onChange={(e) => setCommissionPercent(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl outline-none text-sm"
-              style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
-            />
-          </Field>
+          {/* Comisión quitada del alta (item 9): se asigna por campaña. */}
 
           {error && (
             <p className="text-xs" style={{ color: "#f87171" }}>
