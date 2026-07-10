@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { PaymentsCard } from "./PaymentsCard";
+import { CampaignsPanel } from "./CampaignsPanel";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -932,180 +932,15 @@ export default function CreatorProfilePage() {
         {/* ─── ACCESO AL DASHBOARD (contraseña + enviar por mail) ─── */}
         <DashboardAccessSection creator={creator} onReload={load} />
 
-        {/* ─── PAGOS POR MES (Lote 2B · Pieza 2: corresponde vs registrado, sin saldo) ─── */}
+        {/* ─── CAMPAÑAS + PAGOS (Bloque D): Campaña activa, Pendiente a pagar
+            (FIFO) e Historial de campañas. Reemplaza "Pagos por mes" y las viejas
+            cards "Campañas" y "Pagos y comisiones" (items 11/12/13/14/16). ─── */}
         <div className="mt-5">
-          <PaymentsCard creatorId={creator.id} />
+          <CampaignsPanel creatorId={creator.id} />
         </div>
 
-        {/* ─── MAIN GRID: 2 cols en desktop ───────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* ─── COL IZQUIERDA (2/3): CAMPAÑAS (con deals inline) + CONTENIDO ─── */}
-          <div className="lg:col-span-2 space-y-5">
-            {/* CAMPAÑAS */}
-            <section
-              className="rounded-2xl p-5"
-              style={{
-                background: THEME.bgCard,
-                border: `1px solid ${THEME.border}`,
-                animation: `cardIn 600ms ${ES} 120ms both`,
-              }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2
-                    className="text-[16px] font-semibold tracking-tight"
-                    style={{ color: THEME.textPrimary }}
-                  >
-                    Campañas
-                  </h2>
-                  <p
-                    className="text-[12px] tracking-tight mt-0.5"
-                    style={{ color: THEME.textTertiary }}
-                  >
-                    {campaigns.length === 0
-                      ? "Sin campañas asignadas"
-                      : `${campaigns.filter((c) => c.status === "ACTIVE").length} activas de ${campaigns.length} totales`}
-                  </p>
-                </div>
-                {/* Lote 2A: botón "Nueva campaña" oculto — no se crean campañas nuevas
-                    (concepto escondido por Tomy). La card de campañas de abajo queda para
-                    ver/editar la existente. La campaña base se crea al dar de alta al creador. */}
-              </div>
-
-              {campaigns.length === 0 ? (
-                <EmptyBlock
-                  icon={<Rocket size={24} strokeWidth={1.6} style={{ color: THEME.textMuted }} />}
-                  title="Este creador aún no tiene campañas"
-                  subtitle="Asignalo a una campaña activa para empezar a trackear su performance."
-                />
-              ) : (
-                <div className="space-y-3">
-                  {campaigns.map((c) => (
-                    <CampaignCard key={c.id} campaign={c} />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* CONTENIDO — card "Contenido publicado" deshabilitada por pedido de
-                Tomy (reunión 08/07/26, item 27). Reactivar: cambiar false → true. */}
-            {false && (
-            <section
-              className="rounded-2xl p-5"
-              style={{
-                background: THEME.bgCard,
-                border: `1px solid ${THEME.border}`,
-                animation: `cardIn 640ms ${ES} 160ms both`,
-              }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2
-                    className="text-[16px] font-semibold tracking-tight"
-                    style={{ color: THEME.textPrimary }}
-                  >
-                    Contenido publicado
-                  </h2>
-                  <p
-                    className="text-[12px] tracking-tight mt-0.5"
-                    style={{ color: THEME.textTertiary }}
-                  >
-                    {content.items.length === 0
-                      ? "Sin piezas publicadas"
-                      : `${content.items.length} piezas · ${fmtNum(content.totalViews)} views · ${fmtPct(content.avgEngagement)} engagement promedio`}
-                  </p>
-                </div>
-              </div>
-
-              {content.items.length === 0 ? (
-                <EmptyBlock
-                  icon={<Play size={24} strokeWidth={1.6} style={{ color: THEME.textMuted }} />}
-                  title="Aún no subió contenido"
-                  subtitle="Cuando el creador publique, vas a ver aquí cada pieza con sus métricas."
-                />
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {content.items.map((item) => (
-                    <ContentCard key={item.id} item={item} />
-                  ))}
-                </div>
-              )}
-            </section>
-            )}
-          </div>
-
-          {/* ─── COL DERECHA (1/3): PAGOS + ACTIVIDAD ─── */}
-          <div className="space-y-5">
-            {/* PAGOS */}
-            <section
-              className="rounded-2xl p-5"
-              style={{
-                background: THEME.bgCard,
-                border: `1px solid ${THEME.border}`,
-                animation: `cardIn 680ms ${ES} 200ms both`,
-              }}
-            >
-              <h2
-                className="text-[16px] font-semibold tracking-tight mb-4"
-                style={{ color: THEME.textPrimary }}
-              >
-                Pagos y comisiones
-              </h2>
-              <div className="space-y-3">
-                <PaymentRow
-                  label="Comisión del período"
-                  value={fmtARS(kpis.period.commissionEarned)}
-                  sub={`${creator.commissionPercent}% sobre ${fmtARSCompact(kpis.period.revenue)}`}
-                  tone="gold"
-                />
-                <PaymentRow
-                  label="Comisión lifetime"
-                  value={fmtARS(kpis.lifetime.commissionEarned)}
-                  sub={`${fmtNum(kpis.lifetime.orders)} órdenes totales`}
-                  tone="neutral"
-                />
-                <div
-                  className="rounded-xl p-3.5 mt-2"
-                  style={{
-                    background: THEME.bgSoft,
-                    border: `1px dashed ${THEME.borderStrong}`,
-                  }}
-                >
-                  <div
-                    className="text-[11px] tracking-[0.1em] uppercase font-medium mb-1"
-                    style={{ color: THEME.textMuted }}
-                  >
-                    Cupones activos
-                  </div>
-                  {creator.coupons.length === 0 ? (
-                    <div className="text-[12px]" style={{ color: THEME.textTertiary }}>
-                      Sin cupones personalizados
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {creator.coupons.map((c) => (
-                        <span
-                          key={c.id}
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11.5px] font-mono"
-                          style={{
-                            background: THEME.bgCard,
-                            color: THEME.textPrimary,
-                            border: `1px solid ${THEME.border}`,
-                          }}
-                        >
-                          {c.code}
-                          <span style={{ color: THEME.gold }}>
-                            {c.discountPercent ? `-${c.discountPercent}%` : c.discountFixed ? `-${fmtARSCompact(c.discountFixed)}` : ""}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            {/* ACTIVIDAD */}
+        {/* ─── ÓRDENES GENERADAS (item 28: ancho completo / más grande) ─── */}
+        <div className="mt-5">
             <section
               className="rounded-2xl p-5"
               style={{
@@ -1145,7 +980,6 @@ export default function CreatorProfilePage() {
                 );
               })()}
             </section>
-          </div>
         </div>
       </div>
 
