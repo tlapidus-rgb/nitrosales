@@ -24,7 +24,10 @@ import {
   X,
   Copy,
   Check,
+  Users,
+  ChevronRight,
 } from "lucide-react";
+import { SettleForCreator } from "../creadores/[id]/CampaignsPanel";
 
 const THEME = {
   bgPage: "#0a0a14",
@@ -79,25 +82,30 @@ const fmtAR = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("es-AR") : "—");
 
+// Afiliado con saldo pendiente (Bloque D3).
+type PendingAffiliate = { id: string; name: string; code: string; profileImage: string | null; earned: number; paid: number; pending: number };
+
 export default function PagosPage() {
   const [items, setItems] = useState<Payout[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<"all" | "PENDING" | "PAID" | "CANCELLED">("PENDING");
+  const [status, setStatus] = useState<"PENDING" | "PAID">("PENDING");
   const [q, setQ] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [payModal, setPayModal] = useState<Payout | null>(null);
+  // Bloque D3: "pendiente" = saldo computado por afiliado (no payouts PENDING).
+  const [pending, setPending] = useState<{ items: PendingAffiliate[]; totalPending: number } | null>(null);
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [settleCreatorId, setSettleCreatorId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
+      // Los payouts PAID siguen saliendo del listado (historial de pagos).
       const params = new URLSearchParams();
-      params.set("status", status);
+      params.set("status", "PAID");
       if (q) params.set("q", q);
       const res = await fetch(`/api/aura/payouts/list?${params.toString()}`);
-      // Robustez: si la API falla, NO blanquear la lista como si no hubiera pagos
-      // (antes un 500 mostraba lista vacía → parecía "no hay pagos pendientes").
       if (!res.ok) {
         console.error("[pagos] load falló:", res.status);
         return;
@@ -110,10 +118,27 @@ export default function PagosPage() {
     }
   }
 
+  async function loadPending() {
+    try {
+      const res = await fetch("/api/aura/creators/pending-list", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setPending({ items: data.items || [], totalPending: data.totalPending || 0 });
+    } catch {
+      /* noop */
+    }
+  }
+
+  function reloadAll() {
+    load();
+    loadPending();
+  }
+
   useEffect(() => {
     load();
+    loadPending();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, []);
 
   // Robustez: fetch no lanza en 4xx/5xx. Sin este check, una acción fallida
   // refrescaba la lista y "parecía exitosa" (riesgo: creer que cancelaste/borraste y no).
@@ -196,8 +221,9 @@ export default function PagosPage() {
           <div className="flex items-center gap-2">
             {/* Botón "Auto-generar" eliminado (Lote 2A): los pagos se registran al pagar,
                 no se auto-generan. El modelo de pagos se rediseña en 2B. */}
+            {/* item 24: abre el selector de afiliado (con saldos) → modal FIFO. */}
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => setSelectorOpen(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
               style={{ background: THEME.gradient, color: "#fff", boxShadow: "0 0 24px rgba(168,85,247,0.35)" }}
             >
@@ -210,11 +236,13 @@ export default function PagosPage() {
         {/* KPIs — "Total comprometido" y "Cancelados" ocultos por pedido de Tomy
             (reunión 08/07/26, item 23): solo Pendiente y Pagado. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {/* item 20: "Pendiente" ahora es el saldo computado (ganado − pagado)
+              de todos los afiliados, no payouts PENDING (que ya no se crean). */}
           <KpiCard
             icon={<Clock size={18} />}
-            label="Pendiente"
-            value={totals ? fmtAR(totals.pendingAmount) : "—"}
-            sub={totals ? `${totals.pendingCount} pagos` : ""}
+            label="Pendiente a pagar"
+            value={pending ? fmtAR(pending.totalPending) : "—"}
+            sub={pending ? `${pending.items.filter((i) => i.pending > 0).length} afiliados con saldo` : ""}
             color={THEME.yellow}
           />
           <KpiCard
@@ -267,19 +295,30 @@ export default function PagosPage() {
 
         {/* Lista */}
         <div className="rounded-xl overflow-hidden" style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}` }}>
-          {loading ? (
-            <div className="p-12 text-center text-sm" style={{ color: THEME.textTertiary }}>
-              Cargando...
-            </div>
+          {status === "PENDING" ? (
+            // Pendientes = afiliados con saldo pendiente (item 20/24).
+            pending === null ? (
+              <div className="p-12 text-center text-sm" style={{ color: THEME.textTertiary }}>Cargando...</div>
+            ) : pending.items.filter((i) => i.pending > 0).length === 0 ? (
+              <div className="p-16 text-center">
+                <Wallet size={32} className="mx-auto mb-3" style={{ color: THEME.textMuted }} />
+                <p className="text-sm mb-1" style={{ color: THEME.textSecondary }}>No hay saldos pendientes.</p>
+                <p className="text-xs" style={{ color: THEME.textMuted }}>Cuando un creador genere comisiones sin pagar, aparece acá.</p>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: THEME.border }}>
+                {pending.items.filter((i) => i.pending > 0).map((a) => (
+                  <PendingAffiliateRow key={a.id} affiliate={a} onSettle={() => setSettleCreatorId(a.id)} />
+                ))}
+              </div>
+            )
+          ) : loading ? (
+            <div className="p-12 text-center text-sm" style={{ color: THEME.textTertiary }}>Cargando...</div>
           ) : items.length === 0 ? (
             <div className="p-16 text-center">
               <Wallet size={32} className="mx-auto mb-3" style={{ color: THEME.textMuted }} />
-              <p className="text-sm mb-1" style={{ color: THEME.textSecondary }}>
-                {status === "PENDING" ? "No hay pagos pendientes." : "No hay pagos en esta vista."}
-              </p>
-              <p className="text-xs" style={{ color: THEME.textMuted }}>
-                Registrá el primer pago con el botón de arriba.
-              </p>
+              <p className="text-sm mb-1" style={{ color: THEME.textSecondary }}>No hay pagos registrados.</p>
+              <p className="text-xs" style={{ color: THEME.textMuted }}>Registrá el primer pago con el botón de arriba.</p>
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: THEME.border }}>
@@ -302,12 +341,25 @@ export default function PagosPage() {
             08/07/26, item 21). */}
       </div>
 
-      {showCreate && (
-        <CreatePayoutModal
-          onClose={() => setShowCreate(false)}
-          onCreated={() => {
-            setShowCreate(false);
-            load();
+      {/* item 24: selector de afiliado (con saldos) → al elegir uno, modal FIFO. */}
+      {selectorOpen && (
+        <AffiliateSelectorModal
+          affiliates={pending?.items || []}
+          onClose={() => setSelectorOpen(false)}
+          onSelect={(id) => {
+            setSelectorOpen(false);
+            setSettleCreatorId(id);
+          }}
+        />
+      )}
+
+      {settleCreatorId && (
+        <SettleForCreator
+          creatorId={settleCreatorId}
+          onClose={() => setSettleCreatorId(null)}
+          onDone={() => {
+            setSettleCreatorId(null);
+            reloadAll();
           }}
         />
       )}
@@ -318,10 +370,110 @@ export default function PagosPage() {
           onClose={() => setPayModal(null)}
           onDone={() => {
             setPayModal(null);
-            load();
+            reloadAll();
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Fila de afiliado con saldo pendiente (Bloque D3) ─────────────
+function PendingAffiliateRow({ affiliate, onSettle }: { affiliate: PendingAffiliate; onSettle: () => void }) {
+  return (
+    <div className="p-4 flex items-center gap-4 hover:bg-white/[0.02] transition-colors">
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
+        style={{ background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))", color: "#fff" }}
+      >
+        {affiliate.name.slice(0, 1).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{affiliate.name}</div>
+        <div className="text-xs" style={{ color: THEME.textMuted }}>
+          @{affiliate.code} · {fmtAR(affiliate.earned)} ganado · {fmtAR(affiliate.paid)} pagado
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="text-[10px] uppercase tracking-wider" style={{ color: THEME.textMuted }}>Pendiente</div>
+        <div className="text-base font-semibold tabular-nums" style={{ color: THEME.yellow }}>{fmtAR(affiliate.pending)}</div>
+      </div>
+      <button
+        onClick={onSettle}
+        className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:brightness-110"
+        style={{ background: THEME.gradient, color: "#fff" }}
+      >
+        Registrar pago
+      </button>
+    </div>
+  );
+}
+
+// ─── Selector de afiliado para registrar pago (item 24) ───────────
+function AffiliateSelectorModal({
+  affiliates,
+  onClose,
+  onSelect,
+}: {
+  affiliates: PendingAffiliate[];
+  onClose: () => void;
+  onSelect: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const withPending = affiliates.filter((a) => a.pending > 0);
+  const filtered = withPending.filter(
+    (a) => a.name.toLowerCase().includes(q.toLowerCase()) || a.code.toLowerCase().includes(q.toLowerCase()),
+  );
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }} onClick={onClose}>
+      <div className="w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col rounded-2xl" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: THEME.border }}>
+          <div>
+            <div className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: THEME.purple }}>Registrar pago</div>
+            <h2 className="text-lg font-semibold">Elegí un afiliado</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X size={16} style={{ color: THEME.textSecondary }} /></button>
+        </div>
+        <div className="p-3 border-b" style={{ borderColor: THEME.border }}>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: THEME.textTertiary }} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar afiliado..."
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg outline-none"
+              style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+            />
+          </div>
+        </div>
+        <div className="overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-sm" style={{ color: THEME.textTertiary }}>
+              {withPending.length === 0 ? "Ningún afiliado tiene saldo pendiente." : "Sin resultados."}
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: THEME.border }}>
+              {filtered.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => onSelect(a.id)}
+                  className="w-full p-4 flex items-center gap-3 text-left hover:bg-white/[0.03] transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))", color: "#fff" }}>
+                    {a.name.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{a.name}</div>
+                    <div className="text-xs" style={{ color: THEME.textMuted }}>@{a.code}</div>
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums" style={{ color: THEME.yellow }}>{fmtAR(a.pending)}</div>
+                  <ChevronRight size={16} style={{ color: THEME.textMuted }} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

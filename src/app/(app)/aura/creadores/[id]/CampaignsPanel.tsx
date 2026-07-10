@@ -454,3 +454,74 @@ function SettlePaymentModal({
     </div>
   );
 }
+
+// ─── Wrapper reutilizable: trae el saldo del creador y abre el modal FIFO ───
+// Lo usa la página de Pagos (D3) tras elegir un afiliado en el selector.
+export function SettleForCreator({
+  creatorId,
+  onClose,
+  onDone,
+}: {
+  creatorId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [data, setData] = useState<Balances | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/aura/creators/${creatorId}/balance`, { cache: "no-store" })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Error");
+        if (!cancelled) setData(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [creatorId]);
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
+        <div className="rounded-2xl p-6 max-w-sm text-[13px]" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}`, color: "#f87171" }} onClick={(e) => e.stopPropagation()}>
+          No se pudo cargar el saldo: {error}
+        </div>
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
+        <div className="rounded-2xl p-6 text-[13px]" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}`, color: THEME.textTertiary }}>
+          Cargando saldo…
+        </div>
+      </div>
+    );
+  }
+  const pending = data.campaigns.filter((c) => c.pending > 0);
+  if (pending.length === 0) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
+        <div className="rounded-2xl p-6 max-w-sm text-center" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
+          <div className="text-[14px] font-semibold mb-1" style={{ color: THEME.textPrimary }}>Sin saldo pendiente</div>
+          <p className="text-[12px]" style={{ color: THEME.textTertiary }}>Este afiliado no tiene comisiones pendientes de pago.</p>
+          <button onClick={onClose} className="mt-4 px-4 py-2 rounded-lg text-[12px] font-semibold text-white" style={{ background: THEME.gradient }}>Cerrar</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <SettlePaymentModal
+      creatorId={creatorId}
+      pendingCampaigns={pending}
+      totalPending={data.totalPending}
+      onClose={onClose}
+      onDone={onDone}
+    />
+  );
+}
