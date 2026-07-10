@@ -848,14 +848,17 @@ function SessionsKpi({
   kpi: Kpi & { totalViews: number };
   delay: number;
 }) {
-  const v = useCountUp(kpi.current, 1000);
+  // item 17 (opción B de Tomy): la card muestra la CANTIDAD de sesiones/alcance
+  // (totalViews), no el monto de EMV. El delta sigue siendo válido: EMV es views
+  // × constante, así que el % de cambio es el mismo.
+  const v = useCountUp(kpi.totalViews, 1000);
   return (
     <KpiShell
       accent="gold"
       label={
         <span className="inline-flex items-center gap-1.5">
           Sesiones generadas
-          <InfoTip text="Valor mediático ganado (EMV) estimado como alcance total × CPM promedio LATAM (Meta + Google + TikTok). Aproximación." />
+          <InfoTip text="Alcance total estimado (views + reach + impresiones) del contenido publicado de tus creadores en el período." />
         </span>
       }
       icon={<Eye size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
@@ -882,13 +885,11 @@ function SessionsKpi({
       }
     >
       <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
-        {fmtARSCompact(v)}
+        {fmtNum(v)}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35 tabular-nums">
-          {fmtNum(kpi.totalViews)} views
-        </span>
+        <span className="text-[10.5px] text-white/35">sesiones estimadas</span>
       </div>
     </KpiShell>
   );
