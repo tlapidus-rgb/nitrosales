@@ -270,7 +270,7 @@ export async function PATCH(
 
     const existing = await prisma.influencerCampaign.findFirst({
       where: { organizationId: org.id, id },
-      select: { id: true },
+      select: { id: true, influencerId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -305,10 +305,16 @@ export async function PATCH(
       });
       // Al finalizar la campaña, sus deals dejan de estar activos (item 12/32b):
       // así el creador queda libre para comenzar otra campaña con nueva comisión.
+      // Fix review #3: además se corta la comisión del creador (0%) para que no
+      // sigan acumulándose comisiones sin campaña activa hasta comenzar otra.
       if (data.status === "COMPLETED") {
         await tx.influencerDeal.updateMany({
           where: { organizationId: org.id, campaignId: id, status: "ACTIVE" },
           data: { status: "ENDED" },
+        });
+        await tx.influencer.update({
+          where: { id: existing.influencerId, organizationId: org.id },
+          data: { commissionPercent: 0 },
         });
       }
       return updated;

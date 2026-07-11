@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { computeCreatorBalances, allocateFifo } from "@/lib/aura/campaign-balance";
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const result = await prisma.$transaction(async (tx) => {
       // Recalcular DENTRO del tx: el saldo es la fuente de verdad al momento de pagar.
       const balances = await computeCreatorBalances(tx, org.id, creator.id);
+      // (isolationLevel Serializable abajo — fix review #4: evita doble pago si
+      //  dos registros concurrentes leen el mismo saldo.)
       const { allocations, allocated, leftover } = allocateFifo(
         balances.campaigns,
         amount,
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
 
       return { created: allocations.length, allocations, allocated, leftover, totalPendingBefore: balances.totalPending };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {

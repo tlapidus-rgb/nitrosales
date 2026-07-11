@@ -73,33 +73,41 @@ export async function computeCreatorBalances(
     if (row.campaignId) paidMap.set(row.campaignId, Number(row._sum.amount || 0));
   }
 
-  const now = new Date();
-  const balances: CampaignBalance[] = [];
-  for (const c of campaigns) {
-    const windowEnd = c.endDate ?? now;
-    const agg = await db.influencerAttribution.aggregate({
-      where: {
-        organizationId,
-        influencerId: creatorId,
-        createdAt: { gte: c.startDate, lte: windowEnd },
-      },
-      _sum: { commissionAmount: true },
-    });
-    const earned = round2(Number(agg._sum.commissionAmount || 0));
-    const paid = round2(paidMap.get(c.id) || 0);
-    const pending = round2(Math.max(0, earned - paid));
-    balances.push({
-      campaignId: c.id,
-      name: c.name,
-      status: c.status,
-      isAlwaysOn: c.isAlwaysOn ?? false,
-      startDate: c.startDate.toISOString(),
-      endDate: c.endDate ? c.endDate.toISOString() : null,
-      earned,
-      paid,
-      pending,
-    });
-  }
+  // Ventanas CONTIGUAS por startDate (fix review #1/#2/#5): cada campaña posee
+  // las comisiones desde su inicio hasta el inicio de la SIGUIENTE campaña (o
+  // ahora, si es la última). Así no hay huecos (comisiones del día de finalización
+  // o entre campañas no se pierden), ni doble-conteo por ventanas solapadas, y la
+  // suma del ganado por campaña == comisión lifetime (coincide con pending-list).
+  // La primera campaña arranca en epoch para capturar cualquier comisión previa a
+  // su startDate. NO se usa endDate para el corte (era fecha-sola y perdía el día).
+  const balances: CampaignBalance[] = await Promise.all(
+    campaigns.map(async (c, i) => {
+      const windowStart = i === 0 ? new Date(0) : campaigns[i].startDate;
+      const nextStart = i < campaigns.length - 1 ? campaigns[i + 1].startDate : null;
+      const agg = await db.influencerAttribution.aggregate({
+        where: {
+          organizationId,
+          influencerId: creatorId,
+          createdAt: nextStart ? { gte: windowStart, lt: nextStart } : { gte: windowStart },
+        },
+        _sum: { commissionAmount: true },
+      });
+      const earned = round2(Number(agg._sum.commissionAmount || 0));
+      const paid = round2(paidMap.get(c.id) || 0);
+      const pending = round2(Math.max(0, earned - paid));
+      return {
+        campaignId: c.id,
+        name: c.name,
+        status: c.status,
+        isAlwaysOn: c.isAlwaysOn ?? false,
+        startDate: c.startDate.toISOString(),
+        endDate: c.endDate ? c.endDate.toISOString() : null,
+        earned,
+        paid,
+        pending,
+      };
+    }),
+  );
 
   const totalEarned = round2(balances.reduce((s, b) => s + b.earned, 0));
   const totalPaid = round2(balances.reduce((s, b) => s + b.paid, 0));

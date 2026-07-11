@@ -104,10 +104,13 @@ export async function POST(req: NextRequest) {
     // Comisión de la campaña → se aplica al creador (el motor de atribución lee
     // influencer.commissionPercent). Así "asignar comisión por campaña" (item 9)
     // afecta de verdad las comisiones que se generan durante la campaña.
-    const campaignCommission =
+    // Fix review #3: si la campaña NO es de comisión (flat fee, CPM, bonus), se
+    // resetea a 0 para no arrastrar el % de una campaña anterior.
+    const rawPct =
       deal && deal.type === "COMMISSION" && deal.commissionPercent != null
         ? Number(deal.commissionPercent)
-        : null;
+        : 0;
+    const campaignCommission = Number.isFinite(rawPct) ? Math.max(0, Math.min(100, rawPct)) : 0;
 
     const { created, createdDealId } = await prisma.$transaction(async (tx) => {
       const created = await tx.influencerCampaign.create({
@@ -158,13 +161,12 @@ export async function POST(req: NextRequest) {
         createdDealId = d.id;
       }
 
-      // Aplicar la comisión de la campaña al creador (motor CORE).
-      if (campaignCommission != null && campaignCommission >= 0 && campaignCommission <= 100) {
-        await tx.influencer.update({
-          where: { id: influencer.id, organizationId: org.id },
-          data: { commissionPercent: campaignCommission },
-        });
-      }
+      // Aplicar la comisión de la campaña al creador (motor CORE). Siempre se
+      // setea (0 si la campaña no es de comisión) para no arrastrar % previos.
+      await tx.influencer.update({
+        where: { id: influencer.id, organizationId: org.id },
+        data: { commissionPercent: campaignCommission },
+      });
 
       return { created, createdDealId };
     });
