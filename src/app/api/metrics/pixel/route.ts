@@ -60,11 +60,33 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 // rangos responden muy por debajo de este techo; queda como red de seguridad.
 const GLOBAL_TIMEOUT_MS = 25000;
 
+// IMPORTANTE: este mock debe tener la MISMA FORMA que la respuesta real de
+// realHandler(), pero en cero. Se devuelve en el cold-cache/timeout (primera
+// carga, cuando el compute tarda) — si le faltan campos que /pixel/analytics
+// lee (businessKpis, channelRoas, deviceBreakdown, liveStatus, pixelHealth,
+// recentJourneys, channelRoles, dailyChannelBreakdown, funnel), la página
+// crashea en la primera carga. La página ya renderiza bien los datos reales
+// vacíos, así que con la forma correcta muestra "sin datos" sin romper.
 function buildEmptyMockResponse() {
   const nowIso = new Date().toISOString();
   return {
-    kpis: {}, funnel: {}, sources: [], sourcesPrev: [], devices: [],
-    topCampaigns: [], topPages: [], popularPages: [], perDayCoverage: [],
+    liveStatus: { status: "IDLE", lastEventAt: null, totalEvents: 0, lastHourEvents: 0 },
+    kpis: {
+      totalVisitors: 0, totalSessions: 0, totalPageViews: 0, identifiedVisitors: 0,
+      cartVisitors: 0, purchaseVisitors: 0, pagesPerSession: 0, daysInPeriod: 1,
+      changes: { visitors: 0, sessions: 0, pageViews: 0 },
+    },
+    businessKpis: {
+      pixelRevenue: 0, projectedRevenue: 0, pixelRoas: 0, pixelRoasRaw: 0,
+      ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0,
+      totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0,
+      changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 },
+    },
+    channelRoas: [], channelRoles: [], deviceBreakdown: [], dailyChannelBreakdown: [],
+    recentJourneys: [], perDayCoverage: [], popularPages: [],
+    sources: [], sourcesPrev: [], devices: [], topCampaigns: [], topPages: [],
+    dailyRevenue: [], dailyVisitors: [], recentEvents: [], recentOrders: [],
+    funnel: { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 },
     conversionRates: { byChannel: [], byDevice: [], byCategory: [], byBrand: [], byProduct: [] },
     attribution: { byModel: [], bySource: [], byModelChannel: [], conversionLag: [] },
     journeyIntelligence: {
@@ -72,7 +94,7 @@ function buildEmptyMockResponse() {
       multiTouchRevenue: 0, singleTouchRevenue: 0, multiTouchAOV: 0,
       singleTouchAOV: 0, aovLift: 0, channelPairs: [], conversionLag: [], channelRoles: [],
     },
-    recentEvents: [], recentOrders: [],
+    pixelHealth: null,
     pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 },
     meta: {
       dateFrom: nowIso, dateTo: nowIso, daysInPeriod: 1,
