@@ -29,6 +29,14 @@ const parseDayLocal = (v: string | number | Date): Date => {
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return new Date(s);
 };
+// Formatea una fecha como "YYYY-MM-DD" en la zona LOCAL (no UTC). `toISOString()`
+// da UTC → en AR después de las 21:00 "Hoy" apuntaba a mañana (0 datos).
+const localYMD = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 const fmt = (n: number) => n.toLocaleString("es-AR");
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -429,8 +437,8 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Date range
-  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(() => localYMD(new Date()));
+  const [dateTo, setDateTo] = useState(() => localYMD(new Date()));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(null);
 
   // UI states
@@ -703,8 +711,8 @@ export default function AnalyticsPage() {
               onQuickRange={(days) => {
                 setActiveQuickRange(days);
                 const to = new Date(); const from = new Date(Date.now() - days * MS_PER_DAY);
-                setDateFrom(from.toISOString().slice(0, 10));
-                setDateTo(to.toISOString().slice(0, 10));
+                setDateFrom(localYMD(from));
+                setDateTo(localYMD(to));
               }}
             />
           </div>
