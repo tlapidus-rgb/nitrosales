@@ -26,6 +26,17 @@ const BUILTIN_PRESETS = [
 
 const EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
 
+// Fecha YYYY-MM-DD en la zona horaria LOCAL del navegador (no UTC). Bug fix:
+// `new Date().toISOString()` da UTC → en AR (UTC-3) después de las 21:00 el día
+// ya avanzó, así que "Hoy" apuntaba a mañana y mostraba 0 datos ("todo corrido
+// un día"). getFullYear/getMonth/getDate usan la hora local → el día correcto.
+function localYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function DateRangeFilter({
   dateFrom,
   dateTo,
@@ -42,11 +53,11 @@ export default function DateRangeFilter({
   const handlePreset = (days: number) => {
     setShowCustom(false);
     if (days === 0) {
-      const today = new Date().toISOString().split("T")[0];
+      const today = localYMD(new Date());
       onDateChange("from", today);
       onDateChange("to", today);
     } else if (days === 1) {
-      const y = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+      const y = localYMD(new Date(Date.now() - 86400000));
       onDateChange("from", y);
       onDateChange("to", y);
     } else {
@@ -62,8 +73,8 @@ export default function DateRangeFilter({
   };
 
   // Determinar si "Personalizado" está activo (ningún preset matchea)
-  const today = new Date().toISOString().split("T")[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const today = localYMD(new Date());
+  const yesterday = localYMD(new Date(Date.now() - 86400000));
   const isToday = dateFrom === today && dateTo === today;
   const isYesterday = dateFrom === yesterday && dateTo === yesterday;
   const isQuickActive = activeQuickRange !== null && activeQuickRange > 1;
