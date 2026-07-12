@@ -136,7 +136,15 @@ export async function GET(req: NextRequest) {
     // SECUENCIAL: org → rango → endpoint, un fetch a la vez (anti-herd).
     // Presupuesto de tiempo para no chocar contra maxDuration.
     const startedAt = Date.now();
-    const TIME_BUDGET_MS = 270_000;
+    // Timeout POR fetch: un self-fetch colgado NO puede bloquear la función entera.
+    // BUG PREVIO: el fetch no tenía timeout → si /api/metrics/pixel se colgaba (p.ej.
+    // con los rollups stale, cuando cae a escanear pixel_events crudo), el await
+    // bloqueaba hasta el maxDuration → 504. El chequeo de presupuesto es ENTRE
+    // fetches, no puede cortar uno en vuelo. 25s = igual al GLOBAL_TIMEOUT del pixel.
+    const PER_FETCH_TIMEOUT_MS = 25_000;
+    // 250s + 25s del último fetch = 275s < 300s (maxDuration). Antes 270s dejaba que
+    // un fetch iniciado cerca del tope empujara el total por encima de 300 → 504.
+    const TIME_BUDGET_MS = 250_000;
     let budgetHit = false;
     outer: for (const org of activeOrgs) {
       for (const range of ranges) {
@@ -150,6 +158,9 @@ export async function GET(req: NextRequest) {
             const r = await fetch(target, {
               method: "GET",
               cache: "no-store",
+              // Corta el fetch si un endpoint se cuelga (ver PER_FETCH_TIMEOUT_MS).
+              // El AbortError cae al catch de abajo → se registra como fail y sigue.
+              signal: AbortSignal.timeout(PER_FETCH_TIMEOUT_MS),
               // Bypass de Vercel Deployment Protection (BP-ROLLUP-CRON / Fix 2b):
               // sin esto, cuando Vercel cron dispara warm-cache el self-fetch va a
               // la URL del deployment (protegida) y da 401. El secret lo provee
