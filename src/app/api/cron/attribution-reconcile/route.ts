@@ -9,6 +9,10 @@
 // Idempotente (attributeOrderByMatch saltea las ya atribuidas). Multi-tenant.
 // Liviano: por org, ventana corta (últimos N días), límite por corrida.
 //
+// Además (Aura): tras atribuir el pixel, re-corre attributeOrderToInfluencer para
+// backfillear la atribución al CREADOR, que el ingest real-time pudo saltear por el
+// mismo race y que antes NADA recuperaba (la red solo cubría el pixel, no al creador).
+//
 // NOTA DEPLOY: para que corra programado hay que agregar la entrada en vercel.json
 // (o que lo dispare otro cron). Pendiente junto con la migración de crons a CRON_SECRET
 // (ver BP-M1). Mientras tanto es invocable manualmente con ?key=.
@@ -19,6 +23,7 @@ import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
 import { ordersValidWhere, ordersWebWhere } from "@/lib/metrics/orders";
 import { attributeOrderByMatch } from "@/lib/pixel/attribute-order-by-match";
+import { attributeOrderToInfluencer } from "@/lib/pixel/influencer-attribution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
@@ -73,6 +78,7 @@ export async function GET(req: NextRequest) {
     const perOrg: any[] = [];
     let totalAttributed = 0;
     let totalMarkedNoMatch = 0;
+    let totalCreatorAttributed = 0;
     let budgetHit = false;
     outer: for (const c of conns) {
       if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break; }
@@ -96,6 +102,7 @@ export async function GET(req: NextRequest) {
       let attributed = 0;
       let processed = 0;
       let markedNoMatch = 0;
+      let creatorAttributed = 0;
       for (const o of missing) {
         if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; }
         if (budgetHit) break outer;
@@ -120,18 +127,36 @@ export async function GET(req: NextRequest) {
               .catch(() => {});
             markedNoMatch++;
           }
+
+          // Backfill de atribución al CREADOR (Aura): si la orden quedó atribuida
+          // (pixel), re-corremos la atribución al influencer. El ingest real-time
+          // pudo saltearla (race: el pixel PURCHASE llegó antes que la orden/webhook,
+          // así que no había touchpoints al momento) y NADA la recuperaba después —
+          // la reconciliación solo cubría el pixel, no al creador. Idempotente:
+          // attributeOrderToInfluencer saltea las ya atribuidas. Barato (pocos matches
+          // por corrida en steady-state). Non-fatal.
+          if (r.matched && r.strategy !== "marketplace-skip") {
+            try {
+              const ir = await attributeOrderToInfluencer(o.id, orgId);
+              if (ir.attributed) creatorAttributed++;
+            } catch {
+              /* non-fatal */
+            }
+          }
         } catch {
           /* non-fatal */
         }
       }
       totalAttributed += attributed;
       totalMarkedNoMatch += markedNoMatch;
+      totalCreatorAttributed += creatorAttributed;
       perOrg.push({
         org: c.organization?.name || orgId,
         candidates: missing.length,
         processed,
         attributed,
         markedNoMatch,
+        creatorAttributed,
       });
     }
 
@@ -142,6 +167,7 @@ export async function GET(req: NextRequest) {
       orgs: conns.length,
       totalAttributed,
       totalMarkedNoMatch,
+      totalCreatorAttributed,
       budgetHit,
       perOrg,
     });
