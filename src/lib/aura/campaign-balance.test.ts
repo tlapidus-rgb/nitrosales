@@ -9,6 +9,7 @@ function makeDb(
   campaigns: Array<{ id: string; name: string; status: string; startDate: Date; endDate: Date | null }>,
   attributions: Array<{ createdAt: Date; commissionAmount: number }>,
   paid: Array<{ campaignId: string; amount: number }>,
+  unlinkedPaid = 0, // pagos PAID SIN campaignId (card mensual / manual)
 ) {
   const sorted = [...campaigns].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   return {
@@ -17,6 +18,7 @@ function makeDb(
     },
     payout: {
       groupBy: async () => paid.map((p) => ({ campaignId: p.campaignId, _sum: { amount: p.amount } })),
+      aggregate: async () => ({ _sum: { amount: unlinkedPaid } }),
     },
     influencerAttribution: {
       aggregate: async ({ where }: any) => {
@@ -81,6 +83,40 @@ describe("computeCreatorBalances — ventanas contiguas (fix review #1/#2/#5)", 
     expect(r.totalEarned).toBe(100);
     expect(r.totalPaid).toBe(40);
     expect(r.totalPending).toBe(60);
+  });
+
+  it("acredita pagos SIN campaña FIFO (antes se ignoraban → 'lo pagué y sigue pendiente')", async () => {
+    const db = makeDb(
+      [
+        { id: "A", name: "A", status: "COMPLETED", startDate: D(1), endDate: D(5) },
+        { id: "B", name: "B", status: "ACTIVE", startDate: D(8), endDate: null },
+      ],
+      [
+        { createdAt: D(3), commissionAmount: 100 }, // A
+        { createdAt: D(10), commissionAmount: 50 }, // B
+      ],
+      [], // sin pagos linkeados a campaña
+      120, // pago SIN campaña (card mensual) de $120
+    );
+    const r = await computeCreatorBalances(db, "org", "creator");
+    // $120 FIFO (más vieja primero): A ($100 → saldada), B ($20 de $50 → quedan $30).
+    expect(r.campaigns.find((x) => x.campaignId === "A")!.pending).toBe(0);
+    expect(r.campaigns.find((x) => x.campaignId === "B")!.pending).toBe(30);
+    expect(r.totalEarned).toBe(150);
+    expect(r.totalPaid).toBe(120);
+    expect(r.totalPending).toBe(30);
+  });
+
+  it("un pago que cubre todo lo ganado deja pendiente en 0 (sin importar el tag de campaña)", async () => {
+    const db = makeDb(
+      [{ id: "A", name: "A", status: "ACTIVE", startDate: D(1), endDate: null }],
+      [{ createdAt: D(3), commissionAmount: 100 }],
+      [], // nada linkeado
+      100, // pago sin campaña que cubre todo
+    );
+    const r = await computeCreatorBalances(db, "org", "creator");
+    expect(r.totalPending).toBe(0);
+    expect(r.totalPaid).toBe(100);
   });
 });
 

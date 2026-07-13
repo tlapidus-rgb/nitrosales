@@ -18,6 +18,12 @@
 //   paid(campaña) = SUM(amount de payouts PAID con campaignId = campaña.id).
 //   Los pagos registrados vía FIFO SÍ quedan linkeados por campaignId, así
 //   que "pagado" es exacto.
+//
+//   ADEMÁS: los pagos PAID SIN campaignId (card mensual del perfil, pago manual
+//   sin tag) se acreditan FIFO sobre el pendiente restante. Antes se IGNORABAN
+//   (el pendiente solo miraba payouts con campaignId) → un pago no tagueado NUNCA
+//   saldaba nada y quedaba "lo pagué y sigue pendiente". Así, totalPending ==
+//   ganado − TODO lo pagado, y coincide con /creators/pending-list (Pagos).
 // ══════════════════════════════════════════════════════════════
 
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -108,6 +114,25 @@ export async function computeCreatorBalances(
       };
     }),
   );
+
+  // Acreditar pagos PAID SIN campaña (card mensual / manual sin tag) FIFO sobre el
+  // pendiente restante (campaña más vieja primero — `balances` ya viene ordenado por
+  // startDate asc). Antes se ignoraban → un pago no linkeado no saldaba nada. Ahora
+  // ningún pago queda sin aplicar y el total == ganado − TODO lo pagado.
+  const unlinkedAgg = await db.payout.aggregate({
+    where: { organizationId, influencerId: creatorId, status: "PAID", campaignId: null },
+    _sum: { amount: true },
+  });
+  let unlinked = round2(Number(unlinkedAgg._sum.amount || 0));
+  for (const b of balances) {
+    if (unlinked <= 0) break;
+    const take = round2(Math.min(b.pending, unlinked));
+    if (take > 0) {
+      b.paid = round2(b.paid + take);
+      b.pending = round2(b.pending - take);
+      unlinked = round2(unlinked - take);
+    }
+  }
 
   const totalEarned = round2(balances.reduce((s, b) => s + b.earned, 0));
   const totalPaid = round2(balances.reduce((s, b) => s + b.paid, 0));
