@@ -70,7 +70,10 @@ type Application = {
   instagram: string | null;
   tiktok: string | null;
   youtube: string | null;
-  followers: string | null;
+  followers: string | null; // LEGACY: rango total (apps viejas)
+  instagramFollowers: number | null;
+  tiktokFollowers: number | null;
+  youtubeFollowers: number | null;
   message: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
   notes: string | null;
@@ -539,10 +542,10 @@ function ApplicationCard({
       {/* Redes */}
       <div className="mt-3 flex items-center gap-1.5 flex-wrap">
         {app.instagram ? (
-          <SocialPill platform="instagram" handle={app.instagram} />
+          <SocialPill platform="instagram" handle={app.instagram} followers={app.instagramFollowers} />
         ) : null}
-        {app.tiktok ? <SocialPill platform="tiktok" handle={app.tiktok} /> : null}
-        {app.youtube ? <SocialPill platform="youtube" handle={app.youtube} /> : null}
+        {app.tiktok ? <SocialPill platform="tiktok" handle={app.tiktok} followers={app.tiktokFollowers} /> : null}
+        {app.youtube ? <SocialPill platform="youtube" handle={app.youtube} followers={app.youtubeFollowers} /> : null}
       </div>
 
       {app.followers ? (
@@ -629,12 +632,20 @@ function ApplicationCard({
   );
 }
 
+function fmtFollowers(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K`;
+  return String(n);
+}
+
 function SocialPill({
   platform,
   handle,
+  followers,
 }: {
   platform: "instagram" | "tiktok" | "youtube";
   handle: string;
+  followers?: number | null;
 }) {
   const cfg = {
     instagram: { icon: <Instagram size={10} strokeWidth={2.2} />, color: "#E1306C" },
@@ -658,6 +669,9 @@ function SocialPill({
     >
       {cfg.icon}
       @{cleanHandle.slice(0, 20)}
+      {typeof followers === "number" ? (
+        <span style={{ color: THEME.textSecondary }}>· {fmtFollowers(followers)}</span>
+      ) : null}
     </a>
   );
 }
@@ -875,9 +889,9 @@ function ApprovalModal({
           {/* Redes sociales como referencia */}
           {app.instagram || app.tiktok || app.youtube ? (
             <div className="flex items-center gap-1.5 flex-wrap">
-              {app.instagram ? <SocialPill platform="instagram" handle={app.instagram} /> : null}
-              {app.tiktok ? <SocialPill platform="tiktok" handle={app.tiktok} /> : null}
-              {app.youtube ? <SocialPill platform="youtube" handle={app.youtube} /> : null}
+              {app.instagram ? <SocialPill platform="instagram" handle={app.instagram} followers={app.instagramFollowers} /> : null}
+              {app.tiktok ? <SocialPill platform="tiktok" handle={app.tiktok} followers={app.tiktokFollowers} /> : null}
+              {app.youtube ? <SocialPill platform="youtube" handle={app.youtube} followers={app.youtubeFollowers} /> : null}
             </div>
           ) : null}
 

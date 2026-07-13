@@ -9,14 +9,6 @@ import { useParams } from "next/navigation";
 // URL: /i/[org_slug]/apply
 // ══════════════════════════════════════════════════════════════
 
-const FOLLOWER_RANGES = [
-  "1K - 10K",
-  "10K - 50K",
-  "50K - 100K",
-  "100K - 500K",
-  "500K+",
-];
-
 export default function InfluencerApplyPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -30,9 +22,11 @@ export default function InfluencerApplyPage() {
     name: "",
     email: "",
     instagram: "",
+    instagramFollowers: "",
     tiktok: "",
+    tiktokFollowers: "",
     youtube: "",
-    followers: "",
+    youtubeFollowers: "",
     message: "",
   });
 
@@ -160,58 +154,46 @@ export default function InfluencerApplyPage() {
               </div>
             </div>
 
-            {/* Social Networks */}
+            {/* Social Networks — usuario + seguidores POR red (reunión Tomy) */}
             <div className={`${card} rounded-2xl p-5 space-y-4`}>
               <p className={`text-xs ${textMuted} uppercase tracking-wider font-medium`}>Redes sociales</p>
-              <div>
-                <label className={`text-xs ${textSecondary}`}>Instagram</label>
-                <input
-                  type="text"
-                  value={form.instagram}
-                  onChange={(e) => handleChange("instagram", e.target.value)}
-                  placeholder="@tu_usuario"
-                  className={`w-full mt-1 px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${inputClass}`}
-                />
-              </div>
-              <div>
-                <label className={`text-xs ${textSecondary}`}>TikTok</label>
-                <input
-                  type="text"
-                  value={form.tiktok}
-                  onChange={(e) => handleChange("tiktok", e.target.value)}
-                  placeholder="@tu_usuario"
-                  className={`w-full mt-1 px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${inputClass}`}
-                />
-              </div>
-              <div>
-                <label className={`text-xs ${textSecondary}`}>YouTube</label>
-                <input
-                  type="text"
-                  value={form.youtube}
-                  onChange={(e) => handleChange("youtube", e.target.value)}
-                  placeholder="URL de tu canal"
-                  className={`w-full mt-1 px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${inputClass}`}
-                />
-              </div>
+              {([
+                { key: "instagram", label: "Instagram", placeholder: "@tu_usuario" },
+                { key: "tiktok", label: "TikTok", placeholder: "@tu_usuario" },
+                { key: "youtube", label: "YouTube", placeholder: "URL de tu canal" },
+              ] as const).map((net) => {
+                const followersKey = `${net.key}Followers` as
+                  | "instagramFollowers"
+                  | "tiktokFollowers"
+                  | "youtubeFollowers";
+                return (
+                  <div key={net.key}>
+                    <label className={`text-xs ${textSecondary}`}>{net.label}</label>
+                    <div className="flex gap-2 mt-1">
+                      <input
+                        type="text"
+                        value={form[net.key]}
+                        onChange={(e) => handleChange(net.key, e.target.value)}
+                        placeholder={net.placeholder}
+                        className={`flex-1 min-w-0 px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${inputClass}`}
+                      />
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={form[followersKey]}
+                        onChange={(e) => handleChange(followersKey, e.target.value)}
+                        placeholder="Seguidores"
+                        className={`w-32 shrink-0 px-3 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${inputClass}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Followers + Message */}
+            {/* Message */}
             <div className={`${card} rounded-2xl p-5 space-y-4`}>
-              <div>
-                <label className={`text-xs ${textMuted} uppercase tracking-wider font-medium`}>
-                  Seguidores totales
-                </label>
-                <select
-                  value={form.followers}
-                  onChange={(e) => handleChange("followers", e.target.value)}
-                  className={`w-full mt-1 px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 ${inputClass} ${!form.followers ? (darkMode ? "text-gray-500" : "text-gray-400") : ""}`}
-                >
-                  <option value="">Selecciona un rango</option>
-                  {FOLLOWER_RANGES.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
               <div>
                 <label className={`text-xs ${textMuted} uppercase tracking-wider font-medium`}>
                   Por que queres ser embajador/a?

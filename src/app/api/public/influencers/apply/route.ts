@@ -37,7 +37,15 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { slug, name, email, instagram, tiktok, youtube, followers, message } = body;
+    const { slug, name, email, instagram, tiktok, youtube, message } = body;
+    // Seguidores POR red (reunión Tomy: por red, no un total). Se parsean a entero ≥ 0.
+    const toFollowers = (v: unknown): number | null => {
+      const n = Math.floor(Number(v));
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+    const instagramFollowers = toFollowers(body.instagramFollowers);
+    const tiktokFollowers = toFollowers(body.tiktokFollowers);
+    const youtubeFollowers = toFollowers(body.youtubeFollowers);
 
     // Validation
     if (!slug || !name || !email) {
@@ -77,7 +85,9 @@ export async function POST(req: NextRequest) {
         instagram: instagram?.trim() || null,
         tiktok: tiktok?.trim() || null,
         youtube: youtube?.trim() || null,
-        followers: followers || null,
+        instagramFollowers,
+        tiktokFollowers,
+        youtubeFollowers,
         message: message?.trim() || null,
         organizationId: org.id,
       },

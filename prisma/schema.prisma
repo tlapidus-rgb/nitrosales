@@ -1287,7 +1287,10 @@ model InfluencerApplication {
   instagram       String?
   tiktok          String?
   youtube         String?
-  followers       String?                          // Rango: "1K-10K", "10K-50K", etc.
+  followers       String?                          // LEGACY: rango total ("1K-10K"). Reemplazado por seguidores/red.
+  instagramFollowers Int?                           // Seguidores por red social (reunión Tomy: por red, no total)
+  tiktokFollowers    Int?
+  youtubeFollowers   Int?
   message         String?                          // Por qué quiere ser embajador
   status          String    @default("PENDING")    // PENDING, APPROVED, REJECTED
   reviewedAt      DateTime?
