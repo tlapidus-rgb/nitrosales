@@ -264,8 +264,17 @@ export async function createCreatorSimple(
   return { influencerId: influencer.id, code };
 }
 
-/** Base URL para los links del mail (mismo resolver que el dashboard existente). */
+/** Base URL para los links del mail (mismo resolver que el dashboard existente).
+ *
+ * ⚠️ En PREVIEW (deploy de branch) Neon crea una DB branch separada: el creador de
+ * prueba vive en la DB del preview. Si el link apunta a prod (app.nitrosales.ai), el
+ * set-password busca al creador en la DB de prod y da "No encontrado". Por eso en
+ * preview linkeamos al PROPIO deployment (misma DB branch donde se creó). En prod,
+ * comportamiento idéntico al anterior. */
 function appBaseUrl(): string {
+  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
   return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
 }
 
