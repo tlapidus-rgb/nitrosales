@@ -107,13 +107,23 @@ export async function GET(req: NextRequest) {
     const baseUrl = `${url.protocol}//${url.host}`;
     const ranges = getRanges();
 
-    // Listar orgs ACTIVAS — las que tienen al menos 1 evento pixel
-    // en los ultimos 30 dias (cliente real, no test).
+    // Presupuesto de tiempo desde EL PRINCIPIO de la función (incluye la query de
+    // activeOrgs). BUG PREVIO: startedAt se seteaba DESPUÉS de esa query; si tardaba
+    // (scan de pixel_events), ese tiempo NO contaba y budget(250s) + query se pasaban
+    // del maxDuration=300 → 504. Ahora todo el trabajo entra en el presupuesto.
+    const startedAt = Date.now();
+
+    // Listar orgs ACTIVAS — con al menos 1 evento pixel en los últimos 30 días.
+    // EXISTS (no JOIN+DISTINCT): corta en la 1ra fila por org → mucho más barato
+    // sobre pixel_events (evita el scan/dedup que arrastraba la función hacia el wall).
     const activeOrgs = await prisma.$queryRawUnsafe<Array<{ id: string; name: string }>>(`
-      SELECT DISTINCT o.id, o.name
+      SELECT o.id, o.name
       FROM organizations o
-      JOIN pixel_events pe ON pe."organizationId" = o.id
-      WHERE pe.timestamp > NOW() - INTERVAL '30 days'
+      WHERE EXISTS (
+        SELECT 1 FROM pixel_events pe
+        WHERE pe."organizationId" = o.id
+          AND pe.timestamp > NOW() - INTERVAL '30 days'
+      )
     `);
 
     const results: Array<{
@@ -134,9 +144,13 @@ export async function GET(req: NextRequest) {
     ];
 
     // SECUENCIAL: org → rango → endpoint, un fetch a la vez (anti-herd).
-    // Presupuesto de tiempo para no chocar contra maxDuration.
-    const startedAt = Date.now();
-    const TIME_BUDGET_MS = 270_000;
+    // Timeout POR fetch: un self-fetch colgado NO puede bloquear la función entera.
+    // El chequeo de presupuesto es ENTRE fetches, no puede cortar uno en vuelo → por
+    // eso cada fetch tiene su propio AbortSignal. 20s ≤ el GLOBAL_TIMEOUT del pixel.
+    const PER_FETCH_TIMEOUT_MS = 20_000;
+    // 220s (desde el inicio de la función) + 20s del último fetch = 240s < 300
+    // (maxDuration), con margen de sobra para la query de activeOrgs y el cierre.
+    const TIME_BUDGET_MS = 220_000;
     let budgetHit = false;
     outer: for (const org of activeOrgs) {
       for (const range of ranges) {
@@ -150,6 +164,9 @@ export async function GET(req: NextRequest) {
             const r = await fetch(target, {
               method: "GET",
               cache: "no-store",
+              // Corta el fetch si un endpoint se cuelga (ver PER_FETCH_TIMEOUT_MS).
+              // El AbortError cae al catch de abajo → se registra como fail y sigue.
+              signal: AbortSignal.timeout(PER_FETCH_TIMEOUT_MS),
               // Bypass de Vercel Deployment Protection (BP-ROLLUP-CRON / Fix 2b):
               // sin esto, cuando Vercel cron dispara warm-cache el self-fetch va a
               // la URL del deployment (protegida) y da 401. El secret lo provee
@@ -214,7 +231,12 @@ export async function GET(req: NextRequest) {
         console.error(
           `[warm-cache] ⚠️ ROLLUP STALE: pixel_daily_aggregates sin refrescar hace ${hours}h (último: ${last}). El cron refresh-pixel-rollups no está corriendo.`
         );
-        await maybeAlertRollupStale(hours as number, last);
+        // Solo intentar el mail si queda margen: sendEmail no tiene timeout y no
+        // puede empujar la función sobre el maxDuration. Si no hay tiempo, se saltea
+        // (el próximo run cada 5 min lo reintenta).
+        if (Date.now() - startedAt < 260_000) {
+          await maybeAlertRollupStale(hours as number, last);
+        }
       }
     } catch (e: any) {
       console.error("[warm-cache] check rollup stale falló:", e?.message);

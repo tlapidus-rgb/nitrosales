@@ -45,7 +45,19 @@ import { prisma } from "@/lib/db/client";
 import { runRollupBackfill } from "@/lib/pixel/rollup-backfill";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+// 800s (Vercel Pro/Fluid, igual que el cron hermano refresh-pixel-first-source).
+// Antes 300s: al crecer pixel_events, la ventana de 3 días (×orgs ×7 statements HLL,
+// 2 con JOIN a first-source) dejó de entrar en un pase → 504 (FUNCTION_INVOCATION_TIMEOUT).
+export const maxDuration = 800;
+
+// Presupuesto COMPARTIDO de la invocación (todas las llamadas al backfill suman
+// contra este tope, con margen bajo maxDuration). BUG PREVIO: el loop llamaba a
+// runRollupBackfill hasta MAX_CALLS veces y CADA llamada reseteaba su propio budget
+// interno de 250s → 6×250s podía superar largo el maxDuration → 504. Ahora cada
+// llamada recibe el tiempo RESTANTE como budget, garantizando que la función retorne
+// antes del wall.
+const INVOCATION_BUDGET_MS = 720_000; // 12 min de 13.3 disponibles (margen de cierre)
+const MIN_SLICE_MS = 60_000; // no arrancar otra llamada si queda menos que esto
 
 // Reconstruye HOY + los (DAYS_BACK-1) días previos (AR-date). 3 = cubre huecos
 // de hasta 3 días con un solo run (tolerante a fallos del cron).
@@ -118,9 +130,13 @@ export async function GET(req: NextRequest) {
   let error: string | null = null;
 
   for (let i = 0; i < MAX_CALLS; i++) {
+    // Presupuesto restante de la invocación → se lo pasamos al backfill para que
+    // corte a tiempo y la función retorne SIEMPRE antes del maxDuration (no 504).
+    const remainingMs = INVOCATION_BUDGET_MS - (Date.now() - startedAt);
+    if (remainingMs < MIN_SLICE_MS) break;
     let body: any;
     try {
-      const r = await runRollupBackfill({ from, to, cursor });
+      const r = await runRollupBackfill({ from, to, cursor, budgetMs: remainingMs });
       body = r.body;
     } catch (e: any) {
       error = `backfill failed: ${e?.message?.slice(0, 200)}`;
@@ -146,11 +162,24 @@ export async function GET(req: NextRequest) {
     cursor = body.nextCursor;
   }
 
+  // Días procesados en TODA la invocación (suma de las llamadas al backfill).
+  const daysProcessed = calls.reduce((n, c) => n + (c.daysProcessed || 0), 0);
+  // Estado HTTP:
+  //  • error real (SQL/excepción)            → 500 (alarma legítima).
+  //  • NO terminó pero hizo progreso (>0 días) → 200: es el multi-run esperado por
+  //    diseño ("runs sucesivos cada 2h cierran gaps grandes"). NO es un fallo →
+  //    no dispara mails de Vercel. El próximo run continúa desde el gap.
+  //  • NO terminó y CERO progreso              → 500: cron trabado, vale alarmar.
+  const madeProgress = done || daysProcessed > 0;
+  const httpStatus = error || !madeProgress ? 500 : 200;
+
   return NextResponse.json(
     {
       ok: done && !error,
+      progress: !done && !error && daysProcessed > 0, // avanzó pero falta (esperado)
       window: { from, to },
       daysBack: DAYS_BACK,
+      daysProcessed,
       lastRollupDay,
       gapDays:
         lastRollupDay && lastRollupDay < defaultFrom
@@ -162,6 +191,6 @@ export async function GET(req: NextRequest) {
       error,
       totalMs: Date.now() - startedAt,
     },
-    { status: done && !error ? 200 : 500 }
+    { status: httpStatus }
   );
 }
