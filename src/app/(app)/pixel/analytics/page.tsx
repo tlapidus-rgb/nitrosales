@@ -309,9 +309,15 @@ const SECTIONS = [
   { id: "sec-velocidad", label: "Velocidad" },
   { id: "sec-dispositivos", label: "Dispositivos" },
   { id: "sec-cobertura", label: "Cobertura" },
-  { id: "sec-journeys", label: "Journeys" },
+  // Journeys DESACTIVADO (pedido de Tomy). Para reactivar: descomentar esta línea
+  // y poner JOURNEYS_ENABLED = true (abajo). El contenido se gatea con ese flag.
+  // { id: "sec-journeys", label: "Journeys" },
   { id: "sec-conversion", label: "Conversión" },
 ] as const;
+
+// Feature flag: sección "Journey Intelligence" del analytics. Tomy pidió
+// desactivarla. Poner en true para reactivarla (y descomentar el nav de arriba).
+const JOURNEYS_ENABLED = false;
 
 /** Find the nearest scrollable ancestor (the <main> with overflow-y-auto) */
 function getScrollParent(el: HTMLElement | null): HTMLElement | Window {
@@ -1727,6 +1733,7 @@ export default function AnalyticsPage() {
         <div id="sec-journeys" className="scroll-mt-20" />
         {(() => {
           try {
+          if (!JOURNEYS_ENABLED) return null; // Journeys desactivado (pedido de Tomy)
           const ji = pixelData?.journeyIntelligence;
           if (!ji || ji.totalJourneys === 0) return null;
 
