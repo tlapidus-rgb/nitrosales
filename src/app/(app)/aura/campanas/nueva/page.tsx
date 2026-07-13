@@ -267,10 +267,16 @@ function NuevaCampanaInner() {
       `}</style>
 
       <div className="max-w-[780px] mx-auto px-6 md:px-10 py-8 md:py-10">
-        <Link href="/aura/campanas" className="inline-flex items-center gap-1.5 text-[12.5px] tracking-tight mb-5" style={{ color: THEME.textSecondary }}>
-          <ArrowLeft size={14} strokeWidth={2.2} />
-          Campañas
-        </Link>
+        {/* Flechita a la sección de campañas: se oculta cuando venís desde un
+            creador ("Comenzar campaña", ?creatorId=) — pedido de Tomy: en ese
+            flujo confunde llevándote fuera del alta del creador. En el alta
+            standalone de campaña sí se muestra (navegación normal). */}
+        {!preselectedCreatorId && (
+          <Link href="/aura/campanas" className="inline-flex items-center gap-1.5 text-[12.5px] tracking-tight mb-5" style={{ color: THEME.textSecondary }}>
+            <ArrowLeft size={14} strokeWidth={2.2} />
+            Campañas
+          </Link>
+        )}
 
         <header className="mb-8">
           <div className="text-[11px] tracking-[0.18em] uppercase font-medium mb-2" style={{ color: THEME.textMuted }}>
