@@ -84,15 +84,17 @@ S0 guard [HECHO] ──> S1 medir (cruiser WARN) ──┬──> S2 relocate or
 
 ---
 
-## S4 — Romper los ciclos que reportó S1 (NO asumir cuáles)
+## S4 — Romper los 2 ciclos reales que reportó S1
 - **Objetivo:** llevar los ciclos del grafo a **0**, para poder subir el lint a error sin romper el build.
-- **Archivos:** los que S1/`CRUISE` liste como parte de un ciclo. **Candidato conocido:** `src/lib/pixel/influencer-attribution.ts` — hoy lo consumen tanto rutas pixel (`api/pixel/event`, `webhooks/vtex/orders`, `cron/attribution-reconcile`) como aura (`lib/aura/campaign-balance.ts`, `lib/aura/commission.ts`). **Ojo:** la dirección del acoplamiento NO es la que asumía el plan viejo ("influencer-attribution importa de aura"); acá **aura importa de influencer-attribution**. La corrección real depende de qué diga `CRUISE`:
-  - Si es lógica de aura mal ubicada en pixel → mover a `domains/aura` y que pixel importe del barrel de aura (edge pixel→aura, sin ciclo).
-  - Si pixel y aura se necesitan mutuamente → extraer el tipo/función compartida a un `domains/shared` o a `domains/orders` (contrato) para cortar el ciclo.
-- **Cómo:** por cada ciclo que liste CRUISE, aplicar la mínima reubicación que lo corte. Un ciclo a la vez, un commit por ciclo.
+- **Los ciclos REALES (medidos por S1, ver `docs/domain-graph-baseline.txt`) — NO son los que asumía el plan viejo:**
+  1. `src/lib/onboarding/emails.ts ⇄ src/lib/onboarding/template-renderer.ts`
+  2. `src/lib/alerts/alert-hub.ts ⇄ src/lib/alerts/engine.ts`
+  - Ambos son **intra-dominio** (dentro de onboarding y de alerts). NO cruzan fronteras → bajo riesgo, y no bloquean la migración de otros dominios.
+  - **El "ciclo pixel⇄aura" NO existe.** `influencer-attribution.ts` es un edge de una sola dirección (aura → pixel/influencer-attribution). Reubicarlo es una mejora de ownership opcional, **no** un corte de ciclo. No es requisito de S5.
+- **Cómo:** por cada uno de los 2 ciclos, la corrección típica de ciclo intra-módulo: extraer lo compartido a un tercer archivo (`onboarding/email-types.ts` / `alerts/shared.ts`) que ambos importen, o invertir la dependencia (el "hub"/"engine" recibe la dep por parámetro en vez de importarla). Un ciclo por commit.
 - **Verificación:** `CRUISE` reporta **0 ciclos** + `TSC` + `TEST` + `BUILD` tras cada corte.
 - **LISTO cuando:** `CRUISE` = 0 ciclos.
-- **Riesgo/rollback:** medio (mueve lógica de atribución, sensible). Mitigación: un ciclo por commit, `TEST` tras cada uno. Rollback = `git revert` del commit del ciclo.
+- **Riesgo/rollback:** bajo (2 ciclos chicos, intra-módulo, no tocan atribución). Un ciclo por commit, `TEST` tras cada uno. Rollback = `git revert` del commit del ciclo.
 
 ---
 
@@ -118,7 +120,7 @@ S0 guard [HECHO] ──> S1 medir (cruiser WARN) ──┬──> S2 relocate or
 
 ## Checklist ejecutable (marcar al terminar cada paso)
 - [x] **S0** guard del contrato — `0fdc19e`, GUARD+BUILD ok
-- [ ] **S1** dependency-cruiser WARN + baseline commiteado — CRUISE ok
+- [x] **S1** dependency-cruiser WARN + baseline commiteado — 2 ciclos hallados (onboarding, alerts), 0 cross-dominio; `docs/domain-graph-baseline.txt`
 - [ ] **S2** relocate orders.ts → domains/orders — TSC+TEST+GUARD+BUILD ok, `grep @/lib/metrics/orders` = 0
 - [ ] **S3** barrels finanzas + audiences — TSC+TEST+BUILD+CRUISE ok
 - [ ] **S4** romper ciclos de S1 — CRUISE 0 ciclos
