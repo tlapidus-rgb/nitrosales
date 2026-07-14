@@ -12,7 +12,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Calendar,
   Target,
   Gift,
@@ -249,7 +248,9 @@ function NuevaCampanaInner() {
       if (!res.ok) {
         throw new Error(data.message || data.error || "No se pudo crear la campaña");
       }
-      router.push(`/aura/campanas/${data.campaign.id}`);
+      // Volver al perfil del creador (la campaña ya aparece ahí como activa), no a
+      // la sección campañas deshabilitada.
+      router.push(selectedCreator ? `/aura/creadores/${selectedCreator.id}` : "/aura/creadores");
     } catch (e) {
       setError((e as Error).message);
       setSubmitting(false);
@@ -259,6 +260,9 @@ function NuevaCampanaInner() {
   // Whether to show "exclude from commission" toggle
   const showExcludeToggle = selectedCreator && dealType && !COMMISSION_TYPES.includes(dealType);
 
+  // Volver SIEMPRE al perfil del creador (no a la sección campañas, deshabilitada).
+  const backTo = preselectedCreatorId ? `/aura/creadores/${preselectedCreatorId}` : "/aura/creadores";
+
   return (
     <div className="min-h-screen" style={{ background: THEME.bgPage }}>
       <style jsx>{`
@@ -267,16 +271,9 @@ function NuevaCampanaInner() {
       `}</style>
 
       <div className="max-w-[780px] mx-auto px-6 md:px-10 py-8 md:py-10">
-        {/* Flechita a la sección de campañas: se oculta cuando venís desde un
-            creador ("Comenzar campaña", ?creatorId=) — pedido de Tomy: en ese
-            flujo confunde llevándote fuera del alta del creador. En el alta
-            standalone de campaña sí se muestra (navegación normal). */}
-        {!preselectedCreatorId && (
-          <Link href="/aura/campanas" className="inline-flex items-center gap-1.5 text-[12.5px] tracking-tight mb-5" style={{ color: THEME.textSecondary }}>
-            <ArrowLeft size={14} strokeWidth={2.2} />
-            Campañas
-          </Link>
-        )}
+        {/* La flecha "← Campañas" se sacó por completo (pedido de Tomy): la sección
+            de campañas está deshabilitada (no está en el sidebar) y no debe ser
+            accesible. Este form se entra desde el creador ("Comenzar campaña"). */}
 
         <header className="mb-8">
           <div className="text-[11px] tracking-[0.18em] uppercase font-medium mb-2" style={{ color: THEME.textMuted }}>
@@ -525,7 +522,7 @@ function NuevaCampanaInner() {
 
           {/* ── Actions ── */}
           <div className="flex items-center justify-end gap-3 pt-4" style={{ borderTop: `1px solid ${THEME.border}` }}>
-            <Link href="/aura/campanas" className="px-4 py-2.5 rounded-xl text-[13px] font-medium tracking-tight" style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textSecondary }}>
+            <Link href={backTo} className="px-4 py-2.5 rounded-xl text-[13px] font-medium tracking-tight" style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textSecondary }}>
               Cancelar
             </Link>
             <button type="submit" disabled={!canSubmit} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: THEME.gradient, color: "#fff" }}>
