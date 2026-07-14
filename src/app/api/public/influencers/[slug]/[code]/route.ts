@@ -107,112 +107,136 @@ export async function GET(
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Today's metrics
-    const todayAgg = await prisma.influencerAttribution.aggregate({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-        createdAt: { gte: todayStart },
-      },
-      _sum: { attributedValue: true, commissionAmount: true },
-      _count: { id: true },
-    });
+    // ── PERF (#2 Tomy: dashboard del afiliado lento): antes eran ~13 queries
+    //    SECUENCIALES. Ahora las independientes van en PARALELO. `visitorCount`
+    //    escanea pixel_events y el filtro utm no tiene índice → va ACOTADA con
+    //    statement_timeout y degrada a 0 si tarda, para no colgar el dashboard. ──
+    const visitorCountQ = prisma
+      .$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = 3000`);
+        return tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+          SELECT COUNT(DISTINCT "visitorId")::int as count
+          FROM "pixel_events"
+          WHERE "organizationId" = ${org.id}
+            AND "timestamp" >= ${monthStart}
+            AND "utmParams"->>'source' = ${"inf_" + influencer.code}
+        `);
+      })
+      .catch(() => [{ count: 0 }] as Array<{ count: number }>);
 
-    // This month's metrics
-    const monthAgg = await prisma.influencerAttribution.aggregate({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-        createdAt: { gte: monthStart },
-      },
-      _sum: { attributedValue: true, commissionAmount: true },
-      _count: { id: true },
-    });
+    const [
+      todayAgg,
+      monthAgg,
+      prevMonthAgg,
+      allTimeAgg,
+      recentSales,
+      dailyChart,
+      visitorCount,
+      activeDealRaw,
+      tiers,
+      activeCampaigns,
+      coupons,
+      bestDays,
+      paidAgg,
+      paidPayouts,
+    ] = await Promise.all([
+      // Today's metrics
+      prisma.influencerAttribution.aggregate({
+        where: { influencerId: influencer.id, organizationId: org.id, createdAt: { gte: todayStart } },
+        _sum: { attributedValue: true, commissionAmount: true },
+        _count: { id: true },
+      }),
+      // This month's metrics
+      prisma.influencerAttribution.aggregate({
+        where: { influencerId: influencer.id, organizationId: org.id, createdAt: { gte: monthStart } },
+        _sum: { attributedValue: true, commissionAmount: true },
+        _count: { id: true },
+      }),
+      // Previous month's metrics (for comparison)
+      prisma.influencerAttribution.aggregate({
+        where: { influencerId: influencer.id, organizationId: org.id, createdAt: { gte: prevMonthStart, lt: monthStart } },
+        _sum: { attributedValue: true, commissionAmount: true },
+        _count: { id: true },
+      }),
+      // All-time metrics
+      prisma.influencerAttribution.aggregate({
+        where: { influencerId: influencer.id, organizationId: org.id },
+        _sum: { attributedValue: true, commissionAmount: true },
+        _count: { id: true },
+      }),
+      // Recent sales (last 20, only timestamp + amount, NO customer info)
+      prisma.influencerAttribution.findMany({
+        where: { influencerId: influencer.id, organizationId: org.id },
+        select: { createdAt: true, attributedValue: true, commissionAmount: true },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      // Daily chart (last 30 days)
+      prisma.$queryRaw<Array<{ date: string; sales: number; conversions: number }>>(Prisma.sql`
+        SELECT DATE("createdAt") as date, COALESCE(SUM("attributedValue"), 0)::float as sales, COUNT(*)::int as conversions
+        FROM "influencer_attributions"
+        WHERE "influencerId" = ${influencer.id} AND "organizationId" = ${org.id} AND "createdAt" >= ${thirtyDaysAgo}
+        GROUP BY DATE("createdAt") ORDER BY date ASC
+      `),
+      // Unique visitors (acotada, ver visitorCountQ arriba)
+      visitorCountQ,
+      // Active deal (el deal activo más reciente determina cómo se le paga al creador)
+      prisma.influencerDeal.findFirst({
+        where: { influencerId: influencer.id, organizationId: org.id, status: "ACTIVE" },
+        orderBy: [{ createdAt: "desc" }],
+        select: {
+          id: true, type: true, commissionPercent: true, flatAmount: true, flatUnit: true,
+          bonusAmount: true, bonusMetric: true, bonusTarget: true, tiers: true, cpmRate: true,
+          productValue: true, productDescription: true, currency: true, startDate: true, endDate: true,
+        },
+      }),
+      // Commission tiers
+      prisma.influencerCommissionTier.findMany({
+        where: { influencerId: influencer.id },
+        orderBy: { minRevenue: "asc" },
+        select: { label: true, commissionPercent: true, minRevenue: true, maxRevenue: true },
+      }),
+      // Active campaigns with revenue
+      prisma.influencerCampaign.findMany({
+        where: { influencerId: influencer.id, organizationId: org.id, status: "ACTIVE" },
+        select: { id: true, name: true, bonusTarget: true, bonusAmount: true },
+      }),
+      // Active coupons
+      prisma.influencerCoupon.findMany({
+        where: { influencerId: influencer.id, organizationId: org.id, isActive: true },
+        select: { code: true, discountPercent: true, discountFixed: true },
+      }),
+      // Best 3 days (last 30 days)
+      prisma.$queryRaw<Array<{ date: string; sales: number }>>(Prisma.sql`
+        SELECT DATE("createdAt") as date, COALESCE(SUM("attributedValue"), 0)::float as sales
+        FROM "influencer_attributions"
+        WHERE "influencerId" = ${influencer.id} AND "organizationId" = ${org.id} AND "createdAt" >= ${thirtyDaysAgo}
+        GROUP BY DATE("createdAt") ORDER BY sales DESC LIMIT 3
+      `),
+      // Pagos PAID: total (agg) + historial (Bloque D4 / item 31)
+      prisma.payout.aggregate({
+        where: { influencerId: influencer.id, organizationId: org.id, status: "PAID" },
+        _sum: { amount: true },
+      }),
+      prisma.payout.findMany({
+        where: { influencerId: influencer.id, organizationId: org.id, status: "PAID" },
+        orderBy: { paidAt: "desc" },
+        take: 30,
+        select: { id: true, amount: true, method: true, reference: true, paidAt: true, concept: true, campaign: { select: { name: true } } },
+      }),
+    ]);
 
-    // Previous month's metrics (for comparison)
-    const prevMonthAgg = await prisma.influencerAttribution.aggregate({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-        createdAt: { gte: prevMonthStart, lt: monthStart },
-      },
-      _sum: { attributedValue: true, commissionAmount: true },
-      _count: { id: true },
-    });
-
-    // All-time metrics
-    const allTimeAgg = await prisma.influencerAttribution.aggregate({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-      },
-      _sum: { attributedValue: true, commissionAmount: true },
-      _count: { id: true },
-    });
-
-    // Recent sales (last 20, only timestamp + amount, NO customer info)
-    const recentSales = await prisma.influencerAttribution.findMany({
-      where: { influencerId: influencer.id, organizationId: org.id },
-      select: {
-        createdAt: true,
-        attributedValue: true,
-        commissionAmount: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    // Daily chart (last 30 days)
-    const dailyChart = await prisma.$queryRaw<
-      Array<{ date: string; sales: number; conversions: number }>
-    >(Prisma.sql`
-      SELECT
-        DATE("createdAt") as date,
-        COALESCE(SUM("attributedValue"), 0)::float as sales,
-        COUNT(*)::int as conversions
-      FROM "influencer_attributions"
-      WHERE "influencerId" = ${influencer.id}
-        AND "organizationId" = ${org.id}
-        AND "createdAt" >= ${thirtyDaysAgo}
-      GROUP BY DATE("createdAt")
-      ORDER BY date ASC
-    `);
-
-    // Unique visitors (from pixel events with this influencer's UTM)
-    const visitorCount = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
-      SELECT COUNT(DISTINCT "visitorId")::int as count
-      FROM "pixel_events"
-      WHERE "organizationId" = ${org.id}
-        AND "timestamp" >= ${monthStart}
-        AND "utmParams"->>'source' = ${"inf_" + influencer.code}
-    `);
-
-    // Active deal (el deal activo más reciente determina cómo se le paga al creador)
-    const activeDealRaw = await prisma.influencerDeal.findFirst({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-        status: "ACTIVE",
-      },
-      orderBy: [{ createdAt: "desc" }],
-      select: {
-        id: true,
-        type: true,
-        commissionPercent: true,
-        flatAmount: true,
-        flatUnit: true,
-        bonusAmount: true,
-        bonusMetric: true,
-        bonusTarget: true,
-        tiers: true,
-        cpmRate: true,
-        productValue: true,
-        productDescription: true,
-        currency: true,
-        startDate: true,
-        endDate: true,
-      },
-    });
+    // Revenue por campaña (depende de activeCampaigns → después del batch)
+    const campaignRevenues = activeCampaigns.length > 0
+      ? await prisma.influencerAttribution.groupBy({
+          by: ["campaignId"],
+          where: { influencerId: influencer.id, organizationId: org.id, campaignId: { in: activeCampaigns.map((c) => c.id) } },
+          _sum: { attributedValue: true },
+        })
+      : [];
+    const campaignRevenueMap = new Map(
+      campaignRevenues.map((cr) => [cr.campaignId, Number(cr._sum.attributedValue || 0)])
+    );
 
     const activeDeal = activeDealRaw
       ? {
@@ -234,86 +258,8 @@ export async function GET(
         }
       : null;
 
-    // Commission tiers
-    const tiers = await prisma.influencerCommissionTier.findMany({
-      where: { influencerId: influencer.id },
-      orderBy: { minRevenue: "asc" },
-      select: { label: true, commissionPercent: true, minRevenue: true, maxRevenue: true },
-    });
-
-    // Active campaigns with revenue
-    const activeCampaigns = await prisma.influencerCampaign.findMany({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-        status: "ACTIVE",
-      },
-      select: {
-        id: true,
-        name: true,
-        bonusTarget: true,
-        bonusAmount: true,
-      },
-    });
-
-    // Get revenue per campaign
-    const campaignRevenues = activeCampaigns.length > 0
-      ? await prisma.influencerAttribution.groupBy({
-          by: ["campaignId"],
-          where: {
-            influencerId: influencer.id,
-            organizationId: org.id,
-            campaignId: { in: activeCampaigns.map((c) => c.id) },
-          },
-          _sum: { attributedValue: true },
-        })
-      : [];
-
-    const campaignRevenueMap = new Map(
-      campaignRevenues.map((cr) => [cr.campaignId, Number(cr._sum.attributedValue || 0)])
-    );
-
-    // Active coupons
-    const coupons = await prisma.influencerCoupon.findMany({
-      where: {
-        influencerId: influencer.id,
-        organizationId: org.id,
-        isActive: true,
-      },
-      select: { code: true, discountPercent: true, discountFixed: true },
-    });
-
-    // Best 3 days (last 30 days)
-    const bestDays = await prisma.$queryRaw<
-      Array<{ date: string; sales: number }>
-    >(Prisma.sql`
-      SELECT
-        DATE("createdAt") as date,
-        COALESCE(SUM("attributedValue"), 0)::float as sales
-      FROM "influencer_attributions"
-      WHERE "influencerId" = ${influencer.id}
-        AND "organizationId" = ${org.id}
-        AND "createdAt" >= ${thirtyDaysAgo}
-      GROUP BY DATE("createdAt")
-      ORDER BY sales DESC
-      LIMIT 3
-    `);
-
-    // Bloque D4 (item 31): pagos del afiliado — pendiente a pagar, comisión
-    // histórica y historial de pagos recibidos. pending = comisión histórica −
-    // pagado (mismo criterio resumido que la vista del owner).
-    const [paidAgg, paidPayouts] = await Promise.all([
-      prisma.payout.aggregate({
-        where: { influencerId: influencer.id, organizationId: org.id, status: "PAID" },
-        _sum: { amount: true },
-      }),
-      prisma.payout.findMany({
-        where: { influencerId: influencer.id, organizationId: org.id, status: "PAID" },
-        orderBy: { paidAt: "desc" },
-        take: 30,
-        select: { id: true, amount: true, method: true, reference: true, paidAt: true, concept: true, campaign: { select: { name: true } } },
-      }),
-    ]);
+    // (tiers, activeCampaigns, coupons, bestDays, paidAgg/paidPayouts y campaignRevenues
+    //  ya se resolvieron en el Promise.all de arriba — antes eran secuenciales.)
     const totalPaid = Number(paidAgg._sum.amount || 0);
     const historicalCommission = Number(allTimeAgg._sum.commissionAmount || 0);
     const pendingToPay = Math.max(0, Math.round((historicalCommission - totalPaid) * 100) / 100);
