@@ -16,7 +16,7 @@ import {
   TEXT_SECONDARY,
   BORDER,
   appUrl,
-} from "./emails";
+} from "./email-theme";
 
 export type TemplateContext = {
   contactName?: string | null;
