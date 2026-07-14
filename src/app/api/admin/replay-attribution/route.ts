@@ -10,7 +10,7 @@
 //   - Solo ordenes web (excluye MELI, FVG-, BPR-, channel='marketplace')
 //   - Solo ordenes posteriores al primer evento del pixel para esa org
 //   - Solo ordenes sin attribution row con model='LAST_CLICK'
-//   - Status NOT IN ('CANCELLED', 'PENDING') AND totalValue > 0
+//   - Status NOT IN ('CANCELLED', 'PENDING', 'RETURNED') AND totalValue > 0
 //
 // Estrategia de atribucion:
 //   - Email match: pixel_visitor con email == customer.email
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
          AND (o."trafficSource" IS NULL OR o."trafficSource" != 'Marketplace')
          AND o."externalId" NOT LIKE 'FVG-%'
          AND o."externalId" NOT LIKE 'BPR-%'
-         AND o."status" NOT IN ('CANCELLED', 'PENDING')
+         AND o."status" NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
          AND o."totalValue" > 0
          AND pa."id" IS NULL
        ORDER BY o."orderDate" DESC

@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${crDateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
         AND o."totalValue" > 0
         AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         AND o.source IS DISTINCT FROM 'MELI'
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${crDateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
         AND o."totalValue" > 0
         AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         AND o.source IS DISTINCT FROM 'MELI'
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${crDateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
       GROUP BY pa."visitorId", pv."deviceTypes"
       ORDER BY orders DESC
       LIMIT 15
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
     const totalAttr = await prisma.$queryRaw<Array<{ total: number; valid: number }>>`
       SELECT
         COUNT(*)::int as total,
-        COUNT(CASE WHEN o.status NOT IN ('CANCELLED','PENDING')
+        COUNT(CASE WHEN o.status NOT IN ('CANCELLED','PENDING','RETURNED')
                     AND o."totalValue" > 0
                     AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
                     AND o.source IS DISTINCT FROM 'MELI'
@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${crDateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
         AND o."totalValue" > 0
         AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         AND o.source IS DISTINCT FROM 'MELI'
@@ -200,7 +200,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${crDateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
       LIMIT 10
     `;
 
@@ -221,7 +221,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${crDateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
     `;
 
     return NextResponse.json({

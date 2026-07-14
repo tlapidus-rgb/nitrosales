@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${dateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
         AND o."totalValue" > 0
       GROUP BY 1, 2
       ORDER BY revenue DESC NULLS LAST
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${dateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
         AND o."totalValue" > 0
       GROUP BY 1
       ORDER BY revenue DESC NULLS LAST

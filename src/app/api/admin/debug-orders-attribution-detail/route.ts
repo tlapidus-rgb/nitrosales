@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
          AND (o."trafficSource" IS NULL OR o."trafficSource" != 'Marketplace')
          AND o."externalId" NOT LIKE 'FVG-%'
          AND o."externalId" NOT LIKE 'BPR-%'
-         AND o."status" NOT IN ('CANCELLED', 'PENDING')
+         AND o."status" NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
          AND o."totalValue" > 0
        ORDER BY o."orderDate" DESC`,
       orgId,

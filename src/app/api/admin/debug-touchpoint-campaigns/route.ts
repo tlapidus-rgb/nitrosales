@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         AND o."orderDate" >= ${dateFrom}
         AND o."orderDate" <= ${dateTo}
         AND pa.model::text = ${model}
-        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
         AND o."totalValue" > 0
       LIMIT 500
     `;
