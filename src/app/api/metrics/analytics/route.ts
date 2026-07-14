@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import * as crypto from "crypto";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 
 // ══════════════════════════════════════════════════════════════
 // Analytics API — GA4 Data for Ecommerce Dashboard

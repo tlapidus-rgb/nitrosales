@@ -20,7 +20,7 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { waitUntil } from "@vercel/functions";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import {
   filterMarketingTouchpoints,

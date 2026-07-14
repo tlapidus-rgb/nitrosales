@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidWebWhere, ordersValidWebSql } from "@/lib/metrics/orders";
+import { ordersValidWebWhere, ordersValidWebSql } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import {
   FIRST_SOURCE_MARKETING_CASE_FILTERED,

@@ -18,7 +18,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 
 export interface BatchPredictionResult {
   totalCustomers: number;

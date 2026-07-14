@@ -20,7 +20,7 @@ export const maxDuration = 60; // guard anti-504 (queries de LTV/cohortes pesada
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 import { getOrganizationId } from "@/lib/auth-guard";
 import {
   generateInsights,

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: allow up to 60s

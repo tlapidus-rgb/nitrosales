@@ -18,7 +18,7 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 import { getOrganizationId } from "@/lib/auth-guard";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

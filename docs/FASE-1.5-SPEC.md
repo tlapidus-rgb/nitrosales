@@ -121,7 +121,7 @@ S0 guard [HECHO] ──> S1 medir (cruiser WARN) ──┬──> S2 relocate or
 ## Checklist ejecutable (marcar al terminar cada paso)
 - [x] **S0** guard del contrato — `0fdc19e`, GUARD+BUILD ok
 - [x] **S1** dependency-cruiser WARN + baseline commiteado — 2 ciclos hallados (onboarding, alerts), 0 cross-dominio; `docs/domain-graph-baseline.txt`
-- [ ] **S2** relocate orders.ts → domains/orders — TSC+TEST+GUARD+BUILD ok, `grep @/lib/metrics/orders` = 0
+- [x] **S2** relocate orders.ts → domains/orders — TSC=0, 107 tests ok, GUARD ok, CRUISE sin ciclos nuevos, `grep @/lib/metrics/orders`=0 (30 sitios migrados)
 - [ ] **S3** barrels finanzas + audiences — TSC+TEST+BUILD+CRUISE ok
 - [ ] **S4** romper ciclos de S1 — CRUISE 0 ciclos
 - [ ] **S5** ratchet a ERROR (dominios migrados) — BUILD pasa limpio y falla ante violación de prueba

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

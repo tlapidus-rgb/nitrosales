@@ -6,7 +6,7 @@ import { getOrganizationId } from "@/lib/auth-guard";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { waitUntil } from "@vercel/functions";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: hasta 60s para queries pesadas en producción

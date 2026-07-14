@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 import { sendEmail } from "@/lib/email/send";
 import { weeklyDigestEmail, DigestMetrics } from "@/lib/email/templates";
 import Anthropic from "@anthropic-ai/sdk";

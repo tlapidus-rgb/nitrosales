@@ -30,7 +30,7 @@ const SRC = join(ROOT, "src");
 
 // El contrato mismo + su validador: son los ÚNICOS lugares donde vive la definición.
 const CONTRACT_FILES = new Set([
-  "src/lib/metrics/orders.ts",
+  "src/domains/orders/index.ts", // el contrato "venta válida" (S2: reubicado desde lib/metrics/orders.ts)
   "src/lib/order-validation.ts",
 ]);
 
@@ -95,7 +95,7 @@ if (newViolations.length) {
   console.error(`\n❌ [order-contract] ${newViolations.length} archivo(s) NUEVO(s) re-implementan "venta válida" con SQL a mano:`);
   for (const f of newViolations) console.error(`    - ${f}`);
   console.error(
-    `\n   La definición de "venta válida" vive SOLO en src/lib/metrics/orders.ts.\n` +
+    `\n   La definición de "venta válida" vive SOLO en src/domains/orders/index.ts (@/domains/orders).\n` +
     `   Importá y usá sus helpers (ordersValidWhere / ordersValidSql / ordersValidWebSql)\n` +
     `   en vez de escribir 'status IN (...)' a mano — así no se repite el drift de RETURNED.\n` +
     `   (Si es un caso legítimo que no cuenta ventas, agregalo al ALLOWLIST con un comentario.)`
