@@ -71,8 +71,14 @@ function firstName(full?: string | null) {
   return full.split(" ")[0];
 }
 
+// Serializa una fecha para el query param del rango. Manda el instante EXACTO
+// (ISO completo), NO `toISOString().slice(0,10)` (date-only en UTC): con date-only
+// el backend hacía `new Date("YYYY-MM-DD")` = medianoche UTC → en AR (UTC-3) el
+// rango se corría y EXCLUÍA la data de la tarde/noche + desfasaba los deltas vs
+// período anterior (mismo bug de timezone que en analytics; #3 de Tomy). El ISO
+// completo preserva los límites LOCALES que calcula computeRange.
 function toInputDate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return d.toISOString();
 }
 
 type RangeKey = "este_mes" | "esta_semana" | "ultimos_30" | "custom";
