@@ -15,9 +15,9 @@ module.exports = {
     {
       name: "no-circular",
       comment:
-        "Dependencia circular. En S5 esto rompe el build; hoy (S1) solo avisa. " +
-        "S4 las lleva a 0 con el grafo real (no con suposiciones).",
-      severity: "warn",
+        "Dependencia circular. ROMPE el build (S5, tras S4 dejar el grafo en 0). " +
+        "Cualquier ciclo nuevo falla el preview de Vercel.",
+      severity: "error",
       from: {},
       to: { circular: true },
     },
