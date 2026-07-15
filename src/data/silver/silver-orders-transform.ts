@@ -1,26 +1,23 @@
 // ══════════════════════════════════════════════════════════════════════════
 // Transform Bronze(orders) → Silver(silver_orders) — Fase 2 (§6.2, §8)
 // ══════════════════════════════════════════════════════════════════════════
-// Genera el UPSERT incremental e idempotente que llena silver_orders desde
-// orders (Bronze), con los flags de negocio pre-computados.
+// Genera el UPSERT que llena silver_orders desde orders (Bronze), con los flags
+// de negocio pre-computados.
 //
 // CLAVE anti-drift: is_valid / is_web NO se escriben a mano acá — se generan
 // desde el CONTRATO (ordersValidSql / ordersWebSql de @/domains/orders). Si el
 // contrato cambia, Silver cambia con él. Es la MISMA definición que usa todo el
 // resto de la plataforma → imposible que Silver diga "12" y el dashboard "16".
 //
-// Incremental: parametrizado por (organizationId, since) → solo reprocesa el
-// rango afectado. Idempotente: ON CONFLICT (id) DO UPDATE → correr N veces = igual.
+// Dos modos, mismo SELECT (DRY):
+//   - buildSilverOrdersUpsert(): incremental, parametrizado ($1 org, $2 since).
+//   - buildSilverOrdersBackfill(): toda la historia / todas las orgs (fill inicial).
+// Ambos idempotentes (ON CONFLICT (id) DO UPDATE): correr N veces = mismo estado.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { ordersValidSql, ordersWebSql } from "@/domains/orders";
 
-/**
- * SQL del UPSERT incremental Bronze→Silver.
- * Placeholders: $1 = organizationId, $2 = since (ISO timestamptz).
- * Ejecutar con prisma.$executeRawUnsafe(buildSilverOrdersUpsert(), orgId, sinceISO).
- */
-export function buildSilverOrdersUpsert(): string {
+function buildUpsert(whereClause: string): string {
   const isValid = ordersValidSql("o"); // "o".status NOT IN (...) AND "o"."totalValue" > 0
   const isWeb = ordersWebSql("o"); //     "o"."trafficSource" IS DISTINCT FROM 'Marketplace' AND ...
 
@@ -38,9 +35,7 @@ SELECT
   (NOT (${isWeb})) AS is_marketplace,
   now()
 FROM orders o
-WHERE o."organizationId" = $1
-  AND o."orderDate" >= $2::timestamptz
-ON CONFLICT (id) DO UPDATE SET
+${whereClause}ON CONFLICT (id) DO UPDATE SET
   status = EXCLUDED.status,
   total_value = EXCLUDED.total_value,
   currency = EXCLUDED.currency,
@@ -53,4 +48,21 @@ ON CONFLICT (id) DO UPDATE SET
   is_web = EXCLUDED.is_web,
   is_marketplace = EXCLUDED.is_marketplace,
   silver_updated_at = now();`.trim();
+}
+
+/**
+ * UPSERT incremental Bronze→Silver.
+ * Placeholders: $1 = organizationId, $2 = since (ISO timestamptz).
+ * Ejecutar: prisma.$executeRawUnsafe(buildSilverOrdersUpsert(), orgId, sinceISO).
+ */
+export function buildSilverOrdersUpsert(): string {
+  return buildUpsert(`WHERE o."organizationId" = $1\n  AND o."orderDate" >= $2::timestamptz\n`);
+}
+
+/**
+ * Backfill inicial: TODA la historia, TODAS las orgs, sin parámetros.
+ * Para correr una sola vez en Neon (llenar la tabla recién creada).
+ */
+export function buildSilverOrdersBackfill(): string {
+  return buildUpsert("");
 }

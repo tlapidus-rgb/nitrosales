@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { buildSilverOrdersUpsert } from "./silver-orders-transform";
+import {
+  buildSilverOrdersUpsert,
+  buildSilverOrdersBackfill,
+} from "./silver-orders-transform";
 import { ordersValidSql, ordersWebSql } from "@/domains/orders";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -32,5 +35,24 @@ describe("buildSilverOrdersUpsert — anti-drift con el contrato", () => {
   it("usa la fecha canónica orderDate, nunca createdAt", () => {
     expect(sql).toContain(`o."orderDate"`);
     expect(sql).not.toContain(`o."createdAt"`);
+  });
+});
+
+describe("buildSilverOrdersBackfill — fill inicial (toda la historia)", () => {
+  const sql = buildSilverOrdersBackfill();
+
+  it("usa los mismos flags del contrato que el upsert incremental", () => {
+    expect(sql).toContain(`(${ordersValidSql("o")}) AS is_valid`);
+    expect(sql).toContain(`(${ordersWebSql("o")}) AS is_web`);
+  });
+
+  it("NO filtra por org ni fecha (toda la historia, todas las orgs)", () => {
+    expect(sql).not.toContain("WHERE");
+    expect(sql).not.toContain("$1");
+    expect(sql).not.toContain("$2");
+  });
+
+  it("sigue siendo idempotente (ON CONFLICT)", () => {
+    expect(sql).toContain("ON CONFLICT (id) DO UPDATE");
   });
 });
