@@ -5,10 +5,11 @@
   "description": "NitroSales - Inteligencia para vender mÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¡s",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && node scripts/check-order-contract.mjs && depcruise src --config .dependency-cruiser.js && next build",
+    "build": "prisma generate && node scripts/check-order-contract.mjs && node scripts/check-serve-gold-first.mjs && depcruise src --config .dependency-cruiser.js && next build",
     "start": "next start",
     "lint": "next lint",
     "check:order-contract": "node scripts/check-order-contract.mjs",
+    "check:serve-gold-first": "node scripts/check-serve-gold-first.mjs",
     "cruise": "depcruise src --config .dependency-cruiser.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
