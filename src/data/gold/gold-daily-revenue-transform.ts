@@ -42,7 +42,10 @@ valid_rows AS (
     s.source,
     COALESCE(s.pack_id, s.external_id) AS pack_key,
     s.total_value,
-    s.item_count
+    s.item_count,
+    s.shipping_cost,
+    s.discount_value,
+    s.marketplace_fee
   FROM silver_orders s
   WHERE s.status NOT IN (${notConcreted})${whereRows}
     AND NOT EXISTS (
@@ -51,7 +54,10 @@ valid_rows AS (
         AND b.pack_key = COALESCE(s.pack_id, s.external_id)
     )
 )
-INSERT INTO gold_daily_revenue (organization_id, day, source, orders, revenue, items, gold_updated_at)
+INSERT INTO gold_daily_revenue (
+  organization_id, day, source, orders, revenue, items,
+  shipping, discounts, marketplace_fee, orders_with_fee, gold_updated_at
+)
 SELECT
   organization_id,
   day,
@@ -59,6 +65,10 @@ SELECT
   COUNT(DISTINCT pack_key)::int AS orders,
   COALESCE(SUM(total_value), 0) AS revenue,
   COALESCE(SUM(item_count), 0)::int AS items,
+  COALESCE(SUM(shipping_cost), 0) AS shipping,
+  COALESCE(SUM(discount_value), 0) AS discounts,
+  COALESCE(SUM(marketplace_fee), 0) AS marketplace_fee,
+  COUNT(DISTINCT pack_key) FILTER (WHERE marketplace_fee > 0)::int AS orders_with_fee,
   now()
 FROM valid_rows
 GROUP BY organization_id, day, source
@@ -66,6 +76,10 @@ ON CONFLICT (organization_id, day, source) DO UPDATE SET
   orders = EXCLUDED.orders,
   revenue = EXCLUDED.revenue,
   items = EXCLUDED.items,
+  shipping = EXCLUDED.shipping,
+  discounts = EXCLUDED.discounts,
+  marketplace_fee = EXCLUDED.marketplace_fee,
+  orders_with_fee = EXCLUDED.orders_with_fee,
   gold_updated_at = now();`.trim();
 }
 

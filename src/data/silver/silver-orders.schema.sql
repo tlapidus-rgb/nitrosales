@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS silver_orders (
   traffic_source    text,
   device_type       text,
   customer_id       text,
+  shipping_cost     numeric(12,2),                       -- para el header de KPIs (§ cascadeo)
+  discount_value    numeric(12,2),
+  marketplace_fee   numeric(12,2),
   -- Flags pre-computados (fuente: src/domains/orders/index.ts vía el job de transform)
   is_valid          boolean      NOT NULL,             -- ordersValidSql: concretada + totalValue > 0
   is_web            boolean      NOT NULL,             -- ordersWebSql: no marketplace

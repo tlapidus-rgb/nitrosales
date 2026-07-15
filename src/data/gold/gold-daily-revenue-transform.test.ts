@@ -33,6 +33,14 @@ describe("gold_daily_revenue — anti-drift + pack-aware", () => {
     expect(upsert).toContain("America/Argentina/Buenos_Aires");
   });
 
+  it("agrega las columnas del header (shipping/discounts/fee + orders_with_fee pack-aware)", () => {
+    expect(upsert).toContain("SUM(shipping_cost)");
+    expect(upsert).toContain("SUM(discount_value)");
+    expect(upsert).toContain("SUM(marketplace_fee)");
+    // orders_with_fee = packs con al menos una fila con fee > 0
+    expect(upsert).toContain("COUNT(DISTINCT pack_key) FILTER (WHERE marketplace_fee > 0)");
+  });
+
   it("es idempotente (ON CONFLICT por org+day+source)", () => {
     expect(upsert).toContain("ON CONFLICT (organization_id, day, source) DO UPDATE");
     expect(backfill).toContain("ON CONFLICT (organization_id, day, source) DO UPDATE");
