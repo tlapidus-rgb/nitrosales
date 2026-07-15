@@ -203,31 +203,26 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     // ── Count days in period for averages ──
     const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
+    // ── Gold-first: header (BATCH 1a) + gráficos diarios (BATCH 1b) leen
+    //    gold_daily_revenue cuando ORDERS_USE_GOLD y NO hay filtro de source.
+    //    Fallback a Bronze en cualquier otro caso o si Gold falla. ──
+    const useGold = process.env.ORDERS_USE_GOLD === "true" && !sourceFilter;
+    const arDay = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+
     /* ══════════════════════════════════════════════════════════
        QUERIES IN BATCHES of 3 — Railway default pool_limit=5
        Max 3 parallel = always safe with any pool config.
        ══════════════════════════════════════════════════════════ */
 
-    // ── BATCH 1a: KPIs current + previous (2 queries) ──
-    const [
-      currentPeriod,
-      previousPeriod,
-    ] = await Promise.all([
-
-      /* 1) Current period KPIs */
-      prisma.$queryRawUnsafe<[{
-        total_orders: string;
-        total_revenue: string;
-        total_items: string;
-        total_shipping: string;
-        total_discounts: string;
-      }]>(`
+    // ── BATCH 1a: KPIs current + previous ── Gold-first (header) con fallback a Bronze.
+    // avg_ticket NO se calcula con AVG: para packs MELI promedia por fila y da bajo.
+    // El avgTicket real = total_revenue / total_orders (distinct-pack), en JS. Ver BP-I5.
+    const bronzeCurrentKpis = () =>
+      prisma.$queryRawUnsafe<[Record<string, string>]>(`
         SELECT
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS total_orders,
           COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
-          -- avg_ticket NO se calcula con AVG("totalValue"): para packs MELI (N filas, 1
-          -- packId) promedia por fila y da un ticket falsamente bajo. El avgTicket real
-          -- = total_revenue / total_orders (distinct-pack), se computa en JS (L~1204). Ver BP-I5.
           COALESCE(SUM("itemCount"), 0)::text AS total_items,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts,
@@ -235,8 +230,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           COUNT(DISTINCT CASE WHEN "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0 THEN COALESCE("packId", "externalId") END)::text AS orders_with_fee
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
+          AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
@@ -247,21 +241,16 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo);
 
-      /* 2) Previous period KPIs */
-      prisma.$queryRawUnsafe<[{
-        total_orders: string;
-        total_revenue: string;
-      }]>(`
+    const bronzePreviousKpis = () =>
+      prisma.$queryRawUnsafe<[Record<string, string>]>(`
         SELECT
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS total_orders,
           COALESCE(SUM("totalValue"), 0)::text AS total_revenue
-          -- avg_ticket removido: se computa en JS como revenue/orders (ver query #1 y BP-I5)
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
+          AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
@@ -272,17 +261,45 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
-      `, prevFrom, prevTo),
-    ]);
+      `, prevFrom, prevTo);
+
+    // Gold: mismos KPIs sumando gold_daily_revenue sobre el rango (pack-aware ya baked in).
+    const goldKpis = (from: Date, to: Date) =>
+      prisma.$queryRawUnsafe<[Record<string, string>]>(`
+        SELECT
+          COALESCE(SUM(orders), 0)::text AS total_orders,
+          COALESCE(SUM(revenue), 0)::text AS total_revenue,
+          COALESCE(SUM(items), 0)::text AS total_items,
+          COALESCE(SUM(shipping), 0)::text AS total_shipping,
+          COALESCE(SUM(discounts), 0)::text AS total_discounts,
+          COALESCE(SUM(marketplace_fee), 0)::text AS total_marketplace_fee,
+          COALESCE(SUM(orders_with_fee), 0)::text AS orders_with_fee
+        FROM gold_daily_revenue
+        WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+      `, ORG_ID, arDay(from), arDay(to));
+
+    let currentPeriod: [Record<string, string>];
+    let previousPeriod: [Record<string, string>];
+    if (useGold) {
+      try {
+        [currentPeriod, previousPeriod] = await Promise.all([
+          goldKpis(dateFrom, dateTo),
+          goldKpis(prevFrom, prevTo),
+        ]);
+      } catch (e: any) {
+        console.error("[Orders API] Gold KPIs failed, fallback a Bronze:", e?.message);
+        [currentPeriod, previousPeriod] = await Promise.all([bronzeCurrentKpis(), bronzePreviousKpis()]);
+      }
+    } else {
+      [currentPeriod, previousPeriod] = await Promise.all([bronzeCurrentKpis(), bronzePreviousKpis()]);
+    }
 
     // ── BATCH 1b: Daily sales (1 query, separate to stay within pool limit) ──
     // Gold-first (§6.3): con ORDERS_USE_GOLD y SIN filtro de source, el gráfico
     // diario lee gold_daily_revenue (precomputado, pack-aware) → sub-segundo.
     // Fallback a Bronze si: flag off, hay filtro de source (Gold aplica exclusión
     // de packs GLOBAL, no por-source), o la query de Gold falla.
-    const useGoldDaily = process.env.ORDERS_USE_GOLD === "true" && !sourceFilter;
-    const arDay = (d: Date) =>
-      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+    const useGoldDaily = useGold;
 
     const bronzeDailySales = () =>
       prisma.$queryRawUnsafe<Array<{ day: string; orders: string; revenue: string; items: string }>>(`

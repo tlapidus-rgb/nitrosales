@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS gold_daily_revenue (
   orders          integer     NOT NULL,   -- packs válidos (DISTINCT pack_key)
   revenue         numeric(14,2) NOT NULL,
   items           integer     NOT NULL,
+  shipping        numeric(14,2) NOT NULL DEFAULT 0,   -- para el header de KPIs (§ cascadeo)
+  discounts       numeric(14,2) NOT NULL DEFAULT 0,
+  marketplace_fee numeric(14,2) NOT NULL DEFAULT 0,
+  orders_with_fee integer     NOT NULL DEFAULT 0,
   gold_updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, day, source)
 );
