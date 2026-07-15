@@ -96,6 +96,10 @@
     {
       "path": "/api/cron/refresh-silver-orders?key=nitrosales-secret-key-2024-production",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-gold-daily-revenue?key=nitrosales-secret-key-2024-production",
+      "schedule": "5 */2 * * *"
     }
   ]
 }

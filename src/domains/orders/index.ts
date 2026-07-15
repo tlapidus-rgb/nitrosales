@@ -65,8 +65,16 @@ export function ordersValidWhere(aliasOrders: string = "o") {
  */
 export function ordersValidSql(aliasOrders: string = "o"): string {
   const p = aliasOrders ? `"${aliasOrders}".` : "";
-  const list = ORDER_STATUS_NOT_CONCRETED.map((s) => `'${s}'`).join(", ");
-  return `${p}status NOT IN (${list}) AND ${p}"totalValue" > 0`;
+  return `${p}status NOT IN (${orderStatusNotConcretedList()}) AND ${p}"totalValue" > 0`;
+}
+
+/**
+ * Lista SQL de los status NO concretados: `'CANCELLED', 'PENDING', 'RETURNED'`.
+ * Para armar `status IN (...)` / `NOT IN (...)` sin duplicar los literales.
+ * Fuente única: ORDER_STATUS_NOT_CONCRETED. La usa el rollup Gold pack-aware.
+ */
+export function orderStatusNotConcretedList(): string {
+  return ORDER_STATUS_NOT_CONCRETED.map((s) => `'${s}'`).join(", ");
 }
 
 /** String version of ordersWebWhere — for $queryRawUnsafe. */

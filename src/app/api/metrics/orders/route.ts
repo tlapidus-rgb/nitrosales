@@ -276,14 +276,16 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     ]);
 
     // ── BATCH 1b: Daily sales (1 query, separate to stay within pool limit) ──
-    const [dailySales] = await Promise.all([
-      /* 3) Daily sales */
-      prisma.$queryRawUnsafe<Array<{
-        day: string;
-        orders: string;
-        revenue: string;
-        items: string;
-      }>>(`
+    // Gold-first (§6.3): con ORDERS_USE_GOLD y SIN filtro de source, el gráfico
+    // diario lee gold_daily_revenue (precomputado, pack-aware) → sub-segundo.
+    // Fallback a Bronze si: flag off, hay filtro de source (Gold aplica exclusión
+    // de packs GLOBAL, no por-source), o la query de Gold falla.
+    const useGoldDaily = process.env.ORDERS_USE_GOLD === "true" && !sourceFilter;
+    const arDay = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+
+    const bronzeDailySales = () =>
+      prisma.$queryRawUnsafe<Array<{ day: string; orders: string; revenue: string; items: string }>>(`
         SELECT
           TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
@@ -305,8 +307,33 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           ${srcWhereSimple}
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
         ORDER BY day ASC
-      `, dateFrom, dateTo),
-    ]);
+      `, dateFrom, dateTo);
+
+    let dailySales: Array<{ day: string; orders: string; revenue: string; items: string }>;
+    if (useGoldDaily) {
+      try {
+        /* 3) Daily sales — Gold read model (pack-aware, precomputado) */
+        dailySales = await prisma.$queryRawUnsafe<Array<{ day: string; orders: string; revenue: string; items: string }>>(`
+          SELECT
+            to_char(day, 'YYYY-MM-DD') AS day,
+            SUM(orders)::text AS orders,
+            SUM(revenue)::text AS revenue,
+            SUM(items)::text AS items
+          FROM gold_daily_revenue
+          WHERE organization_id = $1
+            AND day >= $2::date
+            AND day <= $3::date
+          GROUP BY day
+          ORDER BY day ASC
+        `, ORG_ID, arDay(dateFrom), arDay(dateTo));
+      } catch (e: any) {
+        console.error("[Orders API] Gold daily failed, fallback a Bronze:", e?.message);
+        dailySales = await bronzeDailySales();
+      }
+    } else {
+      /* 3) Daily sales — Bronze (default / con filtro de source) */
+      dailySales = await bronzeDailySales();
+    }
 
     // ── BATCH 1c: Daily sales by source (only when source=ALL, resilient) ──
     const dailySalesBySource = !sourceFilter ? await safeQuery(
