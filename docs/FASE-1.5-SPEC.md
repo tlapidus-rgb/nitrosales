@@ -122,7 +122,7 @@ S0 guard [HECHO] ──> S1 medir (cruiser WARN) ──┬──> S2 relocate or
 - [x] **S0** guard del contrato — `0fdc19e`, GUARD+BUILD ok
 - [x] **S1** dependency-cruiser WARN + baseline commiteado — 2 ciclos hallados (onboarding, alerts), 0 cross-dominio; `docs/domain-graph-baseline.txt`
 - [x] **S2** relocate orders.ts → domains/orders — TSC=0, 107 tests ok, GUARD ok, CRUISE sin ciclos nuevos, `grep @/lib/metrics/orders`=0 (30 sitios migrados)
-- [ ] **S3** barrels finanzas + audiences — TSC+TEST+BUILD+CRUISE ok
+- [~] **S3** dominios limpios: **audiences ✅** (`git mv lib/audiences → domains/audiences`, ya tenía barrel `index.ts`, 2 consumidores, 0 edges cross-dominio; TSC+TEST+CRUISE ok). **finanzas PENDIENTE**: NO es un módulo tidy en `lib/` (está disperso por `api/finance`+`api/finanzas`) → necesita su propia investigación antes de mover, no forzar.
 - [x] **S4** romper los 2 ciclos — CRUISE 0 ciclos (alerts→`types.ts` `df14173`; onboarding→`email-theme.ts`). TSC=0, 107 tests
 - [x] **S5** ratchet `no-circular` a ERROR + cruise cableado al build — verificado: 0 ciclos pasa (exit 0), ciclo de prueba falla (exit 1). `no-cross-domain` sigue en warn hasta migrar más dominios (S3+)
 - [ ] **S6** prisma schema por dominio — prisma validate+generate ok, 0 DDL

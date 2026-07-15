@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
-import { previewAudience } from "@/lib/audiences/segment-engine";
-import type { SegmentCriteria } from "@/lib/audiences/types";
+import { previewAudience } from "@/domains/audiences/segment-engine";
+import type { SegmentCriteria } from "@/domains/audiences/types";
 
 export const revalidate = 0;
 
