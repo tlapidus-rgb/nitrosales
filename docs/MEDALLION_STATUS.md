@@ -16,8 +16,8 @@ orders (Bronze)  ──cron 0,30──>  silver_orders  ──cron 15,45──> 
 ```
 - **`silver_orders`**: copia conformada de `orders` con flags `is_valid`/`is_web` pre-computados. Backfilleada (632k). Cron `refresh-silver-orders` cada 30 min (`0,30 * * * *`).
 - **`gold_daily_revenue`**: rollup diario **pack-aware** (org×día×source: orders/revenue/items). Backfilleado. Cron `refresh-gold-daily-revenue` cada 30 min (`15,45 * * * *`, 15 min después de Silver).
-- **`metrics/orders`**: el gráfico de ventas diarias **y** el breakdown por-source leen `gold_daily_revenue` → sub-segundo. Detrás del flag **`ORDERS_USE_GOLD=true`** (ya seteado en Vercel), con fallback a Bronze si el flag está off / hay filtro de source / Gold falla.
-- **Lag del dashboard**: ≤30 min (los crons). Los gráficos de Gold y el header (Bronze) pueden diferir en "hoy" hasta que el header también pase a Gold (ver cascadeo abajo) — ahí lagean juntos = consistentes.
+- **`metrics/orders`**: **100% en Gold** — el header de KPIs (revenue/órdenes/items/envío/descuentos/comisión ML) **y** los 2 gráficos diarios (total + por-source) leen `gold_daily_revenue`. `gold_daily_revenue` tiene además `shipping/discounts/marketplace_fee/orders_with_fee` (pack-aware). Detrás del flag **`ORDERS_USE_GOLD=true`** (ya seteado en Vercel), con fallback a Bronze si el flag está off / hay filtro de source / Gold falla.
+- **Lag del dashboard**: ≤30 min (los crons). Header y gráficos leen Gold → lagean juntos = **consistentes entre sí**.
 
 ### Drift-proof (la clave)
 Los flags de Silver (`is_valid`/`is_web`) y del rollup Gold se generan **desde el contrato** (`src/domains/orders/index.ts`: `ordersValidSql`/`ordersWebSql`/`orderStatusNotConcretedList`), nunca a mano. Si el contrato cambia, Silver y Gold cambian con él. Imposible el drift "12 vs 16".
@@ -38,13 +38,13 @@ Todos corren en `npm run build`. Un PR que los viole rompe el build antes de pro
 | `feat/ingest-queue` | Cola de ingesta QStash (I1a/b: pixel+ml). **Sin mergear.** VTEX pendiente de OK del fundador (archivo CORE PROTEGIDO) |
 | `refactor/microservices` | Docs de planeamiento (local, sin pushear) |
 
-## ⏳ PRÓXIMO PASO — Cascadeo del HEADER de KPIs (el grande que falta)
+## ✅ HECHO — Cascadeo del HEADER de KPIs (merge `782f8272`)
 
-**Objetivo:** que el header de `metrics/orders` (revenue/órdenes/envío/descuentos/comisión ML) también lea Gold → `metrics/orders` 100% en Gold, header+gráficos consistentes.
+El header de `metrics/orders` ya lee Gold. Silver+Gold llevan `shipping/discounts/marketplace_fee` + `orders_with_fee` (pack-aware). Paridad verificada (2/3 reales exactas, Arredo -2 = freshness). **`metrics/orders` está 100% en Gold.**
 
-**Por qué es un cascadeo:** el header necesita `shipping / discounts / marketplaceFee` (+ `orders_with_fee`), que hoy NO viajan por Silver ni Gold. Hay que agregarlas a las dos capas.
+**⚠️ Lección aprendida:** al re-backfillear una tabla YA poblada, el `ON CONFLICT DO UPDATE SET` tiene que actualizar **TODAS** las columnas, no solo las nuevas — si no, quedan filas con datos de dos momentos distintos (orders viejo, cols nuevas frescas) y la paridad da diffs raros. El código de los transforms hace refresh completo; el error fue en el SQL manual del primer runbook.
 
-### Runbook (ejecutar en orden)
+### Runbook original (referencia — ya ejecutado)
 1. **Silver — agregar columnas** (Neon): `ALTER TABLE silver_orders ADD COLUMN shipping_cost numeric(12,2), ADD COLUMN discount_value numeric(12,2), ADD COLUMN marketplace_fee numeric(12,2);` (nullables → instantáneo).
 2. **Silver — actualizar transform**: en `src/data/silver/silver-orders-transform.ts` agregar esas 3 cols al SELECT/INSERT/ON CONFLICT (mapean directo de `orders`: `shippingCost`, `discountValue`, `marketplaceFee`).
 3. **Silver — re-backfill** (Neon): re-correr el UPSERT de Silver (idempotente) para llenar las cols nuevas en las filas existentes.
