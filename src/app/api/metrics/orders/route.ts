@@ -336,10 +336,10 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     }
 
     // ── BATCH 1c: Daily sales by source (only when source=ALL, resilient) ──
-    const dailySalesBySource = !sourceFilter ? await safeQuery(
-      prisma.$queryRawUnsafe<Array<{
-        day: string; source: string; orders: string; revenue: string;
-      }>>(`
+    // Gold-first: gold_daily_revenue ya tiene la dimensión source (org×día×source),
+    // así que el breakdown VTEX/MELI mapea 1:1 sin re-escanear Bronze. Mismo flag.
+    const bronzeDailyBySource = () =>
+      prisma.$queryRawUnsafe<Array<{ day: string; source: string; orders: string; revenue: string }>>(`
         SELECT
           TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
           COALESCE("source", 'VTEX') AS source,
@@ -360,8 +360,22 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           )
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), COALESCE("source", 'VTEX')
         ORDER BY day ASC
-      `, dateFrom, dateTo), [] as any[], "daily-by-source"
-    ) : [];
+      `, dateFrom, dateTo);
+
+    const dailySalesBySource = sourceFilter
+      ? []
+      : useGoldDaily
+        ? await safeQuery(
+            prisma.$queryRawUnsafe<Array<{ day: string; source: string; orders: string; revenue: string }>>(`
+              SELECT to_char(day, 'YYYY-MM-DD') AS day, source,
+                orders::text AS orders, revenue::text AS revenue
+              FROM gold_daily_revenue
+              WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+              ORDER BY day ASC
+            `, ORG_ID, arDay(dateFrom), arDay(dateTo)),
+            [] as any[], "daily-by-source-gold"
+          )
+        : await safeQuery(bronzeDailyBySource(), [] as any[], "daily-by-source");
 
     // ── BATCH 2: Charts (2 queries) ──
     const [
