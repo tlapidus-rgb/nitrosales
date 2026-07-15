@@ -35,10 +35,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Flag de seguridad: inerte hasta que el equipo lo encienda. Evita escribir a
-  // prod antes de que se haya verificado la paridad del backfill.
-  if (process.env.SILVER_ORDERS_ENABLED !== "true") {
-    return NextResponse.json({ skipped: true, reason: "SILVER_ORDERS_ENABLED != true" });
+  // Off-switch: corre por DEFAULT (la paridad del backfill ya se verificó en prod,
+  // mismatches=0). Se puede apagar seteando SILVER_ORDERS_ENABLED=false en Vercel.
+  if (process.env.SILVER_ORDERS_ENABLED === "false") {
+    return NextResponse.json({ skipped: true, reason: "SILVER_ORDERS_ENABLED=false (deshabilitado manualmente)" });
   }
 
   const startedAt = Date.now();
