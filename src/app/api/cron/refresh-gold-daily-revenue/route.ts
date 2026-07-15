@@ -16,6 +16,7 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { buildGoldDailyRevenueUpsert } from "@/data/gold/gold-daily-revenue-transform";
+import { buildGoldSegmentsUpsert } from "@/data/gold/gold-order-segments-transform";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -42,10 +43,21 @@ export async function GET(req: NextRequest) {
 
   try {
     await prisma.$executeRawUnsafe(buildGoldDailyRevenueUpsert(), since);
+    // Segmentos (channel) — independiente: si la tabla todavía no existe, no rompe el daily.
+    let segmentsOk = true;
+    let segmentsError: string | null = null;
+    try {
+      await prisma.$executeRawUnsafe(buildGoldSegmentsUpsert(), since);
+    } catch (se: any) {
+      segmentsOk = false;
+      segmentsError = String(se?.message).slice(0, 200);
+    }
     return NextResponse.json({
       ok: true,
       mode: full ? "backfill" : "incremental",
       since,
+      segmentsOk,
+      ...(segmentsError ? { segmentsError } : {}),
       durationMs: Date.now() - startedAt,
     });
   } catch (e: any) {
