@@ -26,12 +26,14 @@ INSERT INTO silver_orders (
   id, organization_id, external_id, order_date, status, total_value, currency,
   item_count, pack_id, source, channel, traffic_source, device_type, customer_id,
   shipping_cost, discount_value, marketplace_fee,
+  real_shipping_cost, delivery_type, shipping_carrier,
   is_valid, is_web, is_marketplace, silver_updated_at
 )
 SELECT
   o.id, o."organizationId", o."externalId", o."orderDate", o.status::text, o."totalValue", o.currency,
   o."itemCount", o."packId", o.source, o.channel, o."trafficSource", o."deviceType", o."customerId",
   o."shippingCost", o."discountValue", o."marketplaceFee",
+  o."realShippingCost", o."deliveryType", o."shippingCarrier",
   (${isValid}) AS is_valid,
   (${isWeb}) AS is_web,
   (NOT (${isWeb})) AS is_marketplace,
@@ -49,6 +51,9 @@ ${whereClause}ON CONFLICT (id) DO UPDATE SET
   shipping_cost = EXCLUDED.shipping_cost,
   discount_value = EXCLUDED.discount_value,
   marketplace_fee = EXCLUDED.marketplace_fee,
+  real_shipping_cost = EXCLUDED.real_shipping_cost,
+  delivery_type = EXCLUDED.delivery_type,
+  shipping_carrier = EXCLUDED.shipping_carrier,
   is_valid = EXCLUDED.is_valid,
   is_web = EXCLUDED.is_web,
   is_marketplace = EXCLUDED.is_marketplace,
