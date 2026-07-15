@@ -954,12 +954,9 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       `, dateFrom, dateTo), [{ gross_revenue: "0", gross_with_cost: "0", gross_without_cost: "0", total_cogs: "0", orders_with_cost: "0", orders_total: "0" }] as any, "profitability"),
     ]);
 
-    // ── BATCH 7b: Logistics by delivery (1 query, resilient) ──
-    const [logisticsByDelivery] = await Promise.all([
-      /* 18) Logistics — by delivery type */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
-        bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
-      }>>(`
+    // ── BATCH 7b: Logistics by delivery (1 query, resilient) ── Gold-first (dimension='delivery')
+    const bronzeLogByDelivery = () =>
+      prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string }>>(`
         SELECT
           COALESCE("deliveryType", 'Sin dato') AS bucket,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
@@ -981,8 +978,20 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           ${srcWhereSimple}
         GROUP BY "deliveryType"
         ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
-      `, dateFrom, dateTo), [] as any[], "logistics-delivery"),
-    ]);
+      `, dateFrom, dateTo);
+
+    const logisticsByDelivery = useGold
+      ? await safeQuery(
+          prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string }>>(`
+            SELECT bucket, SUM(orders)::text AS orders, SUM(revenue)::text AS revenue,
+              SUM(shipping_charged)::text AS shipping_charged, SUM(shipping_real)::text AS shipping_real
+            FROM gold_order_segments
+            WHERE organization_id = $1 AND dimension = 'delivery' AND day >= $2::date AND day <= $3::date
+            GROUP BY bucket ORDER BY SUM(orders) DESC
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)),
+          [] as any[], "logistics-delivery-gold"
+        )
+      : await safeQuery(bronzeLogByDelivery(), [] as any[], "logistics-delivery");
 
     // ── BATCH 8a: Logistics + device (2 queries, resilient) ──
     const [
@@ -990,8 +999,16 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       segByDevice,
     ] = await Promise.all([
 
-      /* 19) Logistics — by carrier */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
+      /* 19) Logistics — by carrier */ // Gold-first (dimension='carrier')
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string }>>(`
+            SELECT bucket, SUM(orders)::text AS orders, SUM(revenue)::text AS revenue,
+              SUM(shipping_charged)::text AS shipping_charged, SUM(shipping_real)::text AS shipping_real
+            FROM gold_order_segments
+            WHERE organization_id = $1 AND dimension = 'carrier' AND day >= $2::date AND day <= $3::date
+            GROUP BY bucket ORDER BY SUM(orders) DESC LIMIT 10
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)), [] as any[], "logistics-carrier-gold")
+        : safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
       }>>(`
         SELECT

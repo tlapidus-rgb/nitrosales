@@ -21,9 +21,15 @@ describe("gold_order_segments — anti-drift + pack-aware", () => {
     expect(upsert).toContain("COUNT(DISTINCT pack_key)");
   });
 
-  it("segmenta por channel (bucket = COALESCE(channel,'Sin dato'), dimension='channel')", () => {
-    expect(upsert).toContain("COALESCE(s.channel, 'Sin dato') AS bucket");
-    expect(upsert).toContain("'channel' AS dimension");
+  it("segmenta por 3 dimensiones (channel, delivery, carrier) con medidas de envío", () => {
+    expect(upsert).toContain("'channel'  AS dimension");
+    expect(upsert).toContain("'delivery' AS dimension");
+    expect(upsert).toContain("'carrier'  AS dimension");
+    expect(upsert).toContain("COALESCE(s.channel, 'Sin dato')");
+    expect(upsert).toContain("COALESCE(s.delivery_type, 'Sin dato')");
+    expect(upsert).toContain("COALESCE(s.shipping_carrier, 'Sin dato')");
+    expect(upsert).toContain("SUM(shipping_cost)");
+    expect(upsert).toContain("SUM(real_shipping_cost)");
   });
 
   it("es idempotente (ON CONFLICT por org+day+dimension+bucket)", () => {

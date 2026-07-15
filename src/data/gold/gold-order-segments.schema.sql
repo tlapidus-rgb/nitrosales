@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS gold_order_segments (
   bucket          text        NOT NULL,   -- el valor de la dimensión (ej. 'web', 'Sin dato')
   orders          integer     NOT NULL,   -- packs válidos (DISTINCT pack_key)
   revenue         numeric(14,2) NOT NULL,
+  shipping_charged numeric(14,2) NOT NULL DEFAULT 0,   -- SUM(shippingCost) — para dims de logística
+  shipping_real    numeric(14,2) NOT NULL DEFAULT 0,   -- SUM(realShippingCost)
   gold_updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, day, dimension, bucket)
 );
