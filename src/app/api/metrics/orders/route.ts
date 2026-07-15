@@ -1059,12 +1059,9 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       `, dateFrom, dateTo), [] as any[], "seg-device"),
     ]);
 
-    // ── BATCH 8b: Channel segmentation (1 query, resilient) ──
-    const [segByChannel] = await Promise.all([
-      /* 21) Segmentation — by channel */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
-        bucket: string; orders: string; revenue: string;
-      }>>(`
+    // ── BATCH 8b: Channel segmentation (1 query, resilient) ── Gold-first (dimension='channel')
+    const bronzeSegByChannel = () =>
+      prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string }>>(`
         SELECT
           COALESCE("channel", 'Sin dato') AS bucket,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
@@ -1084,8 +1081,21 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           ${srcWhereSimple}
         GROUP BY "channel"
         ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
-      `, dateFrom, dateTo), [] as any[], "seg-channel"),
-    ]);
+      `, dateFrom, dateTo);
+
+    const segByChannel = useGold
+      ? await safeQuery(
+          prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string }>>(`
+            SELECT bucket, SUM(orders)::text AS orders, SUM(revenue)::text AS revenue
+            FROM gold_order_segments
+            WHERE organization_id = $1 AND dimension = 'channel'
+              AND day >= $2::date AND day <= $3::date
+            GROUP BY bucket
+            ORDER BY SUM(orders) DESC
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)),
+          [] as any[], "seg-channel-gold"
+        )
+      : await safeQuery(bronzeSegByChannel(), [] as any[], "seg-channel");
 
     // ── BATCH 9: Traffic + coupons (2 queries, resilient) ──
     const [
