@@ -17,7 +17,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";

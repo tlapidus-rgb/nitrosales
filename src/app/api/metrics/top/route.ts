@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 
 type TopItem = { key: string; label: string; value: number; secondary?: number };
 

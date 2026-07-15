@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 import { detectRuleBasedAnomalies, detectClaudeAnomalies, MetricSnapshot } from "@/lib/anomaly/detector";
 import { sendEmail } from "@/lib/email/send";
 import { anomalyAlertEmail, AnomalyForEmail } from "@/lib/email/templates";

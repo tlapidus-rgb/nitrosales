@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 import type { PrimitiveDefinition, EvaluationContext, EvaluationResult } from "./types";
 
 async function getOrdersCount(orgId: string, fromDate: Date, toDate: Date = new Date()) {

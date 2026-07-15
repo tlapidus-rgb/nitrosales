@@ -22,7 +22,7 @@ export const maxDuration = 30;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 import { filterMarketingTouchpoints } from "@/lib/pixel/source-classification";
 import { getCached, setCache } from "@/lib/api-cache";
 

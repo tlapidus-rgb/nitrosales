@@ -92,6 +92,10 @@
     {
       "path": "/api/cron/attribution-reconcile?key=nitrosales-secret-key-2024-production",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-silver-orders?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 */2 * * *"
     }
   ]
 }

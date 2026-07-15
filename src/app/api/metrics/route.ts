@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 
 // ── Optimized: all aggregation done in PostgreSQL, no full-table loads ──
 

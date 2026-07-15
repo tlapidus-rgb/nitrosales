@@ -142,6 +142,19 @@ export function isOrderWeb(order: {
   return true;
 }
 
+/**
+ * Predicado puro "orden VALIDA" (concretada + valor > 0), SIN el filtro web.
+ * Espejo JS de ordersValidSql(): ambos derivan de ORDER_STATUS_NOT_CONCRETED,
+ * así no pueden divergir. Usar cuando no podés inyectar SQL (tests, in-memory).
+ */
+export function isOrderValid(order: {
+  status?: string | null;
+  totalValue?: number | string | null;
+}): boolean {
+  if (!isOrderConcreted(order.status)) return false;
+  return Number(order.totalValue || 0) > 0;
+}
+
 export function isOrderValidWeb(order: {
   status?: string | null;
   totalValue?: number | string | null;
@@ -150,9 +163,7 @@ export function isOrderValidWeb(order: {
   trafficSource?: string | null;
   externalId?: string | null;
 }): boolean {
-  if (!isOrderConcreted(order.status)) return false;
-  if (Number(order.totalValue || 0) <= 0) return false;
-  return isOrderWeb(order);
+  return isOrderValid(order) && isOrderWeb(order);
 }
 
 // ────────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@
 import { prisma } from "@/lib/db/client";
 import { getPrimitive } from "./primitives";
 import { sendEmail } from "@/lib/email/send";
-import type { UnifiedAlert, AlertSource } from "./alert-hub";
+import type { UnifiedAlert, AlertSource } from "./types";
 
 export interface StoredRule {
   id: string;

@@ -26,7 +26,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere } from "@/domains/orders";
 import { calculateCashRunway } from "@/lib/finanzas/runway";
 import { buildNarrative, buildAlerts } from "@/lib/finanzas/narrative";
 import type {

@@ -1,0 +1,19 @@
+# Baseline del grafo de dependencias — Fase 1.5 S1 (2026-07-14, main@9aff5a8 + guard)
+# Generado con: npm run cruise --output-type err
+# 769 módulos, 2431 dependencias.
+
+## Ciclos REALES (los que S4 tiene que romper):
+
+  warn no-circular: src/lib/onboarding/emails.ts → 
+      src/lib/onboarding/template-renderer.ts →
+      src/lib/onboarding/emails.ts
+  warn no-circular: src/lib/alerts/alert-hub.ts → 
+      src/lib/alerts/engine.ts →
+      src/lib/alerts/alert-hub.ts
+
+x 2 dependency violations (0 errors, 2 warnings). 769 modules, 2431 dependencies cruised.
+
+
+## NOTA: el plan viejo asumía un ciclo pixel<->aura. NO existe.
+## influencer-attribution.ts es un edge de una sola dirección (aura -> pixel/influencer-attribution).
+## Los 2 ciclos son INTRA-dominio (onboarding interno, alerts interno) — bajo riesgo, no cruzan fronteras.

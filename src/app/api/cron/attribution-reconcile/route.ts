@@ -21,7 +21,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
-import { ordersValidWhere, ordersWebWhere } from "@/lib/metrics/orders";
+import { ordersValidWhere, ordersWebWhere } from "@/domains/orders";
 import { attributeOrderByMatch } from "@/lib/pixel/attribute-order-by-match";
 import { attributeOrderToInfluencer } from "@/lib/pixel/influencer-attribution";
 

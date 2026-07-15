@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
-import { ordersValidSql } from "@/lib/metrics/orders";
+import { ordersValidSql } from "@/domains/orders";
 import type { PrimitiveDefinition, EvaluationContext, EvaluationResult } from "./types";
 
 // Helper: obtiene el cash override del mes actual (o 0 si no hay)

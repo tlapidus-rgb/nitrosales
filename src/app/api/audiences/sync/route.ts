@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
-import { getMatchingCustomers } from "@/lib/audiences/segment-engine";
-import { syncToMeta } from "@/lib/audiences/send-meta";
-import { syncToGoogle } from "@/lib/audiences/send-google";
-import type { SegmentCriteria, SyncResult } from "@/lib/audiences/types";
+import { getMatchingCustomers } from "@/domains/audiences/segment-engine";
+import { syncToMeta } from "@/domains/audiences/send-meta";
+import { syncToGoogle } from "@/domains/audiences/send-google";
+import type { SegmentCriteria, SyncResult } from "@/domains/audiences/types";
 
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: hasta 60s para syncs grandes
