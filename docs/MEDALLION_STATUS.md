@@ -2,6 +2,22 @@
 
 > Última actualización: 2026-07-15 (sesión larga). Plan maestro: `PLAN_ARQUITECTURA_MODULAR_MONOLITO.md`.
 > **Para retomar: leer esto primero.** Es el estado completo + qué sigue.
+>
+> ## ⏸️ ESTADO: PAUSADO (2026-07-15, post-reunión con Tomy)
+> La estructura queda en pausa — **primero van varios hotfixes**. Todo lo de abajo sigue
+> vigente y en prod; nada quedó a medias (cada merge fue completo y verificado). Al retomar,
+> arrancar por "PRÓXIMA SESIÓN" priorizando por la percepción de velocidad (ver sección).
+
+## 🐢 Por qué la carga TODAVÍA se siente lenta (diagnóstico 2026-07-15)
+El usuario sigue notando lentitud. Causa, medida contra el código:
+1. **`/api/metrics/orders` corre ~22 queries y la página espera a TODAS.** Migramos 7 a Gold (header, 2 diarios, channel, delivery, carrier). Las ~15 restantes siguen en Bronze y **dominan el tiempo total**: `topProducts` (JOIN items+products), `cohortsRaw` (LATERAL first-order), `profitabilityRaw` (order_items), `segByDevice`/`segByTraffic` (LATERAL a pixel), `recentOrders` (json_agg), payment, dayOfWeek, hour, etc.
+2. **Las 5 rutas pixel** (`metrics/pixel`, `funnel`, `conversion`, `sales-by-ad`, `products`) siguen escaneando `pixel_events` crudo — históricamente las MÁS lentas de la app. Los rollups `pixel_daily_*` YA existen: es apuntar las rutas + backfill funnel×canal (BP-PIXEL-CHANNEL-ROLLUP).
+
+**Para sentir el cambio al 100% (orden de ataque al retomar):**
+1. Pedir al usuario el dato del Network tab (F12): qué endpoint tarda y cuántos ms → atacar en orden de dolor.
+2. Migrar las queries pesadas restantes de `metrics/orders` (products/cohorts/profitability primero — son las que dominan).
+3. Migrar las rutas pixel a `pixel_daily_*` + backfill masivo funnel×canal.
+4. La **Fase 3 (reorg a modules/) NO da velocidad** — es mantenibilidad/equipo. Puede esperar.
 
 ## ✅ EN PROD HOY (todo en `main`, verificado y mergeado)
 
