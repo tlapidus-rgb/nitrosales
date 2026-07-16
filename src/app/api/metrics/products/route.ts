@@ -198,13 +198,21 @@ export async function GET(request: Request) {
           orders: bigint;
         }>
       >`
-        WITH master_products AS (
-          SELECT DISTINCT ON (sku)
-            id, sku, name, "imageUrl", category, "categoryPath", brand, stock, "costPrice", price
+        WITH prods AS (
+          -- Fix "faltan productos" (feedback 2026-07): antes se excluia todo producto
+          -- SIN sku (tipico en listings MELI). Ahora cada producto sin sku entra con
+          -- clave propia ('noSKU:'||id); los con sku se siguen mergeando cross-source.
+          SELECT id, sku, name, "imageUrl", category, "categoryPath", brand, stock,
+                 "costPrice", price, "createdAt",
+                 COALESCE(NULLIF(sku, ''), 'noSKU:' || id) AS pkey
           FROM products
           WHERE "organizationId" = ${ORG_ID}
-            AND sku IS NOT NULL AND sku != ''
-          ORDER BY sku,
+        ),
+        master_products AS (
+          SELECT DISTINCT ON (pkey)
+            id, pkey, sku, name, "imageUrl", category, "categoryPath", brand, stock, "costPrice", price
+          FROM prods
+          ORDER BY pkey,
             CASE WHEN "imageUrl" IS NOT NULL AND "imageUrl" != '' THEN 0 ELSE 1 END,
             CASE WHEN "categoryPath" IS NOT NULL AND "categoryPath" != '' THEN 0 ELSE 1 END,
             CASE WHEN "costPrice" IS NOT NULL THEN 0 ELSE 1 END,
@@ -212,7 +220,7 @@ export async function GET(request: Request) {
         ),
         sales_by_sku AS (
           SELECT
-            p.sku AS sku,
+            COALESCE(NULLIF(p.sku, ''), 'noSKU:' || p.id) AS pkey,
             SUM(oi.quantity)::bigint AS units,
             ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
             COUNT(DISTINCT oi."orderId")::bigint AS orders
@@ -223,8 +231,7 @@ export async function GET(request: Request) {
             AND o."orderDate" >= ${thirtyDaysAgo}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWhere("o")}
-            AND p.sku IS NOT NULL AND p.sku != ''
-          GROUP BY p.sku
+          GROUP BY COALESCE(NULLIF(p.sku, ''), 'noSKU:' || p.id)
         )
         SELECT
           m.id AS "productId",
@@ -247,7 +254,7 @@ export async function GET(request: Request) {
             ELSE NULL END AS cogs,
           COALESCE(s.orders, 0)::bigint AS orders
         FROM master_products m
-        LEFT JOIN sales_by_sku s ON m.sku = s.sku
+        LEFT JOIN sales_by_sku s ON m.pkey = s.pkey
       `,
 
       // Query 4: Stock sync metadata
