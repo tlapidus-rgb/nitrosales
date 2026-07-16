@@ -229,12 +229,20 @@ export async function createCreatorWithCommission(
 export function validateCreatorSimpleInput(input: {
   name?: unknown;
   email?: unknown;
+  phone?: unknown;
 }): { ok: true } | { ok: false; error: string } {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (!name) return { ok: false, error: "Nombre requerido" };
   const email = typeof input.email === "string" ? input.email.trim() : "";
   if (!email) return { ok: false, error: "Email requerido (se le manda su acceso por mail)" };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Email inválido" };
+  // Teléfono OBLIGATORIO en el alta (feedback 2026-07). Formato laxo: dígitos,
+  // +, espacios, guiones, paréntesis; mínimo 6 dígitos reales.
+  const phone = typeof input.phone === "string" ? input.phone.trim() : "";
+  if (!phone) return { ok: false, error: "Teléfono requerido" };
+  if (!/^[+\d][\d\s\-()]*$/.test(phone) || phone.replace(/\D/g, "").length < 6) {
+    return { ok: false, error: "Teléfono inválido (mínimo 6 dígitos)" };
+  }
   return { ok: true };
 }
 
@@ -246,7 +254,7 @@ export function validateCreatorSimpleInput(input: {
  */
 export async function createCreatorSimple(
   tx: Prisma.TransactionClient,
-  input: { organizationId: string; name: string; email?: string | null },
+  input: { organizationId: string; name: string; email?: string | null; phone?: string | null },
 ): Promise<{ influencerId: string; code: string }> {
   const name = input.name.trim();
   const code = await generateUniqueCode(tx, input.organizationId, name);
@@ -256,6 +264,7 @@ export async function createCreatorSimple(
       name,
       code,
       email: input.email ?? null,
+      phone: input.phone?.trim() || null,
       commissionPercent: 0, // sin comisión hasta que una campaña se la asigne
       status: "ACTIVE",
     },

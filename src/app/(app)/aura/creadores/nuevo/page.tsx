@@ -30,12 +30,16 @@ export default function NuevoCreadorPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Email OBLIGATORIO: se le manda el acceso (link de set-password) por mail.
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const canSubmit = name.trim().length > 0 && emailValid && !saving;
+  // Teléfono OBLIGATORIO (feedback 2026-07): formato laxo, mínimo 6 dígitos.
+  const phoneValid =
+    /^[+\d][\d\s\-()]*$/.test(phone.trim()) && phone.replace(/\D/g, "").length >= 6;
+  const canSubmit = name.trim().length > 0 && emailValid && phoneValid && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -50,6 +54,7 @@ export default function NuevoCreadorPage() {
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim() || null,
+          phone: phone.trim() || null,
         }),
       });
       const d = await r.json().catch(() => ({}));
@@ -109,6 +114,17 @@ export default function NuevoCreadorPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="sofia@email.com"
+              className="w-full px-3 py-2.5 rounded-xl outline-none text-sm"
+              style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+            />
+          </Field>
+
+          <Field label="Teléfono" required hint="Con código de país, ej: +54 9 11 1234 5678.">
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+54 9 11 1234 5678"
               className="w-full px-3 py-2.5 rounded-xl outline-none text-sm"
               style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
             />

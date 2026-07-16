@@ -28,16 +28,18 @@ export async function POST(req: NextRequest) {
 
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const email = typeof body.email === "string" && body.email.trim() ? body.email.trim() : null;
+    const phone = typeof body.phone === "string" && body.phone.trim() ? body.phone.trim() : null;
 
     // Item 9 (reunión Tomy 08/07/26): el afiliado se crea SIN comisión. Solo se
-    // pide nombre + email; la comisión se asigna después por campaña.
-    const check = validateCreatorSimpleInput({ name, email });
+    // pide nombre + email + teléfono (obligatorio desde 2026-07); la comisión se
+    // asigna después por campaña.
+    const check = validateCreatorSimpleInput({ name, email, phone });
     if (!check.ok) {
       return NextResponse.json({ error: check.error }, { status: 400 });
     }
 
     const result = await prisma.$transaction((tx) =>
-      createCreatorSimple(tx, { organizationId: org.id, name, email }),
+      createCreatorSimple(tx, { organizationId: org.id, name, email, phone }),
     );
 
     // Onboarding: mail con el link de set-password, POST-commit, fire-and-forget visible.

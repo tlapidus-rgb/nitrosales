@@ -1250,6 +1250,7 @@ model Influencer {
   code                    String                           // Código único de tracking (ej: "sofia123")
   name                    String                           // Nombre del influencer
   email                   String?                          // Email de contacto
+  phone                   String?                          // Teléfono de contacto (obligatorio en el ALTA desde 2026-07; nullable por creadores pre-existentes)
   commissionPercent       Decimal   @db.Decimal(5, 2)     // 0.00 a 100.00
   status                  String    @default("ACTIVE")     // ACTIVE, PAUSED, INACTIVE
   publicName              String?                          // Nombre visible en dashboard público
