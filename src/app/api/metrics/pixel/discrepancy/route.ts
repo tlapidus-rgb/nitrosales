@@ -36,17 +36,23 @@ export async function GET(request: NextRequest) {
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 7 * MS_PER_DAY);
 
-    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
-    const modelParam = (searchParams.get("model") || "LAST_CLICK").toUpperCase();
-    const selectedModel = validModels.includes(modelParam) ? modelParam : "LAST_CLICK";
-
-    // ── Org settings for Nitro weights ──
+    // ── Org settings for Nitro weights + default model ──
     const org = await prisma.organization.findUnique({
       where: { id: ORG_ID },
       select: { settings: true },
     });
     const orgSettings = (org?.settings as Record<string, any>) || {};
     const nitroWeights = orgSettings.nitroWeights || { first: 30, last: 40, middle: 30 };
+
+    // Fix 2026-07 (#5 config audit): sin ?model=, el default sale de la config
+    // de la org (igual que /api/metrics/pixel y /funnel). Antes era LAST_CLICK
+    // hardcodeado → el modelo elegido en /pixel/configuracion no aplicaba acá.
+    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
+    const settingsModel = validModels.includes(orgSettings.attributionModel)
+      ? orgSettings.attributionModel
+      : "NITRO";
+    const modelParam = (searchParams.get("model") || settingsModel).toUpperCase();
+    const selectedModel = validModels.includes(modelParam) ? modelParam : settingsModel;
     const wFirst = nitroWeights.first;
     const wLast = nitroWeights.last;
     const wMiddle = nitroWeights.middle;

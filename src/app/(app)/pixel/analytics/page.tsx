@@ -482,9 +482,12 @@ export default function AnalyticsPage() {
     setError(null);
 
     try {
+      // Fix 2026-07 (#5 config audit): sin ?model= los endpoints usan el modelo
+      // configurado en /pixel/configuracion (antes NITRO hardcodeado acá → el
+      // selector de modelo de la config no tenía efecto en Analytics).
       const [pixelRes, discRes] = await Promise.all([
-        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`),
-        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=NITRO`),
+        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}`),
+        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}`),
       ]);
 
       if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
@@ -526,7 +529,7 @@ export default function AnalyticsPage() {
     }
     let cancelled = false;
     setFunnelLoading(true);
-    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&model=NITRO&channel=${encodeURIComponent(funnelChannel)}`)
+    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
