@@ -7,6 +7,7 @@ import {
   BarChart, Bar, ComposedChart, Line, Cell, PieChart, Pie, ReferenceLine,
 } from "recharts";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
+import ConversionRateTables from "@/components/pixel/ConversionRateTables";
 
 // ══════════════════════════════════════════════════════════════
 // NitroPixel Analytics — World-Class Intelligence Dashboard
@@ -291,12 +292,10 @@ const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all du
 const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
 
 // ══════════════════════════════════════════════════════════════
-// CR by Category/Brand/Product tables moved to /products (Conversión tab)
-// Analytics keeps only CR by Channel + CR by Device in ZONA 8.
+// CR by Category/Brand/Product tables — de vuelta en ZONA 8 (feedback
+// 2026-07-15), ahora como componente compartido:
+//   @/components/pixel/ConversionRateTables (fetch propio, sin Revenue).
 // ══════════════════════════════════════════════════════════════
-// __CR_TABLES_REMOVED__ (Sesión 20) — CategoryCRTable, BrandCRTable y ProductCRTable
-// se movieron a /products (tab "Conversión"). Analytics mantiene CR por Canal y
-// CR por Dispositivo en ZONA 8, rendereados inline sin tablas.
 
 // ══════════════════════════════════════════════════════════════
 // STICKY SECTION NAV — Floating pill bar with scroll spy
@@ -2120,7 +2119,9 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              {/* CR por Categoría/Marca/Producto: movidas a /products (tab Conversión) en Sesión 20 */}
+              {/* CR por Categoría / Marca / Producto — de vuelta acá desde /products
+                  (feedback 2026-07-15). Fetch propio contra /api/metrics/conversion. */}
+              <ConversionRateTables dateFrom={dateFrom} dateTo={dateTo} />
             </div>
           );
           } catch { return null; }
