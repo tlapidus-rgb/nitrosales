@@ -74,6 +74,24 @@ export async function POST(req: NextRequest) {
         ? Number(body.bonusTarget)
         : null;
 
+    // ── Ventana de atribución por campaña (feedback 2026-07) ──
+    // Opcional: 1-180 días. null = hereda la ventana del creador.
+    let attributionWindowDays: number | null = null;
+    if (
+      body.attributionWindowDays !== undefined &&
+      body.attributionWindowDays !== null &&
+      body.attributionWindowDays !== ""
+    ) {
+      const w = Math.round(Number(body.attributionWindowDays));
+      if (!Number.isFinite(w) || w < 1 || w > 180) {
+        return NextResponse.json(
+          { error: "Ventana de atribución inválida (1 a 180 días)" },
+          { status: 400 },
+        );
+      }
+      attributionWindowDays = w;
+    }
+
     // ── Deal fields (opcional) ──
     const deal = body.deal && typeof body.deal === "object" ? body.deal : null;
     const ALLOWED_DEAL_TYPES = [
@@ -126,6 +144,7 @@ export async function POST(req: NextRequest) {
           endDate,
           bonusAmount,
           bonusTarget,
+          attributionWindowDays,
           status: "ACTIVE",
         },
         select: { id: true, name: true },

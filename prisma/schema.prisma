@@ -1316,6 +1316,7 @@ model InfluencerCampaign {
   bonusAmount     Decimal?  @db.Decimal(12, 2)    // Monto fijo de bono al alcanzar el target
   bonusTarget     Decimal?  @db.Decimal(12, 2)    // Revenue target para desbloquear el bono
   isAlwaysOn      Boolean   @default(false)       // true = campaña base creada al aprobar al creador
+  attributionWindowDays Int?                       // Ventana de atribución de la CAMPAÑA (días, 1-180). null = hereda la del creador. (feedback 2026-07)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

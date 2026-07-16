@@ -17,6 +17,15 @@
 
 import { prisma } from "@/lib/db/client";
 
+/** Slug del nombre de campaña — MISMO formato con el que el link del creador
+ *  genera el utm_campaign. Usado para matchear touchpoint ↔ campaña. */
+function campaignNameToSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 30);
+}
+
 /**
  * Determine the effective commission % for an influencer.
  * If commission tiers are configured and the influencer's monthly
@@ -149,11 +158,25 @@ export async function attributeOrderToInfluencer(
         // Buscar al creador para leer su ventana
         const infRow = await prisma.influencer.findUnique({
           where: { organizationId_code: { organizationId, code: cand.code } },
-          select: { attributionWindowDays: true, status: true },
+          select: { id: true, attributionWindowDays: true, status: true },
         });
         if (!infRow || infRow.status === "INACTIVE") continue;
 
-        const windowDays = infRow.attributionWindowDays ?? 14;
+        // Ventana con precedencia (feedback 2026-07): CAMPAÑA (si el touchpoint
+        // trae slug que matchea una campaña ACTIVA con ventana propia) > creador > 14.
+        let windowDays = infRow.attributionWindowDays ?? 14;
+        if (cand.campaign) {
+          const activeCampaigns = await prisma.influencerCampaign.findMany({
+            where: { influencerId: infRow.id, organizationId, status: "ACTIVE" },
+            select: { name: true, attributionWindowDays: true },
+          });
+          const campMatch = activeCampaigns.find(
+            (c) => campaignNameToSlug(c.name) === cand.campaign
+          );
+          if (campMatch?.attributionWindowDays != null) {
+            windowDays = campMatch.attributionWindowDays;
+          }
+        }
         const ageDays = (orderTime - cand.ts) / DAY_MS;
         if (ageDays < 0 || ageDays > windowDays) {
           console.log(
@@ -221,13 +244,7 @@ export async function attributeOrderToInfluencer(
         status: "ACTIVE",
       },
     });
-    const match = campaigns.find((c) => {
-      const slug = c.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .slice(0, 30);
-      return slug === campaignSlug;
-    });
+    const match = campaigns.find((c) => campaignNameToSlug(c.name) === campaignSlug);
     if (match) campaignId = match.id;
   }
 

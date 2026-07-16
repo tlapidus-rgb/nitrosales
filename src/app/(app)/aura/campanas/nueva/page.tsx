@@ -133,6 +133,7 @@ function NuevaCampanaInner() {
   const [endDate, setEndDate] = useState("");
   const [bonusTarget, setBonusTarget] = useState("");
   const [bonusAmount, setBonusAmount] = useState("");
+  const [attributionWindowDays, setAttributionWindowDays] = useState("");
 
   // Deal fields
   const [dealType, setDealType] = useState<string>("");
@@ -241,6 +242,7 @@ function NuevaCampanaInner() {
           endDate: endDate || null,
           bonusTarget: bonusTarget || null,
           bonusAmount: bonusAmount || null,
+          attributionWindowDays: attributionWindowDays || null,
           deal,
         }),
       });
@@ -355,6 +357,23 @@ function NuevaCampanaInner() {
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate} className="w-full px-3 py-2.5 rounded-lg outline-none text-[13px]" style={INPUT_STYLE} />
             </Field>
           </div>
+
+          {/* ── Ventana de atribución (feedback 2026-07) ── */}
+          <Field
+            label="Ventana de atribución (días)"
+            hint="Cuántos días después del click del creador cuenta una venta para esta campaña. Vacío = usa la ventana del creador."
+          >
+            <input
+              type="number"
+              min={1}
+              max={180}
+              value={attributionWindowDays}
+              onChange={(e) => setAttributionWindowDays(e.target.value)}
+              placeholder="Ej: 14"
+              className="w-full px-3 py-2.5 rounded-lg outline-none text-[13px]"
+              style={INPUT_STYLE}
+            />
+          </Field>
 
           {/* ══════════════════════════════════════════════════════════
               DEAL TYPE — ¿Cómo le vas a pagar?
