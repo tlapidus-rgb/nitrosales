@@ -65,38 +65,18 @@ export async function GET(request: NextRequest) {
       productViewersResult,
       productPurchasesResult,
     ] = await Promise.all([
-      // 1. Visitors per source (primer touch UTM / referrer)
+      // 1. Visitors per source (primer touch) — PERF 2026-07: lee el rollup
+      // pixel_daily_source (HLL, first-touch canónico unificado con el funnel)
+      // en vez del DISTINCT ON sobre pixel_events crudo (era EL cuello del endpoint).
       prisma.$queryRaw`
-        WITH visitor_source AS (
-          SELECT DISTINCT ON (pe."visitorId")
-            pe."visitorId",
-            pe."utmParams",
-            pe.referrer
-          FROM pixel_events pe
-          WHERE pe."organizationId" = ${ORG_ID}
-            AND pe.timestamp >= ${crDateFrom}
-            AND pe.timestamp <= ${dateTo}
-          ORDER BY pe."visitorId", pe.timestamp ASC
-        )
         SELECT
-          CASE
-            WHEN COALESCE(vs."utmParams"->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(vs."utmParams"->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(vs."utmParams"->>'source','') || '_organic'
-            WHEN vs."utmParams"->>'source' IS NOT NULL AND vs."utmParams"->>'source' != ''
-            THEN vs."utmParams"->>'source'
-            WHEN vs.referrer LIKE '%google.%' THEN 'google_organic'
-            WHEN vs.referrer LIKE '%bing.%' THEN 'bing_organic'
-            WHEN vs.referrer LIKE '%instagram.%' OR vs.referrer LIKE '%l.instagram.%' THEN 'instagram'
-            WHEN vs.referrer LIKE '%facebook.%' OR vs.referrer LIKE '%m.facebook.%' OR vs.referrer LIKE '%l.facebook.%' THEN 'facebook'
-            WHEN vs.referrer LIKE '%tiktok.%' THEN 'tiktok'
-            WHEN vs.referrer LIKE '%youtube.%' THEN 'youtube'
-            WHEN vs.referrer IS NOT NULL AND vs.referrer != '' THEN 'referral'
-            ELSE 'direct'
-          END as source,
-          COUNT(*)::int as visitors
-        FROM visitor_source vs
-        GROUP BY 1
+          dp.first_source as source,
+          COALESCE(hll_cardinality(hll_union_agg(dp.pv_visitors_hll)), 0)::int as visitors
+        FROM pixel_daily_source dp
+        WHERE dp."organizationId" = ${ORG_ID}
+          AND dp.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+        GROUP BY dp.first_source
         ORDER BY visitors DESC
         LIMIT 20
       ` as Promise<Array<{ source: string; visitors: number }>>,
@@ -123,16 +103,17 @@ export async function GET(request: NextRequest) {
         LIMIT 20
       ` as Promise<Array<{ source: string; orders: number; revenue: number }>>,
 
-      // 3. Device visitors
+      // 3. Device visitors — PERF 2026-07: lee el rollup pixel_daily_device (HLL)
+      // en vez del COUNT(DISTINCT) sobre pixel_events crudo.
       prisma.$queryRaw`
         SELECT
-          COALESCE(pe."deviceType", 'unknown') as device,
-          COUNT(DISTINCT pe."visitorId")::int as visitors
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${crDateFrom}
-          AND pe.timestamp <= ${dateTo}
-        GROUP BY 1
+          dd.device,
+          COALESCE(hll_cardinality(hll_union_agg(dd.visitors_hll)), 0)::int as visitors
+        FROM pixel_daily_device dd
+        WHERE dd."organizationId" = ${ORG_ID}
+          AND dd.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND dd.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+        GROUP BY dd.device
         ORDER BY visitors DESC
       ` as Promise<Array<{ device: string; visitors: number }>>,
 
@@ -159,18 +140,17 @@ export async function GET(request: NextRequest) {
         ORDER BY orders DESC
       ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
-      // 5. Product viewers (VIEW_PRODUCT events)
+      // 5. Product viewers — PERF 2026-07: lee el rollup pixel_daily_product (HLL,
+      // VIEW_PRODUCT por producto/día) en vez de escanear pixel_events crudo.
       prisma.$queryRaw`
         SELECT
-          pe.props->>'productId' as "productExternalId",
-          COUNT(DISTINCT pe."visitorId")::int as viewers
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${crDateFrom}
-          AND pe.timestamp <= ${dateTo}
-          AND pe.type = 'VIEW_PRODUCT'
-          AND pe.props->>'productId' IS NOT NULL
-        GROUP BY 1
+          dp.product_id as "productExternalId",
+          COALESCE(hll_cardinality(hll_union_agg(dp.viewers_hll)), 0)::int as viewers
+        FROM pixel_daily_product dp
+        WHERE dp."organizationId" = ${ORG_ID}
+          AND dp.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+        GROUP BY dp.product_id
         ORDER BY viewers DESC
         LIMIT 500
       ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
