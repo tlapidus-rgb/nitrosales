@@ -456,14 +456,20 @@ export async function PATCH(
       allowed.profileImage = body.profileImage.trim() || null;
     if (body.attributionWindowDays !== undefined) {
       const raw = body.attributionWindowDays;
-      const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
-      if (!Number.isFinite(n) || n < 1 || n > 180) {
-        return NextResponse.json(
-          { error: "attributionWindowDays must be 1-180" },
-          { status: 400 }
-        );
+      if (raw === null) {
+        // null = resetear al default del motor (14 días) — usado por el
+        // desplegable de afiliados en pixel/configuración (feedback 2026-07-15)
+        allowed.attributionWindowDays = null;
+      } else {
+        const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+        if (!Number.isFinite(n) || n < 1 || n > 180) {
+          return NextResponse.json(
+            { error: "attributionWindowDays must be 1-180 (or null to reset)" },
+            { status: 400 }
+          );
+        }
+        allowed.attributionWindowDays = Math.round(n);
       }
-      allowed.attributionWindowDays = Math.round(n);
     }
 
     const existing = await prisma.influencer.findFirst({

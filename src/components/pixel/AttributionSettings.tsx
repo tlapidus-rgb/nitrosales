@@ -405,6 +405,9 @@ export function AttributionSettings() {
             );
           })}
         </div>
+
+        {/* ─── Afiliados de Aura (desplegable al final de la lista) ─── */}
+        <AuraCreatorWindows />
       </div>
 
       {/* ─── Footer: save ─── */}
@@ -434,6 +437,242 @@ export function AttributionSettings() {
           {saving ? "Guardando..." : "Guardar cambios"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// AuraCreatorWindows — desplegable de afiliados de Aura al final
+// de "Ventanas por canal" (feedback 2026-07-15).
+// ══════════════════════════════════════════════════════════════
+// Cada afiliado tiene su propia ventana de atribución (motor:
+// campaña > creador > 14 días default). Acá se edita la del
+// creador; los cambios se guardan al instante vía
+// PATCH /api/aura/creators/[id] (independiente del botón global,
+// que solo persiste settings de pixel).
+// ══════════════════════════════════════════════════════════════
+
+const AURA_DEFAULT_WINDOW = 14;
+
+type AuraCreatorRow = {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+  attributionWindowDays: number;
+};
+
+function AuraCreatorWindows() {
+  const [open, setOpen] = useState(false);
+  const [creators, setCreators] = useState<AuraCreatorRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  // drafts por creador (string para permitir el input vacío mientras se tipea)
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  const loadCreators = () => {
+    setLoading(true);
+    setFetchError(null);
+    fetch("/api/aura/creators/list")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        const rows: AuraCreatorRow[] = (d.creators || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          status: c.status,
+          attributionWindowDays: c.attributionWindowDays ?? AURA_DEFAULT_WINDOW,
+        }));
+        setCreators(rows);
+        setDrafts(Object.fromEntries(rows.map((c) => [c.id, String(c.attributionWindowDays)])));
+      })
+      .catch(() => setFetchError("No pude cargar los afiliados de Aura. Probá de nuevo."))
+      .finally(() => setLoading(false));
+  };
+
+  const toggleOpen = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && creators === null && !loading) loadCreators();
+  };
+
+  const patchWindow = async (creatorId: string, value: number | null) => {
+    setSavingId(creatorId);
+    setRowError(null);
+    try {
+      const res = await fetch(`/api/aura/creators/${creatorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributionWindowDays: value }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      const effective = d?.creator?.attributionWindowDays ?? AURA_DEFAULT_WINDOW;
+      setCreators((prev) =>
+        prev
+          ? prev.map((c) => (c.id === creatorId ? { ...c, attributionWindowDays: effective } : c))
+          : prev,
+      );
+      setDrafts((prev) => ({ ...prev, [creatorId]: String(effective) }));
+      setSavedId(creatorId);
+      setTimeout(() => setSavedId((s) => (s === creatorId ? null : s)), 3000);
+    } catch {
+      setRowError("No pude guardar la ventana. Probá de nuevo.");
+      // rollback del draft al valor persistido
+      setDrafts((prev) => {
+        const persisted = creators?.find((c) => c.id === creatorId)?.attributionWindowDays;
+        return { ...prev, [creatorId]: String(persisted ?? AURA_DEFAULT_WINDOW) };
+      });
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const commitDraft = (creator: AuraCreatorRow) => {
+    const raw = (drafts[creator.id] ?? "").trim();
+    const n = raw === "" ? NaN : Number(raw);
+    if (!Number.isFinite(n) || n < 1 || n > 180) {
+      // inválido → volver al valor persistido sin llamar a la API
+      setDrafts((prev) => ({ ...prev, [creator.id]: String(creator.attributionWindowDays) }));
+      return;
+    }
+    const rounded = Math.round(n);
+    if (rounded === creator.attributionWindowDays) return; // sin cambios
+    patchWindow(creator.id, rounded);
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <button
+        type="button"
+        onClick={toggleOpen}
+        className="w-full flex items-center justify-between gap-3 py-1.5 group"
+      >
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`text-gray-400 text-xs transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            ▶
+          </span>
+          <span className="text-sm font-semibold text-gray-900">Afiliados de Aura</span>
+          {creators !== null && (
+            <span className="text-[10px] text-gray-400">({creators.length})</span>
+          )}
+        </div>
+        <span className="text-[10px] uppercase tracking-wider text-violet-500 font-semibold group-hover:text-violet-600">
+          Ventana por afiliado
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-2">
+          <p className="text-xs text-gray-500 mb-3">
+            Cada afiliado usa su propia ventana de atribución (default{" "}
+            <strong>{AURA_DEFAULT_WINDOW} días</strong>; las campañas activas con ventana propia
+            tienen prioridad). Los cambios acá se guardan al instante.
+          </p>
+
+          {loading && <div className="text-xs text-gray-400 py-3">Cargando afiliados...</div>}
+
+          {fetchError && (
+            <div className="flex items-center justify-between bg-red-50 border border-red-200/60 rounded-lg px-3 py-2">
+              <span className="text-[11px] text-red-700">{fetchError}</span>
+              <button
+                type="button"
+                onClick={loadCreators}
+                className="text-[11px] text-red-700 hover:text-red-900 font-semibold"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          {rowError && <div className="text-[11px] text-red-600 mb-2">{rowError}</div>}
+
+          {creators !== null && !loading && creators.length === 0 && (
+            <div className="text-xs text-gray-400 py-3">
+              Todavía no hay afiliados de Aura. Crealos desde Aura → Creadores.
+            </div>
+          )}
+
+          {creators !== null && creators.length > 0 && (
+            <div className="space-y-2">
+              {creators.map((c) => {
+                const isCustom = c.attributionWindowDays !== AURA_DEFAULT_WINDOW;
+                const isSaving = savingId === c.id;
+                const isSaved = savedId === c.id;
+                const isInactive = c.status === "INACTIVE";
+                return (
+                  <div key={c.id} className={`flex items-center gap-3 py-1.5 ${isInactive ? "opacity-50" : ""}`}>
+                    <div className="w-44 flex items-center gap-2.5 min-w-0">
+                      <span className="w-[26px] h-[26px] rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[11px] font-bold flex-shrink-0">
+                        {c.name.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <span className="text-xs font-medium text-gray-800 truncate block" title={c.name}>
+                          {c.name}
+                        </span>
+                        <span className="text-[10px] text-gray-400 truncate block">@{c.code}</span>
+                      </div>
+                    </div>
+                    <div className="flex-1" />
+                    {isSaved && <span className="text-[10px] text-emerald-600 font-medium">✓ Guardado</span>}
+                    <span
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                        isCustom ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {isCustom
+                        ? `Custom · ${c.attributionWindowDays}d`
+                        : `Default · ${AURA_DEFAULT_WINDOW}d`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isSaving || !isCustom}
+                        onClick={() => patchWindow(c.id, null)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
+                          !isCustom
+                            ? "border-cyan-500 bg-cyan-50 text-cyan-700 cursor-default"
+                            : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                        } disabled:opacity-60`}
+                      >
+                        Por defecto
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={180}
+                        value={drafts[c.id] ?? ""}
+                        disabled={isSaving}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        onBlur={() => commitDraft(c)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        }}
+                        className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none transition-all ${
+                          isCustom
+                            ? "border-violet-500 bg-violet-50 text-violet-700"
+                            : "border-gray-200 text-gray-500"
+                        } disabled:opacity-60`}
+                      />
+                      <span className="text-[11px] text-gray-400 w-8">
+                        {isSaving ? "..." : "días"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
