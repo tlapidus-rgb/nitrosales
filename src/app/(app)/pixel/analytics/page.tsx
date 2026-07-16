@@ -2007,9 +2007,9 @@ export default function AnalyticsPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="text-sm font-semibold text-gray-900">Conversión por Canal</h2>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (NitroPixel) → Compras (atribución pixel) por fuente</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (NitroPixel) → Participaciones (atribución pixel) por fuente</p>
                     </div>
-                    <InfoTip text="Visitantes y Compras se cuentan por FIRST-TOUCH del visitor (canal por el que entro por primera vez). Mismos numeros que el Funnel cuando lo filtras por ese canal. CR = compras / visitantes. Revenue es proxy desde la atribucion last-click — puede diferir levemente de la atribucion first-touch pura." />
+                    <InfoTip text="Visitantes y Participaciones se cuentan por FIRST-TOUCH del visitor (canal por el que entro por primera vez). Mismos numeros que el Funnel cuando lo filtras por ese canal. CR = participaciones / visitantes." />
                   </div>
                   {channels.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -2018,8 +2018,7 @@ export default function AnalyticsPage() {
                           <tr className="border-b border-gray-100">
                             <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
                             <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Visitantes</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Compras</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Revenue</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Participaciones</th>
                             <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">CR</th>
                           </tr>
                         </thead>
@@ -2054,7 +2053,6 @@ export default function AnalyticsPage() {
                                 </td>
                                 <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>
                                 <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.purchases)}</td>
-                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmtCompact(s.revenue)}</td>
                                 <td className="text-right pl-2 py-2.5">
                                   <span className={`font-bold tabular-nums ${crColor}`}>{s.cr}%</span>
                                 </td>
