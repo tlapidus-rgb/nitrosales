@@ -99,7 +99,7 @@ ON CONFLICT (organization_id, day, source, product_id) DO UPDATE SET
   units = EXCLUDED.units,
   revenue = EXCLUDED.revenue,
   orders = EXCLUDED.orders,
-  gold_updated_at = now();;
+  gold_updated_at = now();
 
 -- ═══ 4) RE-BACKFILL COMPLETO gold_daily_revenue (actualiza TODAS las columnas) ═══
 WITH bad_packs AS (
@@ -215,7 +215,7 @@ ON CONFLICT (organization_id, day, source) DO UPDATE SET
   item_cogs = EXCLUDED.item_cogs,
   orders_with_cost = EXCLUDED.orders_with_cost,
   orders_with_items = EXCLUDED.orders_with_items,
-  gold_updated_at = now();;
+  gold_updated_at = now();
 ```
 
 ## 5) PARIDAD (correr después del backfill — esperado: diff = 0 en todas las orgs)
