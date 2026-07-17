@@ -355,6 +355,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         LIMIT 10
       ` as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
 
+      // PERF 2026-07-17: las ~15 queries de pixel_attributions de este endpoint
+      // filtran por o."orderDate" (correcto — ver nota más abajo), pero eso NO
+      // usa índice de pixel_attributions → PG escaneaba TODA la historia de
+      // atribuciones de la org por query (Arredo: /api/metrics/pixel tardaba
+      // 14-25s). Se agregó `AND pa."createdAt" >= ${dateFrom}` a cada una: es un
+      // predicado REDUNDANTE que nunca cambia el resultado (una atribución se crea
+      // igual o DESPUÉS de la fecha de la orden, así que toda orden con
+      // orderDate >= X ya cumple createdAt >= X) pero habilita el índice
+      // (organizationId, createdAt) → el scan se acota a la ventana. Solo lower
+      // bound: NUNCA agregar `pa."createdAt" <= dateTo` (rompería replays/backfills
+      // de atribución, cuyo createdAt es posterior a la orden — es lo que advierte
+      // la nota de orderDate).
       // 8. Attribution by model
       prisma.$queryRaw`
         SELECT
@@ -367,6 +379,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
+          AND pa."createdAt" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
@@ -409,6 +422,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
+              AND pa."createdAt" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = 'NITRO'
               AND ${ordersValidWhere("o")}
@@ -437,6 +451,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
+              AND pa."createdAt" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
               AND ${ordersValidWhere("o")}
@@ -465,6 +480,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
+              AND pa."createdAt" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
               AND ${ordersValidWhere("o")}
@@ -492,6 +508,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
+              AND pa."createdAt" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
               AND ${ordersValidWhere("o")}
@@ -525,6 +542,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
+          AND pa."createdAt" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -660,6 +678,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
+          AND pa."createdAt" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -682,6 +701,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${prevFrom}
+          AND pa."createdAt" >= ${prevFrom}
           AND o."orderDate" <= ${prevTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -767,6 +787,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
+          AND pa."createdAt" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -811,6 +832,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
+          AND pa."createdAt" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -842,6 +864,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           WHERE pa."organizationId" = ${ORG_ID}
             AND pa.model::text = ${selectedModel}
             AND o."orderDate" >= ${dateFrom}
+            AND pa."createdAt" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWhere("o")}
             AND o."totalValue" > 0
@@ -895,6 +918,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
+          AND pa."createdAt" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -971,6 +995,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
+          AND pa."createdAt" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
@@ -1002,6 +1027,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
+          AND pa."createdAt" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND pa."touchpointCount" >= 2
@@ -1054,6 +1080,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE pa."organizationId" = ${ORG_ID}
           AND pa.model::text IN ('LAST_CLICK', 'FIRST_CLICK', 'LINEAR', 'NITRO')
           AND o."orderDate" >= ${dateFrom}
+          AND pa."createdAt" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
           AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
