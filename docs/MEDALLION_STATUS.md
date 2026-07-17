@@ -47,7 +47,8 @@ orders (Bronze) ──cron 0,30──> silver_orders ──cron 15,45──> gol
 | Profitability (tanda 2: +6 medidas item_* en `gold_daily_revenue`) | ✅ Gold |
 | Cohorts new/returning (tanda 3: dim `silver_customer_firsts`, sin LATERAL) | ✅ Silver-dim |
 | Pago (tanda 4: dim `payment` + SOURCE en el grain de `gold_order_segments`) | ✅ Gold |
-| Device, traffic (enriquecen de pixel — otro pipeline), top customers, recentOrders, dayOfWeek/hour, status | ⏳ Bronze |
+| Top customers (tanda 5b: `gold_customer_daily` org×día×cliente, pack-aware) | ✅ Gold |
+| Device, traffic (enriquecen de pixel — otro pipeline), recentOrders, dayOfWeek/hour, status | ⏳ Bronze |
 
 **Tandas 2-4 (2026-07-16/17, paridad 0 verificada en Neon en cada una):**
 - Runbooks corridos: `RUNBOOK-GOLD-TANDA2.md`, `RUNBOOK-SILVER-CUSTOMER-FIRSTS.md`, `RUNBOOK-SEGMENTS-TANDA4.md` (el SQL de backfill se GENERA de los builders con tsx — no editar a mano).
