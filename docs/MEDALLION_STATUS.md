@@ -76,7 +76,36 @@ Los flags de Silver y los rollups Gold se generan **desde el contrato** (`src/do
 3. **Freshness lag es normal:** las orgs reales dan `diff=0` cuando Silver está fresco; Arredo (`cmohl80fx`, la más movida) suele dar ±1-2 por ventas que entran entre el re-backfill y la paridad. La org de PRUEBA es `cmmmga1uq` (data manual, se ignora). Reales: EMDJ, Arredo=`cmohl80fx`, TVC.
 4. **`avgTicket` se calcula en JS** (`revenue/orders`, no `AVG`, por packs MELI). Ver `BP-I5`.
 
-## 🔜 PRÓXIMA SESIÓN — retomar acá (2026-07-17)
+## 🥇 TANDA 5 EN CURSO — gold_attribution_source (metrics/pixel)
+Branch `feat/medallion-pixel-attribution` (4 commits, pusheable). El dolor #1 real
+medido: `/api/metrics/pixel` = 14-25s en Arredo (Network tab). Causa (EXPLAIN):
+4 queries que desanidan `pa.touchpoints` (JSONB) por request (#9 by-source, #20
+day×source, #22 channel roles, #29 model×channel), cada una ~3s, seq-scan de
+pixel_attributions. (El fix del índice `pa.createdAt` NO alcanzó — el planner
+seq-scanea igual; branch `perf/pixel-attribution-index` DESCARTADO.)
+
+**Diseño (post /plan-eng-review, verificado en Neon):** grano `(org, día, source)`
+— touchpoints y attributedValue son model-independientes (25120/25121). Guarda
+COMPONENTES SIN PONDERAR (last_click/first_click/linear + los 6 de NITRO +
+touch-role counts) → los pesos NITRO configurables se aplican AL LEER
+(`lib/pixel/attribution-weights.ts`), cambiar pesos no invalida historia.
+
+**HECHO + EN PROD (backfill corrido, PARIDAD CONFIRMADA):** tabla creada +
+backfilleada en Neon; paridad Gold-vs-Bronze en VENTANA CONGELADA (60-30d) = 0
+filas (los diffs del rango reciente eran 100% freshness). Cron
+`refresh-gold-attribution` (:20/:50, off-switch ATTRIBUTION_ROLLUP_ENABLED) ya lo
+mantiene fresco. Núcleo + tests (171) + helper compartido `touchpoint-source-sql.ts`.
+
+**FALTA (retomar acá — es lo único que queda de #11):** migrar el SERVE — las 4
+queries JSONB de `metrics/pixel/route.ts` a leer gold_attribution_source detrás de
+flag NUEVO `PIXEL_USE_GOLD` con fallback Bronze. Diseño: UNA lectura del rollup +
+reconstruir los 4 shapes en JS (reconstructSourceRevenue). Consumidores a preservar
+EXACTO: attributionBySourceResult (1150 filter, 1156 map, 1238 channelRoas, 1470
+loop), channelRolesResult (1170 merge), attributionByModelChannelResult (1572),
+y el daily-by-source (#20). Money-path → hacerlo fresco, no apurado. Runbook ya
+corrido, cron ya activo: solo falta el commit del serve + medir preview (25s→~5s).
+
+## 🔜 lo que sigue de metrics/orders (menor prioridad, el grueso ya está)
 
 **Estado del task list:** #8 topProducts+profitability ✅, #9 cohorts ✅, #10 payment ✅.
 **#11 (rutas pixel) EN CURSO — bloqueado por dato del usuario:**
