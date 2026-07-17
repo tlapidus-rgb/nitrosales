@@ -98,34 +98,34 @@ export async function GET(req: NextRequest) {
     // Solo re-chequeamos inactivos cada 24h por si reactivaron alguno
     let skuIdsToSync: number[];
 
+    // Una sola query: externalId + stockUpdatedAt + isActive de todos los
+    // productos conocidos (reemplaza las 2 queries anteriores y además
+    // alimenta el ordenamiento por frontera de abajo).
+    const knownProducts = await prisma.product.findMany({
+      where: { organizationId: org.id },
+      select: { externalId: true, stockUpdatedAt: true, isActive: true },
+    });
+    const lastSyncByExternalId = new Map<string, number>(
+      knownProducts.map((p) => [p.externalId, p.stockUpdatedAt?.getTime() ?? 0]),
+    );
+
     if (forceSync) {
       skuIdsToSync = allSkuIds;
     } else {
-      const staleThreshold = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
-      const inactiveRecheckThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const staleThreshold = Date.now() - STALE_HOURS * 60 * 60 * 1000;
+      const inactiveRecheckThreshold = Date.now() - 24 * 60 * 60 * 1000;
 
-      // Query 1: SKUs recién sincronizados (dentro de STALE_HOURS) → skip
-      const recentlySynced = await prisma.product.findMany({
-        where: {
-          organizationId: org.id,
-          stockUpdatedAt: { gte: staleThreshold },
-        },
-        select: { externalId: true },
-      });
+      const recentIds = new Set(
+        knownProducts
+          .filter((p) => (p.stockUpdatedAt?.getTime() ?? 0) >= staleThreshold)
+          .map((p) => p.externalId),
+      );
+      const inactiveIds = new Set(
+        knownProducts
+          .filter((p) => !p.isActive && (p.stockUpdatedAt?.getTime() ?? 0) >= inactiveRecheckThreshold)
+          .map((p) => p.externalId),
+      );
 
-      // Query 2: SKUs conocidos como inactivos, sincronizados en las últimas 24h → skip
-      const knownInactive = await prisma.product.findMany({
-        where: {
-          organizationId: org.id,
-          isActive: false,
-          stockUpdatedAt: { gte: inactiveRecheckThreshold },
-        },
-        select: { externalId: true },
-      });
-
-      const recentIds = new Set(recentlySynced.map((p: any) => p.externalId));
-      const inactiveIds = new Set(knownInactive.map((p: any) => p.externalId));
-      
       skuIdsToSync = allSkuIds.filter(
         (id) => !recentIds.has(String(id)) && !inactiveIds.has(String(id))
       );
@@ -134,6 +134,19 @@ export async function GET(req: NextRequest) {
       const skippedInactive = inactiveIds.size - [...inactiveIds].filter(id => recentIds.has(id)).length;
       console.log(`[Sync] Skipping ${skippedRecent} recent + ${skippedInactive} inactive SKUs`);
     }
+
+    // ── Fix "catálogo incompleto" (feedback 2026-07-16, EMDJ: 32/197 LEGO) ──
+    // El presupuesto por corrida procesa solo una fracción de los pendientes, y
+    // como STALE_HOURS (4h) < cadencia del cron (diaria), TODO vuelve a estar
+    // stale en cada corrida → antes se procesaba siempre el MISMO prefijo del
+    // orden de VTEX y el resto del catálogo no se sincronizaba NUNCA.
+    // Orden nuevo: nunca-sincronizados primero (no existen en products),
+    // después del más viejo al más nuevo — cada corrida avanza la frontera.
+    skuIdsToSync.sort(
+      (a, b) =>
+        (lastSyncByExternalId.get(String(a)) ?? -1) -
+        (lastSyncByExternalId.get(String(b)) ?? -1),
+    );
 
     console.log(`[Sync] ${skuIdsToSync.length} pending of ${allSkuIds.length}`);
 
