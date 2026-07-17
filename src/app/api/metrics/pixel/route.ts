@@ -145,7 +145,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm-cache estaba saturando la DB (32 fetches paralelos × 29
     // queries c/u = 928 queries simultaneas cada 30 min). Volver al
     // cache simple `getCached` (fresh 5 min, despues miss).
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v8"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v9-attrgold"];
 
     // ── SWR real (2026-06-12, BP-PERF-DASHBOARD) ──────────────────────────────
     // El compute completo (29 queries) vive en computeAndCache(). Cache-miss =
@@ -1700,6 +1700,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         attributionModel: selectedModel,
         attributionWindowDays,
         nitroWeights,
+        pixelGold: usePixelGold, // debug tanda 5: ¿el serve está leyendo el rollup?
         // Pixel coverage: when the pixel was first installed + effective CR date range
         pixelInstalledAt: pixelInstalledAt ? pixelInstalledAt.toISOString() : null,
         crDateFrom: crDateFrom.toISOString(),
