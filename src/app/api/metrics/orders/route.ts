@@ -542,9 +542,48 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     ]);
 
     // ── BATCH 3b: Top products (heavy JOIN, runs alone, resilient) ──
+    // Gold-first (tanda 2): agrega gold_product_sales (precomputado pack-aware)
+    // y joinea la metadata SOLO para los 15 ganadores. Fallback Bronze si flag
+    // off / filtro de source / Gold falla.
     const [topProducts] = await Promise.all([
       /* 8) Top products */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<Array<{
+            product_id: string;
+            product_name: string;
+            brand: string;
+            category: string;
+            image_url: string | null;
+            units_sold: string;
+            revenue: string;
+            order_count: string;
+          }>>(`
+            WITH agg AS (
+              SELECT product_id,
+                SUM(units)::text AS units_sold,
+                SUM(revenue) AS revenue,
+                SUM(orders)::text AS order_count
+              FROM gold_product_sales
+              WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+              GROUP BY product_id
+              ORDER BY SUM(revenue) DESC
+              LIMIT 15
+            )
+            SELECT
+              p.id AS product_id,
+              p.name AS product_name,
+              COALESCE(p.brand, 'Sin marca') AS brand,
+              COALESCE(p.category, 'Sin categoria') AS category,
+              COALESCE(p."imageUrl", ml."thumbnailUrl") AS image_url,
+              a.units_sold,
+              a.revenue::text AS revenue,
+              a.order_count
+            FROM agg a
+            JOIN products p ON p.id = a.product_id
+            LEFT JOIN ml_listings ml ON ml."mlItemId" = p."externalId" AND ml."organizationId" = $1
+            ORDER BY a.revenue DESC
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)), [] as any[], "top-products-gold")
+        : safeQuery(prisma.$queryRawUnsafe<Array<{
         product_id: string;
         product_name: string;
         brand: string;
@@ -911,7 +950,26 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       `, dateFrom, dateTo), [] as any[], "cohorts"),
 
       /* 17) Profitability — gross, COGS, net, margin */
-      safeQuery(prisma.$queryRawUnsafe<[{
+      // Gold-first (tanda 2): las medidas item_* de gold_daily_revenue son el
+      // MISMO cálculo (COALESCE de costos + pack-aware) precomputado por día.
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<[{
+            gross_revenue: string; gross_with_cost: string; gross_without_cost: string;
+            total_cogs: string; orders_with_cost: string; orders_total: string;
+          }]>(`
+            SELECT
+              COALESCE(SUM(item_gross), 0)::text AS gross_revenue,
+              COALESCE(SUM(item_gross_with_cost), 0)::text AS gross_with_cost,
+              COALESCE(SUM(item_gross_without_cost), 0)::text AS gross_without_cost,
+              COALESCE(SUM(item_cogs), 0)::text AS total_cogs,
+              COALESCE(SUM(orders_with_cost), 0)::text AS orders_with_cost,
+              COALESCE(SUM(orders_with_items), 0)::text AS orders_total
+            FROM gold_daily_revenue
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)),
+          [{ gross_revenue: "0", gross_with_cost: "0", gross_without_cost: "0", total_cogs: "0", orders_with_cost: "0", orders_total: "0" }] as any,
+          "profitability-gold")
+        : safeQuery(prisma.$queryRawUnsafe<[{
         gross_revenue: string; gross_with_cost: string; gross_without_cost: string;
         total_cogs: string; orders_with_cost: string; orders_total: string;
       }]>(`

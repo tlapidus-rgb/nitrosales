@@ -37,6 +37,7 @@ WITH bad_packs AS (
 ),
 valid_rows AS (
   SELECT
+    s.id,
     s.organization_id,
     (s.order_date AT TIME ZONE '${AR_TZ}')::date AS day,
     s.source,
@@ -53,25 +54,80 @@ valid_rows AS (
       WHERE b.organization_id = s.organization_id
         AND b.pack_key = COALESCE(s.pack_id, s.external_id)
     )
+),
+-- ── Medidas de PROFITABILITY (tanda 2): a nivel item, agregadas al mismo grain ──
+-- effective_cost replica el COALESCE de metrics/orders (item → producto → hermano
+-- por SKU). Desviación documentada: el hermano se resuelve con MAX(costPrice) por
+-- (org, sku) pre-agregado (determinista) en vez del LIMIT 1 sin ORDER BY del
+-- Bronze (no determinista). Solo difiere si un mismo SKU tiene 2+ costos > 0.
+sku_costs AS (
+  SELECT "organizationId" AS organization_id, sku, MAX("costPrice") AS cost
+  FROM products
+  WHERE sku IS NOT NULL AND sku != '' AND "costPrice" IS NOT NULL AND "costPrice" > 0
+  GROUP BY "organizationId", sku
+),
+item_measures AS (
+  SELECT
+    v.organization_id,
+    v.day,
+    v.source,
+    COALESCE(SUM(oi."totalPrice"), 0) AS item_gross,
+    COALESCE(SUM(oi."totalPrice") FILTER (WHERE ec.effective_cost > 0), 0) AS item_gross_with_cost,
+    COALESCE(SUM(oi."totalPrice") FILTER (WHERE ec.effective_cost IS NULL OR ec.effective_cost = 0), 0) AS item_gross_without_cost,
+    COALESCE(SUM(oi.quantity * ec.effective_cost) FILTER (WHERE ec.effective_cost > 0), 0) AS item_cogs,
+    COUNT(DISTINCT v.pack_key) FILTER (WHERE ec.effective_cost > 0)::int AS orders_with_cost,
+    COUNT(DISTINCT v.pack_key)::int AS orders_with_items
+  FROM valid_rows v
+  JOIN order_items oi ON oi."orderId" = v.id
+  LEFT JOIN products p ON p.id = oi."productId"
+  LEFT JOIN sku_costs sc ON sc.organization_id = v.organization_id AND sc.sku = p.sku
+  CROSS JOIN LATERAL (
+    SELECT COALESCE(oi."costPrice", p."costPrice", sc.cost) AS effective_cost
+  ) ec
+  GROUP BY v.organization_id, v.day, v.source
+),
+order_measures AS (
+  SELECT
+    organization_id,
+    day,
+    source,
+    COUNT(DISTINCT pack_key)::int AS orders,
+    COALESCE(SUM(total_value), 0) AS revenue,
+    COALESCE(SUM(item_count), 0)::int AS items,
+    COALESCE(SUM(shipping_cost), 0) AS shipping,
+    COALESCE(SUM(discount_value), 0) AS discounts,
+    COALESCE(SUM(marketplace_fee), 0) AS marketplace_fee,
+    COUNT(DISTINCT pack_key) FILTER (WHERE marketplace_fee > 0)::int AS orders_with_fee
+  FROM valid_rows
+  GROUP BY organization_id, day, source
 )
 INSERT INTO gold_daily_revenue (
   organization_id, day, source, orders, revenue, items,
-  shipping, discounts, marketplace_fee, orders_with_fee, gold_updated_at
+  shipping, discounts, marketplace_fee, orders_with_fee,
+  item_gross, item_gross_with_cost, item_gross_without_cost, item_cogs,
+  orders_with_cost, orders_with_items, gold_updated_at
 )
 SELECT
-  organization_id,
-  day,
-  source,
-  COUNT(DISTINCT pack_key)::int AS orders,
-  COALESCE(SUM(total_value), 0) AS revenue,
-  COALESCE(SUM(item_count), 0)::int AS items,
-  COALESCE(SUM(shipping_cost), 0) AS shipping,
-  COALESCE(SUM(discount_value), 0) AS discounts,
-  COALESCE(SUM(marketplace_fee), 0) AS marketplace_fee,
-  COUNT(DISTINCT pack_key) FILTER (WHERE marketplace_fee > 0)::int AS orders_with_fee,
+  om.organization_id,
+  om.day,
+  om.source,
+  om.orders,
+  om.revenue,
+  om.items,
+  om.shipping,
+  om.discounts,
+  om.marketplace_fee,
+  om.orders_with_fee,
+  COALESCE(im.item_gross, 0),
+  COALESCE(im.item_gross_with_cost, 0),
+  COALESCE(im.item_gross_without_cost, 0),
+  COALESCE(im.item_cogs, 0),
+  COALESCE(im.orders_with_cost, 0),
+  COALESCE(im.orders_with_items, 0),
   now()
-FROM valid_rows
-GROUP BY organization_id, day, source
+FROM order_measures om
+LEFT JOIN item_measures im
+  ON im.organization_id = om.organization_id AND im.day = om.day AND im.source = om.source
 ON CONFLICT (organization_id, day, source) DO UPDATE SET
   orders = EXCLUDED.orders,
   revenue = EXCLUDED.revenue,
@@ -80,6 +136,12 @@ ON CONFLICT (organization_id, day, source) DO UPDATE SET
   discounts = EXCLUDED.discounts,
   marketplace_fee = EXCLUDED.marketplace_fee,
   orders_with_fee = EXCLUDED.orders_with_fee,
+  item_gross = EXCLUDED.item_gross,
+  item_gross_with_cost = EXCLUDED.item_gross_with_cost,
+  item_gross_without_cost = EXCLUDED.item_gross_without_cost,
+  item_cogs = EXCLUDED.item_cogs,
+  orders_with_cost = EXCLUDED.orders_with_cost,
+  orders_with_items = EXCLUDED.orders_with_items,
   gold_updated_at = now();`.trim();
 }
 
