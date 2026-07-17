@@ -23,16 +23,27 @@ const SERVE = join(ROOT, "src", "app", "api", "metrics"); // superficie de Serve
 
 // Rutas de Serve que YA escaneaban pixel_events al crear el guard (2026-07-15).
 // Grandfathered. Sacar de acá a medida que se migran a Gold (Fases 1-2).
+// Ratchet-down 2026-07-17: conversion y products salieron (ya solo mencionan
+// pixel_events en comentarios; leen rollups) — el guard ahora ignora comentarios.
 const ALLOWLIST = new Set([
-  "src/app/api/metrics/conversion/route.ts",
   "src/app/api/metrics/pixel/funnel/route.ts", // híbrido: Gold-first + fallback crudo
   "src/app/api/metrics/pixel/route.ts", //         híbrido: Gold-first + fallback crudo
-  "src/app/api/metrics/pixel/sales-by-ad/route.ts",
-  "src/app/api/metrics/products/route.ts", //      híbrido: Gold-first + fallback crudo
+  "src/app/api/metrics/pixel/sales-by-ad/route.ts", // lookup acotado a visitantes atribuidos
 ]);
 
 // Lectura de pixel_events CRUDO: la tabla en SQL o el modelo Prisma.
 const PATTERN = /\bpixel_events\b|prisma\.pixelEvent\b/;
+
+// Un comentario que MENCIONA pixel_events (ej. "antes escaneaba pixel_events")
+// no es un scan. Sacamos comentarios de línea (//…) y de bloque (/* … */) antes
+// de testear, para que el guard mida CÓDIGO real y no docstrings. Las plantillas
+// SQL usan `FROM pixel_events` en su propia línea (nunca tras //), así que esto
+// no puede esconder un scan real.
+function stripComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "") // bloque /* ... */
+    .replace(/(^|[^:])\/\/.*$/gm, "$1"); // línea // ... (evita romper http://)
+}
 
 function walk(dir) {
   const out = [];
@@ -53,7 +64,7 @@ function walk(dir) {
 const matches = [];
 for (const file of walk(SERVE)) {
   const rel = relative(ROOT, file).replace(/\\/g, "/");
-  if (PATTERN.test(readFileSync(file, "utf8"))) matches.push(rel);
+  if (PATTERN.test(stripComments(readFileSync(file, "utf8")))) matches.push(rel);
 }
 
 const newViolations = matches.filter((f) => !ALLOWLIST.has(f));
