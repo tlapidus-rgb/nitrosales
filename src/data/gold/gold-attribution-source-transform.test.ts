@@ -54,6 +54,7 @@ describe("gold_attribution_source — transform drift-proof", () => {
       "orders", "last_click_revenue", "first_click_revenue", "linear_revenue",
       "nitro_single", "nitro_first2", "nitro_last2", "nitro_first_n", "nitro_last_n",
       "nitro_middle_n", "first_touch_count", "assist_touch_count", "last_touch_count",
+      "solo_touch_count",
     ]) {
       expect(upsert).toContain(`${col} = EXCLUDED.${col}`);
     }

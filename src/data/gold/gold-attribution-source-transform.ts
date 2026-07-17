@@ -70,7 +70,7 @@ INSERT INTO gold_attribution_source (
   organization_id, day, source, orders,
   last_click_revenue, first_click_revenue, linear_revenue,
   nitro_single, nitro_first2, nitro_last2, nitro_first_n, nitro_last_n, nitro_middle_n,
-  first_touch_count, assist_touch_count, last_touch_count, gold_updated_at
+  first_touch_count, assist_touch_count, last_touch_count, solo_touch_count, gold_updated_at
 )
 SELECT
   organization_id,
@@ -89,6 +89,7 @@ SELECT
   COUNT(*) FILTER (WHERE tp_ord = 1)::int AS first_touch_count,
   COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < n)::int AS assist_touch_count,
   COUNT(*) FILTER (WHERE tp_ord = n AND n > 1)::int AS last_touch_count,
+  COUNT(*) FILTER (WHERE n = 1)::int AS solo_touch_count,
   now()
 FROM exploded
 GROUP BY organization_id, day, source
@@ -106,6 +107,7 @@ ON CONFLICT (organization_id, day, source) DO UPDATE SET
   first_touch_count = EXCLUDED.first_touch_count,
   assist_touch_count = EXCLUDED.assist_touch_count,
   last_touch_count = EXCLUDED.last_touch_count,
+  solo_touch_count = EXCLUDED.solo_touch_count,
   gold_updated_at = now();`.trim();
 }
 

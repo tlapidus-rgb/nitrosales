@@ -45,9 +45,10 @@ CREATE TABLE IF NOT EXISTS gold_attribution_source (
   nitro_last_n        numeric(14,2) NOT NULL DEFAULT 0,  -- n>=3, último touch
   nitro_middle_n      numeric(14,2) NOT NULL DEFAULT 0,  -- n>=3, intermedios (ya / (n-2))
   -- Conteos de rol por source (para "channel roles", query #22) --
-  first_touch_count   integer       NOT NULL DEFAULT 0,
-  assist_touch_count  integer       NOT NULL DEFAULT 0,
-  last_touch_count    integer       NOT NULL DEFAULT 0,
+  first_touch_count   integer       NOT NULL DEFAULT 0,  -- tp_ord = 1 (incluye solo-touch)
+  assist_touch_count  integer       NOT NULL DEFAULT 0,  -- 1 < tp_ord < n
+  last_touch_count    integer       NOT NULL DEFAULT 0,  -- tp_ord = n AND n > 1
+  solo_touch_count    integer       NOT NULL DEFAULT 0,  -- n = 1 (journey de un solo touch)
   gold_updated_at timestamptz   NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, day, source)
 );
