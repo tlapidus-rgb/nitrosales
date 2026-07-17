@@ -60,120 +60,64 @@ function CrSearchInput({ value, onChange, placeholder }: { value: string; onChan
   );
 }
 
-// ── CR by Category ──
-type CatRow = { category: string; viewers: number; buyers: number; cr: number };
-type CatSortKey = "viewers" | "buyers" | "cr";
+// ── Tabla simple de CR (Categoría / Marca comparten estructura) ──
+// Review D4a (2026-07): antes eran dos componentes ~idénticos copy-pasteados.
+type SimpleCRRow = { label: string; viewers: number; buyers: number; cr: number };
+type SimpleSortKey = "viewers" | "buyers" | "cr";
 
-function CategoryCRTable({ categories }: { categories: CatRow[] }) {
+function SimpleCRTable({ title, labelHeader, searchPlaceholder, rows }: {
+  title: string;
+  labelHeader: string;
+  searchPlaceholder: string;
+  rows: SimpleCRRow[];
+}) {
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<CatSortKey>("buyers");
+  const [sortKey, setSortKey] = useState<SimpleSortKey>("buyers");
   const [sortDir, setSortDir] = useState<CrSortDir>("desc");
 
-  const toggle = (k: CatSortKey) => {
+  const toggle = (k: SimpleSortKey) => {
     if (sortKey === k) setSortDir(d => d === "desc" ? "asc" : "desc");
     else { setSortKey(k); setSortDir("desc"); }
   };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const rows = q ? categories.filter(c => c.category.toLowerCase().includes(q)) : categories;
-    return [...rows].sort((a, b) => {
+    const matched = q ? rows.filter(r => r.label.toLowerCase().includes(q)) : rows;
+    return [...matched].sort((a, b) => {
       const diff = (a[sortKey] || 0) - (b[sortKey] || 0);
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [categories, search, sortKey, sortDir]);
+  }, [rows, search, sortKey, sortDir]);
 
   return (
     <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">CR por Categoría</h2>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
           <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (pixel) vs compradores (VTEX)</p>
         </div>
-        <span className="text-[10px] text-gray-300 whitespace-nowrap">{filtered.length} de {categories.length}</span>
+        <span className="text-[10px] text-gray-300 whitespace-nowrap">{filtered.length} de {rows.length}</span>
       </div>
       <div className="mb-3">
-        <CrSearchInput value={search} onChange={setSearch} placeholder="Buscar categoría..." />
+        <CrSearchInput value={search} onChange={setSearch} placeholder={searchPlaceholder} />
       </div>
       <div className="overflow-y-auto overflow-x-auto flex-1" style={{ maxHeight: "320px" }}>
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white z-10">
             <tr className="border-b border-gray-100">
-              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Categoría</th>
+              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">{labelHeader}</th>
               <CrSortTH label="Visitantes" field="viewers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
               <CrSortTH label="Compras" field="buyers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
               <CrSortTH label="CR" field="cr" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right pl-2" />
             </tr>
           </thead>
           <tbody>
-            {filtered.map(cat => (
-              <tr key={cat.category} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[160px]" title={cat.category}>{cat.category}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(cat.viewers)}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(cat.buyers)}</td>
-                <td className="text-right pl-2 py-1.5"><span className={`font-bold tabular-nums ${crColor(cat.cr)}`}>{cat.cr > 0 ? `${cat.cr}%` : "—"}</span></td>
-              </tr>
-            ))}
-            {filtered.length === 0 && <tr><td colSpan={4} className="text-center text-gray-400 py-6">Sin resultados</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ── CR by Brand ──
-type BrandRow = { brand: string; viewers: number; buyers: number; cr: number };
-type BrandSortKey = "viewers" | "buyers" | "cr";
-
-function BrandCRTable({ brands }: { brands: BrandRow[] }) {
-  const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<BrandSortKey>("buyers");
-  const [sortDir, setSortDir] = useState<CrSortDir>("desc");
-
-  const toggle = (k: BrandSortKey) => {
-    if (sortKey === k) setSortDir(d => d === "desc" ? "asc" : "desc");
-    else { setSortKey(k); setSortDir("desc"); }
-  };
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const rows = q ? brands.filter(b => b.brand.toLowerCase().includes(q)) : brands;
-    return [...rows].sort((a, b) => {
-      const diff = (a[sortKey] || 0) - (b[sortKey] || 0);
-      return sortDir === "desc" ? -diff : diff;
-    });
-  }, [brands, search, sortKey, sortDir]);
-
-  return (
-    <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
-      <div className="flex items-center justify-between mb-3 gap-3">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">CR por Marca</h2>
-          <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (pixel) vs compradores (VTEX)</p>
-        </div>
-        <span className="text-[10px] text-gray-300 whitespace-nowrap">{filtered.length} de {brands.length}</span>
-      </div>
-      <div className="mb-3">
-        <CrSearchInput value={search} onChange={setSearch} placeholder="Buscar marca..." />
-      </div>
-      <div className="overflow-y-auto overflow-x-auto flex-1" style={{ maxHeight: "320px" }}>
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-white z-10">
-            <tr className="border-b border-gray-100">
-              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Marca</th>
-              <CrSortTH label="Visitantes" field="viewers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
-              <CrSortTH label="Compras" field="buyers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
-              <CrSortTH label="CR" field="cr" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right pl-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(b => (
-              <tr key={b.brand} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[160px]" title={b.brand}>{b.brand}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(b.viewers)}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(b.buyers)}</td>
-                <td className="text-right pl-2 py-1.5"><span className={`font-bold tabular-nums ${crColor(b.cr)}`}>{b.cr > 0 ? `${b.cr}%` : "—"}</span></td>
+            {filtered.map(r => (
+              <tr key={r.label} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[160px]" title={r.label}>{r.label}</td>
+                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(r.viewers)}</td>
+                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(r.buyers)}</td>
+                <td className="text-right pl-2 py-1.5"><span className={`font-bold tabular-nums ${crColor(r.cr)}`}>{r.cr > 0 ? `${r.cr}%` : "—"}</span></td>
               </tr>
             ))}
             {filtered.length === 0 && <tr><td colSpan={4} className="text-center text-gray-400 py-6">Sin resultados</td></tr>}
@@ -327,10 +271,16 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
    Componente público — fetch + layout de las 3 tablas
 ═══════════════════════════════════════════════════════════ */
 
+// Shape del endpoint: byCategory trae {category,...}, byBrand {brand,...} —
+// acá los normalizamos a SimpleCRRow ({label,...}) para la tabla genérica.
+type ApiCatRow = { category: string; viewers: number; buyers: number; cr: number };
+type ApiBrandRow = { brand: string; viewers: number; buyers: number; cr: number };
+
 type ConversionData = {
-  byCategory: CatRow[];
-  byBrand: BrandRow[];
+  byCategory: SimpleCRRow[];
+  byBrand: SimpleCRRow[];
   byProduct: ProductCRRow[];
+  rollupRefreshedAt: string | null;
 };
 
 export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
@@ -351,9 +301,12 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
         if (cancelled) return;
         const cr = json?.conversionRates || {};
         setData({
-          byCategory: (cr.byCategory || []) as CatRow[],
-          byBrand: ((cr.byBrand || []) as BrandRow[]).filter(b => b.brand !== "Sin marca"),
+          byCategory: ((cr.byCategory || []) as ApiCatRow[]).map(({ category, ...rest }) => ({ label: category, ...rest })),
+          byBrand: ((cr.byBrand || []) as ApiBrandRow[])
+            .filter(b => b.brand !== "Sin marca")
+            .map(({ brand, ...rest }) => ({ label: brand, ...rest })),
           byProduct: ((cr.byProduct || []) as ProductCRRow[]).filter(p => p.productName !== "Producto desconocido"),
+          rollupRefreshedAt: json?.meta?.rollupRefreshedAt ?? null,
         });
       } catch (err) {
         if (cancelled) return;
@@ -395,10 +348,30 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
           y las tablas perdían su estado de orden/búsqueda al remontarse). */}
       {data && (
         <div className={`space-y-4 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : ""}`} aria-busy={loading}>
+          {/* Badge de frescura (D4b): los visitantes salen de rollups que se
+              refrescan por cron — si vienen atrasados, avisar en vez de dejar
+              que el CR se infle en silencio (compras sí son en vivo). */}
+          {data.rollupRefreshedAt && (() => {
+            const refreshed = new Date(data.rollupRefreshedAt);
+            const ageMs = Date.now() - refreshed.getTime();
+            const isStale = ageMs > 3 * 60 * 60 * 1000; // > 3h (cron corre c/2h)
+            const hhmm = refreshed.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" });
+            return (
+              <p className={`text-right text-[10px] ${isStale ? "text-amber-600 font-medium" : "text-gray-300"}`}>
+                {isStale ? "⚠ Visitantes actualizados por última vez a las " : "Visitantes actualizados a las "}{hhmm}
+                {isStale && " — el CR puede verse inflado hasta el próximo refresh"}
+              </p>
+            );
+          })()}
+
           {/* Row 1: Category + Brand */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data.byCategory.length > 0 && <CategoryCRTable categories={data.byCategory} />}
-            {data.byBrand.length > 0 && <BrandCRTable brands={data.byBrand} />}
+            {data.byCategory.length > 0 && (
+              <SimpleCRTable title="CR por Categoría" labelHeader="Categoría" searchPlaceholder="Buscar categoría..." rows={data.byCategory} />
+            )}
+            {data.byBrand.length > 0 && (
+              <SimpleCRTable title="CR por Marca" labelHeader="Marca" searchPlaceholder="Buscar marca..." rows={data.byBrand} />
+            )}
           </div>
 
           {/* Row 2: Product */}

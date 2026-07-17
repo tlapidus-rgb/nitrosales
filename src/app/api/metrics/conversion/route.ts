@@ -4,10 +4,11 @@ export const revalidate = 0;
 // ══════════════════════════════════════════════════════════════
 // Conversion Rates API (lightweight)
 // ══════════════════════════════════════════════════════════════
-// Sesion 22: split del endpoint /api/metrics/pixel para la pestana
-// "Conversion" en /products. El endpoint pixel corre ~25 queries para
-// todo el dashboard NitroPixel; aca corremos solo las 6 queries que
-// realmente alimentan las tablas de Conversion Rate.
+// Sesion 22: split del endpoint /api/metrics/pixel para las tablas de
+// Conversion Rate (hoy en /pixel/analytics via ConversionRateTables).
+// El endpoint pixel corre ~25 queries para todo el dashboard NitroPixel;
+// aca corren solo las 2 queries (+1 de meta) que alimentan las tablas
+// byCategory/byBrand/byProduct. Los viewers salen de rollups HLL.
 //
 // Gana tiempo de carga y permite aplicar reglas especificas sin
 // tocar el endpoint CORE de pixel.
@@ -42,104 +43,38 @@ export async function GET(request: NextRequest) {
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 7 * MS_PER_DAY);
 
-    // ── Pixel install date floor ──
-    const pixelInstallResult = (await prisma.$queryRaw`
-      SELECT MIN(timestamp) as "installedAt"
-      FROM pixel_events
+    // ── Pixel install date floor + freshness ──
+    // PERF 2026-07 (review D1): antes era MIN(timestamp) sobre pixel_events
+    // completo (sin índice (org, timestamp) → index-range scan de toda la org
+    // en cada request). El rollup pixel_daily_source cubre desde el primer día
+    // con datos, así que MIN(day) da el mismo floor a granularidad día.
+    // MAX(refreshed_at) alimenta el badge de frescura en la UI (D4b).
+    const rollupMetaResult = (await prisma.$queryRaw`
+      SELECT MIN(day)::text as min_day, MAX(refreshed_at) as refreshed_at
+      FROM pixel_daily_source
       WHERE "organizationId" = ${ORG_ID}
-    `) as Array<{ installedAt: Date | null }>;
-    const pixelInstalledAt = pixelInstallResult[0]?.installedAt || null;
+    `) as Array<{ min_day: string | null; refreshed_at: Date | null }>;
+    const pixelInstalledAt = rollupMetaResult[0]?.min_day
+      ? new Date(rollupMetaResult[0].min_day + "T00:00:00.000-03:00")
+      : null;
+    const rollupRefreshedAt = rollupMetaResult[0]?.refreshed_at ?? null;
     const crDateFrom =
       pixelInstalledAt && pixelInstalledAt.getTime() > dateFrom.getTime()
         ? pixelInstalledAt
         : dateFrom;
 
     // ══════════════════════════════════════════════════════════
-    // 6 queries en paralelo
+    // 2 queries en paralelo
     // ══════════════════════════════════════════════════════════
+    // Review D1 (2026-07): se eliminaron las queries de byChannel/byDevice
+    // (visitors/orders por source y por device). NADIE las consumía: el único
+    // consumidor de este endpoint es ConversionRateTables (byCategory/byBrand/
+    // byProduct), y pixel/analytics tiene su propio byChannel/byDevice vía
+    // /api/metrics/pixel. Eran ~la mitad del costo del endpoint.
     const [
-      visitorsBySourceResult,
-      ordersBySourceResult,
-      deviceVisitorsResult,
-      ordersByDeviceResult,
       productViewersResult,
       productPurchasesResult,
     ] = await Promise.all([
-      // 1. Visitors per source (primer touch) — PERF 2026-07: lee el rollup
-      // pixel_daily_source (HLL, first-touch canónico unificado con el funnel)
-      // en vez del DISTINCT ON sobre pixel_events crudo (era EL cuello del endpoint).
-      prisma.$queryRaw`
-        SELECT
-          dp.first_source as source,
-          COALESCE(hll_cardinality(hll_union_agg(dp.pv_visitors_hll)), 0)::int as visitors
-        FROM pixel_daily_source dp
-        WHERE dp."organizationId" = ${ORG_ID}
-          AND dp.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY dp.first_source
-        ORDER BY visitors DESC
-        LIMIT 20
-      ` as Promise<Array<{ source: string; visitors: number }>>,
-
-      // 2. Orders by source (last-click via pixel_attributions)
-      prisma.$queryRaw`
-        SELECT
-          COALESCE(pa.touchpoints::jsonb -> -1 ->> 'source', 'direct') as source,
-          COUNT(DISTINCT pa."orderId")::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = 'LAST_CLICK'
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-        GROUP BY 1
-        ORDER BY orders DESC
-        LIMIT 20
-      ` as Promise<Array<{ source: string; orders: number; revenue: number }>>,
-
-      // 3. Device visitors — PERF 2026-07: lee el rollup pixel_daily_device (HLL)
-      // en vez del COUNT(DISTINCT) sobre pixel_events crudo.
-      prisma.$queryRaw`
-        SELECT
-          dd.device,
-          COALESCE(hll_cardinality(hll_union_agg(dd.visitors_hll)), 0)::int as visitors
-        FROM pixel_daily_device dd
-        WHERE dd."organizationId" = ${ORG_ID}
-          AND dd.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND dd.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY dd.device
-        ORDER BY visitors DESC
-      ` as Promise<Array<{ device: string; visitors: number }>>,
-
-      // 4. Orders by device (via pixel_attributions → pixel_visitors)
-      // CRITICAL: pa."visitorId" guarda pv.id (cuid), NO pv.visitorId (UUID cookie). JOIN debe ser por id.
-      prisma.$queryRaw`
-        SELECT
-          COALESCE(pv."deviceTypes"[1], 'unknown') as device,
-          COUNT(DISTINCT pa."orderId")::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = 'LAST_CLICK'
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-        GROUP BY 1
-        ORDER BY orders DESC
-      ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
-
       // 5. Product viewers — PERF 2026-07: lee el rollup pixel_daily_product (HLL,
       // VIEW_PRODUCT por producto/día) en vez de escanear pixel_events crudo.
       prisma.$queryRaw`
@@ -196,77 +131,7 @@ export async function GET(request: NextRequest) {
     // Merge + aggregate
     // ══════════════════════════════════════════════════════════
 
-    // byChannel: union de visitors + orders
-    const chMap = new Map<
-      string,
-      { source: string; visitors: number; purchases: number; revenue: number }
-    >();
-    for (const v of visitorsBySourceResult) {
-      chMap.set(v.source.toLowerCase(), {
-        source: v.source,
-        visitors: v.visitors,
-        purchases: 0,
-        revenue: 0,
-      });
-    }
-    for (const o of ordersBySourceResult) {
-      const key = o.source.toLowerCase();
-      const existing = chMap.get(key);
-      if (existing) {
-        existing.purchases = o.orders;
-        existing.revenue = o.revenue || 0;
-      } else {
-        chMap.set(key, {
-          source: o.source,
-          visitors: 0,
-          purchases: o.orders,
-          revenue: o.revenue || 0,
-        });
-      }
-    }
-    const byChannel = Array.from(chMap.values())
-      .filter((ch) => ch.visitors > 5 || ch.purchases > 0) // filtrar ruido
-      .map((ch) => ({
-        ...ch,
-        cr:
-          ch.visitors > 0
-            ? Math.round((ch.purchases / ch.visitors) * 10000) / 100
-            : 0,
-      }))
-      .sort((a, b) => b.visitors - a.visitors);
-
-    // byDevice
-    const devMap = new Map<string, { device: string; visitors: number; orders: number; revenue: number }>();
-    for (const v of deviceVisitorsResult) {
-      devMap.set(v.device.toLowerCase(), {
-        device: v.device,
-        visitors: v.visitors,
-        orders: 0,
-        revenue: 0,
-      });
-    }
-    for (const o of ordersByDeviceResult) {
-      const key = o.device.toLowerCase();
-      const existing = devMap.get(key);
-      if (existing) {
-        existing.orders = o.orders;
-        existing.revenue = o.revenue || 0;
-      } else {
-        devMap.set(key, {
-          device: o.device,
-          visitors: 0,
-          orders: o.orders,
-          revenue: o.revenue || 0,
-        });
-      }
-    }
-    const byDevice = Array.from(devMap.values())
-      .map((d) => ({
-        ...d,
-        cr:
-          d.visitors > 0 ? Math.round((d.orders / d.visitors) * 10000) / 100 : 0,
-      }))
-      .sort((a, b) => b.visitors - a.visitors);
+    // byChannel/byDevice: eliminados (review D1) — sin consumidores.
 
     // byProduct: UNION de vistos + comprados
     // Sesion 22: antes solo mostrabamos los que tenian venta. Ahora todo
@@ -395,8 +260,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       conversionRates: {
-        byChannel,
-        byDevice,
         byCategory,
         byBrand,
         byProduct,
@@ -411,6 +274,11 @@ export async function GET(request: NextRequest) {
         crDateAdjusted: pixelInstalledAt
           ? pixelInstalledAt.getTime() > dateFrom.getTime()
           : false,
+        // D4b: frescura de los rollups HLL que alimentan los "viewers" —
+        // la UI muestra un badge cuando esto viene atrasado.
+        rollupRefreshedAt: rollupRefreshedAt
+          ? rollupRefreshedAt.toISOString()
+          : null,
         totalProducts: byProduct.length,
         productsWithSales: byProduct.filter((p) => p.orders > 0).length,
         productsViewedOnly: byProduct.filter((p) => p.orders === 0).length,

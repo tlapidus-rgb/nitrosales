@@ -290,6 +290,27 @@ export async function PATCH(
     if (body.endDate !== undefined)
       data.endDate = body.endDate ? new Date(body.endDate) : null;
 
+    // EXCEPCIÓN al item 32b (review 2026-07, D3): la ventana de atribución SÍ es
+    // editable. Es un parámetro operativo del tracking (no un término comercial
+    // como nombre/bonus/deal): un typo al crearla (ej: 1 en vez de 14) reshapea
+    // comisiones en silencio y era incorregible vía API. Validación idéntica al
+    // POST: 1-180 días; null/"" = heredar la ventana del creador.
+    if (body.attributionWindowDays !== undefined) {
+      const raw = body.attributionWindowDays;
+      if (raw === null || raw === "") {
+        data.attributionWindowDays = null;
+      } else {
+        const w = Math.round(Number(raw));
+        if (!Number.isFinite(w) || w < 1 || w > 180) {
+          return NextResponse.json(
+            { error: "invalid", message: "Ventana de atribución inválida (1 a 180 días)" },
+            { status: 400 },
+          );
+        }
+        data.attributionWindowDays = w;
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
         { error: "no_editable", message: "Una campaña definida no se puede modificar; solo finalizar." },

@@ -16,6 +16,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import type { Influencer } from "@prisma/client";
 // Slug canónico compartido con la generación de tracking links — ver el
 // contrato en campaign-slug.ts (si divergen, el matching se rompe en silencio).
 import { campaignNameToSlug } from "@/lib/aura/campaign-slug";
@@ -111,6 +112,16 @@ export async function attributeOrderToInfluencer(
   let pixelAttributionId: string | null = null;
   let touchpointTimestamp: Date | null = null;
 
+  // Caches de batch (review D2, 2026-07): antes el loop de candidatos hacía
+  // findUnique(influencer) + findMany(campañas) POR touchpoint, y los pasos
+  // 3 y 4 re-consultaban lo mismo (hasta 2N+2 queries por orden en el path
+  // de comisiones). Ahora: 2 queries batch, resolución en memoria.
+  const infByCode = new Map<string, Influencer>();
+  const activeCampaignsByInfluencer = new Map<
+    string,
+    Array<{ id: string; name: string; attributionWindowDays: number | null }>
+  >();
+
   const pixelAttribution = await prisma.pixelAttribution.findFirst({
     where: { orderId, organizationId, model: "LAST_CLICK" },
   });
@@ -148,22 +159,41 @@ export async function attributeOrderToInfluencer(
       // Ordenar por timestamp DESC (último touch primero — last-click)
       candidates.sort((a, b) => b.ts - a.ts);
 
-      for (const cand of candidates) {
-        // Buscar al creador para leer su ventana
-        const infRow = await prisma.influencer.findUnique({
-          where: { organizationId_code: { organizationId, code: cand.code } },
-          select: { id: true, attributionWindowDays: true, status: true },
+      // Batch-load: influencers de todos los candidatos + sus campañas ACTIVE
+      // en 2 queries (en vez de 2 por candidato).
+      const uniqueCodes = [...new Set(candidates.map((c) => c.code))];
+      if (uniqueCodes.length > 0) {
+        const infRows = await prisma.influencer.findMany({
+          where: { organizationId, code: { in: uniqueCodes } },
         });
+        for (const inf of infRows) infByCode.set(inf.code, inf);
+
+        const activeIds = infRows
+          .filter((i) => i.status !== "INACTIVE")
+          .map((i) => i.id);
+        if (activeIds.length > 0) {
+          const campRows = await prisma.influencerCampaign.findMany({
+            where: { influencerId: { in: activeIds }, organizationId, status: "ACTIVE" },
+            select: { id: true, influencerId: true, name: true, attributionWindowDays: true },
+          });
+          for (const c of campRows) {
+            const list = activeCampaignsByInfluencer.get(c.influencerId) ?? [];
+            list.push({ id: c.id, name: c.name, attributionWindowDays: c.attributionWindowDays });
+            activeCampaignsByInfluencer.set(c.influencerId, list);
+          }
+        }
+      }
+
+      for (const cand of candidates) {
+        // Buscar al creador para leer su ventana (del cache batch)
+        const infRow = infByCode.get(cand.code);
         if (!infRow || infRow.status === "INACTIVE") continue;
 
         // Ventana con precedencia (feedback 2026-07): CAMPAÑA (si el touchpoint
         // trae slug que matchea una campaña ACTIVA con ventana propia) > creador > 14.
         let windowDays = infRow.attributionWindowDays ?? 14;
         if (cand.campaign) {
-          const activeCampaigns = await prisma.influencerCampaign.findMany({
-            where: { influencerId: infRow.id, organizationId, status: "ACTIVE" },
-            select: { name: true, attributionWindowDays: true },
-          });
+          const activeCampaigns = activeCampaignsByInfluencer.get(infRow.id) ?? [];
           const campMatch = activeCampaigns.find(
             (c) => campaignNameToSlug(c.name) === cand.campaign
           );
@@ -214,12 +244,15 @@ export async function attributeOrderToInfluencer(
     return { attributed: false };
   }
 
-  // 3. Find the influencer
-  const influencer = await prisma.influencer.findUnique({
-    where: {
-      organizationId_code: { organizationId, code: influencerCode },
-    },
-  });
+  // 3. Find the influencer — del cache batch (path UTM); el path COUPON no
+  // pasa por candidatos, así que ahí sí se consulta.
+  const influencer =
+    infByCode.get(influencerCode) ??
+    (await prisma.influencer.findUnique({
+      where: {
+        organizationId_code: { organizationId, code: influencerCode },
+      },
+    }));
 
   if (!influencer || influencer.status === "INACTIVE") {
     console.log(
@@ -228,16 +261,11 @@ export async function attributeOrderToInfluencer(
     return { attributed: false, influencerCode };
   }
 
-  // 4. Find matching campaign (optional, only for UTM path)
+  // 4. Find matching campaign (optional, only for UTM path) — campaignSlug
+  // solo se setea en el path UTM, donde el cache batch ya tiene las campañas.
   let campaignId: string | null = null;
   if (campaignSlug) {
-    const campaigns = await prisma.influencerCampaign.findMany({
-      where: {
-        influencerId: influencer.id,
-        organizationId,
-        status: "ACTIVE",
-      },
-    });
+    const campaigns = activeCampaignsByInfluencer.get(influencer.id) ?? [];
     const match = campaigns.find((c) => campaignNameToSlug(c.name) === campaignSlug);
     if (match) campaignId = match.id;
   }
