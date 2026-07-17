@@ -137,6 +137,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function realHandler(request: NextRequest): Promise<NextResponse> {
+  const _reqStart = Date.now(); // DEBUG tanda 5: fases del endpoint
   try {
     const { searchParams } = new URL(request.url);
 
@@ -161,7 +162,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm-cache estaba saturando la DB (32 fetches paralelos × 29
     // queries c/u = 928 queries simultaneas cada 30 min). Volver al
     // cache simple `getCached` (fresh 5 min, despues miss).
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v10-debug"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v11-phases"];
 
     // ── SWR real (2026-06-12, BP-PERF-DASHBOARD) ──────────────────────────────
     // El compute completo (29 queries) vive en computeAndCache(). Cache-miss =
@@ -247,6 +248,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
     // ══════════════════════════════════════════════════════════
     const _queryMs: number[] = []; // DEBUG tanda 5: ms por query (por posición)
+    const _batchStart = Date.now();
     const [
       liveStatusResult,
       visitorKpisResult,
@@ -1176,6 +1178,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         ORDER BY 1, 3 DESC
       ` as Promise<Array<{ model: string; source: string; revenue: number }>>),
     ] as const, _queryMs));
+    const _batchMs = Date.now() - _batchStart;
+    const _beforeBatchMs = _batchStart - _reqStart;
 
     // ══════════════════════════════════════════════════════════
     // PROCESS RESULTS
@@ -1732,6 +1736,11 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             .map((ms, i) => ({ i, ms }))
             .sort((a, b) => b.ms - a.ms)
             .slice(0, 6),
+          phases: {
+            beforeBatchMs: _beforeBatchMs, // request start → Promise.all start (queries seriales previas)
+            batchMs: _batchMs, // duración del Promise.all
+            afterBatchMs: Date.now() - _reqStart - _beforeBatchMs - _batchMs, // post-proceso hasta armar la respuesta
+          },
         },
         // Pixel coverage: when the pixel was first installed + effective CR date range
         pixelInstalledAt: pixelInstalledAt ? pixelInstalledAt.toISOString() : null,
