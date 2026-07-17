@@ -458,8 +458,10 @@ export async function PATCH(
       const raw = body.attributionWindowDays;
       if (raw === null) {
         // null = resetear al default del motor (14 días) — usado por el
-        // desplegable de afiliados en pixel/configuración (feedback 2026-07-15)
-        allowed.attributionWindowDays = null;
+        // desplegable de afiliados en pixel/configuración (feedback 2026-07-15).
+        // OJO: la columna es NOT NULL DEFAULT 14 (schema.prisma:1262), así que
+        // "resetear" = escribir 14, NO null (null rompería el update de Prisma).
+        allowed.attributionWindowDays = 14;
       } else {
         const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
         if (!Number.isFinite(n) || n < 1 || n > 180) {
