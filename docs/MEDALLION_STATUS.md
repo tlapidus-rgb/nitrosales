@@ -96,14 +96,27 @@ filas (los diffs del rango reciente eran 100% freshness). Cron
 `refresh-gold-attribution` (:20/:50, off-switch ATTRIBUTION_ROLLUP_ENABLED) ya lo
 mantiene fresco. Núcleo + tests (171) + helper compartido `touchpoint-source-sql.ts`.
 
-**FALTA (retomar acá — es lo único que queda de #11):** migrar el SERVE — las 4
-queries JSONB de `metrics/pixel/route.ts` a leer gold_attribution_source detrás de
-flag NUEVO `PIXEL_USE_GOLD` con fallback Bronze. Diseño: UNA lectura del rollup +
-reconstruir los 4 shapes en JS (reconstructSourceRevenue). Consumidores a preservar
-EXACTO: attributionBySourceResult (1150 filter, 1156 map, 1238 channelRoas, 1470
-loop), channelRolesResult (1170 merge), attributionByModelChannelResult (1572),
-y el daily-by-source (#20). Money-path → hacerlo fresco, no apurado. Runbook ya
-corrido, cron ya activo: solo falta el commit del serve + medir preview (25s→~5s).
+**SERVE MIGRADO Y ANDANDO (branch, flag PIXEL_USE_GOLD=true en Preview):** las 4
+queries JSONB leen el rollup — MEDIDO en preview con instrumentación: bajaron de
+~3000ms a ~300ms cada una (i=8 attrBySource 343, i=19 dailyChannelRevenue 269,
+i=21 channelRoles 285, i=28 attrByModelChannel 285). Reconstrucción de pesos en SQL
+(goldModelRevenueSql). Paridad confirmada (ventana congelada = 0).
+
+**⏸️ PENDIENTE (dejado a propósito, el usuario sigue con otra estructura):** el
+endpoint TODAVÍA tarda ~17s aunque las 4 migradas ahora vuelan. Instrumentación
+(meta.debug.queryMs/slowest/phases, en la branch, QUITAR antes de mergear) reveló:
+- El Promise.all completo es ~6.5s (max query). Las que quedan lentas (~6.2-6.5s):
+  i=7 attrByModel, i=9 conversionLag, i=22 visitorsBySource, i=23 ordersByDevice
+  (todas pixel_attributions/pixel_visitors, NO migradas). i=16 dailyRevenue 3.5s,
+  i=17 prevAttrRevenue 2.9s, i=26 productPurchases 3.5s, i=0 liveStatus 2.2s.
+- PERO el endpoint es 17s y el batch 6.5s → faltan ~10s en OTRO lado. Se agregó
+  meta.debug.phases (beforeBatchMs/batchMs/afterBatchMs) para ubicarlos — FALTA el
+  dato del usuario (¿queries seriales antes del batch? ¿cold-start del preview?).
+- AL RETOMAR: pedir phases (2da carga caliente). Si beforeBatchMs grande → mover el
+  MIN(timestamp) de pixel_events (fecha instalación) + settings a paralelo/rollup.
+  Si es cold-start → el steady-state ya es ~7s (de 25s) y solo queda pulir el batch
+  migrando i=7/9/16/17. LIMPIAR toda la instrumentación debug antes de mergear a main.
+- Branch feat/medallion-pixel-attribution: NO mergear hasta resolver esto + quitar debug.
 
 ## 🔜 lo que sigue de metrics/orders (menor prioridad, el grueso ya está)
 
