@@ -897,7 +897,58 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     ] = await Promise.all([
 
       /* 16) Cohorts — new / returning / VIP / anonymous (split by source) */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
+      // Silver-first (tanda 3): el LATERAL correlacionado (MIN(orderDate) por
+      // cliente sobre TODA la historia, por request) se reemplaza por un JOIN a
+      // silver_customer_firsts (dim precomputada por el cron de Silver). El
+      // resto de la query es idéntico. Fallback Bronze (LATERAL) si flag off /
+      // filtro de source / la dim falla.
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<Array<{
+            cohort: string; customers: string; orders: string; revenue: string;
+          }>>(`
+            WITH customer_history AS (
+              SELECT
+                o."customerId",
+                COALESCE(o."source", 'VTEX') AS src,
+                COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::int AS period_orders,
+                SUM(o."totalValue") AS period_revenue,
+                MIN(f.first_order_date) AS first_order_date
+              FROM orders o
+              LEFT JOIN silver_customer_firsts f
+                ON f.organization_id = o."organizationId" AND f.customer_id = o."customerId"
+              WHERE o."organizationId" = '${ORG_ID}'
+                AND o."orderDate" >= $1 AND o."orderDate" <= $2
+                AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
+                AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+                AND COALESCE(o."packId", o."externalId") NOT IN (
+                  SELECT COALESCE("packId", "externalId") FROM orders
+                  WHERE "organizationId" = '${ORG_ID}'
+                    AND "orderDate" >= $1 AND "orderDate" <= $2
+                    AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
+                    ${srcWhereSimple}
+                )
+                ${srcWhereSimple}
+              GROUP BY o."customerId", o."source"
+            ),
+            classified AS (
+              SELECT
+                CASE
+                  WHEN "customerId" IS NULL THEN CONCAT('anonymous_', src)
+                  WHEN first_order_date >= $1 THEN 'new'
+                  ELSE 'returning'
+                END AS cohort,
+                "customerId", period_orders, period_revenue
+              FROM customer_history
+            )
+            SELECT
+              cohort,
+              COUNT(DISTINCT "customerId")::text AS customers,
+              SUM(period_orders)::text AS orders,
+              SUM(period_revenue)::text AS revenue
+            FROM classified
+            GROUP BY cohort
+          `, dateFrom, dateTo), [] as any[], "cohorts-silver")
+        : safeQuery(prisma.$queryRawUnsafe<Array<{
         cohort: string; customers: string; orders: string; revenue: string;
       }>>(`
         WITH customer_history AS (

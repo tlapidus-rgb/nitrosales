@@ -20,6 +20,7 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { buildSilverOrdersUpsert } from "@/data/silver/silver-orders-transform";
+import { buildCustomerFirstsUpsert } from "@/data/silver/silver-customer-firsts-transform";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
     : new Date(Date.now() - DAYS_BACK * 86_400_000).toISOString();
 
   const upsertSql = buildSilverOrdersUpsert();
+  const customerFirstsSql = buildCustomerFirstsUpsert();
 
   // Todas las orgs; el upsert filtra por org+fecha, las que no tienen datos = no-op.
   const orgs = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
@@ -64,6 +66,14 @@ export async function GET(req: NextRequest) {
     const t = Date.now();
     try {
       await prisma.$executeRawUnsafe(upsertSql, id, since);
+      // Dim de primera orden por cliente (tanda 3) — DESPUÉS del upsert de
+      // silver_orders (lee de ahí). Resiliente: si la tabla no existe aún,
+      // no rompe el refresh de Silver.
+      try {
+        await prisma.$executeRawUnsafe(customerFirstsSql, id, since);
+      } catch {
+        /* tabla aún no creada (runbook pendiente) — no-op */
+      }
       results.push({ org: id, ok: true, ms: Date.now() - t });
     } catch (e: any) {
       results.push({ org: id, ok: false, ms: Date.now() - t, error: String(e?.message).slice(0, 200) });
