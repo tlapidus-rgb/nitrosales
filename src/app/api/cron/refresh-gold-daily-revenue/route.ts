@@ -18,6 +18,7 @@ import { prisma } from "@/lib/db/client";
 import { buildGoldDailyRevenueUpsert } from "@/data/gold/gold-daily-revenue-transform";
 import { buildGoldSegmentsUpsert } from "@/data/gold/gold-order-segments-transform";
 import { buildGoldProductSalesUpsert } from "@/data/gold/gold-product-sales-transform";
+import { buildGoldCustomerDailyUpsert } from "@/data/gold/gold-customer-daily-transform";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -62,6 +63,15 @@ export async function GET(req: NextRequest) {
       productSalesOk = false;
       productSalesError = String(pe?.message).slice(0, 200);
     }
+    // Ventas por cliente (top customers) — independiente, mismo patrón resiliente.
+    let customerOk = true;
+    let customerError: string | null = null;
+    try {
+      await prisma.$executeRawUnsafe(buildGoldCustomerDailyUpsert(), since);
+    } catch (ce: any) {
+      customerOk = false;
+      customerError = String(ce?.message).slice(0, 200);
+    }
     return NextResponse.json({
       ok: true,
       mode: full ? "backfill" : "incremental",
@@ -70,6 +80,8 @@ export async function GET(req: NextRequest) {
       ...(segmentsError ? { segmentsError } : {}),
       productSalesOk,
       ...(productSalesError ? { productSalesError } : {}),
+      customerOk,
+      ...(customerError ? { customerError } : {}),
       durationMs: Date.now() - startedAt,
     });
   } catch (e: any) {

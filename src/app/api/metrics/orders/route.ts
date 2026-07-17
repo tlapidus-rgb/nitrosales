@@ -665,7 +665,36 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     ] = await Promise.all([
 
       /* 9) Top customers */
-      prisma.$queryRawUnsafe<Array<{
+      // Gold-first (tanda 5): agrega gold_customer_daily (pack-aware) y joinea
+      // customers SOLO para los top 10. Fallback Bronze si flag off / filtro de
+      // source / Gold falla.
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<Array<{
+            customer_id: string;
+            customer_name: string;
+            email: string;
+            total_orders: string;
+            total_spent: string;
+          }>>(`
+            WITH agg AS (
+              SELECT customer_id, SUM(orders)::text AS total_orders, SUM(revenue) AS total_spent
+              FROM gold_customer_daily
+              WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+              GROUP BY customer_id
+              ORDER BY SUM(revenue) DESC
+              LIMIT 10
+            )
+            SELECT
+              c.id AS customer_id,
+              TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
+              COALESCE(c.email, 'Sin email') AS email,
+              a.total_orders,
+              a.total_spent::text AS total_spent
+            FROM agg a
+            JOIN customers c ON c.id = a.customer_id
+            ORDER BY a.total_spent DESC
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)), [] as any[], "top-customers-gold")
+        : prisma.$queryRawUnsafe<Array<{
         customer_id: string;
         customer_name: string;
         email: string;
