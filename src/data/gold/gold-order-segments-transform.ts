@@ -2,13 +2,18 @@
 // Transform Silver → Gold: gold_order_segments — segmentaciones diarias (§6.3)
 // ══════════════════════════════════════════════════════════════════════════
 // Rollup diario pack-aware por dimensión. Dimensiones: 'channel', 'delivery',
-// 'carrier' (todas order-level, desde silver_orders, sin enriquecer de pixel).
+// 'carrier', 'payment' (todas order-level, desde silver_orders).
 // Medidas: orders (DISTINCT pack), revenue, shipping_charged, shipping_real.
 // Lista de status desde el CONTRATO → drift-proof.
 //
+// GRAIN (tanda 4): (org, day, SOURCE, dimension, bucket). El source entró al
+// grain porque el chart de payment agrupa payment_method × source (traduce el
+// label por plataforma en JS). Las lecturas de channel/delivery/carrier no
+// cambian: agregan por bucket y el source colapsa en el SUM.
+//
 //   - buildGoldSegmentsUpsert(): incremental ($1 = since).
 //   - buildGoldSegmentsBackfill(): toda la historia.
-// Idempotente: ON CONFLICT (org, day, dimension, bucket) DO UPDATE.
+// Idempotente: ON CONFLICT (org, day, source, dimension, bucket) DO UPDATE.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { orderStatusNotConcretedList } from "@/domains/orders";
@@ -27,9 +32,11 @@ valid_rows AS (
   SELECT
     s.organization_id,
     (s.order_date AT TIME ZONE '${AR_TZ}')::date AS day,
+    s.source,
     COALESCE(s.channel, 'Sin dato') AS channel_bucket,
     COALESCE(s.delivery_type, 'Sin dato') AS delivery_bucket,
     COALESCE(s.shipping_carrier, 'Sin dato') AS carrier_bucket,
+    COALESCE(s.payment_method, 'Sin dato') AS payment_bucket,
     COALESCE(s.pack_id, s.external_id) AS pack_key,
     s.total_value,
     s.shipping_cost,
@@ -43,16 +50,19 @@ valid_rows AS (
     )
 ),
 seg AS (
-  SELECT organization_id, day, 'channel'  AS dimension, channel_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
+  SELECT organization_id, day, source, 'channel'  AS dimension, channel_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
   UNION ALL
-  SELECT organization_id, day, 'delivery' AS dimension, delivery_bucket AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
+  SELECT organization_id, day, source, 'delivery' AS dimension, delivery_bucket AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
   UNION ALL
-  SELECT organization_id, day, 'carrier'  AS dimension, carrier_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
+  SELECT organization_id, day, source, 'carrier'  AS dimension, carrier_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
+  UNION ALL
+  SELECT organization_id, day, source, 'payment'  AS dimension, payment_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
 )
-INSERT INTO gold_order_segments (organization_id, day, dimension, bucket, orders, revenue, shipping_charged, shipping_real, gold_updated_at)
+INSERT INTO gold_order_segments (organization_id, day, source, dimension, bucket, orders, revenue, shipping_charged, shipping_real, gold_updated_at)
 SELECT
   organization_id,
   day,
+  source,
   dimension,
   bucket,
   COUNT(DISTINCT pack_key)::int AS orders,
@@ -61,8 +71,8 @@ SELECT
   COALESCE(SUM(real_shipping_cost), 0) AS shipping_real,
   now()
 FROM seg
-GROUP BY organization_id, day, dimension, bucket
-ON CONFLICT (organization_id, day, dimension, bucket) DO UPDATE SET
+GROUP BY organization_id, day, source, dimension, bucket
+ON CONFLICT (organization_id, day, source, dimension, bucket) DO UPDATE SET
   orders = EXCLUDED.orders,
   revenue = EXCLUDED.revenue,
   shipping_charged = EXCLUDED.shipping_charged,

@@ -21,20 +21,23 @@ describe("gold_order_segments — anti-drift + pack-aware", () => {
     expect(upsert).toContain("COUNT(DISTINCT pack_key)");
   });
 
-  it("segmenta por 3 dimensiones (channel, delivery, carrier) con medidas de envío", () => {
+  it("segmenta por 4 dimensiones (channel, delivery, carrier, payment) con medidas de envío", () => {
     expect(upsert).toContain("'channel'  AS dimension");
     expect(upsert).toContain("'delivery' AS dimension");
     expect(upsert).toContain("'carrier'  AS dimension");
+    expect(upsert).toContain("'payment'  AS dimension");
     expect(upsert).toContain("COALESCE(s.channel, 'Sin dato')");
     expect(upsert).toContain("COALESCE(s.delivery_type, 'Sin dato')");
     expect(upsert).toContain("COALESCE(s.shipping_carrier, 'Sin dato')");
+    expect(upsert).toContain("COALESCE(s.payment_method, 'Sin dato')");
     expect(upsert).toContain("SUM(shipping_cost)");
     expect(upsert).toContain("SUM(real_shipping_cost)");
   });
 
-  it("es idempotente (ON CONFLICT por org+day+dimension+bucket)", () => {
-    expect(upsert).toContain("ON CONFLICT (organization_id, day, dimension, bucket) DO UPDATE");
-    expect(backfill).toContain("ON CONFLICT (organization_id, day, dimension, bucket) DO UPDATE");
+  it("grain con source (tanda 4) — idempotente por org+day+source+dimension+bucket", () => {
+    expect(upsert).toContain("ON CONFLICT (organization_id, day, source, dimension, bucket) DO UPDATE");
+    expect(backfill).toContain("ON CONFLICT (organization_id, day, source, dimension, bucket) DO UPDATE");
+    expect(upsert).toContain("GROUP BY organization_id, day, source, dimension, bucket");
   });
 
   it("incremental filtra por since; backfill no", () => {

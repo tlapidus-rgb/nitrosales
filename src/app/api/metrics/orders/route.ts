@@ -487,12 +487,11 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     ]);
 
     // ── BATCH 3: Payment + status (2 queries) ──
-    const [
-      topPaymentMethods,
-      statusBreakdown,
-    ] = await Promise.all([
-
-      /* 6) Payment methods — with source for label translation */
+    // Payment Gold-first (tanda 4): gold_order_segments dimension='payment'
+    // con source en el grain (el chart traduce el label por plataforma).
+    // Fallback Bronze si flag off / filtro de source / Gold falla O DEVUELVE
+    // VACÍO (ventana deploy→runbook: la dimensión payment aún no existe).
+    const bronzePaymentMethods = () =>
       prisma.$queryRawUnsafe<Array<{
         payment_method: string;
         source: string;
@@ -521,7 +520,41 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         GROUP BY "paymentMethod", COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo);
+
+    const goldPaymentMethods = () =>
+      prisma.$queryRawUnsafe<Array<{
+        payment_method: string;
+        source: string;
+        orders: string;
+        revenue: string;
+      }>>(`
+        SELECT
+          bucket AS payment_method,
+          source,
+          SUM(orders)::text AS orders,
+          SUM(revenue)::text AS revenue
+        FROM gold_order_segments
+        WHERE organization_id = $1 AND dimension = 'payment'
+          AND day >= $2::date AND day <= $3::date
+        GROUP BY bucket, source
+        ORDER BY SUM(revenue) DESC
+        LIMIT 15
+      `, ORG_ID, arDay(dateFrom), arDay(dateTo));
+
+    const [
+      topPaymentMethods,
+      statusBreakdown,
+    ] = await Promise.all([
+
+      /* 6) Payment methods — with source for label translation */
+      useGold
+        ? safeQuery(goldPaymentMethods(), [] as any[], "payment-gold").then(
+            // Vacío = error (safeQuery→[]) o la dimensión payment aún sin
+            // backfill (ventana deploy→runbook) → Bronze.
+            (rows) => (rows.length > 0 ? rows : bronzePaymentMethods())
+          )
+        : bronzePaymentMethods(),
 
       /* 7) Status breakdown — cast to text to avoid enum serialization issues */
       prisma.$queryRawUnsafe<Array<{

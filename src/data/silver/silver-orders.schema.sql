@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS silver_orders (
   real_shipping_cost numeric(12,2),                      -- para segmentaciones de logística
   delivery_type     text,
   shipping_carrier  text,
+  payment_method    text,                                -- para dimension='payment' (tanda 4)
   -- Flags pre-computados (fuente: src/domains/orders/index.ts vía el job de transform)
   is_valid          boolean      NOT NULL,             -- ordersValidSql: concretada + totalValue > 0
   is_web            boolean      NOT NULL,             -- ordersWebSql: no marketplace
