@@ -20,6 +20,7 @@ import { validateDealInput } from "@/lib/aura/deal-validation";
 import { sendEmail } from "@/lib/email/send";
 import { affiliateOnboardingEmail } from "@/lib/email/templates";
 import { signSetPasswordToken, passwordFingerprint } from "@/lib/aura/set-password-token";
+import { isValidCreatorPhone } from "@/lib/aura/validation";
 
 // Tipos de deal que LLEVAN comisión (alineado con D1 en aura/campaigns/route.ts).
 export const COMMISSION_DEAL_TYPES = ["COMMISSION", "TIERED_COMMISSION", "HYBRID"] as const;
@@ -236,11 +237,11 @@ export function validateCreatorSimpleInput(input: {
   const email = typeof input.email === "string" ? input.email.trim() : "";
   if (!email) return { ok: false, error: "Email requerido (se le manda su acceso por mail)" };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Email inválido" };
-  // Teléfono OBLIGATORIO en el alta (feedback 2026-07). Formato laxo: dígitos,
-  // +, espacios, guiones, paréntesis; mínimo 6 dígitos reales.
+  // Teléfono OBLIGATORIO en el alta (feedback 2026-07). Regla única compartida
+  // con el form (lib/aura/validation.ts): formato laxo, mínimo 6 dígitos.
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
   if (!phone) return { ok: false, error: "Teléfono requerido" };
-  if (!/^[+\d][\d\s\-()]*$/.test(phone) || phone.replace(/\D/g, "").length < 6) {
+  if (!isValidCreatorPhone(phone)) {
     return { ok: false, error: "Teléfono inválido (mínimo 6 dígitos)" };
   }
   return { ok: true };

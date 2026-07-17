@@ -29,13 +29,17 @@ function CrSortTH<K extends string>({ label, field, sortKey, sortDir, onSort, cl
   const active = sortKey === field;
   return (
     <th
-      className={`text-[10px] font-medium uppercase tracking-wider pb-2 cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap ${active ? "text-cyan-600" : "text-gray-400"} ${className}`}
-      onClick={() => onSort(field)}
+      aria-sort={active ? (sortDir === "desc" ? "descending" : "ascending") : "none"}
+      className={`text-[10px] font-medium uppercase tracking-wider pb-2 select-none whitespace-nowrap ${active ? "text-cyan-600" : "text-gray-400"} ${className}`}
     >
-      <span className="inline-flex items-center gap-0.5">
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className="inline-flex items-center gap-0.5 uppercase tracking-wider cursor-pointer hover:text-gray-700 transition-colors"
+      >
         {label}
-        {active && <span className="text-[8px]">{sortDir === "desc" ? "▼" : "▲"}</span>}
-      </span>
+        {active && <span className="text-[8px]" aria-hidden="true">{sortDir === "desc" ? "▼" : "▲"}</span>}
+      </button>
     </th>
   );
 }
@@ -48,6 +52,7 @@ function CrSearchInput({ value, onChange, placeholder }: { value: string; onChan
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 pl-7 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 bg-gray-50/50 placeholder-gray-400"
       />
       <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -180,7 +185,7 @@ function BrandCRTable({ brands }: { brands: BrandRow[] }) {
 }
 
 // ── CR by Product ──
-type ProductCRRow = { productExternalId: string; productName: string; category: string; brand: string; viewers: number; orders: number; units: number; cr: number };
+type ProductCRRow = { productExternalId: string; productName: string; category: string; brand: string; viewers: number; orders: number; cr: number };
 type ProdSortKey = "orders" | "viewers" | "cr";
 const CR_PRODUCTS_PER_PAGE = 20;
 
@@ -237,6 +242,7 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
         <select
           value={filterCat}
           onChange={e => setFilterCat(e.target.value)}
+          aria-label="Filtrar por categoría"
           className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-gray-600 max-w-[180px]"
         >
           <option value="">Todas las categorías</option>
@@ -245,6 +251,7 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
         <select
           value={filterBrand}
           onChange={e => setFilterBrand(e.target.value)}
+          aria-label="Filtrar por marca"
           className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-gray-600 max-w-[180px]"
         >
           <option value="">Todas las marcas</option>
@@ -362,7 +369,7 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
 
   return (
     <div className="space-y-4">
-      {/* Loading state */}
+      {/* Loading state (solo primera carga — en refetch se muestran los datos viejos atenuados) */}
       {loading && !data && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className={`${cardStyle} p-5 h-64 animate-pulse`} style={cardShadow} />
@@ -383,9 +390,11 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
         </div>
       )}
 
-      {/* Data rendered */}
-      {data && !loading && (
-        <>
+      {/* Data rendered — stale-while-revalidate: durante un refetch los datos
+          viejos quedan visibles atenuados (antes la sección colapsaba a blanco
+          y las tablas perdían su estado de orden/búsqueda al remontarse). */}
+      {data && (
+        <div className={`space-y-4 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : ""}`} aria-busy={loading}>
           {/* Row 1: Category + Brand */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {data.byCategory.length > 0 && <CategoryCRTable categories={data.byCategory} />}
@@ -402,7 +411,7 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
               <p className="text-[11px] text-gray-400 mt-1">Probá ampliar el rango o revisá que el pixel esté tracking eventos VIEW_PRODUCT.</p>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { getStoreUrl } from "@/lib/org-store-url";
+import { campaignNameToSlug } from "@/lib/aura/campaign-slug";
 
 export async function GET(
   req: NextRequest,
@@ -37,11 +38,8 @@ export async function GET(
         where: { id: campaignId, influencerId: params.id },
       });
       if (campaign) {
-        const campaignSlug = campaign.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .slice(0, 30);
-        trackingLink += `&utm_campaign=${campaignSlug}`;
+        // Slug compartido con el motor de atribución (contrato en campaign-slug.ts)
+        trackingLink += `&utm_campaign=${campaignNameToSlug(campaign.name)}`;
       }
     }
 

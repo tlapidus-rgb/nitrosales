@@ -80,6 +80,23 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    // ── Modo liviano (?fields=basic) — PERF 2026-07 ──
+    // Para consumidores que solo necesitan la lista (ej: desplegable de
+    // afiliados en pixel/configuración): devuelve los datos base y se saltea
+    // las 4 agregaciones de KPIs (attributions/campaigns/content), que son lo
+    // caro de este endpoint.
+    if (searchParams.get("fields") === "basic") {
+      return NextResponse.json({
+        creators: influencers.map((inf) => ({
+          id: inf.id,
+          name: inf.name,
+          code: inf.code,
+          status: inf.status,
+          attributionWindowDays: inf.attributionWindowDays ?? 14,
+        })),
+      });
+    }
+
     if (influencers.length === 0) {
       return NextResponse.json({
         creators: [] as CreatorRow[],

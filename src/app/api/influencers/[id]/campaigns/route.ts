@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { getStoreUrl } from "@/lib/org-store-url";
+import { campaignNameToSlug } from "@/lib/aura/campaign-slug";
 
 export const revalidate = 0;
 
@@ -89,10 +90,8 @@ export async function POST(
 
     // Build tracking link with campaign (multi-tenant)
     const baseUrl = await getStoreUrl(org.id);
-    const campaignSlug = body.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .slice(0, 30);
+    // Slug compartido con el motor de atribución (contrato en campaign-slug.ts)
+    const campaignSlug = campaignNameToSlug(body.name);
     const trackingLink = `${baseUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer&utm_campaign=${campaignSlug}`;
 
     return NextResponse.json({ campaign, trackingLink });

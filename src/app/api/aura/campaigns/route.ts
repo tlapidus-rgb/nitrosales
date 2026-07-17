@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
       const w = Math.round(Number(body.attributionWindowDays));
       if (!Number.isFinite(w) || w < 1 || w > 180) {
         return NextResponse.json(
-          { error: "Ventana de atribución inválida (1 a 180 días)" },
+          // Mismo envelope {error, message} que el resto de los 400 de esta ruta
+          { error: "invalid", message: "Ventana de atribución inválida (1 a 180 días)" },
           { status: 400 },
         );
       }

@@ -16,15 +16,9 @@
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
-
-/** Slug del nombre de campaña — MISMO formato con el que el link del creador
- *  genera el utm_campaign. Usado para matchear touchpoint ↔ campaña. */
-function campaignNameToSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 30);
-}
+// Slug canónico compartido con la generación de tracking links — ver el
+// contrato en campaign-slug.ts (si divergen, el matching se rompe en silencio).
+import { campaignNameToSlug } from "@/lib/aura/campaign-slug";
 
 /**
  * Determine the effective commission % for an influencer.

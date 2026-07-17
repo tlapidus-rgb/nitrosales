@@ -318,6 +318,11 @@ export async function GET(request: NextRequest) {
       cr: number;
     }> = [];
 
+    // CR con techo en 100%: los viewers ahora vienen de HLL (~2% de error),
+    // así que en filas chicas pueden quedar por debajo de las compras exactas.
+    const crPct = (buyers: number, viewers: number) =>
+      viewers > 0 ? Math.min(100, Math.round((buyers / viewers) * 10000) / 100) : 0;
+
     // Productos comprados (con o sin vistas → filtramos 0 vistas después)
     for (const p of productPurchasesResult) {
       const viewers = viewerMap.get(p.productExternalId) || 0;
@@ -325,7 +330,7 @@ export async function GET(request: NextRequest) {
       byProductRaw.push({
         ...p,
         viewers,
-        cr: viewers > 0 ? Math.round((p.orders / viewers) * 10000) / 100 : 0,
+        cr: crPct(p.orders, viewers),
       });
     }
     // Productos sólo vistos (sin compras) → CR = 0
@@ -382,18 +387,10 @@ export async function GET(request: NextRequest) {
       brandMap.set(p.brand, b);
     }
     const byCategory = Array.from(catMap.values())
-      .map((c) => ({
-        ...c,
-        cr:
-          c.viewers > 0 ? Math.round((c.buyers / c.viewers) * 10000) / 100 : 0,
-      }))
+      .map((c) => ({ ...c, cr: crPct(c.buyers, c.viewers) }))
       .sort((a, b) => b.viewers - a.viewers);
     const byBrand = Array.from(brandMap.values())
-      .map((b) => ({
-        ...b,
-        cr:
-          b.viewers > 0 ? Math.round((b.buyers / b.viewers) * 10000) / 100 : 0,
-      }))
+      .map((b) => ({ ...b, cr: crPct(b.buyers, b.viewers) }))
       .sort((a, b) => b.viewers - a.viewers);
 
     return NextResponse.json({

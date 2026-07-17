@@ -370,7 +370,8 @@ function NuevaCampanaInner() {
               value={attributionWindowDays}
               onChange={(e) => setAttributionWindowDays(e.target.value)}
               placeholder="Ej: 14"
-              className="w-full px-3 py-2.5 rounded-lg outline-none text-[13px]"
+              aria-label="Ventana de atribución en días"
+              className="w-full px-3 py-2.5 rounded-lg outline-none text-[13px] tabular-nums"
               style={INPUT_STYLE}
             />
           </Field>

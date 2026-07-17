@@ -3,15 +3,16 @@
 // ══════════════════════════════════════════════════════════════
 // Aura — Alta MANUAL de creador (Lote 2B · Pieza 3)
 // ══════════════════════════════════════════════════════════════
-// Form mínimo: nombre + email + % de comisión. Postea a /api/aura/creators,
-// que crea creador + campaña Always-On + deal de comisión OBLIGATORIA, atómico.
-// La comisión NO es opcional: un creador siempre nace con su comisión.
+// Form: nombre + email + teléfono (los 3 obligatorios; feedback 2026-07).
+// Postea a /api/aura/creators. El creador nace SIN comisión: se asigna
+// después por campaña ("Comenzar campaña").
 // ══════════════════════════════════════════════════════════════
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus } from "lucide-react";
+import { isValidCreatorPhone } from "@/lib/aura/validation";
 
 const THEME = {
   bgPage: "#0a0a14",
@@ -36,9 +37,9 @@ export default function NuevoCreadorPage() {
 
   // Email OBLIGATORIO: se le manda el acceso (link de set-password) por mail.
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  // Teléfono OBLIGATORIO (feedback 2026-07): formato laxo, mínimo 6 dígitos.
-  const phoneValid =
-    /^[+\d][\d\s\-()]*$/.test(phone.trim()) && phone.replace(/\D/g, "").length >= 6;
+  // Teléfono OBLIGATORIO (feedback 2026-07): regla única compartida con la API
+  // (lib/aura/validation.ts) — así el form nunca habilita algo que la API rechaza.
+  const phoneValid = isValidCreatorPhone(phone);
   const canSubmit = name.trim().length > 0 && emailValid && phoneValid && !saving;
 
   const handleSubmit = async () => {
@@ -117,6 +118,11 @@ export default function NuevoCreadorPage() {
               className="w-full px-3 py-2.5 rounded-xl outline-none text-sm"
               style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
             />
+            {email.trim().length > 0 && !emailValid && (
+              <span className="text-[11px]" style={{ color: "#ff6b9d" }}>
+                Email inválido.
+              </span>
+            )}
           </Field>
 
           <Field label="Teléfono" required hint="Con código de país, ej: +54 9 11 1234 5678.">
@@ -128,6 +134,11 @@ export default function NuevoCreadorPage() {
               className="w-full px-3 py-2.5 rounded-xl outline-none text-sm"
               style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
             />
+            {phone.trim().length > 0 && !phoneValid && (
+              <span className="text-[11px]" style={{ color: "#ff6b9d" }}>
+                Teléfono inválido: mínimo 6 dígitos (se aceptan +, espacios, guiones y paréntesis).
+              </span>
+            )}
           </Field>
 
           {/* Comisión quitada del alta (item 9): se asigna por campaña. */}

@@ -14,8 +14,9 @@
 // Custom" en ventanas por canal, tooltips por modelo.
 // ══════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChannelLogo } from "@/components/pixel/ChannelLogo";
+import { AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/aura/validation";
 
 const MODELS: Array<{
   id: string;
@@ -452,7 +453,8 @@ export function AttributionSettings() {
 // que solo persiste settings de pixel).
 // ══════════════════════════════════════════════════════════════
 
-const AURA_DEFAULT_WINDOW = 14;
+// Default compartido con la API y el motor (lib/aura/validation.ts)
+const AURA_DEFAULT_WINDOW = AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS;
 
 type AuraCreatorRow = {
   id: string;
@@ -476,7 +478,9 @@ function AuraCreatorWindows() {
   const loadCreators = () => {
     setLoading(true);
     setFetchError(null);
-    fetch("/api/aura/creators/list")
+    // fields=basic: solo id/name/code/status/ventana — se saltea los KPIs
+    // pesados por creador que este endpoint calcula para la pantalla de Aura.
+    fetch("/api/aura/creators/list?fields=basic")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -502,11 +506,18 @@ function AuraCreatorWindows() {
     if (next && creators === null && !loading) loadCreators();
   };
 
-  const patchWindow = async (creatorId: string, value: number | null) => {
-    setSavingId(creatorId);
+  // Timer del "✓ Guardado" — se limpia al desmontar para no setear estado huérfano.
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current); }, []);
+
+  const patchWindow = async (creator: AuraCreatorRow, value: number | null) => {
+    // Capturar el valor persistido ANTES del fetch: el rollback no debe depender
+    // de un closure stale de `creators` si otro update entra mientras tanto.
+    const persisted = creator.attributionWindowDays;
+    setSavingId(creator.id);
     setRowError(null);
     try {
-      const res = await fetch(`/api/aura/creators/${creatorId}`, {
+      const res = await fetch(`/api/aura/creators/${creator.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attributionWindowDays: value }),
@@ -516,19 +527,20 @@ function AuraCreatorWindows() {
       const effective = d?.creator?.attributionWindowDays ?? AURA_DEFAULT_WINDOW;
       setCreators((prev) =>
         prev
-          ? prev.map((c) => (c.id === creatorId ? { ...c, attributionWindowDays: effective } : c))
+          ? prev.map((c) => (c.id === creator.id ? { ...c, attributionWindowDays: effective } : c))
           : prev,
       );
-      setDrafts((prev) => ({ ...prev, [creatorId]: String(effective) }));
-      setSavedId(creatorId);
-      setTimeout(() => setSavedId((s) => (s === creatorId ? null : s)), 3000);
+      setDrafts((prev) => ({ ...prev, [creator.id]: String(effective) }));
+      setSavedId(creator.id);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(
+        () => setSavedId((s) => (s === creator.id ? null : s)),
+        3000,
+      );
     } catch {
-      setRowError("No pude guardar la ventana. Probá de nuevo.");
-      // rollback del draft al valor persistido
-      setDrafts((prev) => {
-        const persisted = creators?.find((c) => c.id === creatorId)?.attributionWindowDays;
-        return { ...prev, [creatorId]: String(persisted ?? AURA_DEFAULT_WINDOW) };
-      });
+      setRowError(`No pude guardar la ventana de ${creator.name}. Probá de nuevo.`);
+      // rollback del draft al valor persistido capturado al inicio
+      setDrafts((prev) => ({ ...prev, [creator.id]: String(persisted) }));
     } finally {
       setSavingId(null);
     }
@@ -544,7 +556,7 @@ function AuraCreatorWindows() {
     }
     const rounded = Math.round(n);
     if (rounded === creator.attributionWindowDays) return; // sin cambios
-    patchWindow(creator.id, rounded);
+    patchWindow(creator, rounded);
   };
 
   return (
@@ -552,10 +564,12 @@ function AuraCreatorWindows() {
       <button
         type="button"
         onClick={toggleOpen}
+        aria-expanded={open}
         className="w-full flex items-center justify-between gap-3 py-1.5 group"
       >
         <div className="flex items-center gap-2.5">
           <span
+            aria-hidden="true"
             className={`text-gray-400 text-xs transition-transform ${open ? "rotate-90" : ""}`}
           >
             ▶
@@ -609,7 +623,7 @@ function AuraCreatorWindows() {
                 const isSaved = savedId === c.id;
                 const isInactive = c.status === "INACTIVE";
                 return (
-                  <div key={c.id} className={`flex items-center gap-3 py-1.5 ${isInactive ? "opacity-50" : ""}`}>
+                  <div key={c.id} className={`flex flex-wrap items-center gap-3 py-1.5 ${isInactive ? "opacity-50" : ""}`}>
                     <div className="w-44 flex items-center gap-2.5 min-w-0">
                       <span className="w-[26px] h-[26px] rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[11px] font-bold flex-shrink-0">
                         {c.name.charAt(0).toUpperCase()}
@@ -636,7 +650,7 @@ function AuraCreatorWindows() {
                       <button
                         type="button"
                         disabled={isSaving || !isCustom}
-                        onClick={() => patchWindow(c.id, null)}
+                        onClick={() => patchWindow(c, null)}
                         className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
                           !isCustom
                             ? "border-cyan-500 bg-cyan-50 text-cyan-700 cursor-default"
@@ -656,7 +670,8 @@ function AuraCreatorWindows() {
                         onKeyDown={(e) => {
                           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                         }}
-                        className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none transition-all ${
+                        aria-label={`Ventana de atribución de ${c.name} en días`}
+                        className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none focus:border-cyan-500 transition-all ${
                           isCustom
                             ? "border-violet-500 bg-violet-50 text-violet-700"
                             : "border-gray-200 text-gray-500"
