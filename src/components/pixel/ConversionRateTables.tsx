@@ -101,7 +101,12 @@ function SimpleCRTable({ title, labelHeader, searchPlaceholder, rows }: {
       <div className="mb-3">
         <CrSearchInput value={search} onChange={setSearch} placeholder={searchPlaceholder} />
       </div>
-      <div className="overflow-y-auto overflow-x-auto flex-1" style={{ maxHeight: "320px" }}>
+      {/* scrollbar sutil (fix QA 2026-07): la global es naranja/oscura y sobre
+          estas cards claras se veía negra y tapaba la columna CR */}
+      <div
+        className="overflow-y-auto overflow-x-auto flex-1 pr-1"
+        style={{ maxHeight: "320px", scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}
+      >
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white z-10">
             <tr className="border-b border-gray-100">
@@ -211,7 +216,10 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
         )}
       </div>
 
-      <div className="overflow-y-auto overflow-x-auto flex-1" style={{ maxHeight: "400px" }}>
+      <div
+        className="overflow-y-auto overflow-x-auto flex-1 pr-1"
+        style={{ maxHeight: "400px", scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}
+      >
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white z-10">
             <tr className="border-b border-gray-100">
