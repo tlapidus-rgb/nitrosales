@@ -71,51 +71,59 @@ export async function GET(request: NextRequest) {
     // consumidor de este endpoint es ConversionRateTables (byCategory/byBrand/
     // byProduct), y pixel/analytics tiene su propio byChannel/byDevice vía
     // /api/metrics/pixel. Eran ~la mitad del costo del endpoint.
-    const [
-      productViewersResult,
-      productPurchasesResult,
-    ] = await Promise.all([
-      // 5. Product viewers — PERF 2026-07: lee el rollup pixel_daily_product (HLL,
-      // VIEW_PRODUCT por producto/día) en vez de escanear pixel_events crudo.
-      prisma.$queryRaw`
-        SELECT
-          dp.product_id as "productExternalId",
-          COALESCE(hll_cardinality(hll_union_agg(dp.viewers_hll)), 0)::int as viewers
-        FROM pixel_daily_product dp
-        WHERE dp."organizationId" = ${ORG_ID}
-          AND dp.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY dp.product_id
-        ORDER BY viewers DESC
-        LIMIT 500
-      ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
+    // 5. Product viewers — PERF 2026-07: lee el rollup pixel_daily_product (HLL,
+    // VIEW_PRODUCT por producto/día) en vez de escanear pixel_events crudo.
+    const productViewersResult = (await prisma.$queryRaw`
+      SELECT
+        dp.product_id as "productExternalId",
+        COALESCE(hll_cardinality(hll_union_agg(dp.viewers_hll)), 0)::int as viewers
+      FROM pixel_daily_product dp
+      WHERE dp."organizationId" = ${ORG_ID}
+        AND dp.day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+        AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+      GROUP BY dp.product_id
+      ORDER BY viewers DESC
+      LIMIT 500
+    `) as Array<{ productExternalId: string; viewers: number }>;
 
-      // 6. Product purchases (VTEX only)
-      prisma.$queryRaw`
-        SELECT
-          COALESCE(p."externalId", oi."productId") as "productExternalId",
-          COALESCE(p.name, 'Producto desconocido') as "productName",
-          COALESCE(p.category, 'Sin categoría') as category,
-          COALESCE(p.brand, 'Sin marca') as brand,
-          COUNT(DISTINCT oi."orderId")::int as orders,
-          SUM(oi.quantity)::int as units,
-          SUM(oi."totalPrice")::float as revenue
-        FROM order_items oi
-        JOIN orders o ON o.id = oi."orderId"
-        LEFT JOIN products p ON p.id = oi."productId"
-        WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-        GROUP BY 1, 2, 3, 4
-        ORDER BY revenue DESC
-        LIMIT 500
-      ` as Promise<
-        Array<{
+    // 6. Product purchases (VTEX only) — ACOTADO A LOS PRODUCTOS VISTOS.
+    //
+    // BUG 2026-07-18: antes esto traía "los 500 de mayor revenue" con su propio
+    // LIMIT, en paralelo con los viewers. Los dos LIMIT recortaban conjuntos
+    // DISTINTOS del catálogo (top-500 más visitados vs top-500 que más facturan)
+    // y en Arredo la intersección daba CERO: la tabla mostraba visitantes con 0
+    // ventas y CR vacío en TODOS los productos, categorías y marcas. Verificado
+    // en Neon: match sin límites = 14, match con los dos LIMIT = 0.
+    //
+    // Fix: el universo lo define el lado VISTO (que es el que la tabla muestra),
+    // y las compras se piden SOLO para esos productos. Deja de ser un recorte
+    // arbitrario y el resultado es correcto por construcción. Cuesta un round
+    // trip extra (ya no va en Promise.all), despreciable contra leer el rollup.
+    const viewedIds = productViewersResult.map((v) => v.productExternalId);
+
+    const productPurchasesResult = viewedIds.length
+      ? ((await prisma.$queryRaw`
+          SELECT
+            COALESCE(p."externalId", oi."productId") as "productExternalId",
+            COALESCE(p.name, 'Producto desconocido') as "productName",
+            COALESCE(p.category, 'Sin categoría') as category,
+            COALESCE(p.brand, 'Sin marca') as brand,
+            COUNT(DISTINCT oi."orderId")::int as orders,
+            SUM(oi.quantity)::int as units,
+            SUM(oi."totalPrice")::float as revenue
+          FROM order_items oi
+          JOIN orders o ON o.id = oi."orderId"
+          LEFT JOIN products p ON p.id = oi."productId"
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o."orderDate" >= ${crDateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWhere("o")}
+            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+            AND o.source IS DISTINCT FROM 'MELI'
+            AND o.channel IS DISTINCT FROM 'marketplace'
+            AND COALESCE(p."externalId", oi."productId") = ANY(${viewedIds})
+          GROUP BY 1, 2, 3, 4
+        `) as Array<{
           productExternalId: string;
           productName: string;
           category: string;
@@ -123,9 +131,8 @@ export async function GET(request: NextRequest) {
           orders: number;
           units: number;
           revenue: number;
-        }>
-      >,
-    ]);
+        }>)
+      : [];
 
     // ══════════════════════════════════════════════════════════
     // Merge + aggregate
