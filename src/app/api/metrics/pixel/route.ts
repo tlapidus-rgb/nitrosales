@@ -22,6 +22,7 @@ import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } fro
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
+import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
 import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
@@ -144,7 +145,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm-cache estaba saturando la DB (32 fetches paralelos × 29
     // queries c/u = 928 queries simultaneas cada 30 min). Volver al
     // cache simple `getCached` (fresh 5 min, despues miss).
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v8"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v12"];
 
     // ── SWR real (2026-06-12, BP-PERF-DASHBOARD) ──────────────────────────────
     // El compute completo (29 queries) vive en computeAndCache(). Cache-miss =
@@ -197,6 +198,17 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     const wFirst = nitroWeights.first;
     const wLast = nitroWeights.last;
     const wMiddle = nitroWeights.middle;
+
+    // ── Gold-first para las 4 queries de atribución con JSONB (tanda 5) ──
+    // #9/#20/#22/#29 desanidaban pa.touchpoints (~3s c/u, seq-scan) → leen el
+    // rollup gold_attribution_source detrás de PIXEL_USE_GOLD (flag propio,
+    // aislado de ORDERS_USE_GOLD). Fallback a las queries Bronze si el flag está
+    // off. La reconstrucción de pesos usa goldModelRevenueSql (espejo del CASE).
+    const usePixelGold = process.env.PIXEL_USE_GOLD === "true";
+    const arDayStr = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+    const goldDayFrom = arDayStr(dateFrom);
+    const goldDayTo = arDayStr(dateTo);
 
     // ── Pixel install date: first event ever for this org ──
     // Used as floor for CR queries (pixel visitors vs orders).
@@ -384,7 +396,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
       // 9. Attribution by source (weighted for NITRO, simple for others)
       // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
-      (selectedModel === "NITRO"
+      (usePixelGold
+        ? prisma.$queryRawUnsafe(`
+            SELECT source,
+              SUM(orders)::int as orders,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float as revenue
+            FROM gold_attribution_source
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY source
+            ORDER BY revenue DESC
+            LIMIT 10
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; orders: number; revenue: number }>>
+      : selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
               CASE
@@ -730,7 +753,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // segun la logica de cada modelo (last_click / first_click / linear / nitro).
       // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
       // la tarjeta de revenue por canal por dia.
-      prisma.$queryRaw`
+      (usePixelGold
+        ? prisma.$queryRawUnsafe(`
+            SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, source, orders,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
+            FROM gold_attribution_source
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            ORDER BY day DESC, revenue DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
+      : prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           CASE
@@ -778,7 +809,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1, 2
         ORDER BY 1 DESC, revenue DESC
-      ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>,
+      ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>),
 
       // 21. Per-day per-platform ad spend (for daily trend table)
       prisma.$queryRaw`
@@ -794,7 +825,19 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ` as Promise<Array<{ day: string; source: string; spend: number }>>,
 
       // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
-      prisma.$queryRaw`
+      (usePixelGold
+        ? prisma.$queryRawUnsafe(`
+            SELECT source,
+              SUM(first_touch_count)::int as "firstTouch",
+              SUM(assist_touch_count)::int as "assistTouch",
+              SUM(last_touch_count)::int as "lastTouch",
+              SUM(solo_touch_count)::int as "soloTouch"
+            FROM gold_attribution_source
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY source
+            ORDER BY "firstTouch" DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
+      : prisma.$queryRaw`
         SELECT
           CASE
             WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
@@ -821,7 +864,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY "firstTouch" DESC
-      ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
+      ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>),
 
       // 23. Visitors + Purchases per source — S60 EXT-2 BIS+++++++ FIX:
       // ANTES: purchases = distinct visitors con event PURCHASE → contaba eventos
@@ -1017,7 +1060,35 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
       // la formula de cada modelo para repartir el attributedValue por canal.
       // GROUP BY (model, source) → ~4 modelos × N canales rows.
-      prisma.$queryRaw`
+      (usePixelGold
+        ? prisma.$queryRawUnsafe(`
+            WITH src AS (
+              SELECT source,
+                SUM(nitro_single) nitro_single, SUM(nitro_first2) nitro_first2,
+                SUM(nitro_last2) nitro_last2, SUM(nitro_first_n) nitro_first_n,
+                SUM(nitro_last_n) nitro_last_n, SUM(nitro_middle_n) nitro_middle_n,
+                SUM(last_click_revenue) last_click_revenue,
+                SUM(first_click_revenue) first_click_revenue,
+                SUM(linear_revenue) linear_revenue
+              FROM gold_attribution_source
+              WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+              GROUP BY source
+            )
+            SELECT model, source, revenue FROM (
+              SELECT m.model, s.source,
+                (CASE m.model
+                  WHEN 'LAST_CLICK'  THEN ${goldModelRevenueSql("LAST_CLICK", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  WHEN 'FIRST_CLICK' THEN ${goldModelRevenueSql("FIRST_CLICK", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  WHEN 'LINEAR'      THEN ${goldModelRevenueSql("LINEAR", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  ELSE ${goldModelRevenueSql("NITRO", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                END)::float as revenue
+              FROM src s
+              CROSS JOIN (VALUES ('LAST_CLICK'),('FIRST_CLICK'),('LINEAR'),('NITRO')) m(model)
+            ) t
+            WHERE revenue > 0
+            ORDER BY model, revenue DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ model: string; source: string; revenue: number }>>
+      : prisma.$queryRaw`
         SELECT
           pa.model::text as model,
           CASE
@@ -1086,7 +1157,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           )
         ) > 0
         ORDER BY 1, 3 DESC
-      ` as Promise<Array<{ model: string; source: string; revenue: number }>>,
+      ` as Promise<Array<{ model: string; source: string; revenue: number }>>),
     ]);
 
     // ══════════════════════════════════════════════════════════

@@ -91,7 +91,49 @@ Los flags de Silver y los rollups Gold se generan **desde el contrato** (`src/do
    `SELECT organization_id, dimension, SUM(revenue) FROM gold_order_segments GROUP BY 1,2;`
 6. **`avgTicket` se calcula en JS** (`revenue/orders`, no `AVG`, por packs MELI). Ver `BP-I5`.
 
-## 🔜 PRÓXIMA SESIÓN — retomar acá (2026-07-17)
+## 🥇 TANDA 5 EN CURSO — gold_attribution_source (metrics/pixel)
+Branch `feat/medallion-pixel-attribution` (4 commits, pusheable). El dolor #1 real
+medido: `/api/metrics/pixel` = 14-25s en Arredo (Network tab). Causa (EXPLAIN):
+4 queries que desanidan `pa.touchpoints` (JSONB) por request (#9 by-source, #20
+day×source, #22 channel roles, #29 model×channel), cada una ~3s, seq-scan de
+pixel_attributions. (El fix del índice `pa.createdAt` NO alcanzó — el planner
+seq-scanea igual; branch `perf/pixel-attribution-index` DESCARTADO.)
+
+**Diseño (post /plan-eng-review, verificado en Neon):** grano `(org, día, source)`
+— touchpoints y attributedValue son model-independientes (25120/25121). Guarda
+COMPONENTES SIN PONDERAR (last_click/first_click/linear + los 6 de NITRO +
+touch-role counts) → los pesos NITRO configurables se aplican AL LEER
+(`lib/pixel/attribution-weights.ts`), cambiar pesos no invalida historia.
+
+**HECHO + EN PROD (backfill corrido, PARIDAD CONFIRMADA):** tabla creada +
+backfilleada en Neon; paridad Gold-vs-Bronze en VENTANA CONGELADA (60-30d) = 0
+filas (los diffs del rango reciente eran 100% freshness). Cron
+`refresh-gold-attribution` (:20/:50, off-switch ATTRIBUTION_ROLLUP_ENABLED) ya lo
+mantiene fresco. Núcleo + tests (171) + helper compartido `touchpoint-source-sql.ts`.
+
+**SERVE MIGRADO Y ANDANDO (branch, flag PIXEL_USE_GOLD=true en Preview):** las 4
+queries JSONB leen el rollup — MEDIDO en preview con instrumentación: bajaron de
+~3000ms a ~300ms cada una (i=8 attrBySource 343, i=19 dailyChannelRevenue 269,
+i=21 channelRoles 285, i=28 attrByModelChannel 285). Reconstrucción de pesos en SQL
+(goldModelRevenueSql). Paridad confirmada (ventana congelada = 0).
+
+**⏸️ PENDIENTE (dejado a propósito, el usuario sigue con otra estructura):** el
+endpoint TODAVÍA tarda ~17s aunque las 4 migradas ahora vuelan. Instrumentación
+(meta.debug.queryMs/slowest/phases, en la branch, QUITAR antes de mergear) reveló:
+- El Promise.all completo es ~6.5s (max query). Las que quedan lentas (~6.2-6.5s):
+  i=7 attrByModel, i=9 conversionLag, i=22 visitorsBySource, i=23 ordersByDevice
+  (todas pixel_attributions/pixel_visitors, NO migradas). i=16 dailyRevenue 3.5s,
+  i=17 prevAttrRevenue 2.9s, i=26 productPurchases 3.5s, i=0 liveStatus 2.2s.
+- PERO el endpoint es 17s y el batch 6.5s → faltan ~10s en OTRO lado. Se agregó
+  meta.debug.phases (beforeBatchMs/batchMs/afterBatchMs) para ubicarlos — FALTA el
+  dato del usuario (¿queries seriales antes del batch? ¿cold-start del preview?).
+- AL RETOMAR: pedir phases (2da carga caliente). Si beforeBatchMs grande → mover el
+  MIN(timestamp) de pixel_events (fecha instalación) + settings a paralelo/rollup.
+  Si es cold-start → el steady-state ya es ~7s (de 25s) y solo queda pulir el batch
+  migrando i=7/9/16/17. LIMPIAR toda la instrumentación debug antes de mergear a main.
+- Branch feat/medallion-pixel-attribution: NO mergear hasta resolver esto + quitar debug.
+
+## 🔜 lo que sigue de metrics/orders (menor prioridad, el grueso ya está)
 
 **Estado del task list:** #8 topProducts+profitability ✅, #9 cohorts ✅, #10 payment ✅.
 **#11 (rutas pixel) EN CURSO — bloqueado por dato del usuario:**
