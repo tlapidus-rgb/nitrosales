@@ -16,7 +16,10 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { buildGoldDailyRevenueUpsert } from "@/data/gold/gold-daily-revenue-transform";
-import { buildGoldSegmentsUpsert } from "@/data/gold/gold-order-segments-transform";
+import {
+  buildGoldSegmentsUpsert,
+  buildGoldSegmentsDeleteOrphans,
+} from "@/data/gold/gold-order-segments-transform";
 import { buildGoldProductSalesUpsert } from "@/data/gold/gold-product-sales-transform";
 import { buildGoldCustomerDailyUpsert } from "@/data/gold/gold-customer-daily-transform";
 
@@ -45,11 +48,18 @@ export async function GET(req: NextRequest) {
 
   try {
     await prisma.$executeRawUnsafe(buildGoldDailyRevenueUpsert(), since);
-    // Segmentos (channel) — independiente: si la tabla todavía no existe, no rompe el daily.
+    // Segmentos — independiente: si la tabla todavía no existe, no rompe el daily.
+    // Upsert + borrado de HUÉRFANAS en una transacción: si un bucket queda vacío
+    // (la orden cambió de bucket), su fila vieja sobreviviría al upsert y la
+    // dimensión sumaría de más. Ver buildGoldSegmentsDeleteOrphans.
     let segmentsOk = true;
     let segmentsError: string | null = null;
     try {
-      await prisma.$executeRawUnsafe(buildGoldSegmentsUpsert(), since);
+      const runStartedAt = new Date().toISOString();
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(buildGoldSegmentsUpsert(), since),
+        prisma.$executeRawUnsafe(buildGoldSegmentsDeleteOrphans(), since, runStartedAt),
+      ]);
     } catch (se: any) {
       segmentsOk = false;
       segmentsError = String(se?.message).slice(0, 200);

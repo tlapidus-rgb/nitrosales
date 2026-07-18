@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildGoldSegmentsUpsert,
   buildGoldSegmentsBackfill,
+  buildGoldSegmentsDeleteOrphans,
 } from "./gold-order-segments-transform";
 import { orderStatusNotConcretedList } from "@/domains/orders";
 
@@ -43,6 +44,15 @@ describe("gold_order_segments — anti-drift + pack-aware", () => {
     expect(upsert).toContain("ON CONFLICT (organization_id, day, source, dimension, bucket) DO UPDATE");
     expect(backfill).toContain("ON CONFLICT (organization_id, day, source, dimension, bucket) DO UPDATE");
     expect(upsert).toContain("GROUP BY organization_id, day, source, dimension, bucket");
+  });
+
+  it("borra huérfanas: filas del rango no tocadas por la corrida (bug 2026-07-17)", () => {
+    // Si una orden cambia de bucket y el viejo queda vacío, su fila sobrevive al
+    // upsert y la dimensión suma de más (payment daba +3.3M en una org).
+    const del = buildGoldSegmentsDeleteOrphans();
+    expect(del).toContain("DELETE FROM gold_order_segments");
+    expect(del).toContain("g.gold_updated_at < $2::timestamptz"); // no tocada por esta corrida
+    expect(del).toContain("g.day >="); // acotado al rango recomputado
   });
 
   it("incremental filtra por since; backfill no", () => {

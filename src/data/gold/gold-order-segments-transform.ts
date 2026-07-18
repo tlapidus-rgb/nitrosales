@@ -93,6 +93,27 @@ export function buildGoldSegmentsUpsert(): string {
   return buildSegments(`\n    AND s.order_date >= $1::timestamptz`);
 }
 
+/**
+ * Borra filas HUÉRFANAS del rango recomputado (bug detectado 2026-07-17 por el
+ * invariante de revenue entre dimensiones: `payment` daba +3.3M en una org).
+ *
+ * El upsert solo INSERTA/ACTUALIZA los buckets que existen AHORA. Si una orden
+ * cambia de bucket (ej. payment_method pasa de NULL a un valor real cuando el
+ * cron de Silver la refresca) y el bucket viejo queda VACÍO, su fila sobrevive
+ * con el conteo viejo → la dimensión suma de más.
+ *
+ * Fix: el upsert pone gold_updated_at = now() en toda fila que toca; cualquier
+ * fila del rango que quedó con un gold_updated_at ANTERIOR al inicio de la
+ * corrida es huérfana. Ejecutar DESPUÉS del upsert, en la misma transacción.
+ * Params: $1 = since (ISO timestamptz, mismo del upsert), $2 = runStartedAt.
+ */
+export function buildGoldSegmentsDeleteOrphans(): string {
+  return `
+DELETE FROM gold_order_segments g
+WHERE g.day >= ($1::timestamptz AT TIME ZONE '${AR_TZ}')::date
+  AND g.gold_updated_at < $2::timestamptz;`.trim();
+}
+
 /** Backfill inicial: toda la historia. */
 export function buildGoldSegmentsBackfill(): string {
   return buildSegments("");
