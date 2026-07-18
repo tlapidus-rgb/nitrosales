@@ -1,6 +1,6 @@
 # Medallion — Estado y cómo retomar
 
-> Última actualización: 2026-07-17 (retomada post-hotfixes; tandas 2-4 mergeadas y verificadas).
+> Última actualización: 2026-07-18 (tandas 2-5c en prod; metrics/orders 100% Gold salvo colas livianas).
 > Plan maestro: `PLAN_ARQUITECTURA_MODULAR_MONOLITO.md`.
 > **Para retomar: leer esto primero.** Es el estado completo + qué sigue.
 >
@@ -35,7 +35,7 @@ orders (Bronze) ──cron 0,30──> silver_orders ──cron 15,45──> gol
 ### Tablas
 - **`silver_orders`**: copia conformada de `orders`. Columnas: los campos de orders + flags pre-computados `is_valid`/`is_web`/`is_marketplace` + `shipping_cost/discount_value/marketplace_fee/real_shipping_cost/delivery_type/shipping_carrier`. Cron `refresh-silver-orders` (`0,30 * * * *`).
 - **`gold_daily_revenue`**: rollup diario pack-aware (org×día×source): orders/revenue/items + shipping/discounts/marketplace_fee/orders_with_fee. Cron `refresh-gold-daily-revenue` (`15,45 * * * *`).
-- **`gold_order_segments`**: rollup de segmentaciones (org×día×dimension×bucket): orders/revenue/shipping_charged/shipping_real. Dimensiones: `channel`, `delivery`, `carrier`. Mismo cron que gold_daily_revenue (upsert independiente).
+- **`gold_order_segments`**: rollup de segmentaciones (org×día×source×dimension×bucket): orders/revenue/shipping_charged/shipping_real. **6 dimensiones**: `channel`, `delivery`, `carrier`, `payment`, `device`, `traffic`. Mismo cron que gold_daily_revenue (upsert + borrado de huérfanas en UNA transacción).
 
 ### `metrics/orders` — qué lee de Gold (flag `ORDERS_USE_GOLD=true` en Vercel; fallback a Bronze si off / hay filtro de source / Gold falla)
 | Componente | Fuente |
@@ -48,7 +48,8 @@ orders (Bronze) ──cron 0,30──> silver_orders ──cron 15,45──> gol
 | Cohorts new/returning (tanda 3: dim `silver_customer_firsts`, sin LATERAL) | ✅ Silver-dim |
 | Pago (tanda 4: dim `payment` + SOURCE en el grain de `gold_order_segments`) | ✅ Gold |
 | Top customers (tanda 5b: `gold_customer_daily` org×día×cliente, pack-aware) | ✅ Gold |
-| Device, traffic (enriquecen de pixel — otro pipeline), recentOrders, dayOfWeek/hour, status | ⏳ Bronze |
+| Device, traffic (tanda 5c: `device_enriched`/`traffic_enriched` en Silver + dims en segments) | ✅ Gold |
+| recentOrders, dayOfWeek/hour, status breakdown | ⏳ Bronze (livianas, no urgen) |
 
 **Tandas 2-4 (2026-07-16/17, paridad 0 verificada en Neon en cada una):**
 - Runbooks corridos: `RUNBOOK-GOLD-TANDA2.md`, `RUNBOOK-SILVER-CUSTOMER-FIRSTS.md`, `RUNBOOK-SEGMENTS-TANDA4.md` (el SQL de backfill se GENERA de los builders con tsx — no editar a mano).
@@ -75,7 +76,20 @@ Los flags de Silver y los rollups Gold se generan **desde el contrato** (`src/do
 1. **Re-backfill de tabla ya poblada = `ON CONFLICT DO UPDATE SET` de TODAS las columnas**, no solo las nuevas. Si no, quedan filas con datos de dos momentos → paridad da diffs raros. (Pasó con el header; el código de los transforms hace refresh completo, el error fue el SQL manual.)
 2. **La paridad es la red de seguridad.** Siempre correr paridad Gold-vs-Bronze ANTES de mergear (el flag `ORDERS_USE_GOLD` ya está on → mergear activa al instante).
 3. **Freshness lag es normal:** las orgs reales dan `diff=0` cuando Silver está fresco; Arredo (`cmohl80fx`, la más movida) suele dar ±1-2 por ventas que entran entre el re-backfill y la paridad. La org de PRUEBA es `cmmmga1uq` (data manual, se ignora). Reales: EMDJ, Arredo=`cmohl80fx`, TVC.
-4. **`avgTicket` se calcula en JS** (`revenue/orders`, no `AVG`, por packs MELI). Ver `BP-I5`.
+4. **`ON CONFLICT` NO borra filas que quedaron vacías → huérfanas.** (Bug real, 18-jul:
+   `payment` daba +3.3M en una org.) Si una orden cambia de bucket — ej. `payment_method`
+   pasa de NULL a un valor cuando Silver la refresca — el bucket viejo queda sin órdenes
+   pero su fila SOBREVIVE al upsert con el conteo viejo. Tanda 4 lo tapó porque hizo
+   TRUNCATE antes del backfill; el cron incremental lo arrastraba. Fix: `gold_updated_at =
+   now()` en todo lo que toca el upsert + `buildGoldSegmentsDeleteOrphans()` borrando lo
+   del rango con timestamp anterior al inicio de la corrida, **en la misma transacción**.
+   Aplicable a CUALQUIER rollup de grano bucket-izado que se llene con upsert incremental.
+5. **El invariante entre dimensiones es el mejor chequeo de correctitud que tenemos.** Las 6
+   dims particionan exactamente las mismas órdenes válidas → `SUM(revenue)` por dimensión
+   tiene que dar IDÉNTICO en cada org. Encontró el bug de huérfanas que toda la paridad
+   Gold-vs-Bronze anterior había pasado por alto. Correrlo después de cada tanda:
+   `SELECT organization_id, dimension, SUM(revenue) FROM gold_order_segments GROUP BY 1,2;`
+6. **`avgTicket` se calcula en JS** (`revenue/orders`, no `AVG`, por packs MELI). Ver `BP-I5`.
 
 ## 🔜 PRÓXIMA SESIÓN — retomar acá (2026-07-17)
 
@@ -94,10 +108,7 @@ Los flags de Silver y los rollups Gold se generan **desde el contrato** (`src/do
 4. Hallazgo suelto: la org `cmod9fmy...` NO tiene eventos de pixel (ausente de todos los
    rollups). Si es TeVe Compras, revisar instalación del NitroPixel con Tomy.
 
-**Lo que queda de `metrics/orders` (menor prioridad, el grueso ya está):**
-- **Device / traffic** (`segByDevice`/`segByTraffic`): enriquecen desde `pixel_attributions`/`pixel_visitors` (device de `pv.deviceTypes[1]`, traffic del touchpoint). NO son order-level puro → llevar device/traffic ENRIQUECIDO a Silver (join a pixel en el transform) o dataset propio. Otro pipeline.
-- **Top customers** (`topCustomers`): grain de CLIENTE. Dataset propio (o dim como customer_firsts).
-- recentOrders / dayOfWeek / hour / status breakdown: livianas, evaluar si hace falta.
+**Lo que queda de `metrics/orders`:** solo recentOrders / dayOfWeek / hour / status breakdown — todas livianas. El grueso ya está en Gold.
 
 ## Otros pendientes (no-Medallion)
 - Mergear `feat/ingest-queue` (necesita cuenta QStash + `QSTASH_TOKEN`/`INGEST_DRAIN_URL` en Vercel) + **OK del fundador** para la línea de VTEX (archivo CORE PROTEGIDO).
