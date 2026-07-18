@@ -75,7 +75,21 @@ Los flags de Silver y los rollups Gold se generan **desde el contrato** (`src/do
 ## ⚠️ LECCIONES (para no repetir)
 1. **Re-backfill de tabla ya poblada = `ON CONFLICT DO UPDATE SET` de TODAS las columnas**, no solo las nuevas. Si no, quedan filas con datos de dos momentos → paridad da diffs raros. (Pasó con el header; el código de los transforms hace refresh completo, el error fue el SQL manual.)
 2. **La paridad es la red de seguridad.** Siempre correr paridad Gold-vs-Bronze ANTES de mergear (el flag `ORDERS_USE_GOLD` ya está on → mergear activa al instante).
-3. **Freshness lag es normal:** las orgs reales dan `diff=0` cuando Silver está fresco; Arredo (`cmohl80fx`, la más movida) suele dar ±1-2 por ventas que entran entre el re-backfill y la paridad. La org de PRUEBA es `cmmmga1uq` (data manual, se ignora). Reales: EMDJ, Arredo=`cmohl80fx`, TVC.
+3. **Freshness lag es normal:** las orgs reales dan `diff=0` cuando Silver está fresco; Arredo (`cmohl80fx`, la más movida) suele dar ±1-2 por ventas que entran entre el re-backfill y la paridad.
+
+   **⚠️ MAPEO DE ORGS — CORREGIDO 2026-07-18 (antes estaba MAL en este doc):**
+   | ID | Org | Real / Prueba |
+   |---|---|---|
+   | `cmohl80fx009j1sdusurp7fbj` | **Arredo** | real (la más movida, $1.3B) |
+   | `cmmmga1uq0000sb43w0krvvys` | **El Mundo del Juguete** | **REAL** |
+   | `cmod6ns420047dlnth544px9c` | **TeVe Compras** | real |
+   | `cmod9fmy6000djepldqo2ty3v` | **Prueba** | PRUEBA (sin eventos de pixel — normal) |
+
+   Verificado con `SELECT id, name FROM organizations`. **Este doc venía diciendo que
+   `cmmmga1uq` era "la org de prueba, se ignora" — es FALSO, es El Mundo del Juguete.**
+   Toda verificación de paridad previa que descartó un diff en `cmmmga1uq` por "org de
+   prueba" hay que RE-MIRARLA: eran diffs en una org real. La de prueba es `cmod9fmy`.
+   No adivinar nombres por ID: correr la query.
 4. **`ON CONFLICT` NO borra filas que quedaron vacías → huérfanas.** (Bug real, 18-jul:
    `payment` daba +3.3M en una org.) Si una orden cambia de bucket — ej. `payment_method`
    pasa de NULL a un valor cuando Silver la refresca — el bucket viejo queda sin órdenes
@@ -149,8 +163,16 @@ endpoint TODAVÍA tarda ~17s aunque las 4 migradas ahora vuelan. Instrumentació
 3. `metrics/conversion` ya NO toca pixel_events (migrada en los hotfixes, quedó en 2
    queries + rollup meta) — se puede SACAR del allowlist de `check-serve-gold-first`
    (ratchet down) cuando se toque ese archivo.
-4. Hallazgo suelto: la org `cmod9fmy...` NO tiene eventos de pixel (ausente de todos los
-   rollups). Si es TeVe Compras, revisar instalación del NitroPixel con Tomy.
+4. ~~Hallazgo suelto: la org `cmod9fmy...` NO tiene eventos de pixel~~ → **CERRADO
+   (18-jul): `cmod9fmy` es la org "Prueba".** Que no tenga eventos de pixel es lo
+   esperado. NO hay nada que revisar con Tomy.
+5. **CR por producto/categoría/marca en Arredo (18-jul, ABIERTO):** las tablas muestran
+   visitantes pero 0 ventas. Descartado que sea desajuste de claves: el pixel manda el
+   MISMO espacio de IDs que VTEX (`matchean_por_sku=0`, `matchean_por_externalid=210`,
+   la hipótesis SKU→productId era falsa). Lo que SÍ aparece: de 853 productos visitados,
+   solo **210 existen en `products`** — el catálogo de Arredo está incompleto (conecta
+   con el fix de la frontera del sync). Falta confirmar si el 0 de ventas es real o era
+   efecto de mirar el rango "Hoy" (en 30 días hay 14 productos con visita Y venta).
 
 **Lo que queda de `metrics/orders`:** solo recentOrders / dayOfWeek / hour / status breakdown — todas livianas. El grueso ya está en Gold.
 
