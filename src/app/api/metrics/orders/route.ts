@@ -1207,7 +1207,17 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       `, dateFrom, dateTo), [] as any[], "logistics-carrier"),
 
       /* 20) Segmentation — by device (enriched from NitroPixel when order field is NULL) */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
+      // Gold-first (tanda 5c): dimension='device' de gold_order_segments (el
+      // COALESCE contra pixel ya está resuelto en silver_orders.device_enriched).
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string }>>(`
+            SELECT bucket, SUM(orders)::text AS orders, SUM(revenue)::text AS revenue
+            FROM gold_order_segments
+            WHERE organization_id = $1 AND dimension = 'device'
+              AND day >= $2::date AND day <= $3::date
+            GROUP BY bucket ORDER BY SUM(orders) DESC
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)), [] as any[], "seg-device-gold")
+        : safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
         WITH order_device AS (
@@ -1292,7 +1302,17 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     ] = await Promise.all([
 
       /* 22) Segmentation — by traffic source (enriched from NitroPixel touchpoints) */
-      safeQuery(prisma.$queryRawUnsafe<Array<{
+      // Gold-first (tanda 5c): dimension='traffic' de gold_order_segments (el
+      // COALESCE contra el primer touchpoint ya está en silver_orders.traffic_enriched).
+      useGold
+        ? safeQuery(prisma.$queryRawUnsafe<Array<{ bucket: string; orders: string; revenue: string }>>(`
+            SELECT bucket, SUM(orders)::text AS orders, SUM(revenue)::text AS revenue
+            FROM gold_order_segments
+            WHERE organization_id = $1 AND dimension = 'traffic'
+              AND day >= $2::date AND day <= $3::date
+            GROUP BY bucket ORDER BY SUM(orders) DESC
+          `, ORG_ID, arDay(dateFrom), arDay(dateTo)), [] as any[], "seg-traffic-gold")
+        : safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
         WITH order_traffic AS (

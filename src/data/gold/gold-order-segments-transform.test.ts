@@ -21,11 +21,16 @@ describe("gold_order_segments — anti-drift + pack-aware", () => {
     expect(upsert).toContain("COUNT(DISTINCT pack_key)");
   });
 
-  it("segmenta por 4 dimensiones (channel, delivery, carrier, payment) con medidas de envío", () => {
+  it("segmenta por 6 dimensiones (channel, delivery, carrier, payment, device, traffic)", () => {
     expect(upsert).toContain("'channel'  AS dimension");
     expect(upsert).toContain("'delivery' AS dimension");
     expect(upsert).toContain("'carrier'  AS dimension");
     expect(upsert).toContain("'payment'  AS dimension");
+    expect(upsert).toContain("'device'   AS dimension");
+    expect(upsert).toContain("'traffic'  AS dimension");
+    // device/traffic salen de las columnas ENRIQUECIDAS de Silver (COALESCE vs pixel ya resuelto)
+    expect(upsert).toContain("COALESCE(s.device_enriched, 'Sin dato')");
+    expect(upsert).toContain("COALESCE(s.traffic_enriched, 'Sin dato')");
     expect(upsert).toContain("COALESCE(s.channel, 'Sin dato')");
     expect(upsert).toContain("COALESCE(s.delivery_type, 'Sin dato')");
     expect(upsert).toContain("COALESCE(s.shipping_carrier, 'Sin dato')");

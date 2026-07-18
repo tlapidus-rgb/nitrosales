@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS silver_orders (
   delivery_type     text,
   shipping_carrier  text,
   payment_method    text,                                -- para dimension='payment' (tanda 4)
+  -- Enriquecidos desde NitroPixel (tanda 5c) — para dimensions device/traffic.
+  -- device_enriched  = COALESCE(orders.deviceType, pixel_visitors.deviceTypes[1])
+  -- traffic_enriched = COALESCE(orders.trafficSource, primer touchpoint.source)
+  device_enriched   text,
+  traffic_enriched  text,
   -- Flags pre-computados (fuente: src/domains/orders/index.ts vía el job de transform)
   is_valid          boolean      NOT NULL,             -- ordersValidSql: concretada + totalValue > 0
   is_web            boolean      NOT NULL,             -- ordersWebSql: no marketplace

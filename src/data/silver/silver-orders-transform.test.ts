@@ -36,6 +36,21 @@ describe("buildSilverOrdersUpsert — anti-drift con el contrato", () => {
     expect(sql).toContain(`o."orderDate"`);
     expect(sql).not.toContain(`o."createdAt"`);
   });
+
+  it("enriquece device/traffic desde pixel con el MISMO COALESCE que el Bronze (tanda 5c)", () => {
+    // device = orders.deviceType ?? pixel_visitors.deviceTypes[1]
+    expect(sql).toContain(`COALESCE(o."deviceType", pv."deviceTypes"[1]) AS device_enriched`);
+    // traffic = orders.trafficSource ?? primer touchpoint.source
+    expect(sql).toContain(
+      `COALESCE(o."trafficSource", att.touchpoints::jsonb->0->>'source') AS traffic_enriched`,
+    );
+    // la atribución elegida es la más reciente (igual que el DISTINCT ON del Bronze)
+    expect(sql).toContain(`ORDER BY pa."createdAt" DESC`);
+    expect(sql).toContain("LEFT JOIN pixel_visitors pv");
+    // y se refrescan en el upsert (si no, quedarían congeladas)
+    expect(sql).toContain("device_enriched = EXCLUDED.device_enriched");
+    expect(sql).toContain("traffic_enriched = EXCLUDED.traffic_enriched");
+  });
 });
 
 describe("buildSilverOrdersBackfill — fill inicial (toda la historia)", () => {
@@ -47,7 +62,10 @@ describe("buildSilverOrdersBackfill — fill inicial (toda la historia)", () => 
   });
 
   it("NO filtra por org ni fecha (toda la historia, todas las orgs)", () => {
-    expect(sql).not.toContain("WHERE");
+    // Nota: el backfill SÍ tiene un WHERE interno (el LATERAL que busca la
+    // atribución más reciente para enriquecer device/traffic). Lo que no debe
+    // haber es filtro por org/fecha sobre `o`.
+    expect(sql).not.toContain(`WHERE o."organizationId"`);
     expect(sql).not.toContain("$1");
     expect(sql).not.toContain("$2");
   });

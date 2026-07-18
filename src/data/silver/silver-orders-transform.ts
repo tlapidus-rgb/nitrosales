@@ -27,6 +27,7 @@ INSERT INTO silver_orders (
   item_count, pack_id, source, channel, traffic_source, device_type, customer_id,
   shipping_cost, discount_value, marketplace_fee,
   real_shipping_cost, delivery_type, shipping_carrier, payment_method,
+  device_enriched, traffic_enriched,
   is_valid, is_web, is_marketplace, silver_updated_at
 )
 SELECT
@@ -34,11 +35,25 @@ SELECT
   o."itemCount", o."packId", o.source, o.channel, o."trafficSource", o."deviceType", o."customerId",
   o."shippingCost", o."discountValue", o."marketplaceFee",
   o."realShippingCost", o."deliveryType", o."shippingCarrier", o."paymentMethod",
+  -- Enriquecimiento desde NitroPixel (tanda 5c). Espejo EXACTO del COALESCE que
+  -- hacían segByDevice/segByTraffic en metrics/orders. La atribución elegida es la
+  -- más reciente (igual que el DISTINCT ON ... ORDER BY pa."createdAt" DESC del
+  -- Bronze); da igual cuál, los touchpoints son model-independientes.
+  COALESCE(o."deviceType", pv."deviceTypes"[1]) AS device_enriched,
+  COALESCE(o."trafficSource", att.touchpoints::jsonb->0->>'source') AS traffic_enriched,
   (${isValid}) AS is_valid,
   (${isWeb}) AS is_web,
   (NOT (${isWeb})) AS is_marketplace,
   now()
 FROM orders o
+LEFT JOIN LATERAL (
+  SELECT pa."visitorId", pa.touchpoints
+  FROM pixel_attributions pa
+  WHERE pa."orderId" = o.id
+  ORDER BY pa."createdAt" DESC
+  LIMIT 1
+) att ON true
+LEFT JOIN pixel_visitors pv ON pv.id = att."visitorId"
 ${whereClause}ON CONFLICT (id) DO UPDATE SET
   status = EXCLUDED.status,
   total_value = EXCLUDED.total_value,
@@ -55,6 +70,8 @@ ${whereClause}ON CONFLICT (id) DO UPDATE SET
   delivery_type = EXCLUDED.delivery_type,
   shipping_carrier = EXCLUDED.shipping_carrier,
   payment_method = EXCLUDED.payment_method,
+  device_enriched = EXCLUDED.device_enriched,
+  traffic_enriched = EXCLUDED.traffic_enriched,
   is_valid = EXCLUDED.is_valid,
   is_web = EXCLUDED.is_web,
   is_marketplace = EXCLUDED.is_marketplace,

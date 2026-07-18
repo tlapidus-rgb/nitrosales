@@ -2,7 +2,9 @@
 // Transform Silver → Gold: gold_order_segments — segmentaciones diarias (§6.3)
 // ══════════════════════════════════════════════════════════════════════════
 // Rollup diario pack-aware por dimensión. Dimensiones: 'channel', 'delivery',
-// 'carrier', 'payment' (todas order-level, desde silver_orders).
+// 'carrier', 'payment', 'device', 'traffic' (todas desde silver_orders; device y
+// traffic salen de las columnas ENRIQUECIDAS de Silver, que ya resolvieron el
+// COALESCE contra pixel — ver silver-orders-transform.ts, tanda 5c).
 // Medidas: orders (DISTINCT pack), revenue, shipping_charged, shipping_real.
 // Lista de status desde el CONTRATO → drift-proof.
 //
@@ -37,6 +39,8 @@ valid_rows AS (
     COALESCE(s.delivery_type, 'Sin dato') AS delivery_bucket,
     COALESCE(s.shipping_carrier, 'Sin dato') AS carrier_bucket,
     COALESCE(s.payment_method, 'Sin dato') AS payment_bucket,
+    COALESCE(s.device_enriched, 'Sin dato') AS device_bucket,
+    COALESCE(s.traffic_enriched, 'Sin dato') AS traffic_bucket,
     COALESCE(s.pack_id, s.external_id) AS pack_key,
     s.total_value,
     s.shipping_cost,
@@ -57,6 +61,10 @@ seg AS (
   SELECT organization_id, day, source, 'carrier'  AS dimension, carrier_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
   UNION ALL
   SELECT organization_id, day, source, 'payment'  AS dimension, payment_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
+  UNION ALL
+  SELECT organization_id, day, source, 'device'   AS dimension, device_bucket   AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
+  UNION ALL
+  SELECT organization_id, day, source, 'traffic'  AS dimension, traffic_bucket  AS bucket, pack_key, total_value, shipping_cost, real_shipping_cost FROM valid_rows
 )
 INSERT INTO gold_order_segments (organization_id, day, source, dimension, bucket, orders, revenue, shipping_charged, shipping_real, gold_updated_at)
 SELECT
