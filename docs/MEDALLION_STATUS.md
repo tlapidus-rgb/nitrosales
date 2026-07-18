@@ -91,8 +91,10 @@ Los flags de Silver y los rollups Gold se generan **desde el contrato** (`src/do
    `SELECT organization_id, dimension, SUM(revenue) FROM gold_order_segments GROUP BY 1,2;`
 6. **`avgTicket` se calcula en JS** (`revenue/orders`, no `AVG`, por packs MELI). Ver `BP-I5`.
 
-## 🥇 TANDA 5 EN CURSO — gold_attribution_source (metrics/pixel)
-Branch `feat/medallion-pixel-attribution` (4 commits, pusheable). El dolor #1 real
+## 🥇 TANDA 5 — gold_attribution_source (metrics/pixel) — ✅ MERGEADA A PROD (18-jul, `ede25444`)
+**`PIXEL_USE_GOLD=true` en PROD** → el serve lee el rollup desde el deploy del merge.
+Instrumentación de debug removida (`eb428b7d`); allowlist de serve-gold-first bajado
+a 3 (`e4c99741`). El dolor #1 real
 medido: `/api/metrics/pixel` = 14-25s en Arredo (Network tab). Causa (EXPLAIN):
 4 queries que desanidan `pa.touchpoints` (JSONB) por request (#9 by-source, #20
 day×source, #22 channel roles, #29 model×channel), cada una ~3s, seq-scan de
@@ -111,7 +113,7 @@ filas (los diffs del rango reciente eran 100% freshness). Cron
 `refresh-gold-attribution` (:20/:50, off-switch ATTRIBUTION_ROLLUP_ENABLED) ya lo
 mantiene fresco. Núcleo + tests (171) + helper compartido `touchpoint-source-sql.ts`.
 
-**SERVE MIGRADO Y ANDANDO (branch, flag PIXEL_USE_GOLD=true en Preview):** las 4
+**SERVE MIGRADO Y EN PROD (flag `PIXEL_USE_GOLD=true`):** las 4
 queries JSONB leen el rollup — MEDIDO en preview con instrumentación: bajaron de
 ~3000ms a ~300ms cada una (i=8 attrBySource 343, i=19 dailyChannelRevenue 269,
 i=21 channelRoles 285, i=28 attrByModelChannel 285). Reconstrucción de pesos en SQL
