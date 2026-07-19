@@ -325,10 +325,20 @@ export async function GET(request: Request) {
       // `props->>'productId'` (JSONB sin índice funcional) → **31,6s medido**, era
       // EL cuello de botella del endpoint (la página /products quedaba >30s).
       // AHORA: lee del rollup `pixel_daily_product` (org, day, product_id, viewers_hll
-      // por VIEW_PRODUCT) → JOIN a products por externalId + `hll_union_agg` por SKU
-      // para deduplicar visitantes que vieron varios products del mismo SKU
-      // (VTEX+MELI). Mismo resultado (5.436 SKUs), ~319ms (100x). El conteo es HLL
-      // (aprox ~2%), consistente con el resto del dashboard.
+      // por VIEW_PRODUCT) → traduce el productId del pixel a skuIds vía
+      // `vtex_sku_product` + `hll_union_agg` por SKU para deduplicar visitantes que
+      // vieron varios products del mismo SKU (VTEX+MELI). ~319ms (100x).
+      // El conteo es HLL (aprox ~2%), consistente con el resto del dashboard.
+      //
+      // ESTA PANTALLA ES GRANO SKU y esa decisión se mantiene (Sesión 22): la unión
+      // VTEX+MELI por `sku` es deliberada. El pixel solo emite productIds de VTEX
+      // (el snippet corre en la tienda, no en las publicaciones de MELI), así que
+      // las filas de MELI siguen aportando por compartir `sku`, igual que antes.
+      //
+      // OJO al leer los números: un producto padre con N variantes reparte SUS
+      // visitantes a las N filas de SKU. Es lo único posible — el pixel no sabe qué
+      // variante se miró — pero implica que SUMAR la columna de visitantes entre
+      // SKUs cuenta de más. Cada fila por separado sí es correcta.
       prisma.$queryRaw<
         Array<{
           sku: string;
@@ -339,8 +349,16 @@ export async function GET(request: Request) {
           p.sku AS sku,
           COALESCE(hll_cardinality(hll_union_agg(dp.viewers_hll)), 0)::bigint AS viewers
         FROM pixel_daily_product dp
+        -- BUG 2026-07-18: acá había un JOIN directo p."externalId" = dp.product_id.
+        -- El pixel emite el productId del PADRE y products."externalId" guarda el
+        -- skuId de la VARIANTE: ambos numéricos de ~5 dígitos, ~24% colisiona por
+        -- azar → se atribuían visitas de un producto a otro. La traducción pasa
+        -- ahora por la dimensión; sin mapa, el producto no suma visitas.
+        JOIN vtex_sku_product m
+          ON m."organizationId" = dp."organizationId"
+          AND m.product_id = dp.product_id
         JOIN products p
-          ON p."externalId" = dp.product_id
+          ON p."externalId" = m.sku_id
           AND p."organizationId" = dp."organizationId"
         WHERE dp."organizationId" = ${ORG_ID}
           AND dp.day >= (${thirtyDaysAgo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
