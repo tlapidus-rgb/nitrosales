@@ -18,7 +18,8 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
@@ -1757,12 +1758,16 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       },
     };
 
-    setCache("pixel", response, ...cacheKey);
+    // Escribe en memoria Y en el caché compartido de Postgres. Sin esto, el
+    // warm-cache calienta una instancia y el usuario cae en otra: la primera
+    // carga del día paga los ~25s completos. Ver src/lib/api-cache-shared.ts.
+    setSharedCache("pixel", response, ...cacheKey);
     return response;
     }; // ── fin computeAndCache ──
 
     // SWR serve: hit (fresh o stale) → instant; stale → refresh background con lock; miss → bloqueante.
-    const cached = getCachedSWR("pixel", ...cacheKey);
+    // Dos niveles: memoria de esta instancia, y si no, el caché compartido.
+    const cached = await getSharedCachedSWR("pixel", ...cacheKey);
     if (cached?.data) {
       if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
         waitUntil(

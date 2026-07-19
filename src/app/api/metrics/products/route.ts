@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
-import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
 
@@ -844,11 +845,11 @@ export async function GET(request: Request) {
       marginAnalysis,
     };
 
-    setCache("products", response, ...cacheKey);
+    setSharedCache("products", response, ...cacheKey);
     return response;
     }; // ── fin computeAndCache ──
 
-    const cached = getCachedSWR("products", ...cacheKey);
+    const cached = await getSharedCachedSWR("products", ...cacheKey);
     if (cached?.data) {
       if (cached.isStale && tryAcquireRefreshLock("products", ...cacheKey)) {
         waitUntil(

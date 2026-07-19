@@ -193,6 +193,20 @@ export async function GET(req: NextRequest) {
       continue;
     }
     try {
+      // Credenciales PROPIAS de la org, obligatorias. `getVtexCredentials` cae a
+      // las variables de entorno globales cuando la org no tiene conexión
+      // configurada: en un script manual de una sola org eso es cómodo, pero en
+      // un job que recorre TODAS convierte "esta org no está configurada" en
+      // "esta org se lleva el catálogo de otra". Preferimos que falle.
+      const conn = await prisma.connection.findFirst({
+        where: { organizationId: orgId, platform: "VTEX" },
+        select: { credentials: true },
+      });
+      if (!conn?.credentials) {
+        throw new Error(
+          "la org no tiene credenciales VTEX propias; se saltea para no leer las de otra cuenta"
+        );
+      }
       const cfg = await getVtexConfig(orgId);
       const headers = { ...cfg.headers };
       const skus = await refreshSkuMap(orgId, cfg.baseUrl, headers, deadline);

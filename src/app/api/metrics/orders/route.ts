@@ -17,7 +17,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getCachedSWR, setCache } from "@/lib/api-cache";
+import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 // enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
@@ -165,7 +165,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     // S60 EXT-2 BIS+++++++++++++++ — REVERT del SWR + warm-cache cron.
     // Causaba saturacion de DB. Volver al cache simple fresh-only.
     const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page, compMode, compOffset];
-    const cached = getCachedSWR("orders", ...cacheKey);
+    const cached = await getSharedCachedSWR("orders", ...cacheKey);
     if (cached?.data && !cached.isStale) {
       return NextResponse.json(cached.data);
     }
@@ -1723,7 +1723,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       },
     };
 
-    setCache("orders", response, ...cacheKey);
+    setSharedCache("orders", response, ...cacheKey);
     return NextResponse.json(response);
   } catch (error: any) {
     console.error("Orders API error:", error);
