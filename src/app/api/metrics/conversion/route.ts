@@ -27,6 +27,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWhere } from "@/domains/orders";
+import {
+  loadProductSkuMap,
+  foldPurchasesToProductGrain,
+} from "@/lib/pixel/product-id-map";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -88,20 +92,26 @@ export async function GET(request: NextRequest) {
 
     // 6. Product purchases (VTEX only) — ACOTADO A LOS PRODUCTOS VISTOS.
     //
-    // BUG 2026-07-18: antes esto traía "los 500 de mayor revenue" con su propio
-    // LIMIT, en paralelo con los viewers. Los dos LIMIT recortaban conjuntos
-    // DISTINTOS del catálogo (top-500 más visitados vs top-500 que más facturan)
-    // y en Arredo la intersección daba CERO: la tabla mostraba visitantes con 0
-    // ventas y CR vacío en TODOS los productos, categorías y marcas. Verificado
-    // en Neon: match sin límites = 14, match con los dos LIMIT = 0.
+    // BUG A (2026-07-18) — doble LIMIT desalineado: antes esto traía "los 500 de
+    // mayor revenue" con su propio LIMIT, en paralelo con los viewers. Los dos
+    // LIMIT recortaban conjuntos DISTINTOS del catálogo (top-500 más visitados vs
+    // top-500 que más facturan) y en Arredo la intersección daba CERO. Verificado
+    // en Neon: match sin límites = 14, con los dos LIMIT = 0.
+    // Fix: el universo lo define el lado VISTO y las compras se piden SOLO para
+    // esos productos.
     //
-    // Fix: el universo lo define el lado VISTO (que es el que la tabla muestra),
-    // y las compras se piden SOLO para esos productos. Deja de ser un recorte
-    // arbitrario y el resultado es correcto por construcción. Cuesta un round
-    // trip extra (ya no va en Promise.all), despreciable contra leer el rollup.
+    // BUG B (2026-07-18) — cruce por el id equivocado: el pixel manda el productId
+    // del PADRE y products."externalId" guarda el skuId de la VARIANTE. Un ~24%
+    // colisiona por azar → atribuíamos las visitas de un producto a otro. Ahora el
+    // cruce pasa SÍ O SÍ por la dimensión vtex_sku_product; mientras no exista,
+    // no se atribuye ninguna venta. Ver src/lib/pixel/product-id-map.ts.
     const viewedIds = productViewersResult.map((v) => v.productExternalId);
+    const skuMap = await loadProductSkuMap(ORG_ID, viewedIds);
+    // skuIds del catálogo que corresponden a los productos vistos (grano SKU),
+    // que es como están keyeadas las filas de products/order_items.
+    const purchasableSkuIds = [...skuMap.productIdBySkuId.keys()];
 
-    const productPurchasesResult = viewedIds.length
+    const productPurchasesResult = purchasableSkuIds.length
       ? ((await prisma.$queryRaw`
           SELECT
             COALESCE(p."externalId", oi."productId") as "productExternalId",
@@ -121,7 +131,7 @@ export async function GET(request: NextRequest) {
             AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             AND o.source IS DISTINCT FROM 'MELI'
             AND o.channel IS DISTINCT FROM 'marketplace'
-            AND COALESCE(p."externalId", oi."productId") = ANY(${viewedIds})
+            AND COALESCE(p."externalId", oi."productId") = ANY(${purchasableSkuIds})
           GROUP BY 1, 2, 3, 4
         `) as Array<{
           productExternalId: string;
@@ -148,35 +158,61 @@ export async function GET(request: NextRequest) {
     const viewerMap = new Map(
       productViewersResult.map((v) => [v.productExternalId, v.viewers])
     );
-    const purchaseMap = new Map(
-      productPurchasesResult.map((p) => [p.productExternalId, p])
+
+    // Las compras vienen a grano SKU (así están keyeadas products/order_items).
+    // Las plegamos al grano PRODUCTO sumando todas las variantes (D3): un
+    // "Juego de Sábanas" con 4 colores es UNA fila cuyas ventas son la suma de
+    // los 4 SKUs, contra las visitas de UNA ficha. Sin este plegado el JOIN
+    // multiplicaría revenue por la cantidad de variantes.
+    const purchaseMap = foldPurchasesToProductGrain(
+      productPurchasesResult,
+      skuMap.productIdBySkuId
     );
 
-    // Para productos sólo vistos (sin compras), necesitamos enriquecer con
-    // name/category/brand desde la tabla products.
+    // Productos vistos sin compras: hay que enriquecerlos con name/category/brand.
+    // OJO: acá vivía la MISMA unión rota (`products."externalId" = <id del pixel>`).
+    // De ahí salían los nombres cruzados. El metadato ahora se busca por los skuIds
+    // que la dimensión asocia a ese producto; sin mapa verificado, el producto no
+    // entra en la tabla (preferimos no mostrarlo antes que mostrarlo con el nombre
+    // de otro).
     const viewedOnlyIds = [...viewerMap.keys()].filter(
-      (id) => !purchaseMap.has(id)
+      (id) => !purchaseMap.has(id) && skuMap.skuIdsByProductId.has(id)
     );
 
-    let viewedOnlyProducts: Array<{
-      externalId: string;
-      name: string;
-      category: string;
-      brand: string;
-    }> = [];
+    const viewedOnlyMap = new Map<
+      string,
+      { name: string; category: string; brand: string }
+    >();
     if (viewedOnlyIds.length > 0) {
-      viewedOnlyProducts = (await prisma.$queryRawUnsafe(
-        `SELECT "externalId", name, COALESCE(category, 'Sin categoría') as category, COALESCE(brand, 'Sin marca') as brand
-         FROM products
-         WHERE "organizationId" = $1
-           AND "externalId" = ANY($2::text[])`,
-        ORG_ID,
-        viewedOnlyIds
-      )) as any[];
+      const skuIds = viewedOnlyIds.flatMap(
+        (id) => skuMap.skuIdsByProductId.get(id) ?? []
+      );
+      const rows = (await prisma.$queryRaw`
+        SELECT "externalId", name,
+               COALESCE(category, 'Sin categoría') as category,
+               COALESCE(brand, 'Sin marca') as brand
+        FROM products
+        WHERE "organizationId" = ${ORG_ID}
+          AND "externalId" = ANY(${skuIds})
+      `) as Array<{
+        externalId: string;
+        name: string;
+        category: string;
+        brand: string;
+      }>;
+      // Una variante cualquiera basta para el metadato del padre (mismo nombre
+      // de ficha, misma categoría, misma marca).
+      for (const r of rows) {
+        const productId = skuMap.productIdBySkuId.get(r.externalId);
+        if (productId && !viewedOnlyMap.has(productId)) {
+          viewedOnlyMap.set(productId, {
+            name: r.name,
+            category: r.category,
+            brand: r.brand,
+          });
+        }
+      }
     }
-    const viewedOnlyMap = new Map(
-      viewedOnlyProducts.map((p) => [p.externalId, p])
-    );
 
     const byProductRaw: Array<{
       productExternalId: string;
@@ -195,8 +231,9 @@ export async function GET(request: NextRequest) {
     const crPct = (buyers: number, viewers: number) =>
       viewers > 0 ? Math.min(100, Math.round((buyers / viewers) * 10000) / 100) : 0;
 
-    // Productos comprados (con o sin vistas → filtramos 0 vistas después)
-    for (const p of productPurchasesResult) {
+    // Productos comprados, ya plegados a grano producto (con o sin vistas →
+    // filtramos 0 vistas después)
+    for (const p of purchaseMap.values()) {
       const viewers = viewerMap.get(p.productExternalId) || 0;
       if (viewers === 0) continue; // incoherente, excluir
       byProductRaw.push({
@@ -274,6 +311,11 @@ export async function GET(request: NextRequest) {
       meta: {
         dateFrom: dateFrom.toISOString(),
         dateTo: dateTo.toISOString(),
+        // false ⇒ la dimensión vtex_sku_product todavía no está poblada para
+        // esta org, así que NO se atribuyó ninguna venta (las columnas de
+        // ventas y CR van vacías a propósito). Se enciende solo cuando el
+        // backfill corre. Ver src/lib/pixel/product-id-map.ts.
+        productMappingAvailable: skuMap.available,
         pixelInstalledAt: pixelInstalledAt
           ? pixelInstalledAt.toISOString()
           : null,
