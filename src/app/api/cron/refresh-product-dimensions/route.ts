@@ -26,7 +26,7 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
-import { buildProductNameDictUpsert } from "@/lib/pixel/product-name-dict";
+
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -145,20 +145,10 @@ export async function GET(req: NextRequest) {
   const startedAt = Date.now();
   const deadline = startedAt + TIME_BUDGET_MS;
 
-  // El diccionario nombre→productId se arma SOLO con SQL sobre pixel_events, así
-  // que aplica a toda org con pixel, tenga o no conexión VTEX. Va primero: el
-  // rollup del pixel lo usa para resolver el 46% de eventos sin productId.
-  const allOrgs = await prisma.organization.findMany({ select: { id: true } });
-  const nameDictResults: Array<{ orgId: string; ok: boolean; error?: string }> = [];
-  for (const { id: oid } of allOrgs) {
-    if (Date.now() >= deadline) break;
-    try {
-      await prisma.$executeRawUnsafe(buildProductNameDictUpsert(), oid);
-      nameDictResults.push({ orgId: oid, ok: true });
-    } catch (e: any) {
-      nameDictResults.push({ orgId: oid, ok: false, error: String(e?.message).slice(0, 150) });
-    }
-  }
+  // El diccionario nombre→productId vive en su propio cron
+  // (refresh-pixel-name-dict). Estuvieron juntos y el diccionario consumió los
+  // 271s enteros, dejando esta fase sin tiempo para NINGUNA org (okCount: 0).
+  // Dos trabajos pesados en un mismo cron se matan entre sí.
 
   // Todas las orgs con conexión VTEX. Una org sin conexión no tiene de dónde
   // leer el mapa y se saltea sin ruido.
@@ -167,9 +157,20 @@ export async function GET(req: NextRequest) {
     select: { organizationId: true },
   });
 
+  // Reanudable: una org refrescada hace poco se saltea, así llamar el endpoint
+  // varias veces seguidas completa las que faltan en vez de rehacer las hechas.
+  const force = url.searchParams.get("force") === "1";
+  const freshness = (await prisma.$queryRaw`
+    SELECT "organizationId", MAX(refreshed_at) AS last
+    FROM vtex_sku_product GROUP BY "organizationId"
+  `) as Array<{ organizationId: string; last: Date | null }>;
+  const lastByOrg = new Map(freshness.map((f) => [f.organizationId, f.last]));
+  const SKIP_IF_FRESHER_THAN_H = 20;
+
   const results: Array<{
     orgId: string;
     ok: boolean;
+    skipped?: boolean;
     pairs?: number;
     categories?: number;
     complete?: boolean;
@@ -179,7 +180,16 @@ export async function GET(req: NextRequest) {
   // SECUENCIAL a propósito: en paralelo saturamos el pool de Neon (pool 24).
   for (const { organizationId: orgId } of connections) {
     if (Date.now() >= deadline) {
-      results.push({ orgId, ok: false, error: "sin tiempo, sigue la próxima corrida" });
+      results.push({ orgId, ok: false, error: "sin tiempo, volver a llamar" });
+      continue;
+    }
+    const last = lastByOrg.get(orgId);
+    if (
+      !force &&
+      last &&
+      Date.now() - new Date(last).getTime() < SKIP_IF_FRESHER_THAN_H * 3600_000
+    ) {
+      results.push({ orgId, ok: true, skipped: true });
       continue;
     }
     try {
@@ -200,12 +210,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const pending = results.filter((r) => !r.ok).length;
   return NextResponse.json({
     ok: true,
     orgs: results.length,
-    okCount: results.filter((r) => r.ok).length,
+    done: results.filter((r) => r.ok && !r.skipped).length,
+    skipped: results.filter((r) => r.skipped).length,
+    pending,
+    // Si queda alguna pendiente, volver a llamar: retoma donde quedó.
+    callAgain: pending > 0,
     results,
-    nameDict: nameDictResults,
     durationMs: Date.now() - startedAt,
   });
 }
