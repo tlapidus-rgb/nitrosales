@@ -104,6 +104,10 @@
     {
       "path": "/api/cron/refresh-gold-attribution?key=nitrosales-secret-key-2024-production",
       "schedule": "20,50 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-product-dimensions?key=nitrosales-secret-key-2024-production",
+      "schedule": "30 4 * * *"
     }
   ]
 }

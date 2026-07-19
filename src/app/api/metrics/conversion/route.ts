@@ -35,6 +35,16 @@ import { loadCategoryLabels } from "@/lib/products/category-label";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// Techo de seguridad, NO un recorte de producto. El universo de las tablas de
+// CR lo definen los productos VISITADOS, y ninguna org está cerca de esto
+// (Arredo: 848 en 30 días), así que en la práctica entran todos.
+//
+// Antes era 500 y recortaba EN SILENCIO: la tabla mostraba 499 filas y parecía
+// completa mientras descartaba 348. El problema no era tener un límite, era que
+// estuviera por debajo del uso real y sin aviso. Si este techo se toca, se
+// loguea y se reporta en meta.productUniverseTruncated.
+const PRODUCT_UNIVERSE_CAP = 20000;
+
 export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
@@ -88,8 +98,18 @@ export async function GET(request: NextRequest) {
         AND dp.day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       GROUP BY dp.product_id
       ORDER BY viewers DESC
-      LIMIT 500
+      LIMIT ${PRODUCT_UNIVERSE_CAP}
     `) as Array<{ productExternalId: string; viewers: number }>;
+
+    // Si el techo se toca, la tabla estaría recortando sin decirlo — que es
+    // exactamente el bug que tuvimos con LIMIT 500. Lo reportamos.
+    const productUniverseTruncated =
+      productViewersResult.length >= PRODUCT_UNIVERSE_CAP;
+    if (productUniverseTruncated) {
+      console.warn(
+        `[conversion] org=${ORG_ID} alcanzó el techo de ${PRODUCT_UNIVERSE_CAP} productos visitados — la tabla está recortada, subir PRODUCT_UNIVERSE_CAP`
+      );
+    }
 
     // 6. Product purchases (VTEX only) — ACOTADO A LOS PRODUCTOS VISTOS.
     //
@@ -326,6 +346,9 @@ export async function GET(request: NextRequest) {
         // ventas y CR van vacías a propósito). Se enciende solo cuando el
         // backfill corre. Ver src/lib/pixel/product-id-map.ts.
         productMappingAvailable: skuMap.available,
+        // true ⇒ se alcanzó PRODUCT_UNIVERSE_CAP y la tabla está recortada.
+        // Nunca debería pasar con las orgs actuales; si pasa, hay que subirlo.
+        productUniverseTruncated,
         pixelInstalledAt: pixelInstalledAt
           ? pixelInstalledAt.toISOString()
           : null,

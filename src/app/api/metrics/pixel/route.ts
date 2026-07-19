@@ -67,6 +67,12 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 // rangos responden muy por debajo de este techo; queda como red de seguridad.
 const GLOBAL_TIMEOUT_MS = 25000;
 
+// Techo de seguridad, NO un recorte de producto — mismo criterio y mismo valor
+// que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
+// 500 y recortaba en silencio: Arredo tiene 848 productos visitados en 30 días,
+// así que la tabla mostraba 499 y parecía completa mientras tiraba 348.
+const PRODUCT_UNIVERSE_CAP = 20000;
+
 // IMPORTANTE: este mock debe tener la MISMA FORMA que la respuesta real de
 // realHandler(), pero en cero. Se devuelve en el cold-cache/timeout (primera
 // carga, cuando el compute tarda) — si le faltan campos que /pixel/analytics
@@ -968,7 +974,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY viewers DESC
-        LIMIT 500
+        LIMIT ${PRODUCT_UNIVERSE_CAP}
       ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
 
       // (26. Product purchases se movió DESPUÉS del batch: ahora depende del
