@@ -8,8 +8,24 @@
 // distintos se descarta — atribuir por un nombre ambiguo nos devolvería al bug
 // de asignar visitas al producto equivocado, que es justo lo que arreglamos.
 //
-// Medido en Arredo (30 días): 819 de 850 nombres unívocos (96,4%), que
-// recuperan 513.066 de 770.538 eventos huérfanos (66,6%).
+// ⚠️ EL BENEFICIO REAL ES CHICO: +0,7% de visitantes por producto. MEDIDO, no
+// estimado. La estimación original ("recupera 513.066 de 770.538 eventos
+// huérfanos, +54% de cobertura") estaba MAL: contaba EVENTOS, y el rollup cuenta
+// VISITANTES DISTINTOS por producto. Esos eventos sin productId son casi siempre
+// del mismo visitante que ya vio ese mismo producto con un evento que sí traía
+// el id — redundantes, la deduplicación se los come.
+//
+// LECCIÓN: al estimar una mejora, medir la métrica que efectivamente cambia en
+// pantalla, no una correlacionada. Extrapolar de eventos a visitantes únicos
+// costó dos recálculos de 12 minutos para ganar 0,7%.
+//
+// COROLARIO IMPORTANTE: el denominador del CR NO estaba inflado por el 46% de
+// eventos sin productId. Los CR que muestra el dashboard son correctos. Las
+// filas con más ventas que visitas son compras genuinas sin visita a la ficha
+// dentro de la ventana (carrito desde la grilla, visita previa al rango, otro
+// canal), no un problema de tracking.
+//
+// Se mantiene porque es correcto, no rompe nada y se sostiene solo.
 // ══════════════════════════════════════════════════════════════════════════
 
 /** Ventana de historia que se mira para armar el diccionario. */

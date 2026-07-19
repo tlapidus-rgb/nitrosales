@@ -2,17 +2,18 @@
 // Tasa de conversión — compradores vs visitantes del pixel
 // ══════════════════════════════════════════════════════════════════════════
 // `CR = compradores / visitantes` solo tiene sentido si los dos lados miden la
-// misma población. En nitrosales NO la miden:
+// misma población, y a veces no la miden: se puede comprar sin pasar por la
+// ficha del producto (agregar al carrito desde la grilla), o haberla visto
+// ANTES de la ventana y comprar adentro. En esos casos hay ventas con pocas o
+// ninguna visita asociada.
 //
-//   · Las VENTAS están completas — vienen de VTEX, que registra todo.
-//   · Las VISITAS están incompletas — el 46% de los eventos VIEW_PRODUCT de
-//     Arredo no traen productId (787.575 de 1.731.186 en 30 días), así que esos
-//     visitantes existen pero no se le pueden asignar a ningún producto.
-//   · Además, alguien puede VER un producto fuera de la ventana y COMPRARLO
-//     adentro: la visita queda afuera del rango y la venta adentro.
+// ⚠️ NO es un problema de tracking. Se investigó (2026-07-18): el 46% de los
+// eventos VIEW_PRODUCT no traen productId, pero recuperarlos por nombre movió
+// los visitantes por producto apenas +0,7% — esos eventos son del mismo
+// visitante que ya estaba contado. **El denominador está bien y los CR del
+// dashboard son correctos.**
 //
-// Consecuencia: el denominador está sistemáticamente por debajo y **todo el CR
-// está inflado**. Donde se vuelve absurdo (1 visita / 8 ventas) preferimos no
+// Donde el ratio igual se vuelve imposible (1 visita / 8 ventas) preferimos no
 // afirmar nada: devolvemos 0, que la UI renderiza como "—".
 //
 // La fila NO se descarta: sus ventas siguen contando en los totales de

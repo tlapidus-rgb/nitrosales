@@ -132,7 +132,7 @@ Sesión 22, deliberada y documentada en el código).
 | Completar el catálogo con productos nunca vendidos | Es el proyecto 2. Ahí viven los 6 blockers: desactivación masiva, credenciales cruzadas, throughput, ambigüedad de org, fan-out, constraint de sku. |
 | Arreglar y agendar `sync/catalog` | Idem. No hace falta para resolver el incidente. |
 | Modificar `webhooks/vtex/orders` | ⛔ CORE PROTEGIDO — requiere autorización del fundador. |
-| Recuperar el 46% de vistas sin `productId` | Gateado por la medición de D7. Puede terminar siendo un fix del snippet (Tomy). |
+| ~~Recuperar el 46% de vistas sin `productId`~~ | **HECHO y CERRADO** — pero el beneficio fue +0,7%, no el +54% estimado. La estimación contaba EVENTOS y el rollup cuenta VISITANTES DISTINTOS por producto: esos eventos son del mismo visitante ya contado. **Corolario: el denominador del CR NO estaba inflado y los números del dashboard son correctos.** |
 | Recuperar `ADD_TO_CART` | Medido: aporta +36 productos. No vale el trabajo. |
 | Re-proceso de 90 días del rollup (D11) | Ya no aplica: con cruce al leer (D14) no hay nada que re-procesar. |
 
