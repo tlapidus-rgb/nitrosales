@@ -24,6 +24,12 @@ import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
 import {
+  loadProductSkuMap,
+  foldPurchasesToProductGrain,
+  type PurchaseRow,
+} from "@/lib/pixel/product-id-map";
+import { loadCategoryLabels } from "@/lib/products/category-label";
+import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
   canonicalMarketingSource,
@@ -261,7 +267,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       visitorsBySourceResult,
       ordersByDeviceResult,
       productViewersResult,
-      productPurchasesResult,
       // ── Journey Intelligence queries ──
       journeyComplexityResult,
       channelPairsResult,
@@ -966,34 +971,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         LIMIT 500
       ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
 
-      // 26. Product purchases with name/category/brand (for CR by product/category/brand)
-      // Uses crDateFrom so purchases align with pixel visitor coverage period
-      prisma.$queryRaw`
-        SELECT
-          COALESCE(p."externalId", oi."productId") as "productExternalId",
-          COALESCE(p.name, 'Producto desconocido') as "productName",
-          COALESCE(p.category, 'Sin categoría') as category,
-          COALESCE(p.brand, 'Sin marca') as brand,
-          COUNT(DISTINCT oi."orderId")::int as orders,
-          SUM(oi.quantity)::int as units,
-          SUM(oi."totalPrice")::float as revenue
-        FROM order_items oi
-        JOIN orders o ON o.id = oi."orderId"
-        LEFT JOIN products p ON p.id = oi."productId"
-        WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1, 2, 3, 4
-        ORDER BY revenue DESC
-        LIMIT 500
-      ` as Promise<Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>>,
+      // (26. Product purchases se movió DESPUÉS del batch: ahora depende del
+      //  mapa skuId⇄productId, que a su vez depende de los viewers. Ver abajo.)
 
       // ── Journey Intelligence queries (use crDateFrom for pixel coverage) ──
 
@@ -1159,6 +1138,62 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         ORDER BY 1, 3 DESC
       ` as Promise<Array<{ model: string; source: string; revenue: number }>>),
     ]);
+
+    // ══════════════════════════════════════════════════════════
+    // 26. Product purchases — DESPUÉS del batch, acotado y verificado
+    // ══════════════════════════════════════════════════════════
+    // Dos bugs corregidos acá (mismos que en metrics/conversion, 2026-07-18):
+    //
+    // A) DOBLE LIMIT DESALINEADO: viewers y purchases corrían en paralelo, cada
+    //    uno con LIMIT 500 pero ordenados por criterios DISTINTOS (más visitados
+    //    vs más facturación). Recortaban subconjuntos disjuntos del catálogo: en
+    //    Arredo la intersección daba CERO. Ahora el universo lo define el lado
+    //    VISTO y las compras se piden solo para esos productos.
+    //
+    // B) CRUCE POR EL ID EQUIVOCADO: el pixel emite el productId del PADRE y
+    //    products."externalId" guarda el skuId de la VARIANTE. Un ~24% colisiona
+    //    por azar → mostrábamos el CR de otro producto. Ahora pasa por la
+    //    dimensión vtex_sku_product; sin mapa no se atribuye nada.
+    const pixelViewedIds = (
+      productViewersResult as Array<{ productExternalId: string; viewers: number }>
+    ).map((v) => v.productExternalId);
+    const skuMap = await loadProductSkuMap(ORG_ID, pixelViewedIds);
+    const purchasableSkuIds = [...skuMap.productIdBySkuId.keys()];
+
+    const productPurchasesResult = purchasableSkuIds.length
+      ? ((await prisma.$queryRaw`
+          SELECT
+            COALESCE(p."externalId", oi."productId") as "productExternalId",
+            COALESCE(p.name, 'Producto desconocido') as "productName",
+            COALESCE(p.category, 'Sin categoría') as category,
+            COALESCE(p.brand, 'Sin marca') as brand,
+            COUNT(DISTINCT oi."orderId")::int as orders,
+            SUM(oi.quantity)::int as units,
+            SUM(oi."totalPrice")::float as revenue
+          FROM order_items oi
+          JOIN orders o ON o.id = oi."orderId"
+          LEFT JOIN products p ON p.id = oi."productId"
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o."orderDate" >= ${crDateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWhere("o")}
+            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+            AND o.source IS DISTINCT FROM 'MELI'
+            AND o.channel IS DISTINCT FROM 'marketplace'
+            AND o."externalId" NOT LIKE 'FVG-%'
+            AND o."externalId" NOT LIKE 'BPR-%'
+            AND COALESCE(p."externalId", oi."productId") = ANY(${purchasableSkuIds})
+          GROUP BY 1, 2, 3, 4
+        `) as PurchaseRow[])
+      : [];
+
+    // Etiquetas legibles de categoría: products.category guarda IDs ("/1/11/"),
+    // no nombres. Se resuelve acá (async) para poder usarse sincrónicamente
+    // dentro del armado de la respuesta.
+    const categoryLabels = await loadCategoryLabels(
+      ORG_ID,
+      [...new Set(productPurchasesResult.map((p) => p.category))]
+    );
 
     // ══════════════════════════════════════════════════════════
     // PROCESS RESULTS
@@ -1587,9 +1622,16 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           };
         });
 
-        // Merge product viewers (pixel) + product purchases (VTEX) by externalId
+        // Merge viewers (pixel, grano PRODUCTO) + purchases (VTEX, grano SKU).
+        // Las compras se pliegan al grano producto sumando todas las variantes:
+        // sin ese plegado, un producto con 4 colores multiplicaría su revenue x4.
         const viewers = productViewersResult as Array<{ productExternalId: string; viewers: number }>;
-        const purchases = productPurchasesResult as Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>;
+        const purchases = [
+          ...foldPurchasesToProductGrain(
+            productPurchasesResult,
+            skuMap.productIdBySkuId
+          ).values(),
+        ];
         const viewerMap = new Map(viewers.map(v => [v.productExternalId, v.viewers]));
 
         // Sesion 22: excluir productos con 0 visitantes del pixel.
@@ -1602,6 +1644,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             const pViewers = viewerMap.get(p.productExternalId) || 0;
             return {
               ...p,
+              category: categoryLabels.get(p.category) ?? p.category,
               viewers: pViewers,
               cr: pViewers > 0 ? Math.round((p.orders / pViewers) * 10000) / 100 : 0,
             };
