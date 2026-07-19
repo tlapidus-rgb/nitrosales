@@ -8,7 +8,33 @@
 > Los hotfixes de Tomy (7/7) se mergearon el 16-jul. La estructura se retomó la misma
 > noche: **tandas 2, 3 y 4 de metrics/orders → Gold están EN PROD con paridad 0**.
 
-## 🐢 Diagnóstico de velocidad (actualizado 2026-07-17)
+## ✅ VELOCIDAD — RESUELTO (medido 2026-07-18 contra prod)
+
+**`/api/metrics/pixel` pasó de 25,22s a 2,5-4,5s en frío y 0,26s cacheado.**
+
+Medido desde afuera con curl contra `nitrosales.vercel.app` (el dominio estable;
+las URLs con hash tienen Deployment Protection y devuelven 302 a Vercel SSO).
+Para forzar un miss real hay que pedir un **rango de fechas que nadie haya usado**
+— si no, se mide el caché.
+
+**Qué lo arregló:** activar `PIXEL_USE_GOLD` en producción. Las 4 queries que
+desanidaban `pa.touchpoints` (JSONB) bajaron de ~3000ms a ~300ms cada una leyendo
+`gold_attribution_source`. Ahí estaban los 20 segundos.
+
+**El "misterio de los ~10s no ubicados" era eso mismo**: se midió con el flag
+prendido solo en Preview, así que producción seguía pagando el camino viejo.
+
+**Segundo nivel de caché (`api_cache`, `src/lib/api-cache-shared.ts`):** el caché
+era in-memory POR INSTANCIA, así que la primera carga del día pagaba todo. Ahora
+memoria → Postgres → queries. Migradas `pixel`, `products` y `orders`.
+Requiere correr `src/data/dim/api-cache.schema.sql` en Neon; sin la tabla se
+comporta como antes (solo memoria).
+
+**Nota para medir endpoints sin sesión:** `metrics/pixel` y `metrics/products`
+aceptan `?orgId=<id>&key=<ADMIN_API_KEY>`. `metrics/conversion` y `pixel/funnel`
+NO: devuelven 500 con "Hay 2 orgs activas…" (protección multi-tenant, no un bug).
+
+## 🐢 Diagnóstico de velocidad (histórico — 2026-07-17)
 1. ~~topProducts / profitability / cohorts / payment en Bronze~~ → **MIGRADAS (tandas 2-4)**.
 2. **Rollups pixel_daily_\*: FRESCOS y sanos** (verificado en Neon 17-jul 02:08 UTC: las 4
    tablas con ultimo_dia=hoy en las 3 orgs con pixel). La hipótesis "cron trabado → rollups
@@ -16,10 +42,10 @@
 3. El índice `pixel_events_orgId_ts_idx (organizationId, timestamp)` **SÍ existe en prod**
    (creado a mano, NO está en schema.prisma — ojo al hacer db pull). Los 5 scans crudos de
    metrics/pixel (floor, health, recent events, count cacheado) están soportados por índice.
-4. ⏳ **PENDIENTE EL DATO QUE DEFINE EL ATAQUE de #11**: el usuario debe traer el Network
-   tab (F12) de /pixel, /pixel/analytics y /orders (org pesada = Arredo): tiempos de
-   /api/metrics/pixel, /discrepancy, /conversion, /funnel y /metrics/orders. El timeout de
-   60s del 12-jul puede ya no existir. **Medir antes de migrar más.**
+4. ~~PENDIENTE EL DATO QUE DEFINE EL ATAQUE de #11~~ → **CERRADO 18-jul**: medido, ver
+   la sección de arriba. El endpoint bajó a 2,5-4,5s en frío. No hace falta migrar
+   más queries del pixel por performance; lo que quede se migra por consistencia,
+   no por velocidad.
 
 ## ✅ EN PROD HOY (todo en `main`, verificado y mergeado)
 
