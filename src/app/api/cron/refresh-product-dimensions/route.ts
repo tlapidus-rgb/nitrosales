@@ -26,6 +26,7 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { buildProductNameDictUpsert } from "@/lib/pixel/product-name-dict";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -144,6 +145,21 @@ export async function GET(req: NextRequest) {
   const startedAt = Date.now();
   const deadline = startedAt + TIME_BUDGET_MS;
 
+  // El diccionario nombre→productId se arma SOLO con SQL sobre pixel_events, así
+  // que aplica a toda org con pixel, tenga o no conexión VTEX. Va primero: el
+  // rollup del pixel lo usa para resolver el 46% de eventos sin productId.
+  const allOrgs = await prisma.organization.findMany({ select: { id: true } });
+  const nameDictResults: Array<{ orgId: string; ok: boolean; error?: string }> = [];
+  for (const { id: oid } of allOrgs) {
+    if (Date.now() >= deadline) break;
+    try {
+      await prisma.$executeRawUnsafe(buildProductNameDictUpsert(), oid);
+      nameDictResults.push({ orgId: oid, ok: true });
+    } catch (e: any) {
+      nameDictResults.push({ orgId: oid, ok: false, error: String(e?.message).slice(0, 150) });
+    }
+  }
+
   // Todas las orgs con conexión VTEX. Una org sin conexión no tiene de dónde
   // leer el mapa y se saltea sin ruido.
   const connections = await prisma.connection.findMany({
@@ -189,6 +205,7 @@ export async function GET(req: NextRequest) {
     orgs: results.length,
     okCount: results.filter((r) => r.ok).length,
     results,
+    nameDict: nameDictResults,
     durationMs: Date.now() - startedAt,
   });
 }

@@ -131,12 +131,33 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
     ...args
   );
 
-  // 5) product (14,5) — solo VIEW_PRODUCT con productId
+  // 5) product (14,5) — VIEW_PRODUCT, con el id RESUELTO POR NOMBRE cuando falta.
+  //
+  // El 46% de los VIEW_PRODUCT de Arredo no traen `productId` pero sí
+  // `productName` (770.538 de 1.731.186 en 30 días). Antes se descartaban, así
+  // que el denominador del CR quedaba por debajo y todo el CR aparecía inflado.
+  // Ahora se resuelven contra `pixel_product_name`, que solo contiene nombres
+  // UNÍVOCOS (819 de 850 en Arredo → recupera 513.066 eventos, 66,6%).
+  //
+  // El LEFT JOIN es deliberado: si el nombre no está en la dim (ambiguo o nunca
+  // visto con id), el COALESCE queda NULL y el WHERE lo descarta, igual que
+  // antes. Nunca inventamos una atribución.
+  // El id resuelto: el que trae el evento o, si falta, el del diccionario.
+  // Subconsulta correlacionada en vez de JOIN para no tener que re-aliasar
+  // `range`/`ARDAY`/`HV14`, que son copia textual validada contra COUNT(DISTINCT).
+  // Es un lookup por PK (organizationId, product_name): barato.
+  const RESOLVED_PID = `COALESCE(
+    props->>'productId',
+    (SELECT d.product_id FROM pixel_product_name d
+      WHERE d."organizationId" = pixel_events."organizationId"
+        AND d.product_name = props->>'productName')
+  )`;
+
   touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_product ("organizationId",day,product_id,viewers_hll,refreshed_at)
-     SELECT "organizationId", ${ARDAY}, props->>'productId', ${HV14}, now()
+     SELECT "organizationId", ${ARDAY}, ${RESOLVED_PID}, ${HV14}, now()
      FROM pixel_events
-     WHERE ${range} AND type='VIEW_PRODUCT' AND props->>'productId' IS NOT NULL
+     WHERE ${range} AND type='VIEW_PRODUCT' AND ${RESOLVED_PID} IS NOT NULL
      GROUP BY 1,2,3
      ON CONFLICT ("organizationId",day,product_id) DO UPDATE SET
        viewers_hll=EXCLUDED.viewers_hll, refreshed_at=now()`,
