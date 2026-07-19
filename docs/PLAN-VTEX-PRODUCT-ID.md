@@ -1,7 +1,19 @@
 # Plan — reconciliar el ID de producto de VTEX (pixel ⇄ catálogo)
 
-> Estado: REVISADO (`/plan-eng-review` 2026-07-18). Listo para implementar.
+> Estado: ✅ **IMPLEMENTADO Y EN PROD** (2026-07-18). Revisado con `/plan-eng-review` + voz externa.
 > Org verificada: Arredo (`cmohl80fx009j1sdusurp7fbj`).
+>
+> **Resultado medido tras el backfill:** 841 de 848 productos del pixel resuelven
+> (99,2%), contra 210 falsos por colisión antes. Verificación por NOMBRE: el pixel
+> dice "Acolchado Heatpress con Corderito" y el catálogo "…Color Gris oscuro - KING".
+> Las tablas de CR de Arredo pasaron de 0 ventas a 18.479 compras / CR 2,77% en 30
+> días (1,8 productos por orden sobre ~10.055 órdenes: cierra).
+>
+> **Lo implementado:** T1 (no atribuir sin cruce verificado) · T2 (`vtex_sku_product`)
+> · T3 (backfill reanudable desde `GetProductAndSkuIds`, 23.585 pares en 59s) ·
+> T4 (`metrics/pixel`) · T5 (`metrics/products`, mantiene grano SKU) · nombres de
+> categoría (`vtex_category`) · techo de 20.000 con aviso en vez de recorte mudo ·
+> cron `refresh-product-dimensions` diario para TODAS las orgs.
 
 ## Problema
 
