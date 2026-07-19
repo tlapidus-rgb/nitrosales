@@ -31,6 +31,7 @@ import {
   loadProductSkuMap,
   foldPurchasesToProductGrain,
 } from "@/lib/pixel/product-id-map";
+import { loadCategoryLabels } from "@/lib/products/category-label";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -259,8 +260,17 @@ export async function GET(request: NextRequest) {
         cr: 0,
       });
     }
+    // `products.category` guarda IDs ("/1/11/"), no nombres — el webhook de
+    // órdenes escribe additionalInfo.categoriesIds. Traducimos contra la
+    // dimensión vtex_category; si no está poblada, quedan los ids crudos.
+    const categoryLabels = await loadCategoryLabels(
+      ORG_ID,
+      [...new Set(byProductRaw.map((p) => p.category))]
+    );
+
     const byProduct = byProductRaw
       .filter((p) => p.productName !== "Producto desconocido")
+      .map((p) => ({ ...p, category: categoryLabels.get(p.category) ?? p.category }))
       .sort((a, b) => b.viewers - a.viewers);
 
     // byCategory + byBrand: agregación sobre byProduct (ya incluye vistos-solo)
