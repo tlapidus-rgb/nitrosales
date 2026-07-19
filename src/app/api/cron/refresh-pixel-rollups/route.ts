@@ -113,6 +113,20 @@ export async function GET(req: NextRequest) {
   if (lastRollupDay && lastRollupDay < defaultFrom) from = lastRollupDay;
   if (from < floorFrom) from = floorFrom; // tope de seguridad
 
+  // Override manual del rango (?from=YYYY-MM-DD), solo con ADMIN key — el cron
+  // de Vercel nunca lo manda. Existe para RE-CALCULAR historia a mano cuando
+  // cambia la lógica del rollup y hay que propagarla hacia atrás: pasó al
+  // resolver el productId por nombre (2026-07-18), que recupera el 46% de
+  // eventos sin id pero solo desde la corrida siguiente.
+  // Tope de 180 días para no escanear historia infinita de un saque; es
+  // resumible, así que rangos largos se completan en varias llamadas.
+  const fromParam = url.searchParams.get("from");
+  const manualRange = !isVercelCron && fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam);
+  if (manualRange) {
+    const hardFloor = arDate(180);
+    from = fromParam < hardFloor ? hardFloor : fromParam;
+  }
+
   // Llamada DIRECTA al runner del backfill (import + función), SIN self-fetch
   // HTTP. Antes esto era `fetch(${url.host}/api/admin/setup-pixel-rollups)` que,
   // cuando Vercel cron lo disparaba, apuntaba a la URL del deployment (protegida
