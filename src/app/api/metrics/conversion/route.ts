@@ -32,6 +32,7 @@ import {
   foldPurchasesToProductGrain,
 } from "@/lib/pixel/product-id-map";
 import { loadCategoryLabels } from "@/lib/products/category-label";
+import { crPct } from "@/lib/pixel/cr-rate";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -247,10 +248,10 @@ export async function GET(request: NextRequest) {
       cr: number;
     }> = [];
 
-    // CR con techo en 100%: los viewers ahora vienen de HLL (~2% de error),
-    // así que en filas chicas pueden quedar por debajo de las compras exactas.
-    const crPct = (buyers: number, viewers: number) =>
-      viewers > 0 ? Math.min(100, Math.round((buyers / viewers) * 10000) / 100) : 0;
+    // crPct vive en @/lib/pixel/cr-rate: devuelve 0 (la UI muestra "—") cuando
+    // el ratio no es computable — sin visitantes, o con más compradores que
+    // visitantes, que en Arredo pasa porque el 46% de los VIEW_PRODUCT no traen
+    // productId. La fila se mantiene: se omite la TASA, no el dato.
 
     // Productos comprados, ya plegados a grano producto (con o sin vistas →
     // filtramos 0 vistas después)

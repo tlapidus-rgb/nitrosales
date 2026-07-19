@@ -29,6 +29,7 @@ import {
   type PurchaseRow,
 } from "@/lib/pixel/product-id-map";
 import { loadCategoryLabels } from "@/lib/products/category-label";
+import { crPct } from "@/lib/pixel/cr-rate";
 import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
@@ -1652,7 +1653,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
               ...p,
               category: categoryLabels.get(p.category) ?? p.category,
               viewers: pViewers,
-              cr: pViewers > 0 ? Math.round((p.orders / pViewers) * 10000) / 100 : 0,
+              cr: crPct(p.orders, pViewers),
             };
           })
           .filter(p => p.viewers > 0);
@@ -1667,7 +1668,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           catMap.set(p.category, existing);
         }
         const byCategory = Array.from(catMap.values())
-          .map(c => ({ ...c, cr: c.viewers > 0 ? Math.round((c.buyers / c.viewers) * 10000) / 100 : 0 }))
+          .map(c => ({ ...c, cr: crPct(c.buyers, c.viewers) }))
           .sort((a, b) => b.revenue - a.revenue);
 
         // Aggregate by brand
@@ -1680,7 +1681,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           brandMap.set(p.brand, existing);
         }
         const byBrand = Array.from(brandMap.values())
-          .map(b => ({ ...b, cr: b.viewers > 0 ? Math.round((b.buyers / b.viewers) * 10000) / 100 : 0 }))
+          .map(b => ({ ...b, cr: crPct(b.buyers, b.viewers) }))
           .sort((a, b) => b.revenue - a.revenue);
 
         return { byChannel, byDevice, byCategory, byBrand, byProduct: products };
