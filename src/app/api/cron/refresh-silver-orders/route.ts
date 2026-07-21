@@ -12,8 +12,10 @@
 //   • Los flags is_valid/is_web salen del CONTRATO (via el transform) → sin drift.
 //
 // Auth: header user-agent vercel-cron, o ?key=<ADMIN_API_KEY> (igual que los demás crons).
-// NO está en vercel.json todavía: el backfill inicial se corre a mano (?full=1) y se
-// verifica paridad ANTES de agendarlo. Ver docs/medallion/silver-orders.md.
+// AGENDADO en vercel.json cada 30 min (`0,30 * * * *`). El comentario anterior
+// decía "NO está en vercel.json todavía" y llevaba semanas siendo falso — un
+// header que miente sobre si un cron corre es peligroso justo cuando hay que
+// diagnosticar por qué unos números no se actualizan. Ver docs/medallion/silver-orders.md.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { isValidAdminKey } from "@/lib/admin-key";

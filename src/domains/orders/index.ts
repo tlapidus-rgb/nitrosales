@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════
-// src/lib/metrics/orders.ts — SINGLE SOURCE OF TRUTH para "ordenes"
+// src/domains/orders/index.ts — SINGLE SOURCE OF TRUTH para "ordenes"
 // ══════════════════════════════════════════════════════════════
 // Toda la plataforma DEBE usar estos helpers para definir que es una
 // "orden valida". Tener queries duplicadas con distintos filtros en

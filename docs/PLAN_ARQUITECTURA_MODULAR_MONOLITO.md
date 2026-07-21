@@ -6,8 +6,30 @@
 > módulos de aplicación.
 >
 > **Audiencia:** equipo técnico + founders (decisiones de arquitectura).
-> **Estado:** propuesta — no implementado.
-> **Última actualización:** 2026-07-14
+> **Última actualización del PLAN:** 2026-07-14
+
+> ## ⚠️ ESTE DOCUMENTO NO REFLEJA EL ESTADO ACTUAL
+>
+> Decía *"Estado: propuesta — no implementado"* y tenía **todos** los checkboxes
+> de las Fases 0-5 vacíos. Eso dejó de ser cierto hace semanas: buena parte de
+> las Fases 1 y 2 está **en producción**.
+>
+> **La fuente de verdad del estado es [`MEDALLION_STATUS.md`](./MEDALLION_STATUS.md).**
+> Este archivo es el DISEÑO (el porqué y el hacia dónde), no el avance.
+>
+> Un dev que leyera solo este plan arrancaría a construir lo que ya existe. Lo
+> detectó una auditoría independiente el 2026-07-21, que además midió el avance
+> real contra el código:
+>
+> | Fase | Real (2026-07-21) |
+> |---|---|
+> | 0 — docs y contratos | ~50% (inventario hecho; falta BDD: hay 1 feature de las 5-10) |
+> | 1 — formalizar Gold | ~55% |
+> | 2 — Silver | ~70% en superficie, ~40% en sustancia (`silver_orders.is_valid` está computado, indexado… y no lo lee ningún consumidor) |
+> | 3 — modularizar (`src/modules/`) | ~10% — el directorio no existe |
+> | 4 — worker · 5 — warehouse | 0%, correctamente declaradas pendientes |
+>
+> **Antes de tomar cualquier decisión con este plan, cruzarlo con `MEDALLION_STATUS.md`.**
 
 ---
 
