@@ -29,6 +29,11 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email/send";
+import {
+  checkPipelineFreshness,
+  formatStaleSummary,
+  type FreshnessRow,
+} from "@/lib/pipeline/freshness";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — warm de N orgs puede tardar
@@ -40,8 +45,8 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 // sin aviso (pasó del 16 al 21-jun: 5 días con los gráficos del pixel en 0 y
 // nadie se enteró hasta que se quejó el cliente). warm-cache corre cada 5 min →
 // es buen lugar para detectarlo. Si el último refresh del rollup tiene más de
-// STALE_HOURS horas, log + email (con cooldown para no spamear cada 5 min).
-const STALE_HOURS = 5;
+// los umbrales por tabla, log + email (con cooldown para no spamear cada 5 min).
+// Los umbrales viven en src/lib/pipeline/freshness.ts, uno por tabla.
 const ALERT_COOLDOWN_H = 6;
 const ROLLUP_ALERT_TO = "tlapidus@99media.com.ar";
 
@@ -51,20 +56,45 @@ const ROLLUP_ALERT_TO = "tlapidus@99media.com.ar";
 // mail extra dentro de la ventana — aceptable para una alerta de respaldo rara.
 let lastRollupAlertSent = 0;
 
-async function maybeAlertRollupStale(hours: number, lastRefresh: string | null) {
+/**
+ * Alerta de tablas del pipeline sin refrescar.
+ *
+ * Antes miraba UNA tabla (`pixel_daily_aggregates`), y se construyó después de
+ * que ese rollup estuviera caído 5 días en junio. La lección no se había
+ * transferido a las 6 tablas Silver/Gold que hoy respaldan el header de revenue
+ * (auditoría 2026-07-21, A2): no tenían ningún monitoreo.
+ *
+ * El caso que esto tiene que atrapar no es "el cron explota" —eso queda en los
+ * logs— sino "el cron deja de existir". `refresh-pixel-first-source` estuvo
+ * CINCO SEMANAS fuera de vercel.json y la brecha creció todos los días sin que
+ * nada avisara.
+ */
+async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
+  if (stale.length === 0) return;
   if (Date.now() - lastRollupAlertSent < ALERT_COOLDOWN_H * 3600_000) return; // cooldown
   lastRollupAlertSent = Date.now(); // marcar ANTES del await (evita doble envío en carrera)
+  const lines = stale
+    .map(
+      (r) =>
+        `<li><code>${r.table}</code>: sin refrescar hace <b>${r.hoursStale}h</b> (último: ${
+          r.lastRefresh || "?"
+        }) — lo refresca <code>${r.refreshedBy}</code></li>`
+    )
+    .join("");
+  const crons = Array.from(new Set(stale.map((r) => r.refreshedBy)));
   try {
     await sendEmail({
       to: ROLLUP_ALERT_TO,
-      subject: `⚠️ NitroSales: rollups del pixel sin refrescar hace ${hours}h`,
-      html: `<p>El rollup <code>pixel_daily_aggregates</code> no se refresca hace <b>${hours}h</b> (último refresh: ${lastRefresh || "?"}).</p>
-<p>Causa probable: el cron <code>refresh-pixel-rollups</code> dejó de dispararse en Vercel. Mientras tanto, los gráficos de <code>/pixel/analytics</code> (eventos por día, dispositivos, top páginas) muestran 0 en los días sin refresh.</p>
-<p>Acción: revisar <b>Vercel → Cron Jobs → refresh-pixel-rollups</b>. El cron ahora es auto-reparable: en cuanto vuelva a correr, tapa el hueco solo.</p>`,
-      context: "rollup-stale-alert",
+      subject: `⚠️ NitroSales: ${stale.length} tabla(s) del pipeline sin refrescar`,
+      html: `<p>Estas tablas dejaron de actualizarse:</p><ul>${lines}</ul>
+<p>Causa más probable: uno de estos crons dejó de dispararse en Vercel — ${crons
+        .map((c) => `<code>${c}</code>`)
+        .join(", ")}. Ojo que un cron REMOVIDO de <code>vercel.json</code> no falla ni deja logs: simplemente no pasa nada, y los números se quedan viejos en silencio.</p>
+<p>Acción: revisar <b>Vercel → Cron Jobs</b> y confirmar que sigan agendados. Los rollups son idempotentes: en cuanto vuelvan a correr, tapan el hueco solos.</p>`,
+      context: "pipeline-stale-alert",
     });
   } catch (e: any) {
-    console.error("[warm-cache] alert rollup stale falló:", e?.message);
+    console.error("[warm-cache] alert pipeline stale falló:", e?.message);
   }
 }
 
@@ -227,37 +257,22 @@ export async function GET(req: NextRequest) {
     const totalMs = results.reduce((s, r) => s + r.ms, 0);
     const avgMs = results.length > 0 ? Math.round(totalMs / results.length) : 0;
 
-    // ── Chequeo de rollup stale (detección del cron de rollups caído) ──
-    let rollupStale: {
-      stale: boolean;
-      hoursStale: number | null;
-      lastRefresh: string | null;
-    } = { stale: false, hoursStale: null, lastRefresh: null };
+    // ── Frescura de TODO el pipeline (Silver + Gold + rollups del pixel) ──
+    // Antes sólo se miraba pixel_daily_aggregates. Ver src/lib/pipeline/freshness.ts.
+    let freshness: FreshnessRow[] = [];
+    let staleTables: FreshnessRow[] = [];
     try {
-      const rs = await prisma.$queryRawUnsafe<
-        Array<{ last: Date | null; hours: number | null }>
-      >(
-        `SELECT MAX(refreshed_at) AS last,
-                EXTRACT(EPOCH FROM (NOW() - MAX(refreshed_at)))/3600 AS hours
-         FROM pixel_daily_aggregates`
-      );
-      const hours =
-        rs?.[0]?.hours != null ? Math.round(Number(rs[0].hours) * 10) / 10 : null;
-      const last = rs?.[0]?.last ? new Date(rs[0].last).toISOString() : null;
-      rollupStale = {
-        stale: hours != null && hours > STALE_HOURS,
-        hoursStale: hours,
-        lastRefresh: last,
-      };
-      if (rollupStale.stale) {
+      freshness = await checkPipelineFreshness();
+      staleTables = freshness.filter((r) => r.stale);
+      if (staleTables.length > 0) {
         console.error(
-          `[warm-cache] ⚠️ ROLLUP STALE: pixel_daily_aggregates sin refrescar hace ${hours}h (último: ${last}). El cron refresh-pixel-rollups no está corriendo.`
+          `[warm-cache] ⚠️ PIPELINE STALE:\n${formatStaleSummary(freshness)}`
         );
         // Solo intentar el mail si queda margen: sendEmail no tiene timeout y no
         // puede empujar la función sobre el maxDuration. Si no hay tiempo, se saltea
         // (el próximo run cada 5 min lo reintenta).
         if (Date.now() - startedAt < 260_000) {
-          await maybeAlertRollupStale(hours as number, last);
+          await maybeAlertPipelineStale(staleTables);
         }
       }
     } catch (e: any) {
@@ -266,7 +281,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      rollupStale,
+      // Frescura de TODO el pipeline. `stale` lista sólo las atrasadas para que
+      // se lea de un vistazo; `freshness` trae la foto completa (incluidas las
+      // que todavía no existen, marcadas `missing`).
+      stale: staleTables.map((r) => ({
+        table: r.table,
+        hoursStale: r.hoursStale,
+        refreshedBy: r.refreshedBy,
+      })),
+      freshness,
       orgsWarmed: activeOrgs.length,
       rangesWarmed: ranges.length,
       endpointsWarmed: endpoints.length,
