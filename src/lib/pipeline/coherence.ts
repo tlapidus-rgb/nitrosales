@@ -54,11 +54,21 @@ GROUP BY 1`.trim();
 
 /**
  * Visitantes por org según el CRUDO, para el mismo día y la MISMA definición que
- * usa el rollup: PAGE_VIEW, sin sesiones de webhook, y sólo los que tienen fila
- * en la dimensión de first-source (el rollup los JOINea).
+ * usa el rollup: PAGE_VIEW y sin sesiones de webhook. **SIN cruzar contra la
+ * dimensión de first-source.**
  *
- * Si esta definición se despega de la del transform, el chequeo empieza a dar
- * falsos positivos — mantener las dos juntas (ver rollup-backfill.ts #6).
+ * ⚠️ Acá había un INNER JOIN contra `pixel_visitor_first_source`, copiado de
+ * cuando el rollup también lo tenía. Cuando el rollup pasó a LEFT JOIN +
+ * `sin_clasificar` (2026-07-21), esta query quedó midiendo MENOS gente que el
+ * rollup y el chequeo empezó a gritar con el rollup 31-48% "de más". Falso
+ * positivo: los visitantes del día todavía no tienen fila en la dimensión —el
+ * cron de first-source corre a las 3am— así que caen en `sin_clasificar`, que el
+ * rollup cuenta y esta query excluía.
+ *
+ * Es literalmente el modo de fallar que advierten los tests de este archivo: si
+ * las dos definiciones se despegan, el chequeo da falsos positivos y termina
+ * ignorándose. **Si cambia el filtro del transform (rollup-backfill.ts #6), hay
+ * que cambiar esta query en el mismo commit.**
  * $1 = día (YYYY-MM-DD).
  */
 export function buildRawSideSql(): string {
@@ -66,8 +76,6 @@ export function buildRawSideSql(): string {
 SELECT pe."organizationId" AS org,
        COUNT(DISTINCT pe."visitorId")::int AS visitors
 FROM pixel_events pe
-JOIN pixel_visitor_first_source d
-  ON d."organizationId" = pe."organizationId" AND d."visitorId" = pe."visitorId"
 WHERE (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = $1::date
   AND pe.type = 'PAGE_VIEW'
   AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')

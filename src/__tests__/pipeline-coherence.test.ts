@@ -91,11 +91,20 @@ describe("las dos queries miden la MISMA población", () => {
     expect(buildRawSideSql()).toContain("America/Argentina/Buenos_Aires");
   });
 
-  it("el lado crudo replica los filtros del transform: PAGE_VIEW, sin webhook, con first-source", () => {
+  it("el lado crudo replica los filtros del transform: PAGE_VIEW y sin webhook", () => {
     const raw = buildRawSideSql();
     expect(raw).toContain("pe.type = 'PAGE_VIEW'");
     expect(raw).toContain("webhook-%");
-    expect(raw).toContain("JOIN pixel_visitor_first_source");
+  });
+
+  // ── REGRESIÓN de un falso positivo real (2026-07-21) ──────────────────────
+  // El lado crudo tenía un INNER JOIN contra pixel_visitor_first_source, copiado
+  // de cuando el rollup también lo tenía. Al pasar el rollup a LEFT JOIN +
+  // 'sin_clasificar', esta query quedó midiendo MENOS gente y el chequeo gritó
+  // con el rollup 31-48% "de más" — cuando el rebuild estaba perfecto.
+  // Un monitoreo que da falsos positivos se ignora, y entonces no monitorea nada.
+  it("el lado crudo NO cruza contra la dimensión: el rollup ya no la exige", () => {
+    expect(buildRawSideSql()).not.toContain("pixel_visitor_first_source");
   });
 });
 
