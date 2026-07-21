@@ -198,6 +198,42 @@ async function firstSourceIncrementalForOrg(
   );
 }
 
+/**
+ * ¿Quedan visitantes sin resolver en esta org?
+ *
+ * POR QUÉ EXISTE (bug encontrado el 2026-07-21 corriendo el backfill): antes
+ * `pending` se calculaba como `filasInsertadas >= maxVisitors`. Pero `maxVisitors`
+ * limita CANDIDATOS, no inserciones: un candidato cuyo primer touch clasifica a
+ * NULL no genera fila. Como insertadas ≤ candidatos, la comparación casi nunca
+ * daba true → el loop reportaba `done` tras UNA pasada y dejaba el resto sin
+ * procesar. Sintomático: terminó en 32s "ok" con 667.917 visitantes pendientes.
+ *
+ * Ahora la señal es directa: ¿queda alguno? El EXISTS corta en la primera fila y
+ * usa los mismos índices que la selección de candidatos, así que es barato.
+ *
+ * El caso "quedan candidatos pero ninguno genera fila" (visitantes que sólo
+ * tienen eventos de pasarela/checkout) lo corta la regla de progreso del cron:
+ * si una llamada inserta 0, para. Sin eso, esos visitantes serían candidatos
+ * para siempre y el loop no terminaría nunca.
+ */
+async function hasPendingFirstSource(org: string, windowDays: number): Promise<boolean> {
+  const rows = await prisma.$queryRawUnsafe<Array<{ more: boolean }>>(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM pixel_visitors pv
+       WHERE pv."organizationId"=$1
+         AND pv."lastSeenAt" > NOW() - make_interval(days => $2::int)
+         AND NOT EXISTS (
+           SELECT 1 FROM pixel_visitor_first_source d
+           WHERE d."organizationId"=$1 AND d."visitorId"=pv.id
+         )
+     ) AS more`,
+    org,
+    windowDays
+  );
+  return rows[0]?.more === true;
+}
+
 // ── first-source de UNA org (full history, DISTINCT ON first touch) ──────────
 // Sólo para `?full=1`: reconstruye todo y PISA (DO UPDATE). Es lo que hay que
 // correr cuando cambia la lógica de clasificación. Caro: no agendar.
@@ -298,7 +334,12 @@ export async function POST(req: NextRequest) {
           const n = fullRebuild
             ? await firstSourceForOrg(orgs[i])
             : await firstSourceIncrementalForOrg(orgs[i], windowDays, maxVisitors);
-          if (!fullRebuild && n >= maxVisitors) pending = true;
+          // La señal de "queda cola" se pregunta a la base, NO se infiere de las
+          // filas insertadas: `maxVisitors` limita candidatos y los candidatos
+          // sin marketing_source no generan fila. Ver hasPendingFirstSource.
+          if (!fullRebuild && (await hasPendingFirstSource(orgs[i], windowDays))) {
+            pending = true;
+          }
           processed.push({ org: orgs[i].slice(0, 8), visitors: n, ms: Date.now() - t0 });
         } catch (e: any) {
           // Devolvemos el cursor del org que falló para que se pueda reanudar
