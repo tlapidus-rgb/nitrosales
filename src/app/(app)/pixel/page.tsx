@@ -78,6 +78,8 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string;
   omnichannel: { icon: "O", color: "#14B8A6", label: "Omnichannel", svg: "direct" },
   perfil: { icon: "P", color: "#A855F7", label: "Perfil", svg: "direct" },
   direct: { icon: "D", color: "#22C55E", label: "Directo", svg: "direct" },
+  // Sin canal de marketing. Antes se caían de la tabla (INNER JOIN del rollup).
+  sin_clasificar: { icon: "?", color: "#94A3B8", label: "Sin clasificar", svg: "direct" },
   organic: { icon: "O", color: "#8B5CF6", label: "Orgánico", svg: "organic" },
   referral: { icon: "R", color: "#EC4899", label: "Referido", svg: "referral" },
 };

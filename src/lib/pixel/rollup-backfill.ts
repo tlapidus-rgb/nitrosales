@@ -164,13 +164,28 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
     ...args
   );
 
-  // 6) source (16,5) — JOIN contra la dimensión first-source (debe existir)
+  // 6) source (16,5) — LEFT JOIN contra la dimensión first-source.
+  //
+  // ⚠️ ERA UN INNER JOIN, y eso hacía DESAPARECER visitantes (2026-07-21).
+  // Un visitante sin fila en la dimensión no caía en un bucket "sin clasificar":
+  // se caía de la tabla entera. Resultado: la suma de la columna "Visitantes" de
+  // /pixel/analytics NUNCA podía cerrar contra el total, y nada en la UI lo
+  // decía. El cliente lo reportó como "faltan visitas".
+  //
+  // Quiénes son: los ~13.000 marcados en pixel_visitor_no_source (todos sus
+  // eventos clasifican a NULL — pasarelas de pago, vueltas de checkout) más los
+  // que van entrando antes de que el cron diario los procese.
+  //
+  // Con LEFT JOIN + COALESCE caen en 'sin_clasificar' y el total cierra. Es más
+  // honesto además: un visitante sin canal de marketing EXISTE, y esconderlo es
+  // peor que mostrarlo en su propio bucket.
   touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_source ("organizationId",day,first_source,pv_visitors_hll,refreshed_at)
-     SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date, d.first_source,
+     SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
+       COALESCE(d.first_source, 'sin_clasificar'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P16}) FILTER (WHERE pe.type='PAGE_VIEW'), now()
      FROM pixel_events pe
-     JOIN pixel_visitor_first_source d
+     LEFT JOIN pixel_visitor_first_source d
        ON d."organizationId"=pe."organizationId" AND d."visitorId"=pe."visitorId"
      WHERE pe."organizationId"=$1
        AND pe.timestamp >= $2::timestamptz AND pe.timestamp < $3::timestamptz
@@ -190,14 +205,15 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   //    tabla, para poder unir los HLL entre días.
   touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_funnel_by_source ("organizationId",day,first_source,pv_hll,vp_hll,atc_hll,co_hll,refreshed_at)
-     SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date, d.first_source,
+     SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
+       COALESCE(d.first_source, 'sin_clasificar'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='PAGE_VIEW'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='VIEW_PRODUCT'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='ADD_TO_CART'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type IN ('INITIATE_CHECKOUT','CHECKOUT_SHIPPING')),
        now()
      FROM pixel_events pe
-     JOIN pixel_visitor_first_source d
+     LEFT JOIN pixel_visitor_first_source d
        ON d."organizationId"=pe."organizationId" AND d."visitorId"=pe."visitorId"
      WHERE pe."organizationId"=$1
        AND pe.timestamp >= $2::timestamptz AND pe.timestamp < $3::timestamptz
