@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
+import { TooltipPortal } from "@/components/ui/TooltipPortal";
 
 // ══════════════════════════════════════════════════════════════
 // NitroPixel — Atribución · Dark Premium
@@ -349,41 +350,30 @@ function PixelBrainMini({ size = 32, color = "#06b6d4" }: { size?: number; color
 // ══════════════════════════════════════════════════════════════
 // DarkTip — tooltip dark consistente para KPIs
 // ══════════════════════════════════════════════════════════════
+// La burbuja va en un PORTAL al body. Antes era `absolute` dentro de la card y
+// quedaba tapada por las cards vecinas y por la barra de tabs: las cards del
+// dashboard tienen animación, que crea stacking context, y ahí adentro el z-50
+// no puede competir. Ver src/components/ui/TooltipPortal.tsx.
 function DarkTip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <span
-      className="relative inline-flex items-center align-middle cursor-help"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-      tabIndex={0}
+    <TooltipPortal
+      width={224}
+      content={text}
+      bubbleClassName="px-3 py-2 rounded-lg text-[10px] leading-snug font-normal text-left"
+      bubbleStyle={{
+        background: "rgba(15,23,42,0.98)",
+        border: "1px solid rgba(6,182,212,0.25)",
+        color: "rgba(226,232,240,0.9)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        whiteSpace: "normal",
+      }}
     >
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400/40 hover:text-cyan-400 transition-colors">
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="16" x2="12" y2="12" />
         <line x1="12" y1="8" x2="12.01" y2="8" />
       </svg>
-      {open && (
-        <span
-          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-[10px] leading-snug font-normal w-56 text-left pointer-events-none"
-          style={{
-            background: "rgba(15,23,42,0.98)",
-            border: "1px solid rgba(6,182,212,0.25)",
-            color: "rgba(226,232,240,0.9)",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-            whiteSpace: "normal",
-          }}
-        >
-          {text}
-          <span
-            className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
-            style={{ background: "rgba(15,23,42,0.98)", borderRight: "1px solid rgba(6,182,212,0.25)", borderBottom: "1px solid rgba(6,182,212,0.25)", marginTop: "-4px" }}
-          />
-        </span>
-      )}
-    </span>
+    </TooltipPortal>
   );
 }
 

@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 import ConversionRateTables from "@/components/pixel/ConversionRateTables";
+import { TooltipPortal } from "@/components/ui/TooltipPortal";
 
 // ══════════════════════════════════════════════════════════════
 // NitroPixel Analytics — World-Class Intelligence Dashboard
@@ -133,17 +134,21 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
 }
 
 // ── Info Tooltip ──
+// La burbuja va en un PORTAL al body. Antes era `absolute` dentro de la card y
+// quedaba tapada por las cards vecinas: `.stagger-card` tiene una animación, que
+// crea stacking context, y ahí adentro `z-50` no puede competir con una card
+// hermana posterior. Ver src/components/ui/TooltipPortal.tsx.
 function InfoTip({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
   return (
-    <span className="relative inline-flex ml-1 cursor-help" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <svg className="w-3.5 h-3.5 text-gray-400 hover:text-cyan-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <TooltipPortal
+      width={240}
+      content={text}
+      bubbleClassName="bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl"
+    >
+      <svg className="w-3.5 h-3.5 ml-1 text-gray-400 hover:text-cyan-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <circle cx="12" cy="12" r="10" /><path d="M12 16v-4m0-4h.01" />
       </svg>
-      {show && (
-        <span className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 w-60 z-50 shadow-xl pointer-events-none">{text}</span>
-      )}
-    </span>
+    </TooltipPortal>
   );
 }
 
