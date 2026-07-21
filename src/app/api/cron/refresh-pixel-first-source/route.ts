@@ -61,6 +61,14 @@ export const maxDuration = 800;
 // Tope de llamadas al setup por run (resumible por org; tope evita loop infinito).
 const MAX_CALLS = 30;
 
+// Presupuesto COMPARTIDO de la invocación, con margen bajo el maxDuration de 800s
+// para la query de `pendingByOrg` y el cierre. Cada pasada al setup tarda ~200s
+// con lotes de 10k, así que entran ~3 por request.
+const INVOCATION_BUDGET_MS = 700_000;
+// No arrancar otra pasada si no queda al menos esto: una pasada que se corta a
+// la mitad por el wall no devuelve nada y pierde el trabajo de todo el request.
+const MIN_SLICE_MS = 260_000;
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
@@ -102,7 +110,21 @@ export async function GET(req: NextRequest) {
   let done = false;
   let error: string | null = null;
 
+  let budgetHit = false;
   for (let i = 0; i < MAX_CALLS; i++) {
+    // Presupuesto de la invocación. BUG (2026-07-21): el loop iteraba hasta
+    // MAX_CALLS=30 sin mirar el reloj. Mientras `pending` estaba roto y cortaba
+    // en la primera pasada no se notaba; apenas se arregló, el loop siguió
+    // iterando (~200s por pasada) y se comió el maxDuration → 504
+    // FUNCTION_INVOCATION_TIMEOUT, sin devolver NADA: ni el trabajo hecho, ni
+    // los pendientes, ni por dónde seguir.
+    // Mismo patrón que el cron hermano refresh-pixel-rollups, que ya pasó por
+    // esto (ver INVOCATION_BUDGET_MS ahí).
+    const elapsed = Date.now() - startedAt;
+    if (INVOCATION_BUDGET_MS - elapsed < MIN_SLICE_MS) {
+      budgetHit = true;
+      break;
+    }
     const target = `${setupBase}&orgCursor=${orgCursor}`;
     let json: any;
     try {
@@ -176,6 +198,9 @@ export async function GET(req: NextRequest) {
     {
       ok: done && !error,
       done,
+      // true = cortó por tiempo, NO por haber terminado. Volvé a correr el mismo
+      // link: es idempotente y arranca por los que faltan.
+      budgetHit,
       // Commit que está sirviendo esta respuesta. Se agrega porque el backfill
       // del 2026-07-21 se corrió TRES veces contra código viejo sin que hubiera
       // forma de notarlo: la respuesta era plausible y el deploy todavía no
