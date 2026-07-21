@@ -20,6 +20,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Wallet, Plus, Flag, History, Check, X } from "lucide-react";
+import {
+  ATTRIBUTION_WINDOW_MIN_DAYS,
+  ATTRIBUTION_WINDOW_MAX_DAYS,
+} from "@/lib/aura/validation";
 
 const THEME = {
   bgCard: "rgba(255, 255, 255, 0.03)",
@@ -46,6 +50,8 @@ type CampaignBalance = {
   isAlwaysOn: boolean;
   startDate: string;
   endDate: string | null;
+  /** Ventana propia de la campaña. null = hereda la del creador. */
+  attributionWindowDays: number | null;
   earned: number;
   paid: number;
   pending: number;
@@ -66,7 +72,14 @@ function fmtDate(iso: string | null) {
   return iso ? new Date(iso).toLocaleDateString("es-AR") : "—";
 }
 
-export function CampaignsPanel({ creatorId }: { creatorId: string }) {
+export function CampaignsPanel({
+  creatorId,
+  creatorWindowDays,
+}: {
+  creatorId: string;
+  /** Ventana del creador — es la que hereda la campaña cuando no tiene propia. */
+  creatorWindowDays: number;
+}) {
   const [data, setData] = useState<Balances | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [finalizing, setFinalizing] = useState(false);
@@ -153,6 +166,15 @@ export function CampaignsPanel({ creatorId }: { creatorId: string }) {
               <Stat label="Pagado" value={fmtARS(active.paid)} color={active.paid > 0 ? THEME.green : undefined} />
               <Stat label="Pendiente" value={fmtARS(active.pending)} color={active.pending > 0 ? THEME.yellow : undefined} />
             </div>
+            {/* Ventana de atribución editable SIN finalizar la campaña (pedido de
+                Tomy 2026-07-20). Hasta acá la única forma de cambiarla era crear
+                otra campaña: el form de alta tenía el campo, la campaña viva no. */}
+            <ActiveCampaignWindow
+              campaignId={active.campaignId}
+              value={active.attributionWindowDays}
+              creatorWindowDays={creatorWindowDays}
+              onSaved={load}
+            />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-6 gap-3">
@@ -267,6 +289,159 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
     <div>
       <div className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: THEME.textMuted }}>{label}</div>
       <div className="text-[15px] font-semibold tabular-nums" style={{ color: color || THEME.textPrimary }}>{value}</div>
+    </div>
+  );
+}
+
+// ─── Ventana de atribución de la campaña activa (pedido de Tomy 2026-07-20) ───
+// Vacío = la campaña hereda la ventana del creador (columna nullable). El PATCH
+// de campaigns/[id] ya aceptaba el campo; lo que faltaba era poder llegar.
+function ActiveCampaignWindow({
+  campaignId,
+  value,
+  creatorWindowDays,
+  onSaved,
+}: {
+  campaignId: string;
+  value: number | null;
+  creatorWindowDays: number;
+  onSaved: () => Promise<void> | void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value === null ? "" : String(value));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Si el server devuelve otro valor (recarga tras guardar), seguir la fuente
+  // de verdad en vez de quedarnos con el draft viejo.
+  useEffect(() => {
+    if (!editing) setDraft(value === null ? "" : String(value));
+  }, [value, editing]);
+
+  const save = async () => {
+    const trimmed = draft.trim();
+    let payload: number | null = null;
+    if (trimmed !== "") {
+      const n = Number(trimmed);
+      if (
+        !Number.isFinite(n) ||
+        n < ATTRIBUTION_WINDOW_MIN_DAYS ||
+        n > ATTRIBUTION_WINDOW_MAX_DAYS
+      ) {
+        setErr(
+          `Tiene que estar entre ${ATTRIBUTION_WINDOW_MIN_DAYS} y ${ATTRIBUTION_WINDOW_MAX_DAYS} días.`
+        );
+        return;
+      }
+      payload = Math.round(n);
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/aura/campaigns/${campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributionWindowDays: payload }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error || d.message || `Error ${r.status}`);
+      }
+      await onSaved();
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "No se pudo guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const effective = value ?? creatorWindowDays;
+
+  return (
+    <div
+      className="mt-3 pt-3"
+      style={{ borderTop: `1px solid ${THEME.border}` }}
+    >
+      {editing ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label
+            className="text-[11px] font-semibold shrink-0"
+            style={{ color: THEME.textSecondary }}
+            htmlFor={`campaign-window-${campaignId}`}
+          >
+            Ventana de atribución
+          </label>
+          <input
+            id={`campaign-window-${campaignId}`}
+            type="number"
+            min={ATTRIBUTION_WINDOW_MIN_DAYS}
+            max={ATTRIBUTION_WINDOW_MAX_DAYS}
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Hereda · ${creatorWindowDays}d`}
+            className="w-32 px-2.5 py-1.5 rounded-lg text-[12px] outline-none tabular-nums"
+            style={{
+              background: THEME.bgCard,
+              border: `1px solid ${THEME.borderStrong}`,
+              color: THEME.textPrimary,
+            }}
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-50"
+            style={{ background: "rgba(74,222,128,0.14)", color: THEME.green, border: `1px solid ${THEME.green}44` }}
+          >
+            <Check size={12} strokeWidth={2.4} />
+            {saving ? "Guardando…" : "Guardar"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(value === null ? "" : String(value));
+              setErr(null);
+              setEditing(false);
+            }}
+            disabled={saving}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium disabled:opacity-50"
+            style={{ background: THEME.bgCard, color: THEME.textSecondary, border: `1px solid ${THEME.border}` }}
+          >
+            <X size={12} strokeWidth={2.4} />
+            Cancelar
+          </button>
+          <p className="w-full text-[10.5px]" style={{ color: THEME.textMuted }}>
+            Vacío = hereda la del creador ({creatorWindowDays}d).
+          </p>
+          {err ? (
+            <p className="w-full text-[11px]" style={{ color: "#f87171" }}>{err}</p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{ color: THEME.textMuted }}>
+              Ventana de atribución
+            </div>
+            <div className="text-[13px] font-semibold tabular-nums" style={{ color: THEME.textPrimary }}>
+              {effective} días
+              <span className="ml-1.5 text-[11px] font-normal" style={{ color: THEME.textTertiary }}>
+                {value === null ? "· hereda del creador" : "· propia de la campaña"}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="px-2.5 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 transition-all hover:brightness-110"
+            style={{ background: THEME.bgCard, color: THEME.cyan, border: `1px solid ${THEME.cyan}44` }}
+          >
+            Cambiar
+          </button>
+        </div>
+      )}
     </div>
   );
 }

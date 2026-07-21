@@ -19,6 +19,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { getStoreUrl } from "@/lib/org-store-url";
+import {
+  AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+  ATTRIBUTION_WINDOW_MIN_DAYS,
+  ATTRIBUTION_WINDOW_MAX_DAYS,
+} from "@/lib/aura/validation";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -354,7 +359,7 @@ export async function GET(
         publicName: influencer.publicName,
         isPublicDashboardEnabled: influencer.isPublicDashboardEnabled,
         hasDashboardPassword: !!influencer.dashboardPassword, // S1: no exponemos la clave; solo si ya la definió
-        attributionWindowDays: influencer.attributionWindowDays ?? 14,
+        attributionWindowDays: influencer.attributionWindowDays ?? AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS,
         createdAt: influencer.createdAt.toISOString(),
         whatsapp,
         trackingLink,
@@ -457,17 +462,23 @@ export async function PATCH(
     if (body.attributionWindowDays !== undefined) {
       const raw = body.attributionWindowDays;
       if (raw === null) {
-        // null = resetear al default del motor (14 días) — usado por el
-        // desplegable de afiliados en pixel/configuración (feedback 2026-07-15).
-        // OJO: Influencer.attributionWindowDays es NOT NULL DEFAULT 14 en el
-        // schema, así que "resetear" = escribir 14, NO null (null rompería el
-        // update de Prisma).
-        allowed.attributionWindowDays = 14;
+        // null = resetear al default del motor — usado por el desplegable de
+        // afiliados en pixel/configuración (feedback 2026-07-15) y por el modal
+        // de editar creador.
+        // OJO: Influencer.attributionWindowDays es NOT NULL en el schema, así que
+        // "resetear" = escribir el default, NO null (null rompería el update).
+        allowed.attributionWindowDays = AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS;
       } else {
         const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
-        if (!Number.isFinite(n) || n < 1 || n > 180) {
+        if (
+          !Number.isFinite(n) ||
+          n < ATTRIBUTION_WINDOW_MIN_DAYS ||
+          n > ATTRIBUTION_WINDOW_MAX_DAYS
+        ) {
           return NextResponse.json(
-            { error: "attributionWindowDays must be 1-180 (or null to reset)" },
+            {
+              error: `attributionWindowDays must be ${ATTRIBUTION_WINDOW_MIN_DAYS}-${ATTRIBUTION_WINDOW_MAX_DAYS} (or null to reset)`,
+            },
             { status: 400 }
           );
         }
@@ -504,7 +515,7 @@ export async function PATCH(
       creator: {
         ...updated,
         commissionPercent: Number(updated.commissionPercent),
-        attributionWindowDays: updated.attributionWindowDays ?? 14,
+        attributionWindowDays: updated.attributionWindowDays ?? AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS,
       },
     });
   } catch (e: any) {

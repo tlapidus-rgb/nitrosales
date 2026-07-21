@@ -78,8 +78,10 @@ describe("campaignNameToSlug — contrato link ↔ atribución", () => {
 });
 
 describe("constantes de ventana de atribución", () => {
-  it("default 14, rango 1-180 (contrato con las APIs de aura)", () => {
-    expect(AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS).toBe(14);
+  it("default 7, rango 1-180 (contrato con las APIs de aura)", () => {
+    // 14 → 7 por pedido de Tomy (2026-07-20). Si esto cambia, el @default de
+    // Prisma y el DEFAULT de la columna en Neon tienen que acompañar.
+    expect(AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS).toBe(7);
     expect(ATTRIBUTION_WINDOW_MIN_DAYS).toBe(1);
     expect(ATTRIBUTION_WINDOW_MAX_DAYS).toBe(180);
   });

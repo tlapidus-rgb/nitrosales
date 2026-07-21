@@ -37,6 +37,9 @@ export type CampaignBalance = {
   isAlwaysOn: boolean;
   startDate: string; // ISO
   endDate: string | null; // ISO — null si sigue activa
+  // Ventana propia de la campaña (días). null = hereda la del creador.
+  // La expone el panel del creador para poder editarla sin finalizar la campaña.
+  attributionWindowDays: number | null;
   earned: number; // comisión ganada en la ventana
   paid: number; // pagos PAID linkeados a la campaña
   pending: number; // max(0, earned - paid)
@@ -65,7 +68,7 @@ export async function computeCreatorBalances(
   const campaigns = await db.influencerCampaign.findMany({
     where: { organizationId, influencerId: creatorId },
     orderBy: { startDate: "asc" },
-    select: { id: true, name: true, status: true, isAlwaysOn: true, startDate: true, endDate: true },
+    select: { id: true, name: true, status: true, isAlwaysOn: true, startDate: true, endDate: true, attributionWindowDays: true },
   });
 
   // Pagos PAID del creador agrupados por campaña (una query).
@@ -108,6 +111,7 @@ export async function computeCreatorBalances(
         isAlwaysOn: c.isAlwaysOn ?? false,
         startDate: c.startDate.toISOString(),
         endDate: c.endDate ? c.endDate.toISOString() : null,
+        attributionWindowDays: c.attributionWindowDays ?? null,
         earned,
         paid,
         pending,

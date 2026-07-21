@@ -23,6 +23,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/aura/validation";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -92,7 +93,7 @@ export async function GET(req: NextRequest) {
           name: inf.name,
           code: inf.code,
           status: inf.status,
-          attributionWindowDays: inf.attributionWindowDays ?? 14,
+          attributionWindowDays: inf.attributionWindowDays ?? AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS,
         })),
       });
     }
@@ -203,7 +204,7 @@ export async function GET(req: NextRequest) {
         profileImage: inf.profileImage,
         status: inf.status,
         commissionPercent: Number(inf.commissionPercent),
-        attributionWindowDays: inf.attributionWindowDays ?? 14,
+        attributionWindowDays: inf.attributionWindowDays ?? AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS,
         revenue: a.revenue,
         orders: a.orders,
         aov: a.orders > 0 ? a.revenue / a.orders : 0,

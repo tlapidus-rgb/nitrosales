@@ -20,6 +20,7 @@ import type { Influencer } from "@prisma/client";
 // Slug canónico compartido con la generación de tracking links — ver el
 // contrato en campaign-slug.ts (si divergen, el matching se rompe en silencio).
 import { campaignNameToSlug } from "@/lib/aura/campaign-slug";
+import { AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/aura/validation";
 
 /**
  * Determine the effective commission % for an influencer.
@@ -190,8 +191,10 @@ export async function attributeOrderToInfluencer(
         if (!infRow || infRow.status === "INACTIVE") continue;
 
         // Ventana con precedencia (feedback 2026-07): CAMPAÑA (si el touchpoint
-        // trae slug que matchea una campaña ACTIVA con ventana propia) > creador > 14.
-        let windowDays = infRow.attributionWindowDays ?? 14;
+        // trae slug que matchea una campaña ACTIVA con ventana propia) > creador
+        // > default del motor.
+        let windowDays =
+          infRow.attributionWindowDays ?? AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS;
         if (cand.campaign) {
           const activeCampaigns = activeCampaignsByInfluencer.get(infRow.id) ?? [];
           const campMatch = activeCampaigns.find(
@@ -306,7 +309,7 @@ export async function attributeOrderToInfluencer(
 
   const tierInfo = tierLabel ? ` [Tier: ${tierLabel}]` : "";
   const windowInfo = touchpointTimestamp
-    ? ` [window ${influencer.attributionWindowDays ?? 14}d ok]`
+    ? ` [window ${influencer.attributionWindowDays ?? AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS}d ok]`
     : "";
   console.log(
     `[Influencer Attribution] Order ${order.externalId} → ${influencer.name} (@${influencer.code}) via ${attributionSource} | $${orderValue} → commission $${commissionAmount.toFixed(2)} (${effectivePercent}%)${tierInfo}${windowInfo}`

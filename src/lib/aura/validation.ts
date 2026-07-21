@@ -7,8 +7,13 @@
 // create-creator.ts y aura/creadores/nuevo/page.tsx (riesgo de drift).
 // ══════════════════════════════════════════════════════════════
 
-/** Ventana de atribución por defecto del motor Aura (días). */
-export const AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS = 14;
+/**
+ * Ventana de atribución por defecto del motor Aura (días).
+ * 14 → 7 por pedido de Tomy (2026-07-20). Es la ÚNICA fuente de verdad:
+ * el `@default` de Prisma y los fallbacks de los endpoints tienen que
+ * seguir a esta constante, no repetir el número.
+ */
+export const AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS = 7;
 /** Rango permitido para ventanas de atribución (creador y campaña). */
 export const ATTRIBUTION_WINDOW_MIN_DAYS = 1;
 export const ATTRIBUTION_WINDOW_MAX_DAYS = 180;

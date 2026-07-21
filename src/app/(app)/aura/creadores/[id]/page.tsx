@@ -18,6 +18,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CampaignsPanel } from "./CampaignsPanel";
 import {
+  AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+  ATTRIBUTION_WINDOW_MIN_DAYS,
+  ATTRIBUTION_WINDOW_MAX_DAYS,
+} from "@/lib/aura/validation";
+import {
   ArrowLeft,
   ArrowUpRight,
   ArrowDownRight,
@@ -936,7 +941,10 @@ export default function CreatorProfilePage() {
             (FIFO) e Historial de campañas. Reemplaza "Pagos por mes" y las viejas
             cards "Campañas" y "Pagos y comisiones" (items 11/12/13/14/16). ─── */}
         <div className="mt-5">
-          <CampaignsPanel creatorId={creator.id} />
+          <CampaignsPanel
+            creatorId={creator.id}
+            creatorWindowDays={creator.attributionWindowDays}
+          />
         </div>
 
         {/* ─── ÓRDENES GENERADAS (item 28: ancho completo / más grande) ─── */}
@@ -1751,6 +1759,9 @@ function EditModal({
   const [name, setName] = useState(creator.name);
   const [email, setEmail] = useState(creator.email ?? "");
   const [publicName, setPublicName] = useState(creator.publicName ?? "");
+  const [windowDays, setWindowDays] = useState(
+    String(creator.attributionWindowDays)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1758,14 +1769,34 @@ function EditModal({
     setSaving(true);
     setError(null);
     try {
-      // Solo email + nombre público (item 10): comisión y ventana ya no se
-      // editan acá. El PATCH ignora los campos que no vienen.
+      // Email + nombre público + ventana de atribución. La COMISIÓN sigue
+      // fuera de acá (item 10, reunión 08/07/26): se asigna por campaña en
+      // "Comenzar campaña". La ventana volvió por pedido de Tomy (2026-07-20).
+      // Vacío = resetear al default del motor (el PATCH mapea null → default).
+      const trimmed = windowDays.trim();
+      let windowPayload: number | null = null;
+      if (trimmed !== "") {
+        const n = Number(trimmed);
+        if (
+          !Number.isFinite(n) ||
+          n < ATTRIBUTION_WINDOW_MIN_DAYS ||
+          n > ATTRIBUTION_WINDOW_MAX_DAYS
+        ) {
+          setError(
+            `La ventana tiene que estar entre ${ATTRIBUTION_WINDOW_MIN_DAYS} y ${ATTRIBUTION_WINDOW_MAX_DAYS} días.`
+          );
+          setSaving(false);
+          return;
+        }
+        windowPayload = Math.round(n);
+      }
       const r = await fetch(`/api/aura/creators/${creator.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
           publicName,
+          attributionWindowDays: windowPayload,
         }),
       });
       const data = await r.json();
@@ -1829,10 +1860,31 @@ function EditModal({
               }}
             />
           </Field>
-          {/* Comisión y Ventana de atribución quitadas del editar creador por
-              pedido de Tomy (reunión 08/07/26, item 10): solo nombre, email y
-              nombre público. La comisión pasa a asignarse por campaña ("Comenzar
-              campaña"). */}
+          {/* La COMISIÓN sigue fuera de este modal (item 10, reunión 08/07/26):
+              se asigna por campaña en "Comenzar campaña". La VENTANA volvió acá
+              por pedido de Tomy (2026-07-20). */}
+          <Field label="Ventana de atribución (días)">
+            <input
+              type="number"
+              min={ATTRIBUTION_WINDOW_MIN_DAYS}
+              max={ATTRIBUTION_WINDOW_MAX_DAYS}
+              value={windowDays}
+              onChange={(e) => setWindowDays(e.target.value)}
+              placeholder={`Vacío = default (${AURA_DEFAULT_ATTRIBUTION_WINDOW_DAYS} días)`}
+              aria-label="Ventana de atribución en días"
+              className="w-full px-3 py-2 rounded-lg text-[13px] tracking-tight outline-none tabular-nums"
+              style={{
+                background: THEME.bgCard,
+                border: `1px solid ${THEME.border}`,
+                color: THEME.textPrimary,
+              }}
+            />
+            <p className="text-[11px] mt-1.5" style={{ color: THEME.textMuted }}>
+              Cuántos días después del click de este creador una venta sigue
+              contando como suya. Una campaña activa con ventana propia le gana a
+              esta.
+            </p>
+          </Field>
           <Field label="Nombre público (opcional)">
             <input
               value={publicName}
