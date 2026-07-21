@@ -176,6 +176,7 @@ export async function GET(req: NextRequest) {
   // que falló dos veces. Si esto no baja entre corridas, algo anda mal aunque
   // `done` diga true.
   let pendingByOrg: Array<{ org: string; pending: number }> = [];
+  let noSourceByOrg: Array<{ org: string; noSource: number }> = [];
   try {
     const rows = await prisma.$queryRawUnsafe<Array<{ org: string; pending: number }>>(
       `SELECT pv."organizationId" AS org, COUNT(*)::int AS pending
@@ -185,11 +186,27 @@ export async function GET(req: NextRequest) {
            SELECT 1 FROM pixel_visitor_first_source d
            WHERE d."organizationId"=pv."organizationId" AND d."visitorId"=pv.id
          )
+         -- Los ya evaluados sin canal NO son pendientes: están resueltos, solo
+         -- que su resultado es "no tiene canal de marketing". Sin esta
+         -- exclusión el número no bajaba nunca aunque el trabajo estuviera
+         -- hecho, y el operador seguía corriendo el backfill al pedo (pasó,
+         -- 2026-07-21: 13 pasadas de 8 minutos mirando un número clavado).
+         AND NOT EXISTS (
+           SELECT 1 FROM pixel_visitor_no_source n
+           WHERE n."organizationId"=pv."organizationId" AND n."visitorId"=pv.id
+         )
        GROUP BY 1
        ORDER BY 2 DESC`,
       windowDays
     );
     pendingByOrg = rows;
+    const marked = await prisma.$queryRawUnsafe<Array<{ org: string; noSource: number }>>(
+      `SELECT "organizationId" AS org, COUNT(*)::int AS "noSource"
+       FROM pixel_visitor_no_source
+       GROUP BY 1
+       ORDER BY 2 DESC`
+    );
+    noSourceByOrg = marked;
   } catch {
     /* diagnóstico, no crítico: si falla no invalida el trabajo hecho */
   }
@@ -207,9 +224,13 @@ export async function GET(req: NextRequest) {
       // había salido. Con esto se compara de un vistazo contra el SHA esperado.
       // Vercel lo inyecta en build; en local queda "local".
       build: (process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 8),
-      // Cuántos visitantes quedan sin resolver, por org. Es la métrica que
-      // realmente dice si hay que volver a correr — `done` sola no alcanzó.
+      // Cuántos visitantes quedan sin EVALUAR, por org. Excluye a los marcados
+      // como "sin canal": esos están resueltos, su resultado es que no tienen
+      // canal de marketing. Es la métrica que dice si hay que volver a correr.
       pendingByOrg,
+      // Cuántos se evaluaron y no tenían canal. Sirve para distinguir "no
+      // procesé nada" de "procesé todo y no había canal que asignar".
+      noSourceByOrg,
       callsCount: calls.length,
       calls,
       error,
