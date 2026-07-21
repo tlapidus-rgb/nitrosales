@@ -2040,17 +2040,28 @@ export default function AnalyticsPage() {
                               if (norm >= 0.33) return "text-amber-600";
                               return "text-red-500";
                             };
-                            return channels.map((s) => {
+                            return channels.map((s: any) => {
                             const info = getSourceInfo(s.source);
                             const crColor = crColorRelative(s.cr || 0);
+                            // Fila agregada del resto de los canales (ver el fold en
+                            // /api/metrics/pixel). Antes esos visitantes no se
+                            // mostraban en ningún lado y la columna no sumaba el total.
+                            const isOtros = s.source === "otros";
+                            const label = isOtros
+                              ? `Otros${s.channelsMerged ? ` (${s.channelsMerged} canales)` : ""}`
+                              : info.label;
                             return (
                               <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                                 <td className="py-2.5 pr-2">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
-                                      <ChannelLogo source={s.source} size={12} />
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: isOtros ? "#94a3b8" : info.color }}>
+                                      {isOtros ? (
+                                        <span className="text-[9px] font-bold text-white">…</span>
+                                      ) : (
+                                        <ChannelLogo source={s.source} size={12} />
+                                      )}
                                     </div>
-                                    <span className="font-medium text-gray-700">{info.label}</span>
+                                    <span className={`font-medium ${isOtros ? "text-gray-500 italic" : "text-gray-700"}`}>{label}</span>
                                   </div>
                                 </td>
                                 <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>

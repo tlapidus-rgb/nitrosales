@@ -946,7 +946,16 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         FROM src_visitors sv
         FULL OUTER JOIN src_purchases sp ON sv.source = sp.source
         ORDER BY visitors DESC
-        LIMIT 10
+        -- ⚠️ NO cortar en 10 acá (bug encontrado con TeVe Compras, 2026-07-21).
+        -- El plegado de alias (fb→meta, adwords→google) ocurre DESPUÉS, en JS. Con
+        -- LIMIT 10 sobre los sources CRUDOS, un canal partido en variantes que
+        -- individualmente rankean 12º-30º no entraba nunca, aunque plegado fuera
+        -- el segundo. Y lo que quedaba afuera desaparecía sin dejar rastro: la
+        -- columna "Visitantes" no sumaba el total y nada en la UI lo decía.
+        -- El corte para mostrar se hace al final, con un bucket "otros" que
+        -- conserva el resto (ver más abajo). El 200 es sólo un tope de seguridad:
+        -- la cardinalidad real es ~26 sources por org.
+        LIMIT 200
       ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — device del visitante atribuido.
@@ -1606,13 +1615,21 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           });
         }
 
+        // ── Plegado de canales (reescrito 2026-07-21) ──────────────────────────
+        // Antes: se descartaban en silencio los sources con ≤5 visitantes, los que
+        // no matcheaban el regex, y todo lo que caía fuera del top-10 del SQL. El
+        // resultado era una tabla cuya columna "Visitantes" no sumaba el total y
+        // no lo aclaraba en ningún lado — con TeVe Compras daba 6.682 contra los
+        // 66.723 del panel de dispositivo, que cuenta el universo completo.
+        //
+        // Ahora: sólo se EXCLUYEN las pasarelas de pago, que genuinamente no son
+        // canales de marketing. Todo lo demás se conserva; lo chico termina
+        // agregado en `otros`, así el total siempre cierra.
         const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
         for (const vs of pixelVisitorsBySource) {
-          if (vs.visitors <= 5) continue; // skip tiny sources
           if (isNonMarketingChannelSource(vs.source)) continue;
           const key = canonicalMarketingSource(vs.source);
           if (isNonMarketingChannelSource(key)) continue;
-          if (!isValidConversionSource(key)) continue;
           const existing = channelMap.get(key);
           const attr = attrMap.get(key);
           // Sumar visitors+purchases si hay aliases (ej: fb + meta → meta)
@@ -1628,9 +1645,34 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             });
           }
         }
-        const byChannel = Array.from(channelMap.values())
-          .map(ch => ({ ...ch, cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0 }))
-          .sort((a, b) => b.visitors - a.visitors);
+        const withCr = (ch: { source: string; visitors: number; purchases: number; revenue: number }) => ({
+          ...ch,
+          cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0,
+        });
+        const foldedChannels = Array.from(channelMap.values()).sort(
+          (a, b) => b.visitors - a.visitors
+        );
+        // Se muestran los N más grandes; el resto se agrega en `otros` en vez de
+        // desaparecer. Los que no pasan el regex de nombre (basura de UTM) van
+        // directo a `otros`: se cuentan, pero no se les da una fila propia.
+        const CHANNEL_DISPLAY_LIMIT = 12;
+        const named = foldedChannels.filter((c) => isValidConversionSource(c.source));
+        const unnamed = foldedChannels.filter((c) => !isValidConversionSource(c.source));
+        const head = named.slice(0, CHANNEL_DISPLAY_LIMIT);
+        const tail = [...named.slice(CHANNEL_DISPLAY_LIMIT), ...unnamed];
+        const byChannel = head.map(withCr);
+        if (tail.length > 0) {
+          const agg = tail.reduce(
+            (acc, c) => ({
+              source: "otros",
+              visitors: acc.visitors + c.visitors,
+              purchases: acc.purchases + c.purchases,
+              revenue: acc.revenue + c.revenue,
+            }),
+            { source: "otros", visitors: 0, purchases: 0, revenue: 0 }
+          );
+          byChannel.push({ ...withCr(agg), channelsMerged: tail.length } as any);
+        }
 
         // CR by Device: pixel visitors (deviceBreakdown from query #5) + pixel-attributed orders by device (query #24)
         // Both use the same device naming from pixel (Mobile, Desktop, etc.)
