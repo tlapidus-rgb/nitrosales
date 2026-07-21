@@ -19,16 +19,54 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
-const SERVE = join(ROOT, "src", "app", "api", "metrics"); // superficie de Serve
 
-// Rutas de Serve que YA escaneaban pixel_events al crear el guard (2026-07-15).
-// Grandfathered. Sacar de acá a medida que se migran a Gold (Fases 1-2).
-// Ratchet-down 2026-07-17: conversion y products salieron (ya solo mencionan
-// pixel_events en comentarios; leen rollups) — el guard ahora ignora comentarios.
+// ── Superficie vigilada ─────────────────────────────────────────────────────
+// AMPLIADA 2026-07-21 (auditoría, hallazgo "guards"). Antes era SOLO
+// `src/app/api/metrics`, y el guard imprimía "3 rutas escanean crudo" mientras
+// había 19 en el read path. Eso no es un guard laxo: es un guard que mide una
+// superficie más chica de la que declara, y eso da falsa confianza — el ✅ decía
+// "Serve está limpio" con ~15 rutas de lectura escaneando Bronze sin supervisión.
+//
+// `src/lib/metrics` entra porque `pixel-funnel.ts` lo llama Serve: vivir fuera de
+// `api/` no lo saca del read path.
+const SERVE_DIRS = [
+  "src/app/api/metrics",
+  "src/app/api/bondly",
+  "src/app/api/nitropixel",
+  "src/app/api/control",
+  "src/app/api/me",
+  "src/lib/metrics",
+].map((d) => join(ROOT, ...d.split("/")));
+
+// Rutas del read path que YA escaneaban pixel_events al momento de grandfatherear.
+// Sacar de acá a medida que se migran a Gold (ratchet-down).
+//   · 2026-07-15: creación del guard, solo api/metrics.
+//   · 2026-07-17: conversion y products salieron (leen rollups).
+//   · 2026-07-21: se absorbe el diferencial de ampliar la superficie (16 rutas).
+//     Ese lote es DEUDA MEDIDA, no deuda nueva: ya escaneaban crudo, solo que
+//     nadie las estaba mirando.
 const ALLOWLIST = new Set([
+  // — api/metrics (lote original) —
   "src/app/api/metrics/pixel/funnel/route.ts", // híbrido: Gold-first + fallback crudo
   "src/app/api/metrics/pixel/route.ts", //         híbrido: Gold-first + fallback crudo
   "src/app/api/metrics/pixel/sales-by-ad/route.ts", // lookup acotado a visitantes atribuidos
+  // — diferencial de la ampliación 2026-07-21 —
+  "src/lib/metrics/pixel-funnel.ts", // lo llama metrics/pixel/funnel: mismo read path
+  "src/app/api/bondly/behavioral-ltv/route.ts",
+  "src/app/api/bondly/churn-risk/route.ts",
+  "src/app/api/bondly/clientes/route.ts",
+  "src/app/api/bondly/clientes/[id]/route.ts",
+  "src/app/api/bondly/customer-journey/[customerId]/route.ts",
+  "src/app/api/bondly/ltv-insights/route.ts",
+  "src/app/api/bondly/pulse/route.ts",
+  "src/app/api/bondly/senales/route.ts",
+  "src/app/api/nitropixel/asset-stats/route.ts",
+  "src/app/api/nitropixel/data-quality-score/route.ts",
+  "src/app/api/nitropixel/install-status/route.ts",
+  "src/app/api/control/client/[id]/route.ts",
+  "src/app/api/control/clients-health/route.ts",
+  "src/app/api/me/nitropixel-recent-events/route.ts",
+  "src/app/api/me/section-status/route.ts",
 ]);
 
 // Lectura de pixel_events CRUDO: la tabla en SQL o el modelo Prisma.
@@ -62,14 +100,21 @@ function walk(dir) {
 }
 
 const matches = [];
-for (const file of walk(SERVE)) {
-  const rel = relative(ROOT, file).replace(/\\/g, "/");
-  if (PATTERN.test(stripComments(readFileSync(file, "utf8")))) matches.push(rel);
+for (const dir of SERVE_DIRS) {
+  for (const file of walk(dir)) {
+    const rel = relative(ROOT, file).replace(/\\/g, "/");
+    if (PATTERN.test(stripComments(readFileSync(file, "utf8")))) matches.push(rel);
+  }
 }
 
 const newViolations = matches.filter((f) => !ALLOWLIST.has(f));
 const stale = [...ALLOWLIST].filter((f) => !matches.includes(f));
 
+// Se imprime la superficie vigilada junto al número: sin eso, "3 rutas" no se
+// puede interpretar — era exactamente el problema que tenía este guard.
+console.log(
+  `[serve-gold-first] superficie: ${SERVE_DIRS.length} directorios del read path`
+);
 console.log(`[serve-gold-first] rutas de Serve que escanean pixel_events crudo: ${matches.length} (allowlist: ${ALLOWLIST.size})`);
 if (stale.length) {
   console.log(`[serve-gold-first] ✅ ${stale.length} ruta(s) del allowlist ya NO escanean crudo (migradas a Gold) — sacar del allowlist:`);
