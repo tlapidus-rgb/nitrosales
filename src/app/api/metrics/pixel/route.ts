@@ -31,6 +31,7 @@ import {
 } from "@/lib/pixel/product-id-map";
 import { loadCategoryLabels } from "@/lib/products/category-label";
 import { crPct } from "@/lib/pixel/cr-rate";
+import { buildPixelCacheKey } from "@/lib/pixel/cache-key";
 import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
@@ -159,7 +160,19 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm-cache estaba saturando la DB (32 fetches paralelos × 29
     // queries c/u = 928 queries simultaneas cada 30 min). Volver al
     // cache simple `getCached` (fresh 5 min, despues miss).
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v12"];
+    // ── Params que CAMBIAN la respuesta y por lo tanto son parte de la key ──
+    // La regla y el porqué viven en src/lib/pixel/cache-key.ts (testeada).
+    const modelParamRaw = (searchParams.get("model") || "").toUpperCase();
+    const page = Math.max(1, Number(searchParams.get("page")) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+    const cacheKey = buildPixelCacheKey({
+      orgId,
+      from: fromParam,
+      to: toParam,
+      model: modelParamRaw,
+      page,
+      pageSize,
+    });
 
     // ── SWR real (2026-06-12, BP-PERF-DASHBOARD) ──────────────────────────────
     // El compute completo (29 queries) vive en computeAndCache(). Cache-miss =
@@ -184,8 +197,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     const prevTo = new Date(dateFrom.getTime() - 1);
 
     // ── Pagination ──
-    const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+    // `page`/`pageSize` se calculan ARRIBA (son parte de la cache key); acá solo
+    // se deriva el offset. No re-leer searchParams: si los dos lugares
+    // divergieran, la key dejaría de describir la respuesta.
     const offset = (page - 1) * pageSize;
 
     const daysInPeriod = Math.max(1, Math.round(periodMs / MS_PER_DAY));
@@ -207,7 +221,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     const settingsModel = validModels.includes(orgSettings.attributionModel)
       ? orgSettings.attributionModel
       : "NITRO";
-    const modelParam = (searchParams.get("model") || settingsModel).toUpperCase();
+    // `modelParamRaw` se lee arriba (es parte de la cache key). Si viene vacío
+    // manda el default de la org, que en la key quedó como "orgdefault".
+    const modelParam = modelParamRaw || settingsModel.toUpperCase();
     const selectedModel = validModels.includes(modelParam) ? modelParam : settingsModel;
     const wFirst = nitroWeights.first;
     const wLast = nitroWeights.last;

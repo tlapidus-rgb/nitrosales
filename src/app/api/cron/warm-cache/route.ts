@@ -116,8 +116,15 @@ export async function GET(req: NextRequest) {
     // Listar orgs ACTIVAS — con al menos 1 evento pixel en los últimos 30 días.
     // EXISTS (no JOIN+DISTINCT): corta en la 1ra fila por org → mucho más barato
     // sobre pixel_events (evita el scan/dedup que arrastraba la función hacia el wall).
-    const activeOrgs = await prisma.$queryRawUnsafe<Array<{ id: string; name: string }>>(`
-      SELECT o.id, o.name
+    // Se trae también el modelo de atribución por defecto de la org: desde el fix
+    // de la cache key (auditoría 2026-07-21) `model` es PARTE de la key, y la UI
+    // SIEMPRE manda `&model=` (pixel/page.tsx:466). Sin esto el warm calentaría
+    // la key "orgdefault", que ningún usuario consulta → el cron correría igual
+    // de caro y la primera carga del día seguiría pagando los ~17s completos.
+    const activeOrgs = await prisma.$queryRawUnsafe<
+      Array<{ id: string; name: string; attribution_model: string | null }>
+    >(`
+      SELECT o.id, o.name, o.settings->>'attributionModel' AS attribution_model
       FROM organizations o
       WHERE EXISTS (
         SELECT 1 FROM pixel_events pe
@@ -125,6 +132,16 @@ export async function GET(req: NextRequest) {
           AND pe.timestamp > NOW() - INTERVAL '30 days'
       )
     `);
+
+    // Espejo de la resolución del endpoint y de la UI: settings → NITRO, y
+    // CUSTOM se pide como NITRO (pixel/page.tsx:451). Si divergen, el warm
+    // vuelve a calentar una key que nadie pide.
+    const VALID_WARM_MODELS = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
+    const warmModelFor = (raw: string | null): string => {
+      const m = (raw || "NITRO").toUpperCase();
+      if (m === "CUSTOM") return "NITRO";
+      return VALID_WARM_MODELS.includes(m) ? m : "NITRO";
+    };
 
     const results: Array<{
       orgId: string;
@@ -157,9 +174,14 @@ export async function GET(req: NextRequest) {
         for (const endpoint of endpoints) {
           if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break outer; }
           const start = Date.now();
+          // `model` solo aplica a /api/metrics/pixel (es parte de SU cache key).
+          const modelParam =
+            endpoint === "/api/metrics/pixel"
+              ? `&model=${warmModelFor(org.attribution_model)}`
+              : "";
           const target = `${baseUrl}${endpoint}?orgId=${encodeURIComponent(
             org.id
-          )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}`;
+          )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}${modelParam}`;
           try {
             const r = await fetch(target, {
               method: "GET",
