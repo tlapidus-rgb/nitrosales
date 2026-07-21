@@ -123,7 +123,75 @@ const DDL: string[] = [
 ];
 
 
+// ── first-source INCREMENTAL de UNA org ──────────────────────────────────────
+// POR QUÉ EXISTE (auditoría 2026-07-21):
+//   `firstSourceForOrg` reconstruye TODA la historia desde 2023 en cada corrida.
+//   Por eso el cron se desagendó el 2026-06-14 (cab6bda4: "no escala, el
+//   DISTINCT ON de historia completa supera 300s") y nunca volvió → la dimensión
+//   quedó congelada 5 semanas y `metrics/pixel` (que la JOINea en la query #23)
+//   perdió del breakdown por canal a TODO visitante nuevo desde entonces.
+//
+// LA CLAVE: el first-touch de un visitante es INMUTABLE — ya pasó. Entonces no
+// hace falta recalcular a los que ya tienen fila: alcanza con calcular los que
+// FALTAN. El trabajo pasa a ser proporcional a los visitantes nuevos, no a la
+// historia entera.
+//
+// CORRECTITUD: para cada visitante faltante se busca su primer touch sobre su
+// historia COMPLETA (no sobre la ventana). Si solo miráramos la ventana, un
+// visitante viejo sin fila —por ejemplo por un hueco del cron— se llevaría un
+// touch tardío como si fuera el primero. El índice @@index([visitorId, timestamp])
+// hace que esa búsqueda por visitante sea barata.
+//
+// RESUMIBLE DENTRO DE UNA ORG: `maxVisitors` acota cuántos faltantes procesa una
+// llamada. Como al insertarlos dejan de faltar, repetir la llamada avanza sola
+// hasta que devuelva 0. Es la pieza que el cursor por-org no daba (una org
+// grande no se podía partir).
+//
+// ON CONFLICT DO NOTHING (no DO UPDATE): sólo insertamos faltantes, así que un
+// conflicto es una carrera entre corridas y la fila que ya está es correcta.
+// ⚠️ Corolario: cambiar la lógica de clasificación (FIRST_SOURCE_MARKETING_CASE)
+// NO se propaga a las filas existentes. Para eso está `?full=1`, que conserva el
+// comportamiento viejo (historia completa + DO UPDATE). El lote de canales va a
+// necesitar correr `full=1` después de cambiar las reglas.
+async function firstSourceIncrementalForOrg(
+  org: string,
+  windowDays: number,
+  maxVisitors: number
+): Promise<number> {
+  return await prisma.$executeRawUnsafe(
+    `INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
+     SELECT DISTINCT ON (e."visitorId") e."organizationId", e."visitorId", e.marketing_source
+     FROM (
+       SELECT "organizationId","visitorId", timestamp,
+         (${SRC}) AS marketing_source
+       FROM pixel_events
+       WHERE "organizationId"=$1 AND ${WH}
+         AND "visitorId" IN (
+           SELECT v vid FROM (
+             SELECT DISTINCT "visitorId" v
+             FROM pixel_events
+             WHERE "organizationId"=$1 AND ${WH}
+               AND timestamp > NOW() - make_interval(days => $2::int)
+           ) cand
+           WHERE NOT EXISTS (
+             SELECT 1 FROM pixel_visitor_first_source d
+             WHERE d."organizationId"=$1 AND d."visitorId"=cand.v
+           )
+           LIMIT $3::int
+         )
+     ) e
+     WHERE e.marketing_source IS NOT NULL
+     ORDER BY e."visitorId", e.timestamp ASC
+     ON CONFLICT ("organizationId","visitorId") DO NOTHING`,
+    org,
+    windowDays,
+    maxVisitors
+  );
+}
+
 // ── first-source de UNA org (full history, DISTINCT ON first touch) ──────────
+// Sólo para `?full=1`: reconstruye todo y PISA (DO UPDATE). Es lo que hay que
+// correr cuando cambia la lógica de clasificación. Caro: no agendar.
 async function firstSourceForOrg(org: string): Promise<number> {
   return await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
@@ -190,13 +258,33 @@ export async function POST(req: NextRequest) {
       );
       const orgs: string[] = orgsRes.map((o: any) => o.org);
       const start = Math.max(0, parseInt(url.searchParams.get("orgCursor") || "0", 10) || 0);
+      // ── Modo (auditoría 2026-07-21) ───────────────────────────────────────
+      //   default  → INCREMENTAL: sólo visitantes faltantes con actividad en la
+      //              ventana. Barato y agendable.
+      //   ?full=1  → historia completa + DO UPDATE. Caro. Correr a mano cuando
+      //              cambie la lógica de clasificación.
+      const fullRebuild = url.searchParams.get("full") === "1";
+      const windowDays = Math.min(
+        400,
+        Math.max(1, parseInt(url.searchParams.get("days") || "3", 10) || 3)
+      );
+      const maxVisitors = Math.min(
+        500_000,
+        Math.max(1_000, parseInt(url.searchParams.get("maxVisitors") || "50000", 10) || 50_000)
+      );
       const processed: Array<{ org: string; visitors: number; ms: number }> = [];
       let i = start;
+      // `pending` queda en true si alguna org insertó justo el tope de visitantes:
+      // significa que puede quedar cola y hay que volver a llamar.
+      let pending = false;
       for (; i < orgs.length; i++) {
         if (Date.now() - startedAt > TIME_BUDGET_MS) break;
         const t0 = Date.now();
         try {
-          const n = await firstSourceForOrg(orgs[i]);
+          const n = fullRebuild
+            ? await firstSourceForOrg(orgs[i])
+            : await firstSourceIncrementalForOrg(orgs[i], windowDays, maxVisitors);
+          if (!fullRebuild && n >= maxVisitors) pending = true;
           processed.push({ org: orgs[i].slice(0, 8), visitors: n, ms: Date.now() - t0 });
         } catch (e: any) {
           // Devolvemos el cursor del org que falló para que se pueda reanudar
@@ -210,25 +298,40 @@ export async function POST(req: NextRequest) {
               processed,
               failedOrgCursor: i,
               error: e.message,
-              resume: `POST ?phase=first-source&orgCursor=${i}`,
+              resume: `POST ?phase=first-source&orgCursor=${i}${
+                fullRebuild ? "&full=1" : `&days=${windowDays}&maxVisitors=${maxVisitors}`
+              }`,
               ms: Date.now() - startedAt,
             },
             { status: 500 }
           );
         }
       }
-      const done = i >= orgs.length;
+      // `done` sólo si se recorrieron todas las orgs Y ninguna quedó con cola.
+      // Sin la segunda condición, una org con más faltantes que `maxVisitors`
+      // reportaría done:true dejando visitantes afuera — que es exactamente el
+      // modo de fallar silencioso que este fix vino a cerrar.
+      const sweptAllOrgs = i >= orgs.length;
+      const done = sweptAllOrgs && !pending;
+      const mode = fullRebuild ? "full" : "incremental";
+      const qs = fullRebuild
+        ? "&full=1"
+        : `&days=${windowDays}&maxVisitors=${maxVisitors}`;
       return NextResponse.json({
         ok: true,
         phase,
+        mode,
+        windowDays: fullRebuild ? null : windowDays,
         totalOrgs: orgs.length,
         processedThisCall: processed.length,
         processed,
         done,
-        nextOrgCursor: done ? null : i,
+        // Hay cola pero ya se barrieron todas las orgs → volver a llamar desde 0.
+        pending,
+        nextOrgCursor: sweptAllOrgs ? (pending ? 0 : null) : i,
         next: done
           ? "POST ?phase=backfill"
-          : `POST ?phase=first-source&orgCursor=${i}`,
+          : `POST ?phase=first-source&orgCursor=${sweptAllOrgs ? 0 : i}${qs}`,
         ms: Date.now() - startedAt,
       });
     }

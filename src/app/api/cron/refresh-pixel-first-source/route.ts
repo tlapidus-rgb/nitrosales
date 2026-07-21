@@ -19,11 +19,26 @@
 //  • REUTILIZA la lógica validada: self-fetch a
 //    `POST /api/admin/setup-pixel-rollups?phase=first-source` (cero duplicación;
 //    mismo DISTINCT ON ya testeado). Mismo patrón de self-fetch que warm-cache.
-//  • IDEMPOTENTE: el upsert es ON CONFLICT DO UPDATE first_source=EXCLUDED;
-//    first-touch es determinístico (ORDER BY timestamp ASC) → re-correr
-//    re-escribe el mismo valor. Seguro de correr N veces.
-//  • RESUMIBLE: la fase first-source es resumible POR ORG (devuelve nextOrgCursor
-//    mientras done:false). El loop sigue el cursor hasta done:true.
+//  • INCREMENTAL (2026-07-21): calcula sólo los visitantes que FALTAN en la
+//    dimensión y tuvieron actividad en la ventana (`?days`, default 3). El
+//    first-touch es inmutable, así que recalcular a los que ya tienen fila era
+//    trabajo puro. El primer touch de cada faltante se busca sobre su historia
+//    completa (no sobre la ventana), apoyado en @@index([visitorId, timestamp]).
+//  • IDEMPOTENTE: ON CONFLICT DO NOTHING. Sólo se insertan faltantes, así que un
+//    conflicto es una carrera y la fila existente ya es correcta.
+//  • RESUMIBLE EN DOS EJES: por org (nextOrgCursor) y DENTRO de una org
+//    (`maxVisitors` por llamada + `pending:true`). El loop sigue hasta done:true.
+//
+// ⚠️ HISTORIA (por qué esto es así): este cron estuvo DESAGENDADO desde el
+// 2026-06-14 (cab6bda4) hasta el 2026-07-21 porque la versión vieja reconstruía
+// toda la historia desde 2023 en cada corrida y pasaba los 300s. En ese hueco de
+// 5 semanas la dimensión quedó congelada y `metrics/pixel` —que la JOINea en la
+// query #23— perdió del breakdown por canal a TODO visitante nuevo. Si volvés a
+// desagendarlo, ese agujero vuelve y NO avisa.
+//
+// ⚠️ Cambiar la lógica de clasificación (FIRST_SOURCE_MARKETING_CASE) NO se
+// propaga: el incremental no pisa filas. Después de tocarla hay que correr a
+// mano `POST /api/admin/setup-pixel-rollups?phase=first-source&full=1`.
 //
 // Schedule: 1×/día (vercel.json: `0 6 * * *` = 6am UTC = 3am ART).
 // Auth: header `user-agent: vercel-cron` (Vercel) o `?key=<ADMIN_API_KEY>`.
@@ -33,6 +48,7 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
+import { decideNextCall } from "@/lib/pixel/first-source-progress";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -54,9 +70,18 @@ export async function GET(req: NextRequest) {
 
   const startedAt = Date.now();
   const baseUrl = `${url.protocol}//${url.host}`;
+  // Ventana del incremental. Default 3 días: cubre un par de corridas perdidas
+  // sin agrandar el trabajo (lo que manda el costo son los visitantes FALTANTES,
+  // no el largo de la ventana). Overrideable para cerrar huecos grandes a mano:
+  // `?days=45` recupera visitantes de un hueco de mes y medio.
+  const windowDays = Math.min(
+    400,
+    Math.max(1, parseInt(url.searchParams.get("days") || "3", 10) || 3)
+  );
   const setupBase =
     `${baseUrl}/api/admin/setup-pixel-rollups?phase=first-source` +
-    `&key=${encodeURIComponent(ADMIN_API_KEY)}`;
+    `&key=${encodeURIComponent(ADMIN_API_KEY)}` +
+    `&days=${windowDays}`;
 
   const calls: Array<{
     orgCursor: number;
@@ -90,14 +115,15 @@ export async function GET(req: NextRequest) {
       error = (json?.error || "first-source devolvió ok:false")?.toString().slice(0, 200);
       break;
     }
-    if (json?.done === true) {
-      done = true;
+    // La regla de corte vive en src/lib/pixel/first-source-progress.ts (testeada):
+    // con `pending` el cursor NO avanza a propósito, así que el anti-loop no
+    // puede ser "el cursor no se movió" sino el progreso real.
+    const decision = decideNextCall(json, orgCursor);
+    if (decision.action === "stop") {
+      if (decision.reason === "done") done = true;
       break;
     }
-    // No terminó pero no avanza el cursor → cortar para no loopear.
-    const next = json?.nextOrgCursor;
-    if (next === null || next === undefined || next === orgCursor) break;
-    orgCursor = next;
+    orgCursor = decision.nextCursor;
   }
 
   return NextResponse.json(
