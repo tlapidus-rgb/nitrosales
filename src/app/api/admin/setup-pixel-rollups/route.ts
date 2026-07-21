@@ -41,6 +41,10 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import {
+  buildFirstSourceBatchSql,
+  buildHasPendingSql,
+} from "@/lib/pixel/first-source-batch";
+import {
   FIRST_SOURCE_MARKETING_CASE_FILTERED,
   WEBHOOK_SESSION_FILTER,
 } from "@/lib/pixel/first-source-sql";
@@ -108,6 +112,14 @@ const DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS pixel_visitor_first_source (
     "organizationId" text NOT NULL, "visitorId" text NOT NULL, first_source text NOT NULL,
     PRIMARY KEY ("organizationId", "visitorId"))`,
+  // 6b) Visitantes YA EVALUADOS que no tienen canal de marketing (todos sus
+  //     eventos clasifican a NULL: pasarelas de pago, vueltas de checkout).
+  //     Sin esta tabla volvían a ser candidatos en cada pasada y el backfill no
+  //     convergía nunca. No es dato de negocio: es memoria del proceso.
+  `CREATE TABLE IF NOT EXISTS pixel_visitor_no_source (
+    "organizationId" text NOT NULL, "visitorId" text NOT NULL,
+    checked_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY ("organizationId", "visitorId"))`,
   // 7) Visitas-PV por first-source/día (depende de la dimensión #6).
   `CREATE TABLE IF NOT EXISTS pixel_daily_source (
     "organizationId" text NOT NULL, day date NOT NULL, first_source text NOT NULL,
@@ -164,38 +176,43 @@ const DDL: string[] = [
 // NO se propaga a las filas existentes. Para eso está `?full=1`, que conserva el
 // comportamiento viejo (historia completa + DO UPDATE). El lote de canales va a
 // necesitar correr `full=1` después de cambiar las reglas.
+export interface FirstSourceBatchResult {
+  /** Candidatos que miró esta pasada. */
+  candidates: number;
+  /** Los que resolvieron a un canal → fila en pixel_visitor_first_source. */
+  resolved: number;
+  /** Los que NO tienen canal de marketing → marcados para no volver a mirarlos. */
+  marked: number;
+}
+
 async function firstSourceIncrementalForOrg(
   org: string,
   windowDays: number,
   maxVisitors: number
-): Promise<number> {
-  return await prisma.$executeRawUnsafe(
-    `INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
-     SELECT DISTINCT ON (e2."visitorId") e2."organizationId", e2."visitorId", e2.marketing_source
-     FROM (
-       SELECT "organizationId","visitorId", timestamp,
-         (${SRC}) AS marketing_source
-       FROM pixel_events
-       WHERE "organizationId"=$1 AND ${WH}
-         AND "visitorId" IN (
-           SELECT pv.id
-           FROM pixel_visitors pv
-           WHERE pv."organizationId"=$1
-             AND pv."lastSeenAt" > NOW() - make_interval(days => $2::int)
-             AND NOT EXISTS (
-               SELECT 1 FROM pixel_visitor_first_source d
-               WHERE d."organizationId"=$1 AND d."visitorId"=pv.id
-             )
-           LIMIT $3::int
-         )
-     ) e2
-     WHERE e2.marketing_source IS NOT NULL
-     ORDER BY e2."visitorId", e2.timestamp ASC
-     ON CONFLICT ("organizationId","visitorId") DO NOTHING`,
+): Promise<FirstSourceBatchResult> {
+  // ── POR QUÉ ES UN SOLO STATEMENT CON CTEs ────────────────────────────────
+  // El problema que resuelve (medido el 2026-07-21): un visitante cuyos eventos
+  // clasifican TODOS a NULL —solo pasarelas de pago o vueltas de checkout— no
+  // genera fila en la dimensión, así que seguía siendo candidato para siempre.
+  // Cada pasada volvía a escanearle el historial completo sin producir nada. A
+  // medida que se consumían los resolubles, el lote se llenaba de esos y el
+  // rendimiento caía hacia cero: el backfill NO convergía. TeVe Compras rebotaba
+  // entre 309 y 311 pendientes corrida tras corrida.
+  //
+  // Ahora los irresolubles se marcan en `pixel_visitor_no_source` y salen del
+  // conjunto de candidatos. El pendiente baja a cero de verdad.
+  //
+  // Va en UN statement con CTEs que modifican datos para que `cand` se evalúe
+  // UNA sola vez. Con dos statements separados, el segundo `LIMIT` sin ORDER BY
+  // podría elegir un conjunto distinto y marcaríamos como "sin canal" a
+  // visitantes que nunca se miraron.
+  const rows = await prisma.$queryRawUnsafe<Array<FirstSourceBatchResult>>(
+    buildFirstSourceBatchSql(),
     org,
     windowDays,
     maxVisitors
   );
+  return rows[0] ?? { candidates: 0, resolved: 0, marked: 0 };
 }
 
 /**
@@ -218,16 +235,7 @@ async function firstSourceIncrementalForOrg(
  */
 async function hasPendingFirstSource(org: string, windowDays: number): Promise<boolean> {
   const rows = await prisma.$queryRawUnsafe<Array<{ more: boolean }>>(
-    `SELECT EXISTS (
-       SELECT 1
-       FROM pixel_visitors pv
-       WHERE pv."organizationId"=$1
-         AND pv."lastSeenAt" > NOW() - make_interval(days => $2::int)
-         AND NOT EXISTS (
-           SELECT 1 FROM pixel_visitor_first_source d
-           WHERE d."organizationId"=$1 AND d."visitorId"=pv.id
-         )
-     ) AS more`,
+    buildHasPendingSql(),
     org,
     windowDays
   );
@@ -322,7 +330,15 @@ export async function POST(req: NextRequest) {
         500_000,
         Math.max(100, parseInt(url.searchParams.get("maxVisitors") || "10000", 10) || 10_000)
       );
-      const processed: Array<{ org: string; visitors: number; ms: number }> = [];
+      // `visitors` = resueltos con canal · `marked` = sin canal, ya evaluados
+      // (no vuelven a ser candidatos) · `candidates` = los que miró la pasada.
+      const processed: Array<{
+        org: string;
+        visitors: number;
+        candidates: number;
+        marked: number;
+        ms: number;
+      }> = [];
       let i = start;
       // `pending` queda en true si alguna org insertó justo el tope de visitantes:
       // significa que puede quedar cola y hay que volver a llamar.
@@ -331,16 +347,29 @@ export async function POST(req: NextRequest) {
         if (Date.now() - startedAt > TIME_BUDGET_MS) break;
         const t0 = Date.now();
         try {
-          const n = fullRebuild
-            ? await firstSourceForOrg(orgs[i])
-            : await firstSourceIncrementalForOrg(orgs[i], windowDays, maxVisitors);
+          let batch: FirstSourceBatchResult;
+          if (fullRebuild) {
+            batch = {
+              candidates: 0,
+              resolved: await firstSourceForOrg(orgs[i]),
+              marked: 0,
+            };
+          } else {
+            batch = await firstSourceIncrementalForOrg(orgs[i], windowDays, maxVisitors);
+          }
           // La señal de "queda cola" se pregunta a la base, NO se infiere de las
           // filas insertadas: `maxVisitors` limita candidatos y los candidatos
           // sin marketing_source no generan fila. Ver hasPendingFirstSource.
           if (!fullRebuild && (await hasPendingFirstSource(orgs[i], windowDays))) {
             pending = true;
           }
-          processed.push({ org: orgs[i].slice(0, 8), visitors: n, ms: Date.now() - t0 });
+          processed.push({
+            org: orgs[i].slice(0, 8),
+            visitors: batch.resolved,
+            candidates: batch.candidates,
+            marked: batch.marked,
+            ms: Date.now() - t0,
+          });
         } catch (e: any) {
           // Devolvemos el cursor del org que falló para que se pueda reanudar
           // exactamente ahí (idempotente: el upsert re-escribe lo ya hecho).
