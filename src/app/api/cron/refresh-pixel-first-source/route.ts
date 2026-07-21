@@ -78,10 +78,17 @@ export async function GET(req: NextRequest) {
     400,
     Math.max(1, parseInt(url.searchParams.get("days") || "3", 10) || 3)
   );
+  // Tamaño del batch por llamada. Se expone para poder achicarlo a mano cuando
+  // una org tiene visitantes con historial largo y la llamada se pasa de tiempo
+  // (pasó el 2026-07-21 con days=45 y batch de 50k).
+  const maxVisitors = Math.min(
+    500_000,
+    Math.max(100, parseInt(url.searchParams.get("maxVisitors") || "10000", 10) || 10_000)
+  );
   const setupBase =
     `${baseUrl}/api/admin/setup-pixel-rollups?phase=first-source` +
     `&key=${encodeURIComponent(ADMIN_API_KEY)}` +
-    `&days=${windowDays}`;
+    `&days=${windowDays}&maxVisitors=${maxVisitors}`;
 
   const calls: Array<{
     orgCursor: number;
@@ -99,7 +106,22 @@ export async function GET(req: NextRequest) {
     let json: any;
     try {
       const r = await fetch(target, { method: "POST", cache: "no-store" });
-      json = await r.json();
+      // Cuando la fase se pasa del maxDuration, Vercel responde su página de
+      // error HTML y `r.json()` explota con "Unexpected token 'A'". Ese mensaje
+      // no dice nada útil a quien está corriendo esto a mano, así que se lee el
+      // body como texto primero y se traduce el caso.
+      const raw = await r.text();
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        const looksLikeTimeout =
+          r.status === 504 || /an error occurred|timeout|FUNCTION_INVOCATION/i.test(raw);
+        error = looksLikeTimeout
+          ? `la fase first-source se pasó del tiempo (HTTP ${r.status}). Bajá el lote o la ventana: ` +
+            `?days=<menos días>&maxVisitors=<menos visitantes>. Actual: days=${windowDays}, maxVisitors=${maxVisitors}.`
+          : `respuesta no-JSON de la fase (HTTP ${r.status}): ${raw.slice(0, 120)}`;
+        break;
+      }
     } catch (e: any) {
       error = `fetch failed: ${e?.message?.slice(0, 200)}`;
       break;

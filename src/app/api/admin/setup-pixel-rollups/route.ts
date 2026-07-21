@@ -142,6 +142,17 @@ const DDL: string[] = [
 // touch tardío como si fuera el primero. El índice @@index([visitorId, timestamp])
 // hace que esa búsqueda por visitante sea barata.
 //
+// ⚠️ LOS CANDIDATOS SALEN DE `pixel_visitors`, NO DE `pixel_events` (fix
+// 2026-07-21, segunda iteración). La primera versión elegía los faltantes con un
+// `SELECT DISTINCT "visitorId" FROM pixel_events WHERE timestamp > now()-Nd`:
+// con una ventana de 45 días eso es un scan con DISTINCT sobre una tabla de ~19M
+// filas y timeouteaba a los 300s — el MISMO modo de fallar que desagendó el cron
+// en junio, apenas más chico. `pixel_visitors` tiene UNA fila por visitante y el
+// índice (organizationId, lastSeenAt), así que la selección es un index scan y
+// el trabajo pesado queda acotado a los N visitantes del batch.
+// Nota de tipos: `pixel_events."visitorId"` referencia `pixel_visitors.id` (el
+// cuid), no el UUID de la cookie.
+//
 // RESUMIBLE DENTRO DE UNA ORG: `maxVisitors` acota cuántos faltantes procesa una
 // llamada. Como al insertarlos dejan de faltar, repetir la llamada avanza sola
 // hasta que devuelva 0. Es la pieza que el cursor por-org no daba (una org
@@ -160,28 +171,26 @@ async function firstSourceIncrementalForOrg(
 ): Promise<number> {
   return await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
-     SELECT DISTINCT ON (e."visitorId") e."organizationId", e."visitorId", e.marketing_source
+     SELECT DISTINCT ON (e2."visitorId") e2."organizationId", e2."visitorId", e2.marketing_source
      FROM (
        SELECT "organizationId","visitorId", timestamp,
          (${SRC}) AS marketing_source
        FROM pixel_events
        WHERE "organizationId"=$1 AND ${WH}
          AND "visitorId" IN (
-           SELECT v vid FROM (
-             SELECT DISTINCT "visitorId" v
-             FROM pixel_events
-             WHERE "organizationId"=$1 AND ${WH}
-               AND timestamp > NOW() - make_interval(days => $2::int)
-           ) cand
-           WHERE NOT EXISTS (
-             SELECT 1 FROM pixel_visitor_first_source d
-             WHERE d."organizationId"=$1 AND d."visitorId"=cand.v
-           )
+           SELECT pv.id
+           FROM pixel_visitors pv
+           WHERE pv."organizationId"=$1
+             AND pv."lastSeenAt" > NOW() - make_interval(days => $2::int)
+             AND NOT EXISTS (
+               SELECT 1 FROM pixel_visitor_first_source d
+               WHERE d."organizationId"=$1 AND d."visitorId"=pv.id
+             )
            LIMIT $3::int
          )
-     ) e
-     WHERE e.marketing_source IS NOT NULL
-     ORDER BY e."visitorId", e.timestamp ASC
+     ) e2
+     WHERE e2.marketing_source IS NOT NULL
+     ORDER BY e2."visitorId", e2.timestamp ASC
      ON CONFLICT ("organizationId","visitorId") DO NOTHING`,
     org,
     windowDays,
@@ -268,9 +277,14 @@ export async function POST(req: NextRequest) {
         400,
         Math.max(1, parseInt(url.searchParams.get("days") || "3", 10) || 3)
       );
+      // Default 10k (bajado de 50k tras el timeout del 2026-07-21 con days=45).
+      // Es el tamaño del batch: cuántos visitantes faltantes resuelve UNA
+      // llamada. Como al insertarlos dejan de faltar, un valor chico no pierde
+      // trabajo, sólo requiere más pasadas. Mínimo 100 para poder achicar
+      // cuando una org tiene visitantes con historial muy largo.
       const maxVisitors = Math.min(
         500_000,
-        Math.max(1_000, parseInt(url.searchParams.get("maxVisitors") || "50000", 10) || 50_000)
+        Math.max(100, parseInt(url.searchParams.get("maxVisitors") || "10000", 10) || 10_000)
       );
       const processed: Array<{ org: string; visitors: number; ms: number }> = [];
       let i = start;
