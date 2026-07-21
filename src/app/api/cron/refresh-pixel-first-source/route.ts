@@ -49,6 +49,7 @@
 
 import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
 import { decideNextCall } from "@/lib/pixel/first-source-progress";
+import { prisma } from "@/lib/db/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -148,10 +149,42 @@ export async function GET(req: NextRequest) {
     orgCursor = decision.nextCursor;
   }
 
+  // Resumen final: cuántos visitantes quedan sin resolver, por org. Es la única
+  // medida que no depende de que la lógica del loop esté bien — justamente lo
+  // que falló dos veces. Si esto no baja entre corridas, algo anda mal aunque
+  // `done` diga true.
+  let pendingByOrg: Array<{ org: string; pending: number }> = [];
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ org: string; pending: number }>>(
+      `SELECT pv."organizationId" AS org, COUNT(*)::int AS pending
+       FROM pixel_visitors pv
+       WHERE pv."lastSeenAt" > NOW() - make_interval(days => $1::int)
+         AND NOT EXISTS (
+           SELECT 1 FROM pixel_visitor_first_source d
+           WHERE d."organizationId"=pv."organizationId" AND d."visitorId"=pv.id
+         )
+       GROUP BY 1
+       ORDER BY 2 DESC`,
+      windowDays
+    );
+    pendingByOrg = rows;
+  } catch {
+    /* diagnóstico, no crítico: si falla no invalida el trabajo hecho */
+  }
+
   return NextResponse.json(
     {
       ok: done && !error,
       done,
+      // Commit que está sirviendo esta respuesta. Se agrega porque el backfill
+      // del 2026-07-21 se corrió TRES veces contra código viejo sin que hubiera
+      // forma de notarlo: la respuesta era plausible y el deploy todavía no
+      // había salido. Con esto se compara de un vistazo contra el SHA esperado.
+      // Vercel lo inyecta en build; en local queda "local".
+      build: (process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 8),
+      // Cuántos visitantes quedan sin resolver, por org. Es la métrica que
+      // realmente dice si hay que volver a correr — `done` sola no alcanzó.
+      pendingByOrg,
       callsCount: calls.length,
       calls,
       error,
