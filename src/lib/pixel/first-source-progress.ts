@@ -24,7 +24,15 @@ export interface FirstSourcePhaseResponse {
   done?: boolean;
   /** true si alguna org llegó al tope de visitantes y quedó cola. */
   pending?: boolean;
+  /** Orgs recorridas en la pasada. NO es señal de progreso: son siempre las mismas. */
   processedThisCall?: number;
+  /**
+   * Trabajo REAL de la pasada: visitantes resueltos + marcados sin canal.
+   * Esta sí es la señal de progreso. En un sitio con tráfico en vivo el
+   * pendiente nunca llega a cero —siempre entran visitantes nuevos—, así que
+   * "terminado" no puede definirse como `pending === 0`.
+   */
+  workDone?: number;
   nextOrgCursor?: number | null;
   error?: string;
 }
@@ -45,8 +53,16 @@ export function decideNextCall(
   if (res.done === true) return { action: "stop", reason: "done" };
 
   if (res.pending === true) {
-    // Quedó cola. Sólo tiene sentido volver si esta llamada insertó algo.
-    if ((res.processedThisCall ?? 0) === 0) {
+    // Quedó cola. Sólo tiene sentido volver si esta pasada hizo trabajo REAL.
+    //
+    // Antes esto miraba `processedThisCall`, que cuenta ORGS recorridas — un
+    // valor constante (siempre las 3), así que la guarda no cortaba nunca. El
+    // cron se comía los 8 minutos de presupuesto persiguiendo los visitantes que
+    // iban entrando en vivo: con 9 pendientes hizo 14 pasadas (2026-07-21).
+    //
+    // `workDone` (resueltos + marcados) es la señal correcta: cuando una pasada
+    // no mueve nada, la siguiente tampoco va a moverlo.
+    if ((res.workDone ?? 0) === 0) {
       return { action: "stop", reason: "no-progress" };
     }
     return {

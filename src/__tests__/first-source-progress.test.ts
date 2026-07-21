@@ -56,16 +56,16 @@ describe("decideNextCall", () => {
   // ── El caso que motivó extraer esto ──────────────────────────────────────
   it("con pending SIGUE aunque el cursor no avance — sin esto quedaba cola sin procesar", () => {
     const d = decideNextCall(
-      { ok: true, done: false, pending: true, processedThisCall: 50_000, nextOrgCursor: 0 },
+      { ok: true, done: false, pending: true, workDone: 50_000, processedThisCall: 3, nextOrgCursor: 0 },
       0
     );
     expect(d).toEqual({ action: "continue", nextCursor: 0 });
   });
 
-  it("con pending pero SIN progreso corta — si no insertó a nadie, no va a insertar", () => {
+  it("con pending pero SIN trabajo real corta — processedThisCall (orgs) no sirve de señal", () => {
     expect(
       decideNextCall(
-        { ok: true, done: false, pending: true, processedThisCall: 0, nextOrgCursor: 0 },
+        { ok: true, done: false, pending: true, workDone: 0, processedThisCall: 3, nextOrgCursor: 0 },
         0
       )
     ).toEqual({ action: "stop", reason: "no-progress" });
@@ -73,14 +73,14 @@ describe("decideNextCall", () => {
 
   it("con pending y nextOrgCursor ausente vuelve a 0 (rebarrido completo)", () => {
     expect(
-      decideNextCall({ ok: true, done: false, pending: true, processedThisCall: 10 }, 7)
+      decideNextCall({ ok: true, done: false, pending: true, workDone: 10, processedThisCall: 3 }, 7)
     ).toEqual({ action: "continue", nextCursor: 0 });
   });
 
   it("done gana sobre pending (no debería pasar, pero no queremos loop infinito)", () => {
     expect(
       decideNextCall(
-        { ok: true, done: true, pending: true, processedThisCall: 10 },
+        { ok: true, done: true, pending: true, workDone: 10, processedThisCall: 3 },
         0
       ).action
     ).toBe("stop");
@@ -89,7 +89,7 @@ describe("decideNextCall", () => {
   it("una secuencia realista termina: 2 orgs, la segunda con cola, y cierra", () => {
     const responses = [
       { ok: true, done: false, nextOrgCursor: 1 },
-      { ok: true, done: false, pending: true, processedThisCall: 50_000, nextOrgCursor: 0 },
+      { ok: true, done: false, pending: true, workDone: 50_000, processedThisCall: 3, nextOrgCursor: 0 },
       { ok: true, done: true },
     ];
     let cursor = 0;

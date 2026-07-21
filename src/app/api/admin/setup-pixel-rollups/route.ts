@@ -408,6 +408,12 @@ export async function POST(req: NextRequest) {
         windowDays: fullRebuild ? null : windowDays,
         totalOrgs: orgs.length,
         processedThisCall: processed.length,
+        // Trabajo REAL de la pasada (visitantes resueltos + marcados). El loop
+        // del cron corta con esto: `processedThisCall` cuenta ORGS (siempre las
+        // mismas 3), así que nunca servía como señal de progreso y el cron se
+        // comía el presupuesto entero persiguiendo un puñado de visitantes que
+        // iban llegando en vivo (2026-07-21: 14 pasadas, 8 min, por 9 visitantes).
+        workDone: processed.reduce((n, p) => n + p.visitors + p.marked, 0),
         processed,
         done,
         // Hay cola pero ya se barrieron todas las orgs → volver a llamar desde 0.
