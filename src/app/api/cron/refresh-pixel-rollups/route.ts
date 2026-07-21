@@ -80,8 +80,19 @@ export const maxDuration = 800;
 // interno de 250s → 6×250s podía superar largo el maxDuration → 504. Ahora cada
 // llamada recibe el tiempo RESTANTE como budget, garantizando que la función retorne
 // antes del wall.
-const INVOCATION_BUDGET_MS = 720_000; // 12 min de 13.3 disponibles (margen de cierre)
-const MIN_SLICE_MS = 60_000; // no arrancar otra llamada si queda menos que esto
+// 660s de 800 disponibles. Bajado de 720s el 2026-07-21: el chequeo de coherencia
+// que se agregó al final (escanea pixel_events de un día) se comía el margen y la
+// función daba 504 SIN DEVOLVER NADA — o sea sin cursor para reanudar, que es el
+// peor resultado posible en un proceso resumible.
+const INVOCATION_BUDGET_MS = 660_000;
+// No arrancar otra tanda si no queda al menos esto. Subido de 60s: los días
+// recientes tardan ~80-100s cada uno (más tráfico), así que arrancar una tanda
+// con 60s de margen garantizaba pasarse.
+const MIN_SLICE_MS = 120_000;
+// Presupuesto reservado para el auto-chequeo de coherencia del final. Si no
+// queda, se saltea: es diagnóstico, y perder el diagnóstico es infinitamente
+// mejor que perder el cursor de reanudación.
+const COHERENCE_RESERVE_MS = 90_000;
 
 // Reconstruye HOY + los (DAYS_BACK-1) días previos (AR-date). 3 = cubre huecos
 // de hasta 3 días con un solo run (tolerante a fallos del cron).
@@ -235,7 +246,14 @@ export async function GET(req: NextRequest) {
   // Se mide UN día (el último reconstruido): si el pipeline está roto se ve en
   // cualquiera, y así la query queda acotada.
   let coherence: CoherenceRow[] = [];
+  let coherenceSkipped = false;
   try {
+    // Sólo si sobra tiempo. El 2026-07-21 este chequeo hizo dar 504 a la función
+    // al correr después de un loop que ya había agotado su presupuesto.
+    if (Date.now() - startedAt > INVOCATION_BUDGET_MS - COHERENCE_RESERVE_MS) {
+      coherenceSkipped = true;
+      throw new Error("sin presupuesto para el chequeo de coherencia");
+    }
     const checkDay = lastDayReconstructed(calls, cursor, to);
     const [rollupSide, rawSide] = await Promise.all([
       prisma.$queryRawUnsafe<Array<{ org: string; visitors: number }>>(
@@ -285,6 +303,9 @@ export async function GET(req: NextRequest) {
       // en true = el rollup se escribió mal (no que esté viejo — para eso están
       // las alertas de frescura). Ver src/lib/pipeline/coherence.ts.
       coherence,
+      // true = no había presupuesto y se salteó. NO significa que esté todo bien:
+      // significa que no se miró.
+      coherenceSkipped,
       lastRollupDay,
       gapDays:
         lastRollupDay && lastRollupDay < defaultFrom
