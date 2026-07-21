@@ -127,6 +127,24 @@ export async function GET(req: NextRequest) {
     from = fromParam < hardFloor ? hardFloor : fromParam;
   }
 
+  // ── Reanudación entre invocaciones (fix 2026-07-21) ────────────────────────
+  // El backfill es resumible por día y avanza el cursor DENTRO de una invocación,
+  // pero `cursor` arrancaba SIEMPRE en `from`. Si el rango no entraba en el
+  // presupuesto (720s), volver a abrir el mismo link rehacía los mismos primeros
+  // días y NUNCA llegaba a los recientes — por muchas veces que se corriera.
+  // Se descubrió reconstruyendo 40 días para TeVe Compras: el rollup mejoraba un
+  // poco y se clavaba.
+  //
+  // Ahora `?cursor=YYYY-MM-DD` continúa donde quedó. La respuesta devuelve el
+  // `resume` listo para pegar, así no hay que deducirlo del array `calls`.
+  // Es la misma clase de bug que el `pending` del cron de first-source: una
+  // operación resumible cuyo mecanismo de reanudación no se estaba usando.
+  const cursorParam = url.searchParams.get("cursor");
+  const manualCursor =
+    !isVercelCron && cursorParam && /^\d{4}-\d{2}-\d{2}$/.test(cursorParam)
+      ? cursorParam
+      : null;
+
   // Llamada DIRECTA al runner del backfill (import + función), SIN self-fetch
   // HTTP. Antes esto era `fetch(${url.host}/api/admin/setup-pixel-rollups)` que,
   // cuando Vercel cron lo disparaba, apuntaba a la URL del deployment (protegida
@@ -139,7 +157,8 @@ export async function GET(req: NextRequest) {
     daysProcessed: number;
     ms: number;
   }> = [];
-  let cursor = from;
+  // Arranca en el cursor explícito si vino (y cae dentro del rango); si no, en `from`.
+  let cursor = manualCursor && manualCursor >= from && manualCursor <= to ? manualCursor : from;
   let done = false;
   let error: string | null = null;
 
@@ -192,6 +211,14 @@ export async function GET(req: NextRequest) {
       ok: done && !error,
       progress: !done && !error && daysProcessed > 0, // avanzó pero falta (esperado)
       window: { from, to },
+      startedAtCursor: manualCursor || from,
+      // Dónde quedó. Si no está `done`, hay que volver a llamar CON esto: sin el
+      // cursor la próxima invocación reempieza en `from` y rehace lo mismo.
+      nextCursor: done || error ? null : cursor,
+      resume:
+        done || error
+          ? null
+          : `GET /api/cron/refresh-pixel-rollups?key=<ADMIN_API_KEY>&from=${from}&cursor=${cursor}`,
       daysBack: DAYS_BACK,
       daysProcessed,
       lastRollupDay,
