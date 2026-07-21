@@ -42,6 +42,23 @@ describe("PIPELINE_FRESHNESS_TARGETS", () => {
     );
   });
 
+  it("vigila TODOS los rollups del pixel, no sólo aggregates", () => {
+    // El cron corre 7 statements y cada uno puede fallar por separado. Con un
+    // solo centinela, un fallo aislado de `source` —el que alimenta el breakdown
+    // por canal— quedaba invisible mientras aggregates se refrescaba puntual.
+    const tables = PIPELINE_FRESHNESS_TARGETS.map((t) => t.table);
+    for (const t of [
+      "pixel_daily_source",
+      "pixel_daily_funnel_by_source",
+      "pixel_daily_device",
+      "pixel_daily_product",
+      "pixel_daily_type",
+      "pixel_daily_page",
+    ]) {
+      expect(tables).toContain(t);
+    }
+  });
+
   it("cada target nombra el cron que lo refresca — sin eso la alerta no es accionable", () => {
     for (const t of PIPELINE_FRESHNESS_TARGETS) {
       expect(t.refreshedBy.length).toBeGreaterThan(0);

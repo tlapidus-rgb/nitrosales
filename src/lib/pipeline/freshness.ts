@@ -54,7 +54,19 @@ export const PIPELINE_FRESHNESS_TARGETS: readonly FreshnessTarget[] = [
   // Gold de atribución — refresh-gold-attribution
   { table: "gold_attribution_source", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution" },
   // Rollups del pixel — refresh-pixel-rollups, cada 2h (el que ya se vigilaba)
+  // Rollups del pixel — refresh-pixel-rollups, cada 2h.
+  // Se vigilan TODOS y no sólo `aggregates` (ampliado 2026-07-21): el cron corre
+  // 7 statements y cada uno puede fallar por separado sin tumbar los demás. Con
+  // un solo centinela, un fallo aislado —justo el de `source`, que alimenta el
+  // breakdown por canal— quedaba invisible mientras `aggregates` se refrescaba
+  // puntual. Es la variante barata del mismo agujero que costó la jornada.
   { table: "pixel_daily_aggregates", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_source", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_funnel_by_source", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_device", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_product", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_type", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_page", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
 ];
 
 export interface FreshnessRow {
