@@ -15,13 +15,22 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { buildGoldDailyRevenueUpsert } from "@/data/gold/gold-daily-revenue-transform";
+import {
+  buildGoldDailyRevenueUpsert,
+  buildGoldDailyRevenueDeleteOrphans,
+} from "@/data/gold/gold-daily-revenue-transform";
 import {
   buildGoldSegmentsUpsert,
   buildGoldSegmentsDeleteOrphans,
 } from "@/data/gold/gold-order-segments-transform";
-import { buildGoldProductSalesUpsert } from "@/data/gold/gold-product-sales-transform";
-import { buildGoldCustomerDailyUpsert } from "@/data/gold/gold-customer-daily-transform";
+import {
+  buildGoldProductSalesUpsert,
+  buildGoldProductSalesDeleteOrphans,
+} from "@/data/gold/gold-product-sales-transform";
+import {
+  buildGoldCustomerDailyUpsert,
+  buildGoldCustomerDailyDeleteOrphans,
+} from "@/data/gold/gold-customer-daily-transform";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -47,15 +56,43 @@ export async function GET(req: NextRequest) {
     : new Date(Date.now() - DAYS_BACK * 86_400_000).toISOString();
 
   try {
-    await prisma.$executeRawUnsafe(buildGoldDailyRevenueUpsert(), since);
+    // ⚠️ runStartedAt sale del reloj de la BASE, no de `new Date()`.
+    // `gold_updated_at` lo escribe Postgres con now(); si los relojes de Vercel y
+    // Neon divergen en la dirección equivocada, un runStartedAt "del futuro"
+    // haría que el DELETE de huérfanas borre las filas que el upsert acaba de
+    // escribir. Una query barata elimina la clase entera de problema.
+    const nowRow = await prisma.$queryRawUnsafe<Array<{ now: Date }>>(
+      `SELECT now() AS now`
+    );
+    const runStartedAt = new Date(nowRow[0].now).toISOString();
+
+    // Los 4 rollups siguen el MISMO patrón (auditoría 2026-07-21): upsert +
+    // borrado de huérfanas en UNA transacción. Antes sólo `segments` lo hacía,
+    // aunque la lección de 2026-07-17 decía explícitamente que aplicaba a
+    // cualquier rollup bucket-izado con upsert incremental.
+    // Ahora es obligatorio además por otro motivo: al recomputar días VIEJOS
+    // (cancelaciones retroactivas), si la orden cancelada era la única de su
+    // bucket el upsert no emite la fila y la vieja sobrevive con el valor viejo
+    // → sin el DELETE, el fix de la ventana no arregla nada.
+    let dailyOk = true;
+    let dailyError: string | null = null;
+    try {
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(buildGoldDailyRevenueUpsert(), since),
+        prisma.$executeRawUnsafe(
+          buildGoldDailyRevenueDeleteOrphans(),
+          since,
+          runStartedAt
+        ),
+      ]);
+    } catch (de: any) {
+      dailyOk = false;
+      dailyError = String(de?.message).slice(0, 200);
+    }
     // Segmentos — independiente: si la tabla todavía no existe, no rompe el daily.
-    // Upsert + borrado de HUÉRFANAS en una transacción: si un bucket queda vacío
-    // (la orden cambió de bucket), su fila vieja sobreviviría al upsert y la
-    // dimensión sumaría de más. Ver buildGoldSegmentsDeleteOrphans.
     let segmentsOk = true;
     let segmentsError: string | null = null;
     try {
-      const runStartedAt = new Date().toISOString();
       await prisma.$transaction([
         prisma.$executeRawUnsafe(buildGoldSegmentsUpsert(), since),
         prisma.$executeRawUnsafe(buildGoldSegmentsDeleteOrphans(), since, runStartedAt),
@@ -68,7 +105,14 @@ export async function GET(req: NextRequest) {
     let productSalesOk = true;
     let productSalesError: string | null = null;
     try {
-      await prisma.$executeRawUnsafe(buildGoldProductSalesUpsert(), since);
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(buildGoldProductSalesUpsert(), since),
+        prisma.$executeRawUnsafe(
+          buildGoldProductSalesDeleteOrphans(),
+          since,
+          runStartedAt
+        ),
+      ]);
     } catch (pe: any) {
       productSalesOk = false;
       productSalesError = String(pe?.message).slice(0, 200);
@@ -77,23 +121,43 @@ export async function GET(req: NextRequest) {
     let customerOk = true;
     let customerError: string | null = null;
     try {
-      await prisma.$executeRawUnsafe(buildGoldCustomerDailyUpsert(), since);
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(buildGoldCustomerDailyUpsert(), since),
+        prisma.$executeRawUnsafe(
+          buildGoldCustomerDailyDeleteOrphans(),
+          since,
+          runStartedAt
+        ),
+      ]);
     } catch (ce: any) {
       customerOk = false;
       customerError = String(ce?.message).slice(0, 200);
     }
-    return NextResponse.json({
-      ok: true,
-      mode: full ? "backfill" : "incremental",
-      since,
-      segmentsOk,
-      ...(segmentsError ? { segmentsError } : {}),
-      productSalesOk,
-      ...(productSalesError ? { productSalesError } : {}),
-      customerOk,
-      ...(customerError ? { customerError } : {}),
-      durationMs: Date.now() - startedAt,
-    });
+    // `ok` refleja los 4 rollups (auditoría 2026-07-21, A3). Antes era `true`
+    // fijo: los try/catch degradaban a silencio y nadie lee este JSON — es un
+    // cron de Vercel. gold_product_sales podía fallar 30 días seguidos, dejar
+    // `topProducts` con datos de hace un mes, y reportar ok:true igual.
+    const allOk = dailyOk && segmentsOk && productSalesOk && customerOk;
+    return NextResponse.json(
+      {
+        ok: allOk,
+        mode: full ? "backfill" : "incremental",
+        since,
+        runStartedAt,
+        dailyOk,
+        ...(dailyError ? { dailyError } : {}),
+        segmentsOk,
+        ...(segmentsError ? { segmentsError } : {}),
+        productSalesOk,
+        ...(productSalesError ? { productSalesError } : {}),
+        customerOk,
+        ...(customerError ? { customerError } : {}),
+        durationMs: Date.now() - startedAt,
+      },
+      // 500 para que Vercel lo marque como fallido y aparezca en los logs de
+      // cron. Sin esto el fallo parcial es invisible.
+      { status: allOk ? 200 : 500 }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: String(e?.message).slice(0, 300), durationMs: Date.now() - startedAt },

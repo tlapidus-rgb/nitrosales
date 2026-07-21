@@ -17,8 +17,12 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { orderStatusNotConcretedList } from "@/domains/orders";
+import {
+  AR_TZ,
+  affectedDaysPredicate,
+  buildDeleteOrphans,
+} from "./affected-days";
 
-const AR_TZ = "America/Argentina/Buenos_Aires";
 
 function buildRollup(whereRows: string): string {
   const notConcreted = orderStatusNotConcretedList();
@@ -64,7 +68,18 @@ ON CONFLICT (organization_id, day, customer_id) DO UPDATE SET
 
 /** Incremental: recomputa los días con order_date >= $1 (ISO timestamptz). */
 export function buildGoldCustomerDailyUpsert(): string {
-  return buildRollup(`\n    AND s.order_date >= $1::timestamptz`);
+  return buildRollup(affectedDaysPredicate("s"));
+}
+
+/**
+ * Borra buckets (org, day, customer_id) que dejaron de existir en un día
+ * recomputado. Caso concreto: el webhook asigna `customerId` DESPUÉS del upsert
+ * de la orden, así que la transición NULL → id mueve la fila de bucket y deja
+ * la vieja colgada.
+ * Correr DESPUÉS del upsert, en la MISMA transacción. $1 = since, $2 = runStartedAt.
+ */
+export function buildGoldCustomerDailyDeleteOrphans(): string {
+  return buildDeleteOrphans("gold_customer_daily");
 }
 
 /** Backfill inicial: toda la historia. Correr una vez en Neon. */

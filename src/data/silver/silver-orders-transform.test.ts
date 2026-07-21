@@ -26,13 +26,26 @@ describe("buildSilverOrdersUpsert — anti-drift con el contrato", () => {
     expect(sql).toContain(`(NOT (${ordersWebSql("o")})) AS is_marketplace`);
   });
 
-  it("es incremental (filtra por org + orderDate) e idempotente (ON CONFLICT)", () => {
+  it("es incremental (filtra por org + updatedAt) e idempotente (ON CONFLICT)", () => {
     expect(sql).toContain(`WHERE o."organizationId" = $1`);
-    expect(sql).toContain(`o."orderDate" >= $2::timestamptz`);
+    expect(sql).toContain(`o."updatedAt" >= $2::timestamptz`);
     expect(sql).toContain("ON CONFLICT (id) DO UPDATE");
   });
 
-  it("usa la fecha canónica orderDate, nunca createdAt", () => {
+  // ── REGRESIÓN (bug B1, auditoría 2026-07-21) ───────────────────────────────
+  // La ventana filtraba por `orderDate`, pero el evento que hay que ver es el
+  // CAMBIO DE ESTADO, y ese no mueve `orderDate` (el webhook lo escribe sólo en
+  // el bloque `create`). Con la ventana vieja, una orden cancelada 10 días
+  // después nunca volvía a entrar a Silver y el revenue de Gold sólo podía
+  // corregirse hacia arriba. Si alguien vuelve a poner `orderDate` acá, el
+  // agujero vuelve y no avisa.
+  it("la VENTANA no puede volver a ser orderDate — ve cambios retroactivos de estado", () => {
+    expect(sql).not.toContain(`o."orderDate" >= $2`);
+  });
+
+  it("sigue proyectando la fecha canónica orderDate, nunca createdAt", () => {
+    // `orderDate` sigue siendo la fecha del hecho (la columna que se proyecta y
+    // por la que agrupan los rollups); lo que cambió es por dónde se RECORTA.
     expect(sql).toContain(`o."orderDate"`);
     expect(sql).not.toContain(`o."createdAt"`);
   });

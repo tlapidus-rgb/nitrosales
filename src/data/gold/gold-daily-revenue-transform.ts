@@ -11,20 +11,24 @@
 //
 // Bucketea por día AR (America/Argentina/Buenos_Aires), igual que metrics/orders.
 //
-// Dos modos (DRY):
-//   - buildGoldDailyRevenueUpsert(): incremental, recomputa días recientes ($1 = since).
+// Tres modos (DRY):
+//   - buildGoldDailyRevenueUpsert(): incremental por DÍAS AFECTADOS ($1 = since).
+//   - buildGoldDailyRevenueDeleteOrphans(): limpia buckets que dejaron de existir.
 //   - buildGoldDailyRevenueBackfill(): toda la historia (fill inicial).
 // Idempotente: ON CONFLICT (org, day, source) DO UPDATE.
 //
-// LIMITACIÓN conocida (retroactive changes): si una orden VIEJA cambia de status
-// (ej. se cancela un mes después), el incremental —que solo recomputa la ventana
-// reciente— no refresca ese día viejo hasta un backfill. metrics/orders (Bronze en
-// vivo) sí lo refleja. Mitigar con un rebuild periódico. Ver §12 Fase 5.
+// La "LIMITACIÓN conocida (retroactive changes)" que estaba acá documentada —una
+// orden vieja que se cancela no refrescaba su día— quedó RESUELTA el 2026-07-21:
+// el incremental ya no mira "los últimos N días" sino los días que Silver tocó.
+// El porqué completo está en ./affected-days.ts.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { orderStatusNotConcretedList } from "@/domains/orders";
-
-const AR_TZ = "America/Argentina/Buenos_Aires";
+import {
+  AR_TZ,
+  affectedDaysPredicate,
+  buildDeleteOrphans,
+} from "./affected-days";
 
 function buildRollup(whereRows: string): string {
   const notConcreted = orderStatusNotConcretedList();
@@ -151,7 +155,15 @@ ON CONFLICT (organization_id, day, source) DO UPDATE SET
  * (Un solo parámetro $1, usado en bad_packs y valid_rows.)
  */
 export function buildGoldDailyRevenueUpsert(): string {
-  return buildRollup(`\n    AND s.order_date >= $1::timestamptz`);
+  return buildRollup(affectedDaysPredicate("s"));
+}
+
+/**
+ * Borra buckets (org, day, source) que dejaron de existir en un día recomputado.
+ * Correr DESPUÉS del upsert, en la MISMA transacción. $1 = since, $2 = runStartedAt.
+ */
+export function buildGoldDailyRevenueDeleteOrphans(): string {
+  return buildDeleteOrphans("gold_daily_revenue");
 }
 
 /** Backfill inicial: toda la historia. Correr una vez en Neon. */

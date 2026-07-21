@@ -40,7 +40,10 @@ describe("gold_customer_daily — anti-drift + pack-aware", () => {
   });
 
   it("incremental filtra por since; backfill sin parámetros", () => {
-    expect(upsert).toContain("s.order_date >= $1::timestamptz");
+    // 2026-07-21: la ventana pasó de "días recientes" a DÍAS AFECTADOS —
+    // los días que Silver tocó desde $1. Ver src/data/gold/affected-days.ts.
+    expect(upsert).toContain("silver_updated_at >= $1::timestamptz");
+    expect(upsert).not.toContain("s.order_date >= $1::timestamptz");
     expect(backfill).not.toContain("$1");
   });
 });

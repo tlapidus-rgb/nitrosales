@@ -19,8 +19,11 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { orderStatusNotConcretedList } from "@/domains/orders";
-
-const AR_TZ = "America/Argentina/Buenos_Aires";
+import {
+  AR_TZ,
+  affectedDaysPredicate,
+  buildDeleteOrphans,
+} from "./affected-days";
 
 function buildSegments(whereRows: string): string {
   const notConcreted = orderStatusNotConcretedList();
@@ -90,7 +93,7 @@ ON CONFLICT (organization_id, day, source, dimension, bucket) DO UPDATE SET
 
 /** Incremental: recomputa los días con order_date >= $1 (ISO timestamptz). */
 export function buildGoldSegmentsUpsert(): string {
-  return buildSegments(`\n    AND s.order_date >= $1::timestamptz`);
+  return buildSegments(affectedDaysPredicate("s"));
 }
 
 /**
@@ -106,12 +109,14 @@ export function buildGoldSegmentsUpsert(): string {
  * fila del rango que quedó con un gold_updated_at ANTERIOR al inicio de la
  * corrida es huérfana. Ejecutar DESPUÉS del upsert, en la misma transacción.
  * Params: $1 = since (ISO timestamptz, mismo del upsert), $2 = runStartedAt.
+ *
+ * 2026-07-21: el alcance pasó de `day >= since` a los DÍAS AFECTADOS, para
+ * acompañar el cambio del upsert. Con la base vieja, un día viejo recomputado
+ * por una cancelación retroactiva quedaba FUERA del DELETE y su bucket huérfano
+ * sobrevivía — justo el caso que el fix de la ventana vino a arreglar.
  */
 export function buildGoldSegmentsDeleteOrphans(): string {
-  return `
-DELETE FROM gold_order_segments g
-WHERE g.day >= ($1::timestamptz AT TIME ZONE '${AR_TZ}')::date
-  AND g.gold_updated_at < $2::timestamptz;`.trim();
+  return buildDeleteOrphans("gold_order_segments");
 }
 
 /** Backfill inicial: toda la historia. */

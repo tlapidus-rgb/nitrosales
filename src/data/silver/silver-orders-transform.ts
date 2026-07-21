@@ -84,7 +84,20 @@ ${whereClause}ON CONFLICT (id) DO UPDATE SET
  * Ejecutar: prisma.$executeRawUnsafe(buildSilverOrdersUpsert(), orgId, sinceISO).
  */
 export function buildSilverOrdersUpsert(): string {
-  return buildUpsert(`WHERE o."organizationId" = $1\n  AND o."orderDate" >= $2::timestamptz\n`);
+  // ⚠️ La ventana va por `updatedAt`, NO por `orderDate` (bug B1, auditoría
+  // 2026-07-21). El evento que tenemos que ver es el CAMBIO DE ESTADO de una
+  // orden, y ese no mueve `orderDate`: el webhook de VTEX escribe `orderDate`
+  // sólo en el bloque `create`, nunca en `update`. Con la ventana vieja, una
+  // orden cancelada 10 días después actualizaba Bronze y NUNCA volvía a entrar
+  // acá → el revenue de Gold sólo podía corregirse hacia arriba.
+  //
+  // Bonus: `updatedAt` también captura las órdenes históricas que inserta el
+  // backfill-runner (nacen con updatedAt = ahora), que con la ventana por
+  // `orderDate` quedaban fuera para siempre.
+  //
+  // Requiere el índice (organizationId, "updatedAt") en `orders` — sin él esto
+  // es seq-scan. Ver docs del branch.
+  return buildUpsert(`WHERE o."organizationId" = $1\n  AND o."updatedAt" >= $2::timestamptz\n`);
 }
 
 /**

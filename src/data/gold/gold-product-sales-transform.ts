@@ -29,8 +29,12 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { orderStatusNotConcretedList } from "@/domains/orders";
+import {
+  AR_TZ,
+  affectedDaysPredicate,
+  buildDeleteOrphans,
+} from "./affected-days";
 
-const AR_TZ = "America/Argentina/Buenos_Aires";
 
 function buildRollup(whereRows: string): string {
   const notConcreted = orderStatusNotConcretedList();
@@ -84,7 +88,17 @@ ON CONFLICT (organization_id, day, source, product_id) DO UPDATE SET
  * Ejecutar: prisma.$executeRawUnsafe(buildGoldProductSalesUpsert(), sinceISO).
  */
 export function buildGoldProductSalesUpsert(): string {
-  return buildRollup(`\n    AND s.order_date >= $1::timestamptz`);
+  return buildRollup(affectedDaysPredicate("s"));
+}
+
+/**
+ * Borra buckets (org, day, source, product_id) que dejaron de existir en un día
+ * recomputado — el más expuesto de los cuatro: basta que un ítem cambie de
+ * productId en un re-sync para que el bucket viejo quede colgado.
+ * Correr DESPUÉS del upsert, en la MISMA transacción. $1 = since, $2 = runStartedAt.
+ */
+export function buildGoldProductSalesDeleteOrphans(): string {
+  return buildDeleteOrphans("gold_product_sales");
 }
 
 /** Backfill inicial: toda la historia. Correr una vez en Neon. */

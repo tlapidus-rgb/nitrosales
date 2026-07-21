@@ -52,11 +52,19 @@ describe("gold_order_segments — anti-drift + pack-aware", () => {
     const del = buildGoldSegmentsDeleteOrphans();
     expect(del).toContain("DELETE FROM gold_order_segments");
     expect(del).toContain("g.gold_updated_at < $2::timestamptz"); // no tocada por esta corrida
-    expect(del).toContain("g.day >="); // acotado al rango recomputado
+    // 2026-07-21: el alcance pasó de `g.day >= since` a los DÍAS AFECTADOS.
+    // Con la base vieja, un día viejo recomputado por una cancelación
+    // retroactiva quedaba FUERA del DELETE y su huérfana sobrevivía — que es
+    // justo el caso que el fix de la ventana vino a arreglar.
+    expect(del).toContain("silver_updated_at >= $1::timestamptz");
+    expect(del).not.toContain("g.day >=");
   });
 
   it("incremental filtra por since; backfill no", () => {
-    expect(upsert).toContain("s.order_date >= $1::timestamptz");
+    // 2026-07-21: la ventana pasó de "días recientes" a DÍAS AFECTADOS —
+    // los días que Silver tocó desde $1. Ver src/data/gold/affected-days.ts.
+    expect(upsert).toContain("silver_updated_at >= $1::timestamptz");
+    expect(upsert).not.toContain("s.order_date >= $1::timestamptz");
     expect(backfill).not.toContain("$1");
   });
 });
