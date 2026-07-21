@@ -1,11 +1,21 @@
 # SQL pendiente — default de ventana de atribución de Aura 14 → 7
 
 > Acompaña a la branch `feat/aura-ventana-editable-default-7`.
-> **Correr en Neon (prod) DESPUÉS de mergear**, no antes: mientras el código viejo
-> siga en prod, el `?? 14` de los endpoints y el default de la columna quedarían
-> desalineados por un rato. El orden correcto es merge → deploy → SQL.
+> Orden recomendado: **merge → deploy → SQL**. Vercel NO migra la DB: esto va a
+> mano en la consola de Neon, como siempre.
 >
-> Vercel NO migra la DB: esto va a mano en la consola de Neon, como siempre.
+> **Lo importante no es el orden, es que hacen falta LOS DOS.** `createCreatorSimple`
+> no pasa `attributionWindowDays` al crear el creador, así que Prisma omite la
+> columna en el INSERT y **el valor lo pone Postgres con su DEFAULT**. El
+> `@default(7)` del schema es declarativo (este proyecto no corre `prisma migrate`
+> contra prod): quien decide con qué ventana nace un creador nuevo es el `ALTER`
+> de acá abajo. Si mergeás y no corrés esto, los creadores nuevos siguen en 14 y
+> el pedido queda a medias sin que se note.
+>
+> Correrlo antes del merge no rompe nada — el motor lee la ventana de la DB y
+> atribuye bien con 7. Quedan dos detalles cosméticos hasta que deploye: el botón
+> de "resetear al default" del desplegable de afiliados escribe 14 (código viejo)
+> y la etiqueta muestra "Custom · 7d" en vez de "Default · 7d".
 
 ## Contexto
 
