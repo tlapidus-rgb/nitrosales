@@ -43,6 +43,30 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { runRollupBackfill } from "@/lib/pixel/rollup-backfill";
+import {
+  buildRollupSideSql,
+  buildRawSideSql,
+  compareCoherence,
+  formatCoherenceSummary,
+  type CoherenceRow,
+} from "@/lib/pipeline/coherence";
+
+/**
+ * Último día efectivamente reconstruido en esta invocación. El cursor apunta al
+ * SIGUIENTE día pendiente, así que el reconstruido es el anterior; si no avanzó,
+ * se cae a `to`. Se chequea un día que acabamos de escribir, no uno cualquiera.
+ */
+function lastDayReconstructed(
+  calls: Array<{ cursor: string; daysProcessed: number }>,
+  cursor: string,
+  to: string
+): string {
+  if (calls.length === 0 || calls.every((c) => !c.daysProcessed)) return to;
+  const d = new Date(`${cursor}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  const prev = d.toISOString().slice(0, 10);
+  return prev >= calls[0].cursor ? prev : to;
+}
 
 export const dynamic = "force-dynamic";
 // 800s (Vercel Pro/Fluid, igual que el cron hermano refresh-pixel-first-source).
@@ -197,6 +221,42 @@ export async function GET(req: NextRequest) {
 
   // Días procesados en TODA la invocación (suma de las llamadas al backfill).
   const daysProcessed = calls.reduce((n, c) => n + (c.daysProcessed || 0), 0);
+
+  // ── Auto-chequeo: ¿lo que acabo de reconstruir dice lo mismo que el crudo? ──
+  // Se agrega acá y no en warm-cache porque este es el proceso que ESCRIBE el
+  // rollup: verificar lo propio inmediatamente después es más barato y más
+  // directo que descubrirlo dos semanas más tarde por un cliente.
+  //
+  // Nace del bug del 2026-07-21: `pixel_daily_source` tenía 10.315 visitantes
+  // donde el crudo tenía 104.454 (TeVe Compras). Las alertas de frescura NO lo
+  // agarraban porque `refreshed_at` estaba al día — el cron corría puntual y
+  // escribía basura. Tabla fresca, contenido viejo.
+  //
+  // Se mide UN día (el último reconstruido): si el pipeline está roto se ve en
+  // cualquiera, y así la query queda acotada.
+  let coherence: CoherenceRow[] = [];
+  try {
+    const checkDay = lastDayReconstructed(calls, cursor, to);
+    const [rollupSide, rawSide] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<{ org: string; visitors: number }>>(
+        buildRollupSideSql(),
+        checkDay
+      ),
+      prisma.$queryRawUnsafe<Array<{ org: string; visitors: number }>>(
+        buildRawSideSql(),
+        checkDay
+      ),
+    ]);
+    coherence = compareCoherence(checkDay, rollupSide, rawSide);
+    const bad = coherence.filter((c) => c.incoherent);
+    if (bad.length > 0) {
+      console.error(
+        `[refresh-pixel-rollups] ⚠️ ROLLUP INCOHERENTE:\n${formatCoherenceSummary(coherence)}`
+      );
+    }
+  } catch {
+    /* diagnóstico: si falla no invalida el rebuild que sí se hizo */
+  }
   // Estado HTTP:
   //  • error real (SQL/excepción)            → 500 (alarma legítima).
   //  • NO terminó pero hizo progreso (>0 días) → 200: es el multi-run esperado por
@@ -221,6 +281,10 @@ export async function GET(req: NextRequest) {
           : `GET /api/cron/refresh-pixel-rollups?key=<ADMIN_API_KEY>&from=${from}&cursor=${cursor}`,
       daysBack: DAYS_BACK,
       daysProcessed,
+      // Auto-chequeo del día recién reconstruido: rollup vs crudo. `incoherent`
+      // en true = el rollup se escribió mal (no que esté viejo — para eso están
+      // las alertas de frescura). Ver src/lib/pipeline/coherence.ts.
+      coherence,
       lastRollupDay,
       gapDays:
         lastRollupDay && lastRollupDay < defaultFrom
