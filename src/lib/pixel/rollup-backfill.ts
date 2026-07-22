@@ -304,8 +304,10 @@ export async function runRollupBackfill(params: {
 
   // Guard: la dimensión first-source debe existir y estar poblada (el rollup
   // `source` la JOINea). Si está vacía, abortamos con instrucción clara.
+  // EXISTS, no COUNT(*): sólo necesitamos saber si hay AL MENOS una fila y el
+  // COUNT contaba la tabla entera en cada llamada.
   const fsCount: any = await prisma.$queryRawUnsafe(
-    `SELECT COUNT(*)::int c FROM pixel_visitor_first_source`
+    `SELECT EXISTS (SELECT 1 FROM pixel_visitor_first_source) AS c`
   );
   if (!fsCount?.[0]?.c) {
     return {
@@ -319,15 +321,29 @@ export async function runRollupBackfill(params: {
     };
   }
 
-  const range = await globalRange();
-  if (!range) {
-    return {
-      httpStatus: 200,
-      body: { ok: true, phase: "backfill", done: true, note: "Sin pixel_events para agregar." },
-    };
+  // ⚠️ `globalRange()` SÓLO si hace falta (medido en prod, 2026-07-22).
+  //
+  //   Es un MIN/MAX sobre pixel_events (~19M filas) y el `BETWEEN` le impide a
+  //   Postgres usar el atajo del índice → ~200s de scan. Se corría en CADA
+  //   llamada, incluso con `from` y `to` explícitos, que es como lo llama el
+  //   backfill manual siempre.
+  //
+  //   El costo era invisible porque se lo comía el mismo presupuesto que el
+  //   trabajo real: una llamada de 325s hacía 120s de backfill y 205s de peaje.
+  //   Con 45 llamadas para cubrir 90 días, eran ~2,5 horas de scans repetidos
+  //   calculando dos fechas que el caller ya sabía.
+  let range: { lo: string; hi: string } | null = null;
+  if (!isYmd(params.from) || !isYmd(params.to)) {
+    range = await globalRange();
+    if (!range) {
+      return {
+        httpStatus: 200,
+        body: { ok: true, phase: "backfill", done: true, note: "Sin pixel_events para agregar." },
+      };
+    }
   }
-  const from = isYmd(params.from) ? params.from : range.lo;
-  const to = isYmd(params.to) ? params.to : range.hi;
+  const from = isYmd(params.from) ? params.from : range!.lo;
+  const to = isYmd(params.to) ? params.to : range!.hi;
   let cursor = isYmd(params.cursor) ? params.cursor : from;
   if (cursor < from) cursor = from;
 
