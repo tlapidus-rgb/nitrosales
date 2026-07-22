@@ -28,6 +28,21 @@ const SRC = readFileSync(
   "utf8"
 );
 
+// ⚠️ EL SERVE TAMBIÉN (agregado 2026-07-22).
+//
+// Este guard existía y NO atrapó el bug gemelo porque sólo leía el rollup. El
+// mismo INNER JOIN seguía vivo en `metrics/pixel` q23, en el CTE `src_purchases`:
+// el rollup mandaba a los visitantes sin canal a 'sin_clasificar', y el serve
+// los descartaba al contar compras. El cliente veía 21.139 visitas y CERO
+// compras en ese bucket.
+//
+// La lección no es "faltaba un test": es que un guard que cubre UN archivo de
+// una invariante que vive en DOS da una sensación de protección que no tiene.
+const SERVE = readFileSync(
+  join(process.cwd(), "src/app/api/metrics/pixel/route.ts"),
+  "utf8"
+);
+
 /** Quita comentarios: un `// antes era JOIN ...` no es un JOIN. */
 function code(s: string): string {
   return s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
@@ -55,6 +70,32 @@ describe("rollups por canal — ningún visitante puede quedar afuera", () => {
       "utf8"
     );
     expect(analytics).toContain("sin_clasificar");
-    expect(analytics).toContain("Sin clasificar");
+    // A propósito NO se fija el texto: el fundador va a renombrar esta etiqueta
+    // y un test que exija "Sin clasificar" convertiría un cambio de copy en un
+    // build roto. Lo que importa es que la clave TENGA label, no cuál sea.
+    const label = analytics.match(/sin_clasificar:\s*\{[^}]*label:\s*"([^"]+)"/);
+    expect(label?.[1]?.trim()).toBeTruthy();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// El SERVE tampoco puede perder visitantes
+// ══════════════════════════════════════════════════════════════════════════
+describe("metrics/pixel — el desglose por canal no descarta al bucket sin canal", () => {
+  const body = code(SERVE);
+
+  it("el cruce con la dimensión de first-source es LEFT JOIN, nunca INNER", () => {
+    // Con INNER, las COMPRAS de los visitantes sin canal desaparecen mientras
+    // sus VISITAS siguen apareciendo vía el COALESCE del rollup. El bucket
+    // queda con tráfico y sin ventas, y se lee como basura.
+    expect(body).not.toMatch(/\n\s*JOIN pixel_visitor_first_source/);
+    expect(body).toMatch(/LEFT JOIN pixel_visitor_first_source/);
+  });
+
+  it("los visitantes sin canal caen en el mismo bucket que usa el rollup", () => {
+    // Tiene que ser la MISMA cadena que rollup-backfill: si el serve dijera
+    // 'otros' y el rollup 'sin_clasificar', el FULL OUTER JOIN de q23 los
+    // mostraría como dos filas distintas — visitas en una, compras en la otra.
+    expect(body).toMatch(/COALESCE\(d\.first_source, 'sin_clasificar'\)/);
   });
 });
