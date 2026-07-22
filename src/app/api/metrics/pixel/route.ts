@@ -933,9 +933,26 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           GROUP BY 1
         ),
         src_purchases AS (
-          SELECT d.first_source as source, COUNT(DISTINCT vto.order_id)::int as purchases
+          -- ⚠️ LEFT JOIN, no INNER. Es el MISMO bug que se arregló en
+          -- rollup-backfill.ts (ver el comentario largo de su rollup #6), que
+          -- acá seguía vivo en el otro camino: el rollup ya mandaba a los
+          -- visitantes sin canal a 'sin_clasificar' vía COALESCE, pero este
+          -- CTE los descartaba.
+          --
+          -- Resultado medido el 2026-07-22: el bucket mostraba 21.139 VISITAS y
+          -- CERO COMPRAS. No es que no compren — es que sus compras se caían de
+          -- la tabla. Y un canal con visitas y sin ventas se lee como basura,
+          -- que es justo lo que hizo que el bucket pareciera peor de lo que es.
+          --
+          -- ⚠️ Limitación conocida que este fix NO cierra: src_visitors lee el
+          -- rollup MATERIALIZADO y esto lee la dimensión EN VIVO. Un visitante
+          -- resuelto después del último rollup tiene sus visitas en el bucket y
+          -- sus compras ya en su canal real. El desvío se achica con cada
+          -- corrida del cron; no se elimina.
+          SELECT COALESCE(d.first_source, 'sin_clasificar') as source,
+                 COUNT(DISTINCT vto.order_id)::int as purchases
           FROM visitor_to_orders vto
-          JOIN pixel_visitor_first_source d
+          LEFT JOIN pixel_visitor_first_source d
             ON d."organizationId" = ${ORG_ID} AND d."visitorId" = vto.pv_id
           GROUP BY 1
         )
