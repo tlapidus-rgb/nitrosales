@@ -1639,14 +1639,35 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         // no lo aclaraba en ningún lado — con TeVe Compras daba 6.682 contra los
         // 66.723 del panel de dispositivo, que cuenta el universo completo.
         //
-        // Ahora: sólo se EXCLUYEN las pasarelas de pago, que genuinamente no son
-        // canales de marketing. Todo lo demás se conserva; lo chico termina
-        // agregado en `otros`, así el total siempre cierra.
+        // Ahora no se descarta NADA. Lo chico termina agregado en `otros`, así el
+        // total siempre cierra.
+        //
+        // ⚠️ ACÁ SE EXCLUÍAN LAS PASARELAS DE PAGO (quitado 2026-07-22):
+        //
+        //     if (isNonMarketingChannelSource(vs.source)) continue;
+        //     if (isNonMarketingChannelSource(key)) continue;
+        //
+        // La intención era correcta —el viaje de ida y vuelta al pago no es
+        // adquisición— pero el filtro miraba sólo el NOMBRE del source, y
+        // GoCuotas, MODO, Naranja, Ualá y Mercado Pago además MANDAN TRÁFICO a la
+        // tienda. Un visitante que entra por `/?utm_source=gocuotas`, navega y
+        // compra es una adquisición real de GoCuotas, y acá se borraba.
+        //
+        // Medido el 2026-07-22: 8.751 visitantes entre las tres orgs, el 85% de
+        // todos los marcados "sin canal". En EMDJ además se perdía la atribución
+        // de $174M.
+        //
+        // La discriminación ahora la hace la dimensión: FIRST_SOURCE_MARKETING_CASE
+        // sólo anula la pasarela cuando hay evidencia de RETORNO (referrer de la
+        // pasarela o URL de checkout). Entonces un 'gocuotas' que llega hasta acá
+        // ya es una llegada legítima, y volver a filtrarlo por nombre lo mataba.
+        //
+        // Es seguro para el histórico: con la regla vieja un source de pasarela
+        // NUNCA se escribía en la dimensión, así que no hay filas viejas que este
+        // cambio pueda dejar entrar de más.
         const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
         for (const vs of pixelVisitorsBySource) {
-          if (isNonMarketingChannelSource(vs.source)) continue;
           const key = canonicalMarketingSource(vs.source);
-          if (isNonMarketingChannelSource(key)) continue;
           const existing = channelMap.get(key);
           const attr = attrMap.get(key);
           // Sumar visitors+purchases si hay aliases (ej: fb + meta → meta)

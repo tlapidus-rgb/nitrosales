@@ -33,16 +33,47 @@ export const GATEWAY_REFERRER_REGEX =
 const CHECKOUT_URL_REGEX = "/checkout/|orderPlaced|gatewayCallback";
 const EMPTY_CLICKIDS = `("clickIds" IS NULL OR "clickIds"::text IN ('{}','null'))`;
 
+/** Un `utm_source` de pasarela, en cualquiera de sus tres formas. */
+const GATEWAY_SOURCE_PREDICATE = `(
+  LOWER(COALESCE("utmParams"->>'source', '')) IN (${GATEWAY_UTM_SQL_IN})
+  OR LOWER(COALESCE("utmParams"->>'source', '')) LIKE '%gocuotas%'
+  OR LOWER(COALESCE("utmParams"->>'source', '')) LIKE 'mercadopago%'
+)`;
+
 /**
  * Per-event marketing source for first-touch attribution.
  * Returns NULL for non-marketing events (gateways, checkout returns) so callers
  * can pick the first non-null source per visitor.
  */
 export const FIRST_SOURCE_MARKETING_CASE = `CASE
-  WHEN LOWER(COALESCE("utmParams"->>'source', '')) IN (${GATEWAY_UTM_SQL_IN}) THEN NULL
-  WHEN LOWER(COALESCE("utmParams"->>'source', '')) LIKE '%gocuotas%' THEN NULL
-  WHEN LOWER(COALESCE("utmParams"->>'source', '')) LIKE 'mercadopago%' THEN NULL
+  -- ══════════════════════════════════════════════════════════════════════
+  -- PASARELAS: sólo se anulan cuando hay EVIDENCIA DE RETORNO del pago.
+  -- ══════════════════════════════════════════════════════════════════════
+  -- ⚠️ ANTES se anulaba cualquier evento cuyo utm_source fuera una pasarela,
+  -- sin mirar nada más. Eso borraba un canal de adquisición REAL y era la causa
+  -- principal del bucket "sin clasificar" (medido 2026-07-22: 8.751 visitantes
+  -- entre las tres orgs, el 85% de los marcados sin canal).
+  --
+  -- Por qué: GoCuotas, MODO, Naranja, Ualá y Mercado Pago NO son sólo pasarelas
+  -- — también mandan tráfico a la tienda. Un visitante real de El Mundo del
+  -- Juguete (cmrqc9o2u00eh12c0dhsx7mkh, 18-jul):
+  --
+  --   12:24  PAGE_VIEW  /?utm_source=gocuotas        ← LLEGA desde GoCuotas
+  --   12:25  PAGE_VIEW  /rodados
+  --   12:26  ADD_TO_CART
+  --   12:30  PURCHASE                                 ← compra
+  --   12:31  PAGE_VIEW  /checkout/orderPlaced         ← ref: gocuotas.com
+  --                                                     (recién ACÁ vuelve de pagar)
+  --
+  -- El script guarda la UTM y la repite en toda la sesión, así que los 27
+  -- eventos quedaban en NULL y el visitante entero caía en "sin clasificar".
+  -- Su compra tampoco se le atribuía a nadie (en EMDJ eran $174M).
+  --
+  -- La distinción está en los datos: LLEGAR desde la pasarela deja el UTM en una
+  -- página normal; VOLVER de pagar deja el referrer de la pasarela o cae en una
+  -- URL de checkout. Se anula sólo el segundo caso.
   WHEN referrer ~* '${GATEWAY_REFERRER_REGEX}' THEN NULL
+  WHEN ${GATEWAY_SOURCE_PREDICATE} AND "pageUrl" ~* '${CHECKOUT_URL_REGEX}' THEN NULL
   WHEN ("clickIds"->>'fbclid') IS NOT NULL AND ("clickIds"->>'fbclid') != '' THEN 'meta'
   WHEN ("clickIds"->>'gclid') IS NOT NULL AND ("clickIds"->>'gclid') != '' THEN 'google'
   WHEN ("clickIds"->>'ttclid') IS NOT NULL AND ("clickIds"->>'ttclid') != '' THEN 'tiktok'
@@ -72,7 +103,23 @@ END`;
 /** Drop checkout-only direct hits (no click ID / UTM). */
 export const FIRST_SOURCE_MARKETING_CASE_FILTERED = `CASE
   WHEN (${FIRST_SOURCE_MARKETING_CASE}) IS NULL THEN NULL
-  WHEN (${FIRST_SOURCE_MARKETING_CASE}) IN (${GATEWAY_UTM_SQL_IN}) THEN NULL
+  -- ⚠️ ACÁ HABÍA UN SEGUNDO FILTRO DE PASARELAS, y era el que mandaba.
+  --
+  --   WHEN (CASE...) IN (GATEWAY_UTM_SQL_IN) THEN NULL
+  --
+  -- Anulaba por NOMBRE cualquier source que terminara siendo una pasarela, sin
+  -- importar el contexto. Existía como red de seguridad del passthrough del CASE
+  -- interno, cuando ese CASE anulaba las pasarelas siempre y esta línea sólo
+  -- podía atrapar sobrantes.
+  --
+  -- Ahora el CASE interno distingue LLEGAR desde la pasarela de VOLVER de pagar,
+  -- así que un 'gocuotas' que sale de ahí es una llegada legítima y esta línea
+  -- la volvía a matar. Se saca: la discriminación ya está hecha, y hacerla dos
+  -- veces con criterios distintos es exactamente cómo se pierde un canal entero.
+  --
+  -- Cómo se detectó (2026-07-22): se arregló el CASE interno y los tests que
+  -- codificaban el comportamiento viejo SIGUIERON PASANDO. Que no se rompieran
+  -- fue la señal de que el fix no llegaba a ningún lado.
   WHEN (${FIRST_SOURCE_MARKETING_CASE}) = 'direct'
     AND "pageUrl" ~* '${CHECKOUT_URL_REGEX}'
     AND ${EMPTY_CLICKIDS}

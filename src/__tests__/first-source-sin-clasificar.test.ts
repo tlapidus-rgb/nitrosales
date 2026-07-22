@@ -161,7 +161,13 @@ describe("sin_clasificar — los dos caminos que dejaban visitantes sin canal", 
   it("CONVERGE: el marcado que no volvió no se re-evalúa", async () => {
     const db = await freshDb();
     await addVisitor(db, "v_muerto");
-    await addEvent(db, "v_muerto", { minutesAgo: 40, utmSource: "gocuotas" });
+    // Vuelta de pago real: la URL de checkout es lo que la hace una vuelta.
+    // Sin ella, un utm_source de pasarela es una LLEGADA y sí tiene canal.
+    await addEvent(db, "v_muerto", {
+      minutesAgo: 40,
+      utmSource: "gocuotas",
+      pageUrl: "https://tienda.com/checkout/orderPlaced",
+    });
 
     expect((await runBatch(db)).marked).toBe(1);
 
@@ -223,12 +229,77 @@ describe("sin_clasificar — los dos caminos que dejaban visitantes sin canal", 
     expect(await unresolved(db, 90)).toBe(0);
   });
 
+  // ── PASARELAS: llegar NO es lo mismo que volver de pagar ──────────────────
+  // Medido en prod el 2026-07-22: 8.751 visitantes (el 85% de los marcados sin
+  // canal) habían LLEGADO desde una pasarela y se los estaba tirando a la basura.
+  it("LLEGA desde GoCuotas a una página normal → tiene canal", async () => {
+    const db = await freshDb();
+    await addVisitor(db, "v_llega");
+    await addEvent(db, "v_llega", {
+      utmSource: "gocuotas",
+      pageUrl: "https://tienda.com/?utm_source=gocuotas",
+    });
+
+    const r = await runBatch(db);
+
+    expect(r.resolved).toBe(1);
+    expect(r.marked).toBe(0);
+    expect(await firstSourceOf(db, "v_llega")).toBe("gocuotas");
+  });
+
+  it("VUELVE de GoCuotas (referrer de la pasarela) → sigue sin canal", async () => {
+    const db = await freshDb();
+    await addVisitor(db, "v_vuelve_pago");
+    await addEvent(db, "v_vuelve_pago", {
+      utmSource: "gocuotas",
+      referrer: "https://www.gocuotas.com/",
+      pageUrl: "https://tienda.com/checkout/orderPlaced?og=123",
+    });
+
+    const r = await runBatch(db);
+
+    expect(r.resolved).toBe(0);
+    expect(r.marked).toBe(1);
+  });
+
+  // ── El recorrido REAL que destapó el bug ──────────────────────────────────
+  // Visitante cmrqc9o2u00eh12c0dhsx7mkh de El Mundo del Juguete, 18-jul.
+  // El script repite la UTM en toda la sesión, así que los 27 eventos tenían
+  // utm_source=gocuotas y el visitante entero caía en 'sin_clasificar'.
+  it("llega por GoCuotas, navega, compra y vuelve de pagar → el canal es GoCuotas", async () => {
+    const db = await freshDb();
+    await addVisitor(db, "v_real");
+    const g = { utmSource: "gocuotas" };
+
+    await addEvent(db, "v_real", { ...g, minutesAgo: 40, pageUrl: "https://tienda.com/?utm_source=gocuotas" });
+    await addEvent(db, "v_real", { ...g, minutesAgo: 39, pageUrl: "https://tienda.com/rodados" });
+    await addEvent(db, "v_real", { ...g, minutesAgo: 38, type: "ADD_TO_CART", pageUrl: "https://tienda.com/monopatin" });
+    await addEvent(db, "v_real", { ...g, minutesAgo: 37, pageUrl: "https://tienda.com/checkout/#/cart" });
+    await addEvent(db, "v_real", { ...g, minutesAgo: 36, type: "PURCHASE", pageUrl: "https://tienda.com/checkout/orderPlaced" });
+    // Recién ACÁ vuelve de pagar: el referrer es la pasarela.
+    await addEvent(db, "v_real", {
+      ...g,
+      minutesAgo: 35,
+      referrer: "https://www.gocuotas.com/",
+      pageUrl: "https://tienda.com/checkout/orderPlaced?og=456",
+    });
+
+    const r = await runBatch(db);
+
+    // El primer toque NO anulado es la llegada a la home.
+    expect(r.resolved).toBe(1);
+    expect(await firstSourceOf(db, "v_real")).toBe("gocuotas");
+  });
+
   it("un visitante marcado sin canal NO cuenta como sin resolver dos veces", async () => {
     const db = await freshDb();
     await addVisitor(db, "v_ok");
     await addEvent(db, "v_ok", { utmSource: "google" });
     await addVisitor(db, "v_sin");
-    await addEvent(db, "v_sin", { utmSource: "mercadopago" });
+    await addEvent(db, "v_sin", {
+      utmSource: "mercadopago",
+      pageUrl: "https://tienda.com/checkout/orderPlaced",
+    });
 
     await runBatch(db);
 

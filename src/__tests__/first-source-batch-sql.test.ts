@@ -118,8 +118,18 @@ describe("batch de first-source — ejecutado contra Postgres", () => {
   it("marca como SIN CANAL al visitante cuyos eventos clasifican todos a NULL", async () => {
     const db = await freshDb();
     // Solo vuelta de pasarela de pago → el CASE devuelve NULL.
+    //
+    // ⚠️ La URL de checkout es OBLIGATORIA para que esto sea una vuelta de pago
+    // (2026-07-22). Un `utm_source` de pasarela sobre una página normal ya NO se
+    // anula: es una LLEGADA desde la pasarela, que es un canal real. Sin esta
+    // URL el test estaría fijando el bug que costó 8.751 visitantes.
     await seed(db, ["v_muerto"], [
-      { visitor: "v_muerto", minutesAgo: 30, utmSource: "mercadopago" },
+      {
+        visitor: "v_muerto",
+        minutesAgo: 30,
+        utmSource: "mercadopago",
+        pageUrl: "https://tienda.com/checkout/orderPlaced",
+      },
     ]);
     const r = await runBatch(db);
     expect(r.candidates).toBe(1);
@@ -135,7 +145,13 @@ describe("batch de first-source — ejecutado contra Postgres", () => {
       ["v_ok", "v_muerto"],
       [
         { visitor: "v_ok", minutesAgo: 50, utmSource: "google" },
-        { visitor: "v_muerto", minutesAgo: 40, utmSource: "gocuotas" },
+        {
+          visitor: "v_muerto",
+          minutesAgo: 40,
+          utmSource: "gocuotas",
+          // Vuelta de pago: sin la URL de checkout esto sería una llegada.
+          pageUrl: "https://tienda.com/checkout/orderPlaced",
+        },
       ]
     );
 
