@@ -10,6 +10,7 @@
     "lint": "next lint",
     "check:order-contract": "node scripts/check-order-contract.mjs",
     "check:serve-gold-first": "node scripts/check-serve-gold-first.mjs",
+    "check:ts-nocheck": "node scripts/check-ts-nocheck.mjs",
     "cruise": "depcruise src --config .dependency-cruiser.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
