@@ -48,6 +48,7 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
+import { buildUnresolvedByOrgSql } from "@/lib/pixel/first-source-batch";
 import { decideNextCall } from "@/lib/pixel/first-source-progress";
 import { prisma } from "@/lib/db/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -60,6 +61,13 @@ export const maxDuration = 800;
 
 // Tope de llamadas al setup por run (resumible por org; tope evita loop infinito).
 const MAX_CALLS = 30;
+
+// Horizonte de REPORTE: hasta dónde mira la UI del cliente. La ventana del batch
+// (`?days`, default 3) es de PROCESO y es mucho más corta a propósito. Que sean
+// distintas es el punto: medir el resultado con la misma ventana con la que se
+// elige el trabajo es cómo se llegó a reportar "9 pendientes" con ~33.000
+// visitantes sin clasificar (2026-07-22).
+const REPORTING_HORIZON_DAYS = 90;
 
 // Presupuesto COMPARTIDO de la invocación, con margen bajo el maxDuration de 800s
 // para la query de `pendingByOrg` y el cierre. Cada pasada al setup tarda ~200s
@@ -177,6 +185,7 @@ export async function GET(req: NextRequest) {
   // `done` diga true.
   let pendingByOrg: Array<{ org: string; pending: number }> = [];
   let noSourceByOrg: Array<{ org: string; noSource: number }> = [];
+  let unresolvedByOrg: Array<{ org: string; unresolved: number }> = [];
   try {
     const rows = await prisma.$queryRawUnsafe<Array<{ org: string; pending: number }>>(
       `SELECT pv."organizationId" AS org, COUNT(*)::int AS pending
@@ -207,6 +216,15 @@ export async function GET(req: NextRequest) {
        ORDER BY 2 DESC`
     );
     noSourceByOrg = marked;
+    // Los que el cliente ve como 'sin_clasificar', en el horizonte de REPORTE.
+    // Deliberadamente NO comparte la ventana del batch: si la compartiera,
+    // volvería a ser ciego a los visitantes que se le escapan (ver el comentario
+    // largo en buildUnresolvedByOrgSql). Cuando `pending` da 0 y esto da un
+    // número grande, la diferencia son los que quedaron fuera de alcance y hay
+    // que correr `?days=90` a mano para recuperarlos.
+    unresolvedByOrg = await prisma.$queryRawUnsafe<
+      Array<{ org: string; unresolved: number }>
+    >(buildUnresolvedByOrgSql(), REPORTING_HORIZON_DAYS);
   } catch {
     /* diagnóstico, no crítico: si falla no invalida el trabajo hecho */
   }
@@ -231,6 +249,14 @@ export async function GET(req: NextRequest) {
       // Cuántos se evaluaron y no tenían canal. Sirve para distinguir "no
       // procesé nada" de "procesé todo y no había canal que asignar".
       noSourceByOrg,
+      // ⚠️ LA MÉTRICA QUE HAY QUE MIRAR. `pendingByOrg` sólo cuenta lo que el
+      // batch todavía alcanza; esto cuenta lo que el CLIENTE ve como
+      // 'sin_clasificar' en los últimos REPORTING_HORIZON_DAYS. Si este número
+      // no baja mientras `pending` dice 0, hay visitantes fuera de la ventana:
+      // correr `?days=90`. El 2026-07-22 esa diferencia eran ~33.000 visitantes
+      // y el cron reportaba éxito.
+      unresolvedByOrg,
+      reportingHorizonDays: REPORTING_HORIZON_DAYS,
       callsCount: calls.length,
       calls,
       error,
