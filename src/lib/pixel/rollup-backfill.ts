@@ -18,9 +18,49 @@
 import { prisma } from "@/lib/db/client";
 import { WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
 
-// Presupuesto de tiempo por invocación: paramos antes del maxDuration de Vercel
-// y devolvemos cursor para que el caller repita. 250s deja margen de cierre.
-export const TIME_BUDGET_MS = 250_000;
+// ── Presupuesto de tiempo por invocación ────────────────────────────────────
+// Paramos antes del maxDuration de Vercel y devolvemos cursor para que el caller
+// repita.
+//
+// ⚠️ POR QUÉ 700s Y NO 250s (bug medido el 2026-07-22):
+//   El presupuesto se chequea ANTES de arrancar un día, pero `backfillDay` no
+//   tiene tope: recorre las 7 tablas de rollup × todas las orgs. Con budget 250s
+//   y maxDuration 300s el margen era de 50s, y un día pesado tarda mucho más.
+//   El 5 de mayo (pico de Hot Sale) no entraba NI SOLO en 300s: la función moría
+//   con 504 FUNCTION_INVOCATION_TIMEOUT y body vacío, así que el caller no se
+//   enteraba de por qué ni por dónde seguir. Tres reintentos, tres 504.
+//
+//   El fix tiene dos mitades y ninguna sirve sola:
+//     1. Subir el techo: la ruta pasa a maxDuration 800 (lo que ya usan sync y
+//        cron; `app/api/admin/**` simplemente no estaba en vercel.json).
+//     2. No arrancar un día que no vamos a poder terminar (ver DAY_RESERVE_MS).
+//        Sin esto, subir el techo sólo mueve el día en que vuelve a explotar.
+export const TIME_BUDGET_MS = 700_000;
+
+// Cuánto tiempo hay que tener libre para animarse a arrancar OTRO día. Se
+// calibra solo: arranca en este piso y sube al día más lento visto en la
+// invocación. Un día que tarda más que el presupuesto entero igual va a fallar,
+// pero eso ahora devuelve un JSON con `failedDay` en vez de un 504 mudo.
+const DAY_RESERVE_FLOOR_MS = 180_000;
+
+/**
+ * ¿Alcanza el tiempo que queda para arrancar OTRO día?
+ *
+ * Pura y exportada porque es la regla que falló: el chequeo viejo era
+ * `elapsed > budget`, que autoriza arrancar un día en el segundo 699 de 700.
+ * `backfillDay` no tiene tope, así que ese día se pasa del maxDuration y Vercel
+ * devuelve un 504 con body vacío — sin cursor, sin días hechos, sin nada.
+ *
+ * No se puede testear `runRollupBackfill` entera (PGlite no trae `hll`), así que
+ * la decisión vive acá para poder verificarla. Ver rollup-backfill-budget.test.ts.
+ */
+export function canStartAnotherDay(
+  elapsedMs: number,
+  reserveMs: number,
+  budgetMs: number
+): boolean {
+  return elapsedMs + reserveMs <= budgetMs;
+}
 
 // ── Constantes SQL (espejo exacto de setup-pixel-rollups / scripts p2*) ──────
 const P14 = "14, 5";
@@ -252,6 +292,12 @@ export async function runRollupBackfill(params: {
   to?: string | null;
   cursor?: string | null;
   budgetMs?: number;
+  /**
+   * Acotar a UNA org. Válvula de escape para días que no entran ni con el
+   * presupuesto completo: divide el trabajo del día por la cantidad de orgs.
+   * Sin esto, un día pico es un callejón sin salida operativo.
+   */
+  org?: string | null;
 }): Promise<BackfillRunResult> {
   const startedAt = Date.now();
   const budget = params.budgetMs ?? TIME_BUDGET_MS;
@@ -290,16 +336,42 @@ export async function runRollupBackfill(params: {
   const orgsRes: any = await prisma.$queryRawUnsafe(
     `SELECT DISTINCT "organizationId" org FROM pixel_visitor_first_source ORDER BY 1`
   );
-  const orgs: string[] = orgsRes.map((o: any) => o.org);
+  let orgs: string[] = orgsRes.map((o: any) => o.org);
+  if (params.org) {
+    orgs = orgs.filter((o) => o === params.org);
+    if (orgs.length === 0) {
+      return {
+        httpStatus: 400,
+        body: {
+          ok: false,
+          phase: "backfill",
+          error: `La org "${params.org}" no tiene filas en pixel_visitor_first_source.`,
+        },
+      };
+    }
+  }
 
   const days: Array<{ day: string; touched: number; ms: number }> = [];
   let lastDone: string | null = null;
+  // Se calibra sola con el día más lento visto. Ver DAY_RESERVE_FLOOR_MS.
+  let dayReserveMs = DAY_RESERVE_FLOOR_MS;
+  let stoppedForBudget = false;
   while (cursor <= to) {
-    if (Date.now() - startedAt > budget) break;
+    // ⚠️ La reserva es lo que evita el 504. Chequear sólo `elapsed > budget`
+    // deja arrancar un día en el segundo 699 que después tarda 200s.
+    if (!canStartAnotherDay(Date.now() - startedAt, dayReserveMs, budget)) {
+      stoppedForBudget = true;
+      break;
+    }
     const t0 = Date.now();
     try {
       const touched = await backfillDay(cursor, orgs);
-      days.push({ day: cursor, touched, ms: Date.now() - t0 });
+      const dayMs = Date.now() - t0;
+      days.push({ day: cursor, touched, ms: dayMs });
+      // El día más lento visto manda la reserva del próximo: los días de pico
+      // (Hot Sale) tardan varias veces más que un día normal, y el promedio los
+      // esconde justo cuando importan.
+      if (dayMs > dayReserveMs) dayReserveMs = dayMs;
       lastDone = cursor;
       cursor = addDays(cursor, 1);
     } catch (e: any) {
@@ -320,20 +392,28 @@ export async function runRollupBackfill(params: {
     }
   }
   const done = cursor > to;
+  const orgQs = params.org ? `&org=${params.org}` : "";
   return {
     httpStatus: 200,
     body: {
       ok: true,
       phase: "backfill",
       window: { from, to },
+      org: params.org ?? null,
       daysProcessedThisCall: days.length,
       lastDayDone: lastDone,
       days,
       done,
+      // Distingue "terminé el rango" de "corté por presupuesto". Sin esto, un
+      // `done:false` no dice si hay que repetir o si algo se atascó.
+      stoppedForBudget,
+      // Cuánto hay que reservar para el próximo día, medido en esta corrida. Si
+      // supera el presupuesto, el rango no avanza más sin acotar por `org`.
+      slowestDayMs: days.length ? Math.max(...days.map((d) => d.ms)) : 0,
       nextCursor: done ? null : cursor,
       next: done
         ? "Listo. Verificá con GET ?phase=status"
-        : `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}`,
+        : `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}${orgQs}`,
       ms: Date.now() - startedAt,
     },
   };

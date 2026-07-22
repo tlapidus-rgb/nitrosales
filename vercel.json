@@ -6,6 +6,9 @@
     },
     "app/api/cron/**/*": {
       "maxDuration": 800
+    },
+    "app/api/admin/**/*": {
+      "maxDuration": 800
     }
   },
   "crons": [

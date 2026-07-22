@@ -58,7 +58,11 @@ import {
 } from "@/lib/pixel/rollup-backfill";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+// 800, no 300 (2026-07-22): el backfill del rollup recorre 7 tablas × N orgs por
+// día, y un día de pico (Hot Sale, 5 de mayo) no entraba ni solo en 300s — la
+// función moría con 504 y body vacío. 800 es lo que ya usan `sync` y `cron`;
+// `app/api/admin/**` simplemente no estaba declarado en vercel.json.
+export const maxDuration = 800;
 
 // Excluye eventos sintéticos de webhook (sessionId 'webhook-*'); NULL cuenta.
 // (Usado por firstSourceForOrg. Las constantes HLL del backfill viven en
@@ -430,10 +434,18 @@ export async function POST(req: NextRequest) {
     // Delega en el lib compartido @/lib/pixel/rollup-backfill (mismo que el cron
     // llama DIRECTO, sin self-fetch). Fuente única del SQL HLL.
     if (phase === "backfill") {
+      // `budgetMs` y `org` se exponen porque el 2026-07-22 el backfill se
+      // atascó en el pico de Hot Sale y no había NINGUNA perilla desde afuera:
+      // el día no entraba en la función y la única salida era tocar código.
+      const rawBudget = parseInt(url.searchParams.get("budgetMs") || "", 10);
       const r = await runRollupBackfill({
         from: url.searchParams.get("from"),
         to: url.searchParams.get("to"),
         cursor: url.searchParams.get("cursor"),
+        org: url.searchParams.get("org"),
+        budgetMs: Number.isFinite(rawBudget)
+          ? Math.min(760_000, Math.max(30_000, rawBudget))
+          : undefined,
       });
       return NextResponse.json(r.body, { status: r.httpStatus });
     }
