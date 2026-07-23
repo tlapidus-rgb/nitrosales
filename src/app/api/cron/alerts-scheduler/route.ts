@@ -28,9 +28,12 @@ export async function GET(req: NextRequest) {
   // header Vercel-Cron-Signature en el futuro si activamos firma.
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
-  const isVercelCron = req.headers.get("user-agent")?.includes("vercel-cron");
 
-  if (key !== CRON_KEY && !isVercelCron) {
+  // Auth: SÓLO por key (Vercel Cron la manda en la URL de vercel.json). El
+  // bypass por `user-agent: vercel-cron` se quitó (auditoría 2026-07-22): el
+  // user-agent lo pone quien llama, así que cualquiera con `curl -A vercel-cron`
+  // pasaba sin key — y este cron manda mails a los clientes.
+  if (key !== CRON_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

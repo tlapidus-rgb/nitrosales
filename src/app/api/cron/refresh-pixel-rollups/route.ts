@@ -120,10 +120,17 @@ function arDate(offsetDays = 0): string {
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
-  const isVercelCron = req.headers.get("user-agent")?.includes("vercel-cron");
-  if (!isVercelCron && !isValidAdminKey(key)) {
+  // Auth: SÓLO por key. El bypass por `user-agent: vercel-cron` (spoofeable) se
+  // quitó (auditoría 2026-07-22): Vercel Cron manda la key en vercel.json.
+  if (!isValidAdminKey(key)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  // Origen de la invocación — header CONFIABLE: Vercel lo agrega en los crons y
+  // lo strippea de requests externas, así que NO es spoofeable como el
+  // user-agent. NO se usa para auth (eso es la key); sólo decide si se aceptan
+  // los overrides manuales `?from=`/`?cursor=` (recálculo de historia a mano):
+  // en una invocación de Vercel se ignoran y se usa el rango default.
+  const isVercelCron = req.headers.get("x-vercel-cron") === "1";
 
   const startedAt = Date.now();
   const to = arDate(0); // hoy AR

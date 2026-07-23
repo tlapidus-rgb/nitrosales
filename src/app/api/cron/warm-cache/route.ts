@@ -129,8 +129,9 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    const isVercelCron = req.headers.get("user-agent")?.includes("vercel-cron");
-    if (!isVercelCron && key !== WARM_CACHE_KEY) {
+    // Auth: SÓLO por key. El bypass por `user-agent: vercel-cron` (spoofeable) se
+    // quitó (auditoría 2026-07-22): Vercel Cron manda la key en vercel.json.
+    if (key !== WARM_CACHE_KEY) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
