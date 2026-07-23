@@ -127,3 +127,22 @@ export function allowedSectionsFrom(
     (s) => LEVEL_ORDER[permissions[s.key] ?? "none"] >= LEVEL_ORDER.read
   ).map((s) => s.key);
 }
+
+/**
+ * Secciones donde el user puede ESCRIBIR (write+). Es el complemento de
+ * `allowedSectionsFrom` (que sólo mira read+): se snapshotea también en el JWT
+ * para que el middleware distinga leer de escribir.
+ *
+ * ⚠️ POR QUÉ EXISTE (auditoría 2026-07-22): el gating por sección sólo miraba
+ * "¿puede VER la sección?" y nunca el método HTTP. Un user con `aura: read`
+ * podía hacer POST /api/aura/creators/<id>/settle (registrar pagos), DELETE de
+ * campañas, etc. Con esta lista el middleware puede exigir write en los métodos
+ * que mutan.
+ */
+export function writableSectionsFrom(
+  permissions: Record<Section, AccessLevel>
+): Section[] {
+  return SECTIONS.filter(
+    (s) => LEVEL_ORDER[permissions[s.key] ?? "none"] >= LEVEL_ORDER.write
+  ).map((s) => s.key);
+}

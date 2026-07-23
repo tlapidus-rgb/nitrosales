@@ -8,6 +8,7 @@ import { isStaffUser } from "@/lib/staff";
 import {
   resolveEffectivePermissionsByEmail,
   allowedSectionsFrom,
+  writableSectionsFrom,
 } from "@/lib/permissions-resolve";
 
 // El poder de "View as Org" (override de session.organizationId via
@@ -208,8 +209,13 @@ export const authOptions: NextAuthOptions = {
           token.allowedSections = eff
             ? allowedSectionsFrom(eff.permissions)
             : undefined;
+          // Complemento write+: el middleware distingue leer de escribir.
+          token.writableSections = eff
+            ? writableSectionsFrom(eff.permissions)
+            : undefined;
         } catch {
           token.allowedSections = undefined;
+          token.writableSections = undefined;
         }
         // S59: propagar flags de impersonate
         if ((user as any).impersonatedBy) {
@@ -227,6 +233,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).organizationId = token.organizationId;
         (session.user as any).organizationName = token.organizationName;
         (session.user as any).allowedSections = token.allowedSections;
+        (session.user as any).writableSections = token.writableSections;
         if (token.impersonatedBy) {
           (session.user as any).impersonatedBy = token.impersonatedBy;
           (session.user as any).impersonatorEmail = token.impersonatorEmail;
