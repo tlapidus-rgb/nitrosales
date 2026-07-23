@@ -16,7 +16,24 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
-import { WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
+import { CHECKOUT_URL_REGEX, WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
+
+// ── Qué cuenta como VISITA ──────────────────────────────────────────────────
+// Decisión del fundador (2026-07-22): un retorno de pasarela / página de
+// checkout "no es una visita, es parte del proceso de la compra". Así que un
+// PAGE_VIEW cuenta como visita SALVO que sea parte del embudo de compra.
+//
+// ⚠️ SÓLO afecta el conteo de VISITAS (page_views, pv_visitors, device, source,
+// y la etapa PV del funnel). NO toca las etapas de embudo
+// (product/cart/checkout/purchase): esas TIENEN que ver los checkouts, son
+// justamente lo que miden. El rollup de páginas (#4) ya excluía checkout desde
+// antes; esto alinea al resto.
+//
+// Un `pageUrl` NULL SÍ cuenta: es una visita sin URL registrada, no un checkout.
+// `pe.` para el alias del backfill por-día; ver VISIT_PAGEVIEW_NOALIAS para la
+// query de agregados que no usa alias.
+const VISIT_PAGEVIEW = `pe.type='PAGE_VIEW' AND (pe."pageUrl" IS NULL OR pe."pageUrl" !~* '${CHECKOUT_URL_REGEX}')`;
+const VISIT_PAGEVIEW_NOALIAS = `type='PAGE_VIEW' AND ("pageUrl" IS NULL OR "pageUrl" !~* '${CHECKOUT_URL_REGEX}')`;
 
 // ── Presupuesto de tiempo por invocación ────────────────────────────────────
 // Paramos antes del maxDuration de Vercel y devolvemos cursor para que el caller
@@ -113,11 +130,11 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
         cart_visitors_hll,checkout_visitors_hll,purchase_visitors_hll,identify_visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY},
        COUNT(*)::bigint,
-       COUNT(*) FILTER (WHERE type='PAGE_VIEW')::bigint,
+       COUNT(*) FILTER (WHERE ${VISIT_PAGEVIEW_NOALIAS})::bigint,
        COUNT(*) FILTER (WHERE ${CLICKID})::bigint,
        hll_add_agg(hll_hash_text("visitorId"), ${P14}),
        hll_add_agg(hll_hash_text("sessionId"), ${P14}),
-       ${HV14} FILTER (WHERE type='PAGE_VIEW'),
+       ${HV14} FILTER (WHERE ${VISIT_PAGEVIEW_NOALIAS}),
        ${HV14} FILTER (WHERE type='VIEW_PRODUCT'),
        ${HV14} FILTER (WHERE type='ADD_TO_CART'),
        ${HV14} FILTER (WHERE type IN ('INITIATE_CHECKOUT','CHECKOUT_SHIPPING')),
@@ -140,7 +157,8 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   // 2) device (14,5)
   touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_device ("organizationId",day,device,visitors_hll,refreshed_at)
-     SELECT "organizationId", ${ARDAY}, COALESCE("deviceType",'unknown'), ${HV14}, now()
+     SELECT "organizationId", ${ARDAY}, COALESCE("deviceType",'unknown'),
+       ${HV14} FILTER (WHERE ${VISIT_PAGEVIEW_NOALIAS}), now()
      FROM pixel_events WHERE ${range}
      GROUP BY 1,2,3
      ON CONFLICT ("organizationId",day,device) DO UPDATE SET
@@ -223,7 +241,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
     `INSERT INTO pixel_daily_source ("organizationId",day,first_source,pv_visitors_hll,refreshed_at)
      SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
        COALESCE(d.first_source, 'sin_clasificar'),
-       hll_add_agg(hll_hash_text(pe."visitorId"), ${P16}) FILTER (WHERE pe.type='PAGE_VIEW'), now()
+       hll_add_agg(hll_hash_text(pe."visitorId"), ${P16}) FILTER (WHERE ${VISIT_PAGEVIEW}), now()
      FROM pixel_events pe
      LEFT JOIN pixel_visitor_first_source d
        ON d."organizationId"=pe."organizationId" AND d."visitorId"=pe."visitorId"
@@ -247,7 +265,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
     `INSERT INTO pixel_daily_funnel_by_source ("organizationId",day,first_source,pv_hll,vp_hll,atc_hll,co_hll,refreshed_at)
      SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
        COALESCE(d.first_source, 'sin_clasificar'),
-       hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='PAGE_VIEW'),
+       hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE ${VISIT_PAGEVIEW}),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='VIEW_PRODUCT'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type='ADD_TO_CART'),
        hll_add_agg(hll_hash_text(pe."visitorId"), ${P14}) FILTER (WHERE pe.type IN ('INITIATE_CHECKOUT','CHECKOUT_SHIPPING')),

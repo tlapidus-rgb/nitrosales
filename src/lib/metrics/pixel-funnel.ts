@@ -25,6 +25,7 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import { CHECKOUT_URL_REGEX } from "@/lib/pixel/first-source-sql";
 
 export interface FunnelStages {
   pageView: number;
@@ -85,7 +86,10 @@ export async function getFunnelStages(
       WHERE "organizationId" = $1 AND day >= $2::date AND day <= $3::date
     ),
     live_part AS (
-      SELECT hll_add_agg(hll_hash_text("visitorId"), 14, 5) FILTER (WHERE type = 'PAGE_VIEW')    AS pv,
+      -- pv EXCLUYE el checkout: "no es una visita, es parte del proceso de compra"
+      -- (2026-07-22). Espejo del rollup pv_visitors_hll. Las otras etapas NO se
+      -- tocan: el paso checkout justamente tiene que contar checkouts.
+      SELECT hll_add_agg(hll_hash_text("visitorId"), 14, 5) FILTER (WHERE type = 'PAGE_VIEW' AND ("pageUrl" IS NULL OR "pageUrl" !~* '${CHECKOUT_URL_REGEX}'))    AS pv,
              hll_add_agg(hll_hash_text("visitorId"), 14, 5) FILTER (WHERE type = 'VIEW_PRODUCT') AS prod,
              hll_add_agg(hll_hash_text("visitorId"), 14, 5) FILTER (WHERE type = 'ADD_TO_CART')  AS cart,
              hll_add_agg(hll_hash_text("visitorId"), 14, 5) FILTER (WHERE type IN ('INITIATE_CHECKOUT','CHECKOUT_SHIPPING')) AS chk

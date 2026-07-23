@@ -30,7 +30,9 @@ export const GATEWAY_REFERRER_REGEX =
   "rapipago\\.com|pagofacil\\.com|paypal\\.com|stripe\\.com|checkout\\.vtex\\.com|" +
   "vtexpayments\\.com|mobbex\\.com|getnet\\.com|payu\\.com|gocuotas\\.com";
 
-const CHECKOUT_URL_REGEX = "/checkout/|orderPlaced|gatewayCallback";
+/** URLs del proceso de compra (checkout + retorno de pasarela). Fuente única:
+ *  la usan la clasificación de source y el conteo de visitas (rollup). */
+export const CHECKOUT_URL_REGEX = "/checkout/|orderPlaced|gatewayCallback";
 const EMPTY_CLICKIDS = `("clickIds" IS NULL OR "clickIds"::text IN ('{}','null'))`;
 
 /** Un `utm_source` de pasarela, en cualquiera de sus tres formas. */
