@@ -51,7 +51,8 @@
 // No es más caro: el costo lo manda la CANTIDAD de faltantes (topada por
 // maxVisitors), no el ancho de la ventana. Una vez limpio el backlog, quedan
 // pocos por corrida.
-// Auth: header `user-agent: vercel-cron` (Vercel) o `?key=<ADMIN_API_KEY>`.
+// Auth: SÓLO por `?key=<ADMIN_API_KEY>` (el bypass por user-agent se quitó,
+// auditoría 2026-07-22; Vercel Cron manda la key en vercel.json).
 //
 // ⚠️ Deuda compartida: el self-fetch manda la key en la URL (queda en logs) —
 // mismo patrón que el resto de los crons; se cierra con CRON_SECRET (BP-M1).
