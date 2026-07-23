@@ -80,8 +80,9 @@ const MIN_SLICE_MS = 260_000;
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
-  const isVercelCron = req.headers.get("user-agent")?.includes("vercel-cron");
-  if (!isVercelCron && !isValidAdminKey(key)) {
+  // Auth: SÓLO por key. El bypass por `user-agent: vercel-cron` (spoofeable) se
+  // quitó (auditoría 2026-07-22): Vercel Cron manda la key en vercel.json.
+  if (!isValidAdminKey(key)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
