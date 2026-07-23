@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { allocateFifo, computeCreatorBalances } from "./campaign-balance";
+import {
+  allocateFifo,
+  computeCreatorBalances,
+  buildSettlePayoutLines,
+} from "./campaign-balance";
+import { toPeriodMonth } from "./payout-period";
 
 const c = (id: string, pending: number) => ({ campaignId: id, name: id, pending });
 
@@ -170,5 +175,60 @@ describe("allocateFifo — asignación FIFO de pagos por campaña (Bloque D)", (
     expect(r.allocations[0].amount).toBe(33.33);
     expect(r.allocations[1].amount).toBe(16.67);
     expect(r.leftover).toBe(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// buildSettlePayoutLines — REGRESIÓN de dos bugs de plata (auditoría 2026-07-22)
+// ══════════════════════════════════════════════════════════════════════════
+// 1. Los pagos por campaña (/settle) nacían con periodStart NULL → invisibles en
+//    la card mensual del creador (mostraba "pagado: 0"). Ahora derivan el mes
+//    del paidAt.
+// 2. El sobrante (pagar más que el pendiente) se descartaba en silencio. Ahora
+//    se registra como un pago SIN campaña (a cuenta).
+const alloc = (id: string, amount: number) => ({ campaignId: id, name: id, amount });
+
+describe("buildSettlePayoutLines — mes del pago + registro del sobrante", () => {
+  const paidAt = new Date(2026, 4, 20, 15, 0); // 20-may-2026, hora local
+
+  it("BUG 1: cada payout lleva el mes del paidAt, NO null", () => {
+    const lines = buildSettlePayoutLines([alloc("c1", 60)], 0, paidAt);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].periodStart).not.toBeNull();
+    expect(toPeriodMonth(lines[0].periodStart)).toBe("2026-05");
+    // periodEnd es el fin del mismo mes.
+    expect(toPeriodMonth(lines[0].periodEnd)).toBe("2026-05");
+    expect(lines[0].campaignId).toBe("c1");
+  });
+
+  it("BUG 2: el sobrante se registra como pago SIN campaña", () => {
+    // Pendiente 60, pagó 100 → allocations 60, leftover 40.
+    const lines = buildSettlePayoutLines([alloc("c1", 60)], 40, paidAt);
+    expect(lines).toHaveLength(2);
+    const residual = lines.find((l) => l.campaignId === null);
+    expect(residual).toBeTruthy();
+    expect(residual!.amount).toBe(40);
+    expect(residual!.concept).toMatch(/a cuenta/i);
+    // La plata total registrada = lo pagado (60 + 40), nada se pierde.
+    expect(lines.reduce((s, l) => s + l.amount, 0)).toBe(100);
+  });
+
+  it("pagar sin ningún pendiente registra TODO como pago a cuenta", () => {
+    // Sin campañas con saldo: allocations vacío, leftover = monto entero.
+    const lines = buildSettlePayoutLines([], 100, paidAt);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].campaignId).toBeNull();
+    expect(lines[0].amount).toBe(100);
+  });
+
+  it("sin sobrante no crea residual", () => {
+    const lines = buildSettlePayoutLines([alloc("c1", 25), alloc("c2", 15)], 0, paidAt);
+    expect(lines).toHaveLength(2);
+    expect(lines.every((l) => l.campaignId !== null)).toBe(true);
+  });
+
+  it("un leftover de centavos redondea a 0 y no crea residual basura", () => {
+    const lines = buildSettlePayoutLines([alloc("c1", 60)], 0.004, paidAt);
+    expect(lines).toHaveLength(1);
   });
 });

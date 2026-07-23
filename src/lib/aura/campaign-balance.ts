@@ -27,6 +27,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { monthRange, toPeriodMonth } from "@/lib/aura/payout-period";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -181,4 +182,57 @@ export function allocateFifo(
     allocated: round2(amount - remaining),
     leftover: round2(Math.max(0, remaining)),
   };
+}
+
+export type SettlePayoutLine = {
+  campaignId: string | null;
+  concept: string;
+  amount: number;
+  periodStart: Date;
+  periodEnd: Date;
+};
+
+/**
+ * Arma las FILAS de payout a crear al registrar un pago (settle), con la parte
+ * que tiene LÓGICA. El route completa lo constante (org, creador, método, etc.).
+ *
+ * ⚠️ DOS FIXES DE PLATA (auditoría 2026-07-22):
+ *
+ *  1. periodStart/periodEnd derivan del MES del `paidAt`. Antes se creaban en
+ *     NULL, y la card mensual del creador (GET .../payments) filtra y bucketea
+ *     por periodStart → un pago por campaña quedaba INVISIBLE ahí (mostraba
+ *     "pagado: 0") mientras el saldo por campaña sí lo contaba. Dos pantallas
+ *     del mismo creador, dos respuestas de "cuánto le pagué". Setear el mes NO
+ *     afecta el saldo por campaña (computeCreatorBalances agrupa por campaignId,
+ *     no por período).
+ *
+ *  2. La plata que SOBRA (leftover, cuando se paga más que el pendiente) se
+ *     registra como un payout SIN campaña ("pago a cuenta"), en vez de
+ *     descartarse en silencio. Ese pago se acredita FIFO sobre comisiones
+ *     FUTURAS (computeCreatorBalances ya lo hace con los payouts campaignId=null)
+ *     → es exactamente un pago por adelantado, y la plata nunca desaparece.
+ */
+export function buildSettlePayoutLines(
+  allocations: FifoAllocation[],
+  leftover: number,
+  paidAt: Date,
+): SettlePayoutLine[] {
+  const { start: periodStart, end: periodEnd } = monthRange(toPeriodMonth(paidAt));
+  const lines: SettlePayoutLine[] = allocations.map((a) => ({
+    campaignId: a.campaignId,
+    concept: `Pago comisión — ${a.name}`,
+    amount: a.amount,
+    periodStart,
+    periodEnd,
+  }));
+  if (round2(leftover) > 0) {
+    lines.push({
+      campaignId: null,
+      concept: "Pago a cuenta (saldo a favor)",
+      amount: round2(leftover),
+      periodStart,
+      periodEnd,
+    });
+  }
+  return lines;
 }

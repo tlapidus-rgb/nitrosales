@@ -22,7 +22,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
-import { computeCreatorBalances, allocateFifo } from "@/lib/aura/campaign-balance";
+import {
+  computeCreatorBalances,
+  allocateFifo,
+  buildSettlePayoutLines,
+} from "@/lib/aura/campaign-balance";
 
 const ALLOWED_METHODS = ["TRANSFER", "CASH", "MERCADOPAGO", "CRYPTO", "PRODUCT", "OTHER"];
 
@@ -64,28 +68,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         campaignIds,
       );
 
-      if (allocations.length === 0) {
+      // Filas a crear: las de campaña (FIFO) + el residual del sobrante, todas
+      // con el mes del paidAt. Ver buildSettlePayoutLines para el por qué.
+      const lines = buildSettlePayoutLines(allocations, leftover, paidAt);
+
+      if (lines.length === 0) {
+        // Sólo si amount se asignó entero y no sobró nada Y no hubo campañas
+        // (imposible con amount>0, pero no rompemos el contrato).
         return { created: 0, allocations, allocated, leftover, totalPendingBefore: balances.totalPending };
       }
 
       await tx.payout.createMany({
-        data: allocations.map((a) => ({
+        data: lines.map((l) => ({
           organizationId: org.id,
           influencerId: creator.id,
-          campaignId: a.campaignId,
-          concept: `Pago comisión — ${a.name}`,
-          amount: a.amount,
+          campaignId: l.campaignId,
+          concept: l.concept,
+          amount: l.amount,
           currency: "ARS",
           status: "PAID",
           method,
           reference,
           paidAt,
-          periodStart: null,
-          periodEnd: null,
+          periodStart: l.periodStart,
+          periodEnd: l.periodEnd,
         })),
       });
 
-      return { created: allocations.length, allocations, allocated, leftover, totalPendingBefore: balances.totalPending };
+      return { created: lines.length, allocations, allocated, leftover, totalPendingBefore: balances.totalPending };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return NextResponse.json({ ok: true, ...result });
