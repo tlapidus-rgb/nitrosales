@@ -153,6 +153,22 @@ export async function GET(req: NextRequest) {
           : `respuesta no-JSON de la fase (HTTP ${r.status}): ${raw.slice(0, 120)}`;
         break;
       }
+      // ⚠️ 403 MUDO (2026-07-22): un status no-2xx con body JSON —el caso típico
+      // es `{"error":"Forbidden"}` de un 403— parseaba bien, pero `json.ok`
+      // quedaba `undefined` (NO `false`). El guard de más abajo pregunta por
+      // `=== false`, así que no disparaba; el loop caía en `cursor-stuck` y el
+      // cron terminaba en HTTP 500 con `error: null`, indistinguible de una
+      // parada legítima. Pasa JUSTO al rotar la ADMIN_API_KEY: el self-fetch
+      // manda la key vieja y la fase la rechaza sin que nada lo diga.
+      if (!r.ok) {
+        const detail = json?.error ? String(json.error) : `HTTP ${r.status}`;
+        error =
+          r.status === 401 || r.status === 403
+            ? `la fase rechazó la auth (HTTP ${r.status}: ${detail}). ` +
+              `¿Se rotó la ADMIN_API_KEY sin actualizar vercel.json y redeployar?`
+            : `la fase respondió HTTP ${r.status}: ${detail}`;
+        break;
+      }
     } catch (e: any) {
       error = `fetch failed: ${e?.message?.slice(0, 200)}`;
       break;
