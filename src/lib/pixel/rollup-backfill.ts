@@ -71,6 +71,33 @@ const HV14 = `hll_add_agg(hll_hash_text("visitorId"), ${P14})`;
 const HV16 = `hll_add_agg(hll_hash_text("visitorId"), ${P16})`;
 const CLICKID = `("clickIds" IS NOT NULL AND "clickIds"::text != '{}' AND "clickIds"::text != 'null')`;
 
+// ── Las 7 tablas de rollup, EN ORDEN de ejecución ───────────────────────────
+// El backfill de un día corre estos 7 statements secuenciales. Se exponen como
+// allowlist para el modo `?table=` (ver runRollupBackfill): un día pico (Hot
+// Sale) no entra en el maxDuration procesando las 7 juntas —la función muere a
+// mitad, las tablas restantes quedan viejas y repetir la URL recomputa las
+// primeras y vuelve a morir en las mismas—, así que se puede completar UNA
+// tabla por invocación. Sin `table`, el comportamiento es idéntico al de antes.
+export const ROLLUP_TABLES = [
+  "aggregates",
+  "device",
+  "type",
+  "page",
+  "product",
+  "source",
+  "funnel",
+] as const;
+export type RollupTable = (typeof ROLLUP_TABLES)[number];
+
+export function isRollupTable(v: string): v is RollupTable {
+  return (ROLLUP_TABLES as readonly string[]).includes(v);
+}
+
+/** Qué tablas ejecuta un día: sólo `table` si vino, o las 7 en orden si no. */
+export function tablesToRun(table?: RollupTable): readonly RollupTable[] {
+  return table ? [table] : ROLLUP_TABLES;
+}
+
 // ── Helpers de fecha (UTC) ──────────────────────────────────────────────────
 export const addDays = (s: string, n: number): string => {
   const d = new Date(s + "T00:00:00Z");
@@ -94,7 +121,15 @@ export async function globalRange(): Promise<{ lo: string; hi: string } | null> 
 // ── Backfill de UN día para UNA org (un statement por tabla) ─────────────────
 // CLAVE DE PERFORMANCE: filtra `"organizationId"=$1` PRIMERO para usar el índice
 // (organizationId, timestamp). Bracket UTC generoso (±1 día) + filtro AR-date exacto.
-async function backfillDayOrg(d: string, org: string): Promise<number> {
+async function backfillDayOrg(
+  d: string,
+  org: string,
+  table?: RollupTable
+): Promise<number> {
+  // `table` presente → correr SÓLO esa tabla (modo resumible por tabla). Ausente
+  // → las 7 en orden, como siempre. `tablesToRun` es la fuente (testeada).
+  const toRun = new Set<RollupTable>(tablesToRun(table));
+  const run = (t: RollupTable) => toRun.has(t);
   const dLo = d;
   const dHi = addDays(d, 1);
   const tsLo = addDays(dLo, -1) + "T00:00:00Z";
@@ -106,7 +141,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   let touched = 0;
 
   // 1) aggregates (14,5)
-  touched += await prisma.$executeRawUnsafe(
+  if (run("aggregates")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_aggregates
        ("organizationId",day,total_events,page_views,events_with_clickid,
         visitors_hll,sessions_hll,pv_visitors_hll,product_visitors_hll,
@@ -138,7 +173,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   );
 
   // 2) device (14,5)
-  touched += await prisma.$executeRawUnsafe(
+  if (run("device")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_device ("organizationId",day,device,visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, COALESCE("deviceType",'unknown'), ${HV14}, now()
      FROM pixel_events WHERE ${range}
@@ -149,7 +184,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   );
 
   // 3) type (16,5)
-  touched += await prisma.$executeRawUnsafe(
+  if (run("type")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_type ("organizationId",day,type,event_count,visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, type, COUNT(*)::bigint, ${HV16}, now()
      FROM pixel_events WHERE ${range}
@@ -160,7 +195,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   );
 
   // 4) page (14,5) — solo PAGE_VIEW, sin checkout, URL sin querystring
-  touched += await prisma.$executeRawUnsafe(
+  if (run("page")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_page ("organizationId",day,url,page_views,visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, SPLIT_PART("pageUrl",'?',1), COUNT(*)::bigint, ${HV14}, now()
      FROM pixel_events
@@ -193,7 +228,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
         AND d.product_name = props->>'productName')
   )`;
 
-  touched += await prisma.$executeRawUnsafe(
+  if (run("product")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_product ("organizationId",day,product_id,viewers_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, ${RESOLVED_PID}, ${HV14}, now()
      FROM pixel_events
@@ -219,7 +254,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   // Con LEFT JOIN + COALESCE caen en 'sin_clasificar' y el total cierra. Es más
   // honesto además: un visitante sin canal de marketing EXISTE, y esconderlo es
   // peor que mostrarlo en su propio bucket.
-  touched += await prisma.$executeRawUnsafe(
+  if (run("source")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_source ("organizationId",day,first_source,pv_visitors_hll,refreshed_at)
      SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
        COALESCE(d.first_source, 'sin_clasificar'),
@@ -243,7 +278,7 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
   //    consume /api/metrics/pixel/funnel?channel=... en sub-segundo (antes escaneaba
   //    pixel_events crudo → >75s en rangos amplios). Misma precisión (14,5) que la
   //    tabla, para poder unir los HLL entre días.
-  touched += await prisma.$executeRawUnsafe(
+  if (run("funnel")) touched += await prisma.$executeRawUnsafe(
     `INSERT INTO pixel_daily_funnel_by_source ("organizationId",day,first_source,pv_hll,vp_hll,atc_hll,co_hll,refreshed_at)
      SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
        COALESCE(d.first_source, 'sin_clasificar'),
@@ -270,10 +305,14 @@ async function backfillDayOrg(d: string, org: string): Promise<number> {
 }
 
 // ── Backfill de UN día para TODAS las orgs (itera por org → usa el índice) ────
-async function backfillDay(d: string, orgs: string[]): Promise<number> {
+async function backfillDay(
+  d: string,
+  orgs: string[],
+  table?: RollupTable
+): Promise<number> {
   let touched = 0;
   for (const org of orgs) {
-    touched += await backfillDayOrg(d, org);
+    touched += await backfillDayOrg(d, org, table);
   }
   return touched;
 }
@@ -298,9 +337,45 @@ export async function runRollupBackfill(params: {
    * Sin esto, un día pico es un callejón sin salida operativo.
    */
   org?: string | null;
+  /**
+   * Acotar a UNA tabla de rollup (segundo nivel de partición). Para el día pico
+   * de una org que NO entra ni sola: se completa una tabla por invocación. Exige
+   * `org` (partir por tabla sobre todas las orgs no tiene caso). Se recibe cruda
+   * del query string y se valida contra ROLLUP_TABLES.
+   */
+  table?: string | null;
 }): Promise<BackfillRunResult> {
   const startedAt = Date.now();
   const budget = params.budgetMs ?? TIME_BUDGET_MS;
+
+  // Modo por tabla: exige org y una tabla válida. Sin org, partir por tabla no
+  // acota nada (seguiría recorriendo todas las orgs). VALIDA PRIMERO, antes de
+  // cualquier query: un 400 de params no debe costar un scan a la DB.
+  const rawTable = params.table ?? undefined;
+  let table: RollupTable | undefined;
+  if (rawTable !== undefined && rawTable !== "") {
+    if (!isRollupTable(rawTable)) {
+      return {
+        httpStatus: 400,
+        body: {
+          ok: false,
+          phase: "backfill",
+          error: `table inválida: "${rawTable}". Válidas: ${ROLLUP_TABLES.join(", ")}.`,
+        },
+      };
+    }
+    if (!params.org) {
+      return {
+        httpStatus: 400,
+        body: {
+          ok: false,
+          phase: "backfill",
+          error: "el modo ?table= exige también ?org= (partir por tabla sin org no acota nada).",
+        },
+      };
+    }
+    table = rawTable;
+  }
 
   // Guard: la dimensión first-source debe existir y estar poblada (el rollup
   // `source` la JOINea). Si está vacía, abortamos con instrucción clara.
@@ -381,7 +456,7 @@ export async function runRollupBackfill(params: {
     }
     const t0 = Date.now();
     try {
-      const touched = await backfillDay(cursor, orgs);
+      const touched = await backfillDay(cursor, orgs, table);
       const dayMs = Date.now() - t0;
       days.push({ day: cursor, touched, ms: dayMs });
       // El día más lento visto manda la reserva del próximo: los días de pico
@@ -401,7 +476,7 @@ export async function runRollupBackfill(params: {
           lastDayDone: lastDone,
           failedDay: cursor,
           error: e.message,
-          resume: `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}`,
+          resume: `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}${params.org ? `&org=${params.org}` : ""}${table ? `&table=${table}` : ""}`,
           ms: Date.now() - startedAt,
         },
       };
@@ -409,6 +484,7 @@ export async function runRollupBackfill(params: {
   }
   const done = cursor > to;
   const orgQs = params.org ? `&org=${params.org}` : "";
+  const tableQs = table ? `&table=${table}` : "";
   return {
     httpStatus: 200,
     body: {
@@ -416,6 +492,7 @@ export async function runRollupBackfill(params: {
       phase: "backfill",
       window: { from, to },
       org: params.org ?? null,
+      table: table ?? null,
       daysProcessedThisCall: days.length,
       lastDayDone: lastDone,
       days,
@@ -429,7 +506,7 @@ export async function runRollupBackfill(params: {
       nextCursor: done ? null : cursor,
       next: done
         ? "Listo. Verificá con GET ?phase=status"
-        : `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}${orgQs}`,
+        : `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}${orgQs}${tableQs}`,
       ms: Date.now() - startedAt,
     },
   };
