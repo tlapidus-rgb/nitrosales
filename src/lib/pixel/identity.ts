@@ -6,7 +6,79 @@
 
 import { prisma } from '@/lib/db/client';
 import { calculateAttribution } from '@/lib/pixel/attribution';
+import { Prisma, PixelVisitor } from '@prisma/client';
 import crypto from 'crypto';
+
+/**
+ * Fusiona `absorbed` dentro de `survivor`, ATÓMICAMENTE.
+ *
+ * ⚠️ POR QUÉ TRANSACCIÓN + POR QUÉ MOVER ATRIBUCIONES (2026-07-22):
+ * Antes el merge eran 4 escrituras sueltas (sin transacción). Dos fallas:
+ *
+ *  1. El `delete()` del absorbido TIRABA por FK Restrict cuando tenía filas en
+ *     PixelAttribution (`visitorId` sin `onDelete` → Restrict, schema:815). Los
+ *     eventos YA se habían movido en un statement previo ya commiteado, así que
+ *     quedaba un visitante FANTASMA: 0 eventos, todavía en la tabla, con sus
+ *     atribuciones colgando. Infla `unresolvedByOrg` para siempre.
+ *  2. El merge movía eventos pero NO atribuciones: aun si el delete no fallara,
+ *     esas filas quedaban apuntando a un visitante borrado.
+ *
+ * Mover las atribuciones al sobreviviente resuelve las dos: el delete deja de
+ * fallar y la atribución sigue al visitante.
+ *
+ * Y se invalida el first_source de AMBOS: el sobreviviente hereda eventos más
+ * VIEJOS, así que bajo FIRST CLICK (el modelo elegido) su primer toque puede
+ * haber cambiado — pero el batch usa `ON CONFLICT DO NOTHING` y jamás lo
+ * recalcularía. Borrar la fila fuerza el recálculo en la próxima corrida del
+ * cron (hasta entonces cae en 'sin_clasificar': transitorio corto y correcto,
+ * contra un canal viejo permanente). Las del absorbido, al borrarse el
+ * visitante, quedarían huérfanas (esas tablas son SQL crudo, sin FK).
+ */
+export async function mergeVisitorInto(
+  tx: Prisma.TransactionClient,
+  absorbed: PixelVisitor,
+  survivor: PixelVisitor,
+  opts: { newPhone?: string | null } = {}
+): Promise<void> {
+  // Futuros eventos con el visitorId viejo resuelven al sobreviviente.
+  await tx.pixelVisitorAlias.upsert({
+    where: { oldVisitorId: absorbed.visitorId },
+    update: { visitorId: survivor.id },
+    create: { oldVisitorId: absorbed.visitorId, visitorId: survivor.id },
+  });
+  await tx.pixelEvent.updateMany({
+    where: { visitorId: absorbed.id },
+    data: { visitorId: survivor.id },
+  });
+  // Sin esto el delete de abajo falla (FK Restrict) y la atribución queda huérfana.
+  await tx.pixelAttribution.updateMany({
+    where: { visitorId: absorbed.id },
+    data: { visitorId: survivor.id },
+  });
+  await tx.pixelVisitor.update({
+    where: { id: survivor.id },
+    data: {
+      totalSessions: survivor.totalSessions + absorbed.totalSessions,
+      totalPageViews: survivor.totalPageViews + absorbed.totalPageViews,
+      lastSeenAt: new Date(),
+      deviceTypes: [...new Set([...survivor.deviceTypes, ...absorbed.deviceTypes])],
+      clickIds: (absorbed.clickIds || survivor.clickIds) as any,
+      phone: survivor.phone || absorbed.phone || opts.newPhone || null,
+    },
+  });
+  // first_source/no_source: tablas SQL crudas sin FK. La del sobreviviente quedó
+  // vieja; las del absorbido quedarían huérfanas al borrarlo. Se recomputan solas.
+  await tx.$executeRawUnsafe(
+    `DELETE FROM pixel_visitor_first_source WHERE "organizationId"=$1 AND "visitorId" IN ($2,$3)`,
+    survivor.organizationId, survivor.id, absorbed.id,
+  );
+  await tx.$executeRawUnsafe(
+    `DELETE FROM pixel_visitor_no_source WHERE "organizationId"=$1 AND "visitorId" IN ($2,$3)`,
+    survivor.organizationId, survivor.id, absorbed.id,
+  );
+  // Ahora sin eventos ni atribuciones que lo bloqueen.
+  await tx.pixelVisitor.delete({ where: { id: absorbed.id } });
+}
 
 // ─── Types ───
 
@@ -203,26 +275,9 @@ export async function identifyVisitor(
       });
 
       if (existingWithPhone) {
-        await prisma.pixelVisitorAlias.upsert({
-          where: { oldVisitorId: visitorId },
-          update: { visitorId: existingWithPhone.id },
-          create: { oldVisitorId: visitorId, visitorId: existingWithPhone.id },
-        });
-        await prisma.pixelEvent.updateMany({
-          where: { visitorId: currentVisitor.id },
-          data: { visitorId: existingWithPhone.id },
-        });
-        await prisma.pixelVisitor.update({
-          where: { id: existingWithPhone.id },
-          data: {
-            totalSessions: existingWithPhone.totalSessions + currentVisitor.totalSessions,
-            totalPageViews: existingWithPhone.totalPageViews + currentVisitor.totalPageViews,
-            lastSeenAt: new Date(),
-            deviceTypes: [...new Set([...existingWithPhone.deviceTypes, ...currentVisitor.deviceTypes])],
-            clickIds: (currentVisitor.clickIds || existingWithPhone.clickIds) as any,
-          },
-        });
-        await prisma.pixelVisitor.delete({ where: { id: currentVisitor.id } });
+        await prisma.$transaction((tx) =>
+          mergeVisitorInto(tx, currentVisitor, existingWithPhone)
+        );
         console.log(`[NitroPixel] Merged visitor ${visitorId} into ${existingWithPhone.visitorId} (phone match)`);
         return existingWithPhone;
       }
@@ -275,41 +330,13 @@ export async function identifyVisitor(
     });
 
     if (existingWithEmail) {
-      // MERGE: el visitor actual se absorbe en el que ya tenia email
-      // Crear alias para que futuros eventos con el viejo visitorId se resuelvan
-      await prisma.pixelVisitorAlias.upsert({
-        where: { oldVisitorId: visitorId },
-        update: { visitorId: existingWithEmail.id },
-        create: {
-          oldVisitorId: visitorId,
-          visitorId: existingWithEmail.id
-        }
-      });
-
-      // Mover los eventos del visitor actual al existente
-      await prisma.pixelEvent.updateMany({
-        where: { visitorId: currentVisitor.id },
-        data: { visitorId: existingWithEmail.id }
-      });
-
-      // Acumular stats
-      await prisma.pixelVisitor.update({
-        where: { id: existingWithEmail.id },
-        data: {
-          totalSessions: existingWithEmail.totalSessions + currentVisitor.totalSessions,
-          totalPageViews: existingWithEmail.totalPageViews + currentVisitor.totalPageViews,
-          lastSeenAt: new Date(),
-          // Merge device types
-          deviceTypes: [...new Set([...existingWithEmail.deviceTypes, ...currentVisitor.deviceTypes])],
-          // Keep clickIds del mas reciente
-          clickIds: (currentVisitor.clickIds || existingWithEmail.clickIds) as any,
-          // Phone: prefer existing, fallback to current or newly provided
-          phone: existingWithEmail.phone || currentVisitor.phone || phone || null,
-        }
-      });
-
-      // Eliminar el visitor duplicado
-      await prisma.pixelVisitor.delete({ where: { id: currentVisitor.id } });
+      // MERGE atómico: el visitor actual se absorbe en el que ya tenía email.
+      // Toda la mecánica (alias, mover eventos + atribuciones, acumular stats,
+      // invalidar first_source, borrar) vive en mergeVisitorInto. Ver ahí el por
+      // qué de la transacción y del movimiento de atribuciones.
+      await prisma.$transaction((tx) =>
+        mergeVisitorInto(tx, currentVisitor, existingWithEmail, { newPhone: phone })
+      );
 
       console.log(`[NitroPixel] Merged visitor ${visitorId} into ${existingWithEmail.visitorId} (email: ${email})`);
 
