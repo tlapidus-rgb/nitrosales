@@ -93,8 +93,8 @@
       "schedule": "0 */2 * * *"
     },
     {
-      "path": "/api/cron/refresh-pixel-first-source?key=nitrosales-secret-key-2024-production",
-      "schedule": "0 6 * * *"
+      "path": "/api/cron/refresh-pixel-first-source?key=nitrosales-secret-key-2024-production&days=90",
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/attribution-reconcile?key=nitrosales-secret-key-2024-production",

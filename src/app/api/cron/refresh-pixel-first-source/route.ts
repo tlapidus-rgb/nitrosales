@@ -40,7 +40,17 @@
 // propaga: el incremental no pisa filas. Después de tocarla hay que correr a
 // mano `POST /api/admin/setup-pixel-rollups?phase=first-source&full=1`.
 //
-// Schedule: 1×/día (vercel.json: `0 6 * * *` = 6am UTC = 3am ART).
+// Schedule: cada 6h (vercel.json: `0 */6 * * *`) con `&days=90`.
+//
+// ⚠️ POR QUÉ days=90 Y NO 3 (2026-07-22): con days=3 el cron sólo miraba a los
+// visitantes activos en 3 días. El que se escapaba de esa ventana sin evaluar
+// NO lo agarraba nadie nunca más y se acumulaba en silencio — así el bucket
+// "sin clasificar" creció hasta ~21.000 sin que nada avisara. Con days=90 cada
+// corrida reevalúa a TODO el que sigue sin canal en la ventana de reporte, así
+// que nadie se amontona: lo máximo que espera un visitante es una corrida (~6h).
+// No es más caro: el costo lo manda la CANTIDAD de faltantes (topada por
+// maxVisitors), no el ancho de la ventana. Una vez limpio el backlog, quedan
+// pocos por corrida.
 // Auth: header `user-agent: vercel-cron` (Vercel) o `?key=<ADMIN_API_KEY>`.
 //
 // ⚠️ Deuda compartida: el self-fetch manda la key en la URL (queda en logs) —
