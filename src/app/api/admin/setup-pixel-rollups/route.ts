@@ -438,11 +438,15 @@ export async function POST(req: NextRequest) {
       // atascó en el pico de Hot Sale y no había NINGUNA perilla desde afuera:
       // el día no entraba en la función y la única salida era tocar código.
       const rawBudget = parseInt(url.searchParams.get("budgetMs") || "", 10);
+      // `?table=` (2026-07-23): segundo nivel de partición para el día pico de
+      // una org que no entra ni sola (Arredo/Hot Sale). runRollupBackfill valida
+      // que sea una tabla conocida y que venga con ?org=.
       const r = await runRollupBackfill({
         from: url.searchParams.get("from"),
         to: url.searchParams.get("to"),
         cursor: url.searchParams.get("cursor"),
         org: url.searchParams.get("org"),
+        table: url.searchParams.get("table"),
         budgetMs: Number.isFinite(rawBudget)
           ? Math.min(760_000, Math.max(30_000, rawBudget))
           : undefined,
