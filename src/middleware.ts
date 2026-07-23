@@ -65,8 +65,11 @@ export default async function middleware(req: NextRequest) {
   if (token) {
     const allowed = isPathAllowed({
       pathname,
+      method,
+      isApi,
       isStaff: token.isStaff === true,
       allowedSections: token.allowedSections as string[] | undefined,
+      writableSections: token.writableSections as string[] | undefined,
     });
     if (!allowed) {
       if (isApi) {

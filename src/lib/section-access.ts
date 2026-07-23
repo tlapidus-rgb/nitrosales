@@ -95,18 +95,42 @@ export function requiredSectionForPath(pathname: string): Section | null {
  * - Ruta no restringida → permitido.
  * - `allowedSections` undefined (token viejo / sin snapshot) → permitido
  *   (fail-open: no lockear users existentes; el server igual valida sesión).
- * - Sino: permitido sólo si la sección requerida está en allowedSections.
+ * - Read (GET, o cualquier método fuera de API): permitido si la sección
+ *   requerida está en `allowedSections`.
+ * - Write (POST/PUT/PATCH/DELETE a una ruta de API): además exige que la
+ *   sección esté en `writableSections`.
+ *
+ * ⚠️ POR QUÉ EL MÉTODO IMPORTA (auditoría 2026-07-22): antes esto sólo miraba
+ * `allowedSections` (read+) y jamás el método. Un user con `aura: read` podía
+ * hacer POST /api/aura/creators/<id>/settle (registrar pagos), DELETE de
+ * campañas, etc. — leer implicaba escribir. Un solo lugar gatea las ~420 rutas.
  */
 export function isPathAllowed(params: {
   pathname: string;
+  method: string;
+  isApi: boolean;
   isStaff: boolean;
   allowedSections: string[] | undefined;
+  writableSections: string[] | undefined;
 }): boolean {
   if (params.isStaff) return true;
   const section = requiredSectionForPath(params.pathname);
   if (section === null) return true;
-  if (!Array.isArray(params.allowedSections)) return true; // fail-open
-  return params.allowedSections.includes(section);
+  if (!Array.isArray(params.allowedSections)) return true; // fail-open token viejo
+  if (!params.allowedSections.includes(section)) return false; // ni ver puede
+
+  const m = params.method.toUpperCase();
+  const isWrite = m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE";
+  if (params.isApi && isWrite) {
+    // ⚠️ FAIL-OPEN SÓLO PARA TOKENS VIEJOS: un JWT emitido antes de este deploy
+    // no trae `writableSections`. Bloquear sus writes de golpe lockearía a users
+    // legítimos con write hasta que renueven sesión. Se deja pasar; al rotar el
+    // JWT (maxAge) el snapshot aparece y el gate se vuelve efectivo. Misma
+    // ventana transitoria que el fail-open de `allowedSections`.
+    if (!Array.isArray(params.writableSections)) return true;
+    return params.writableSections.includes(section);
+  }
+  return true;
 }
 
 // ══════════════════════════════════════════════════════════════
