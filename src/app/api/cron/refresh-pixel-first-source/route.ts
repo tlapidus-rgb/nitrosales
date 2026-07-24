@@ -40,17 +40,21 @@
 // propaga: el incremental no pisa filas. Después de tocarla hay que correr a
 // mano `POST /api/admin/setup-pixel-rollups?phase=first-source&full=1`.
 //
-// Schedule: cada 6h (vercel.json: `0 */6 * * *`) con `&days=90`.
+// Schedule: CADA HORA en punto (vercel.json: `0 * * * *`) con `&days=7`, y el
+// rollup corre 30' después (`30 * * * *`) para reflejar lo recién clasificado.
+// Así el visitante nuevo espera como MÁXIMO ~1h en 'sin_clasificar'.
 //
-// ⚠️ POR QUÉ days=90 Y NO 3 (2026-07-22): con days=3 el cron sólo miraba a los
-// visitantes activos en 3 días. El que se escapaba de esa ventana sin evaluar
-// NO lo agarraba nadie nunca más y se acumulaba en silencio — así el bucket
-// "sin clasificar" creció hasta ~21.000 sin que nada avisara. Con days=90 cada
-// corrida reevalúa a TODO el que sigue sin canal en la ventana de reporte, así
-// que nadie se amontona: lo máximo que espera un visitante es una corrida (~6h).
-// No es más caro: el costo lo manda la CANTIDAD de faltantes (topada por
-// maxVisitors), no el ancho de la ventana. Una vez limpio el backlog, quedan
-// pocos por corrida.
+// ⚠️ POR QUÉ days=7 CADA HORA Y NO days=90 CADA 6H (revisado 2026-07-24): el
+// cron cada 6h dejaba hasta 6h de tráfico del día en curso sin clasificar, y el
+// cliente lo veía. Con days=7 cada hora, la ventana de mantenimiento es corta y
+// BARATA (pocos faltantes recientes → entra en 1-2 pasadas, no revienta el pool
+// de Neon). El costo lo manda la CANTIDAD de faltantes (topada por maxVisitors),
+// no el ancho de la ventana.
+//
+// ⚠️ EL days=90 (backlog histórico) YA NO ESTÁ AGENDADO. Se corre A MANO cuando
+// hace falta reprocesar historia vieja — típicamente tras cambiar la lógica de
+// clasificación (que además exige `full=1`). El mantenimiento diario NO lo
+// necesita: days=7 mantiene lo reciente al día.
 // Auth: SÓLO por `?key=<ADMIN_API_KEY>` (el bypass por user-agent se quitó,
 // auditoría 2026-07-22; Vercel Cron manda la key en vercel.json).
 //
@@ -290,6 +294,12 @@ export async function GET(req: NextRequest) {
       error,
       totalMs: Date.now() - startedAt,
     },
-    { status: done && !error ? 200 : 500 }
+    // 200 salvo que haya un ERROR REAL. Antes era `done && !error ? 200 : 500`,
+    // así que cortar por presupuesto (budgetHit, done:false, SIN error) devolvía
+    // 500 — un corte NORMAL y resumible reportado como fallo. Vercel Cron lo
+    // marcaba en rojo (visto 2026-07-24: el cron trabajó 8 min, 14 pasadas OK, y
+    // salió 500 sólo porque no terminó TODO en una corrida). El trabajo igual se
+    // hizo; el próximo tick sigue por los que faltan. Sólo un `error` es 500.
+    { status: error ? 500 : 200 }
   );
 }
