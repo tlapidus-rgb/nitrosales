@@ -32,7 +32,27 @@ const API_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
   { prefix: "/api/ads", section: "campaigns" },
   { prefix: "/api/metrics/campaigns", section: "campaigns" },
   { prefix: "/api/metrics/ads", section: "campaigns" },
+  { prefix: "/api/analyze", section: "campaigns" },       // análisis de creatives
+  { prefix: "/api/audiences", section: "campaigns" },
   { prefix: "/api/alerts", section: "alertas" },
+  { prefix: "/api/aurum", section: "aurum" },
+  { prefix: "/api/chat", section: "aurum" },              // el chat AI vive en la sección aurum
+  { prefix: "/api/memory", section: "memory" },
+  { prefix: "/api/ltv", section: "bondly" },              // LTV = analítica de clientes (CRM)
+  // finanzas: fiscal es sección propia; el resto (costos manuales/auto, alerts) → costos.
+  // Los fiscal van ANTES del catch-all /api/finance (el primer prefijo que matchea gana).
+  { prefix: "/api/finance/fiscal-profile", section: "fiscal" },
+  { prefix: "/api/finance/fiscal", section: "fiscal" },
+  { prefix: "/api/finance", section: "costos" },
+  // ⚠️ PENDIENTE (2026-07-24): NO gatear /api/settings ni /api/dashboard en
+  //   grueso — tienen flujos SELF que se romperían: /api/settings/security/password
+  //   (cambiar la propia contraseña), /api/settings/team/invitations/accept
+  //   (aceptar invitación), /api/dashboard/preferences (preferencias propias).
+  //   Requieren sub-mapeo por subruta + excluir los self. Tarea aparte.
+  // ⚠️ PENDIENTE: /api/influencers no tiene sección propia — decisión de producto
+  //   de Tomy (¿parte de aura? ¿campaigns? ¿sección nueva?). Dejado sin gatear.
+  // ⚠️ /api/alertas parece duplicado en español de /api/alerts — verificar si es
+  //   dead code antes de gatearlo.
 ];
 
 // Prefijos de páginas (rutas no-/api) → sección requerida (read).

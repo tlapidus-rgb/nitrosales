@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isPathAllowed } from "@/lib/section-access";
+import { isPathAllowed, requiredSectionForPath } from "@/lib/section-access";
 
 // ══════════════════════════════════════════════════════════════════════════
 // REGRESIÓN — leer NO puede implicar escribir (auditoría 2026-07-22)
@@ -78,5 +78,53 @@ describe("isPathAllowed — gating por método", () => {
       writableSections: [],
     };
     expect(isPathAllowed({ ...page, method: "POST" })).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Namespaces que la auditoría había dejado sin gatear (2026-07-24)
+// ══════════════════════════════════════════════════════════════════════════
+describe("nuevos namespaces gateados", () => {
+  const cases: Array<[string, string]> = [
+    ["/api/aurum/section-insight", "aurum"],
+    ["/api/chat", "aurum"],
+    ["/api/memory/notes", "memory"],
+    ["/api/ltv/predict", "bondly"],
+    ["/api/audiences/sync", "campaigns"],
+    ["/api/analyze/creative", "campaigns"],
+    ["/api/finance/manual-costs", "costos"],
+    ["/api/finance/fiscal", "fiscal"],
+    ["/api/finance/fiscal-profile", "fiscal"], // gana sobre el catch-all /api/finance
+  ];
+  it.each(cases)("%s → sección %s", (path, section) => {
+    expect(requiredSectionForPath(path)).toBe(section);
+  });
+
+  it("read a la nueva sección NO habilita POST (mismo gate de método)", () => {
+    const p = {
+      pathname: "/api/ltv/predict",
+      isApi: true,
+      isStaff: false,
+      allowedSections: ["bondly"],
+    };
+    expect(isPathAllowed({ ...p, method: "POST", writableSections: [] })).toBe(false);
+    expect(isPathAllowed({ ...p, method: "POST", writableSections: ["bondly"] })).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ⚠️ REGRESIÓN: flujos SELF y pendientes que NO deben gatearse. Gatear
+// /api/settings o /api/dashboard en grueso rompería estos (un MEMBER sin write
+// de settings_org no podría cambiar SU contraseña ni aceptar una invitación).
+// ══════════════════════════════════════════════════════════════════════════
+describe("flujos self / pendientes NO se gatean", () => {
+  const noGate = [
+    "/api/settings/security/password",        // cambiar la propia contraseña
+    "/api/settings/team/invitations/accept",  // aceptar invitación
+    "/api/dashboard/preferences",             // preferencias propias del usuario
+    "/api/influencers/applications",          // sin sección — decisión de Tomy pendiente
+  ];
+  it.each(noGate)("%s pasa (sección null)", (path) => {
+    expect(requiredSectionForPath(path)).toBe(null);
   });
 });
