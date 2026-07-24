@@ -152,7 +152,22 @@ export async function GET(req: NextRequest) {
     const target = `${setupBase}&orgCursor=${orgCursor}`;
     let json: any;
     try {
-      const r = await fetch(target, { method: "POST", cache: "no-store" });
+      const r = await fetch(target, {
+        method: "POST",
+        cache: "no-store",
+        // ⚠️ BYPASS de Vercel Deployment Protection (2026-07-24, MISMO fix que
+        // warm-cache BP-ROLLUP-CRON / Fix 2b, que acá faltaba). Cuando Vercel
+        // Cron dispara este endpoint, `url.host` es la URL del DEPLOYMENT, que
+        // está detrás del muro de auth de Vercel. El self-fetch a esa URL sin
+        // este header daba 401 → el loop cortaba con error → el cron salía 5XX.
+        // Medido: 78,6% de las invocaciones automáticas fallaban y los
+        // visitantes del día quedaban sin clasificar; la corrida MANUAL andaba
+        // porque pega al dominio público. El secret lo provee Vercel como System
+        // env var ("Protection Bypass for Automation"); en local no se manda.
+        headers: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+          ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+          : undefined,
+      });
       // Cuando la fase se pasa del maxDuration, Vercel responde su página de
       // error HTML y `r.json()` explota con "Unexpected token 'A'". Ese mensaje
       // no dice nada útil a quien está corriendo esto a mano, así que se lee el
