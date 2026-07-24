@@ -36,7 +36,20 @@ function createPrismaClient(): PrismaClient {
   // statement_timeout=25000 mata una query colgada → safeQuery usa su fallback.
   const rawUrl = process.env.DATABASE_URL || "";
   const sep = rawUrl.includes("?") ? "&" : "?";
-  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=30&statement_timeout=25000`;
+  // ⚠️ pgbouncer=true cuando el endpoint es el -pooler de Neon (2026-07-24).
+  //   El pooler de Neon es PgBouncer en modo TRANSACCIÓN: las conexiones se
+  //   reusan entre transacciones. Sin este flag, Prisma usa prepared statements
+  //   atados a UNA conexión; la query siguiente cae en OTRA del pool donde ese
+  //   statement no existe → `PrismaClientKnownRequestError: Invalid invocation`,
+  //   intermitente. Pegaba sobre todo en el background refresh de
+  //   /api/metrics/pixel (hace ~29 queries seguidas → más chances de cruzar
+  //   conexiones), que fallaba y dejaba el cache del dashboard sin actualizar.
+  //   `pgbouncer=true` hace que Prisma NO use prepared statements → seguro con
+  //   el pooler. Sólo se agrega si la URL ES el pooler (conexión directa no lo
+  //   necesita y no debe llevarlo).
+  const isPooler = /-pooler\./.test(rawUrl);
+  const pgbouncer = isPooler && !/[?&]pgbouncer=/.test(rawUrl) ? "&pgbouncer=true" : "";
+  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=30&statement_timeout=25000${pgbouncer}`;
 
   const client = new PrismaClient({
     datasourceUrl: dsUrl,
