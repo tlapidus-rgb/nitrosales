@@ -75,7 +75,7 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string 
   // Visitantes sin canal de marketing (todos sus eventos clasifican a NULL:
   // pasarelas de pago, vueltas de checkout). ANTES DESAPARECÍAN de la tabla —
   // el rollup los perdía con un INNER JOIN y la suma nunca cerraba (2026-07-21).
-  sin_clasificar: { icon: "?", color: "#94A3B8", label: "Sin clasificar" },
+  sin_clasificar: { icon: "?", color: "#94A3B8", label: "Otros orígenes" },
   organic: { icon: "O", color: "#8B5CF6", label: "Orgánico" },
   google_organic: { icon: "G", color: "#34A853", label: "Google Orgánico" },
   bing_organic: { icon: "B", color: "#008373", label: "Bing Orgánico" },
