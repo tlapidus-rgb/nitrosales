@@ -22,6 +22,8 @@
 // pipeline está roto, se ve en cualquier día — y mantiene la query acotada.
 // ══════════════════════════════════════════════════════════════════════════
 
+import { CHECKOUT_URL_REGEX } from "@/lib/pixel/first-source-sql";
+
 /**
  * Umbral de divergencia. Generoso a propósito: el HLL tiene ~0,4-1,5% de error
  * al unir días, y no queremos alertar por eso. Lo que buscamos son órdenes de
@@ -78,6 +80,11 @@ SELECT pe."organizationId" AS org,
 FROM pixel_events pe
 WHERE (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = $1::date
   AND pe.type = 'PAGE_VIEW'
+  -- Espejo del rollup pv_visitors_hll (2026-07-24): el checkout NO es visita.
+  -- Si no se excluye acá también, el crudo mide MÁS que el rollup y este monitor
+  -- dispara un falso positivo (el rollup "pierde" visitas que nunca fueron
+  -- visitas). El header lo exige: cambian JUNTOS con rollup-backfill.ts #6.
+  AND (pe."pageUrl" IS NULL OR pe."pageUrl" !~* '${CHECKOUT_URL_REGEX}')
   AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
 GROUP BY 1`.trim();
 }
