@@ -18,6 +18,7 @@ import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWebWhere, ordersValidWebSql } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import {
+  CHECKOUT_URL_REGEX,
   FIRST_SOURCE_MARKETING_CASE_FILTERED,
   GOOGLE_UTM_SQL_IN,
   META_UTM_SQL_IN,
@@ -102,7 +103,7 @@ async function channelFunnelStages(
              ORDER BY "visitorId", timestamp ASC
            )
            SELECT
-             COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
+             COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' AND (pe."pageUrl" IS NULL OR pe."pageUrl" !~* '${CHECKOUT_URL_REGEX}') THEN pe."visitorId" END)::int as "pageView",
              COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
              COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
              COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart"
