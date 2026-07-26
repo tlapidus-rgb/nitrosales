@@ -79,7 +79,15 @@ function dimCondSql(expr: string, dim: RuleDim): string {
  * diseño sobre `regex`.
  */
 export function buildChannelRuleCase(rules: ChannelRule[], exprs: RuleExprs): string {
-  const sorted = [...rules].sort((a, b) => a.priority - b.priority);
+  // Orden de resolución (diseño §4): PRIMERO las reglas de la org (por priority),
+  // DESPUÉS las globales (por priority). Una regla de la org gana sobre la global
+  // aunque tenga peor priority — por eso el desempate por org va antes.
+  const sorted = [...rules].sort((a, b) => {
+    const aOrg = a.organizationId ? 0 : 1;
+    const bOrg = b.organizationId ? 0 : 1;
+    if (aOrg !== bOrg) return aOrg - bOrg;
+    return a.priority - b.priority;
+  });
   const whens = sorted.map((r) => {
     const conds: string[] = [];
     if (r.source) conds.push(dimCondSql(exprs.source, r.source));
