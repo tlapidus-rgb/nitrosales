@@ -136,6 +136,17 @@ export function buildSubChannelCase(rules: ChannelRule[], exprs: RuleExprs): str
   return `CASE\n${whens.join("\n")}\n    ELSE NULL\n  END`;
 }
 
+/**
+ * Expresión booleana: TRUE si ALGUNA regla matchea (canal resuelto), FALSE si cae
+ * al passthrough (source desconocido = "sin mapear"). La UI de `/control` la usa
+ * para separar la bandeja de "sin mapear" (cola de trabajo) de los canales reales
+ * — un source en passthrough NO es un canal más, es trabajo pendiente (diseño §4).
+ */
+export function buildIsMappedCase(rules: ChannelRule[], exprs: RuleExprs): string {
+  const conds = sortRules(rules).map((r) => `(${ruleCondSql(r, exprs)})`);
+  return conds.length ? `(${conds.join(" OR ")})` : "FALSE";
+}
+
 // ── Reglas seed globales (organizationId = NULL) ────────────────────────────
 // Codifican las 4 decisiones de Tomy. Arranque idéntico a los alias de hoy +
 // pago/orgánico. Las org-específicas (TV de TeVe, etc.) viven en channel_rule.

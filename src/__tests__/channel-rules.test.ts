@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
-import { buildChannelRuleCase, SEED_CHANNEL_RULES } from "@/lib/pixel/channel-rules";
+import {
+  buildChannelRuleCase,
+  buildIsMappedCase,
+  SEED_CHANNEL_RULES,
+} from "@/lib/pixel/channel-rules";
 
 // ══════════════════════════════════════════════════════════════════════════
 // MOTOR DE RESOLUCIÓN DE CANAL (Opción C, Fase 2)
@@ -90,6 +94,23 @@ describe("channel-rules — resolución de canal (seed globales)", () => {
     );
     expect(res.rows[0].ch).toBe("Meta Ads");
     expect(res.rows[1].ch).toBe("Facebook Orgánico");
+    await db.close();
+  });
+
+  it("buildIsMappedCase distingue resuelto de passthrough (sin mapear)", async () => {
+    const db = new PGlite();
+    await db.query(`CREATE TABLE t (id int PRIMARY KEY, data jsonb)`);
+    await db.query(
+      `INSERT INTO t VALUES
+        (1,'{"source":"fb","medium":"paid"}'::jsonb),
+        (2,'{"source":"algo_raro","medium":"x"}'::jsonb),
+        (3,'{"source":"direct"}'::jsonb)`
+    );
+    const sql = buildIsMappedCase(SEED_CHANNEL_RULES, EXPRS);
+    const res = await db.query<{ id: number; mapped: boolean }>(
+      `SELECT id, ${sql} AS mapped FROM t ORDER BY id`
+    );
+    expect(res.rows.map((r) => r.mapped)).toEqual([true, false, true]); // 2 = sin mapear
     await db.close();
   });
 });
