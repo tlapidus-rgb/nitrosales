@@ -30,6 +30,8 @@ const CASES: Case[] = [
   { source: "facebook", medium: "cpc", expect: "Meta Ads", desc: "facebook cpc → Meta Ads (pago gana a orgánico por prioridad)" },
   { source: "facebook", medium: "social", expect: "Facebook Orgánico", desc: "facebook social → orgánico" },
   { source: "instagram", medium: "paid", expect: "Meta Ads", desc: "instagram pago → Meta Ads (centralizado)" },
+  { source: "ig", medium: "paid", expect: "Meta Ads", desc: "ig (alias) pago → Meta Ads (P2)" },
+  { source: "instagram_ads", medium: "cpc", expect: "Meta Ads", desc: "instagram_ads → Meta Ads (P2)" },
   { source: "instagram", medium: "social", expect: "Instagram Orgánico", desc: "instagram social → orgánico" },
   { source: "an", medium: "paid", expect: "Meta Ads", desc: "Audience Network → Meta Ads" },
   { source: "th", medium: "paid", expect: "Meta Ads", desc: "Threads → Meta Ads" },

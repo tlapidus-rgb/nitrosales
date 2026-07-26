@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import {
   buildChannelRuleCase,
+  buildSubChannelCase,
   SEED_CHANNEL_RULES,
   type ChannelRule,
 } from "@/lib/pixel/channel-rules";
@@ -27,6 +28,7 @@ const EXPRS = {
   source: `COALESCE(NULLIF(LOWER(TRIM(data->>'source')), ''), 'direct')`,
   medium: `LOWER(TRIM(COALESCE(data->>'medium', '')))`,
   campaign: `LOWER(TRIM(COALESCE(data->>'campaign', '')))`,
+  campaignRaw: `NULLIF(TRIM(data->>'campaign'), '')`, // valor del sub-canal, sin lower
 };
 
 const TEVE = "org-teve";
@@ -38,6 +40,7 @@ const TV_RULE: ChannelRule = {
   priority: 15,
   source: { match: "exact", pattern: "tv" },
   channel: "TV",
+  subFrom: "campaign", // decisión 4: sub-canal = la señal (AXN/TNT) en el campaign
 };
 
 async function setup(): Promise<PGlite> {
@@ -90,6 +93,28 @@ describe("channel_rule store — reglas por org sobre las globales", () => {
     }
     const n = await db.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM channel_rule`);
     expect(n.rows[0].c).toBe(SEED_CHANNEL_RULES.length + 1); // globales + la de TeVe
+    await db.close();
+  });
+
+  it("decisión 4: TV desglosa el sub-canal por campaign (AXN/TNT)", async () => {
+    const db = await setup();
+    const loaded = await db.query<ChannelRuleRow>(LOAD_CHANNEL_RULES_SQL, [TEVE]);
+    const rules = loaded.rows.map(rowToChannelRule);
+    const chSql = buildChannelRuleCase(rules, EXPRS);
+    const subSql = buildSubChannelCase(rules, EXPRS);
+    await db.exec(`CREATE TABLE t2 (id int PRIMARY KEY, data jsonb)`);
+    await db.query(
+      `INSERT INTO t2 VALUES
+        (1,'{"source":"tv","campaign":"AXN"}'::jsonb),
+        (2,'{"source":"tv","campaign":""}'::jsonb),
+        (3,'{"source":"fb","medium":"paid","campaign":"promo"}'::jsonb)`
+    );
+    const res = await db.query<{ id: number; ch: string; sub: string | null }>(
+      `SELECT id, (${chSql}) ch, (${subSql}) sub FROM t2 ORDER BY id`
+    );
+    expect(res.rows[0]).toMatchObject({ ch: "TV", sub: "AXN" }); // señal desglosada
+    expect(res.rows[1]).toMatchObject({ ch: "TV", sub: null }); // campaign vacío → sin sub
+    expect(res.rows[2]).toMatchObject({ ch: "Meta Ads", sub: null }); // regla sin subFrom
     await db.close();
   });
 });

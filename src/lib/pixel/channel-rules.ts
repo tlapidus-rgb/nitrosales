@@ -17,7 +17,11 @@
 // ya no llegan a esta resolución. Ver DISEÑO-CANALES-OPCION-C.local.md §1.
 // ══════════════════════════════════════════════════════════════════════════
 
-import { GOOGLE_UTM_ALIASES, META_UTM_ALIASES } from "@/lib/pixel/source-classification";
+import {
+  GOOGLE_UTM_ALIASES,
+  INSTAGRAM_UTM_ALIASES,
+  META_UTM_ALIASES,
+} from "@/lib/pixel/source-classification";
 
 export type MatchType = "exact" | "in" | "prefix" | "contains";
 
@@ -39,6 +43,9 @@ export interface ChannelRule {
   campaign?: RuleDim;
   /** Canal canónico destino. */
   channel: string;
+  /** De dónde sale el SUB-canal. 'campaign' = el nombre de campaña crudo (TV:
+   *  AXN/TNT — decisión 4). NULL/undefined = sin sub-canal. */
+  subFrom?: "campaign" | null;
 }
 
 /** Expresiones SQL de cada dimensión, YA normalizadas (lower+trim) por el caller. */
@@ -46,6 +53,9 @@ export interface RuleExprs {
   source: string;
   medium: string;
   campaign: string;
+  /** Campaign SIN normalizar — es el VALOR del sub-canal (preserva mayúsculas:
+   *  AXN/TNT). Sólo lo usa buildSubChannelCase; si falta, cae a `campaign`. */
+  campaignRaw?: string;
 }
 
 const escLit = (s: string) => s.replace(/'/g, "''");
@@ -78,25 +88,52 @@ function dimCondSql(expr: string, dim: RuleDim): string {
  * canal más). Sólo `exact`/`in`/`prefix` en el path crítico; ver riesgos del
  * diseño sobre `regex`.
  */
-export function buildChannelRuleCase(rules: ChannelRule[], exprs: RuleExprs): string {
-  // Orden de resolución (diseño §4): PRIMERO las reglas de la org (por priority),
-  // DESPUÉS las globales (por priority). Una regla de la org gana sobre la global
-  // aunque tenga peor priority — por eso el desempate por org va antes.
-  const sorted = [...rules].sort((a, b) => {
+/**
+ * Orden de resolución (diseño §4): PRIMERO las reglas de la org (por priority),
+ * DESPUÉS las globales (por priority). Una regla de la org gana sobre la global
+ * aunque tenga peor priority — por eso el desempate por org va antes.
+ */
+function sortRules(rules: ChannelRule[]): ChannelRule[] {
+  return [...rules].sort((a, b) => {
     const aOrg = a.organizationId ? 0 : 1;
     const bOrg = b.organizationId ? 0 : 1;
     if (aOrg !== bOrg) return aOrg - bOrg;
     return a.priority - b.priority;
   });
-  const whens = sorted.map((r) => {
-    const conds: string[] = [];
-    if (r.source) conds.push(dimCondSql(exprs.source, r.source));
-    if (r.medium) conds.push(dimCondSql(exprs.medium, r.medium));
-    if (r.campaign) conds.push(dimCondSql(exprs.campaign, r.campaign));
-    const cond = conds.length ? conds.join(" AND ") : "TRUE";
-    return `    WHEN ${cond} THEN '${escLit(r.channel)}'`;
-  });
+}
+
+/** Condición SQL de una regla = AND de sus dimensiones (source/medium/campaign). */
+function ruleCondSql(r: ChannelRule, exprs: RuleExprs): string {
+  const conds: string[] = [];
+  if (r.source) conds.push(dimCondSql(exprs.source, r.source));
+  if (r.medium) conds.push(dimCondSql(exprs.medium, r.medium));
+  if (r.campaign) conds.push(dimCondSql(exprs.campaign, r.campaign));
+  return conds.length ? conds.join(" AND ") : "TRUE";
+}
+
+export function buildChannelRuleCase(rules: ChannelRule[], exprs: RuleExprs): string {
+  const whens = sortRules(rules).map(
+    (r) => `    WHEN ${ruleCondSql(r, exprs)} THEN '${escLit(r.channel)}'`
+  );
   return `CASE\n${whens.join("\n")}\n    ELSE ${exprs.source}\n  END`;
+}
+
+/**
+ * CASE del SUB-canal, en PARALELO al del canal (mismas condiciones y mismo orden,
+ * así la regla que gana el canal es la que gana el sub-canal). Para esa regla: si
+ * tiene `subFrom='campaign'` → el sub-canal es el `campaign` crudo (TV: AXN/TNT,
+ * decisión 4); si no → NULL. Un `campaign` vacío → NULL (no un sub-canal ''). El
+ * passthrough (ELSE) no tiene sub-canal.
+ */
+export function buildSubChannelCase(rules: ChannelRule[], exprs: RuleExprs): string {
+  const whens = sortRules(rules).map((r) => {
+    const then =
+      r.subFrom === "campaign"
+        ? `NULLIF(${exprs.campaignRaw ?? exprs.campaign}, '')`
+        : "NULL";
+    return `    WHEN ${ruleCondSql(r, exprs)} THEN ${then}`;
+  });
+  return `CASE\n${whens.join("\n")}\n    ELSE NULL\n  END`;
 }
 
 // ── Reglas seed globales (organizationId = NULL) ────────────────────────────
@@ -106,6 +143,7 @@ export function buildChannelRuleCase(rules: ChannelRule[], exprs: RuleExprs): st
 // Meta pago = todas las variantes/placements con medium de pauta.
 const META_PAID_SOURCES = [
   ...META_UTM_ALIASES, // meta_ads, fb, fb_ads, facebook_ads, …
+  ...INSTAGRAM_UTM_ALIASES, // ig, instagram_ads, instagram-ads (placement Meta pago)
   "facebook",
   "meta",
   "instagram",

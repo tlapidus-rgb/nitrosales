@@ -72,6 +72,7 @@ export function rowToChannelRule(r: ChannelRuleRow): ChannelRule {
     medium: dimFrom(r.medium_match, r.medium_pattern),
     campaign: dimFrom(r.campaign_match, r.campaign_pattern),
     channel: r.channel,
+    subFrom: r.sub_from === "campaign" ? "campaign" : null,
   };
 }
 
