@@ -130,6 +130,13 @@ const DDL: string[] = [
     "organizationId" text NOT NULL, day date NOT NULL, first_source text NOT NULL,
     pv_visitors_hll hll, refreshed_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY ("organizationId", day, first_source))`,
+  // 7b) channel (F3.2): CANAL RESUELTO por channel_rule sobre los crudos de la dim.
+  //     Paralela a pixel_daily_source; el serve la lee detrás de flag.
+  `CREATE TABLE IF NOT EXISTS pixel_daily_channel (
+    "organizationId" text NOT NULL, day date NOT NULL,
+    channel text NOT NULL, sub_channel text NOT NULL DEFAULT '',
+    pv_visitors_hll hll, refreshed_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY ("organizationId", day, channel, sub_channel))`,
   // 8) Funnel por first-source/día (pasos PV/VP/ATC/checkout, HLL 14,5). Depende
   //    de la dimensión #6. Lo consume /api/metrics/pixel/funnel?channel=... rápido.
   `CREATE TABLE IF NOT EXISTS pixel_daily_funnel_by_source (

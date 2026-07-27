@@ -17,6 +17,10 @@
 
 import { prisma } from "@/lib/db/client";
 import { CHECKOUT_URL_REGEX, WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
+import {
+  buildChannelRollupStatement,
+  loadOrgChannelCases,
+} from "@/lib/pixel/channel-rollup";
 
 // ── Qué cuenta como VISITA (decisión del fundador, 2026-07-22) ──────────────
 // Un retorno de pasarela / página de checkout "no es una visita, es parte del
@@ -99,6 +103,7 @@ export const ROLLUP_TABLES = [
   "product",
   "source",
   "funnel",
+  "channel",
 ] as const;
 export type RollupTable = (typeof ROLLUP_TABLES)[number];
 
@@ -314,6 +319,23 @@ async function backfillDayOrg(
        pv_hll=EXCLUDED.pv_hll, vp_hll=EXCLUDED.vp_hll, atc_hll=EXCLUDED.atc_hll, co_hll=EXCLUDED.co_hll, refreshed_at=now()`,
     ...args
   );
+
+  // 8) channel (F3.2) — CANAL RESUELTO por channel_rule sobre los crudos de la
+  //    dim (source_raw/medium_raw/campaign_raw). Tabla PARALELA a
+  //    pixel_daily_source: aditivo, el serve la lee detrás de flag. Resiliente:
+  //    si pixel_daily_channel o channel_rule no existen todavía (prod pre-DDL),
+  //    no rompe el resto de los rollups.
+  if (run("channel")) {
+    try {
+      const { channelCase, subChannelCase } = await loadOrgChannelCases(org);
+      touched += await prisma.$executeRawUnsafe(
+        buildChannelRollupStatement(channelCase, subChannelCase, VISIT_PAGEVIEW),
+        ...args
+      );
+    } catch {
+      // Tabla ausente → F3.2 todavía no está aplicado en esta DB. No-op.
+    }
+  }
 
   return touched;
 }
