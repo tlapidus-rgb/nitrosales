@@ -133,6 +133,55 @@ SELECT (SELECT COUNT(*) FROM cand)::int     AS candidates,
 }
 
 /**
+ * BACKFILL de las columnas crudas (F3.1) para filas de la dim que YA existen.
+ *
+ * El batch normal usa `INSERT ... ON CONFLICT DO NOTHING`, así que NO rellena
+ * `source_raw/medium_raw/campaign_raw` de las filas viejas (las que tienen
+ * `first_source` pero los crudos en NULL). Este UPDATE las completa, tomando el
+ * crudo del MISMO primer toque de marketing (misma lógica que el batch).
+ *
+ * Idempotente y resumible: solo toca filas con `source_raw IS NULL`. Scopeado
+ * por org (`$1`) — para prod se corre org por org (Arredo con cuidado).
+ * Necesario para F5 (rebuild); acá sirve para verificar F3.1 sobre datos reales.
+ */
+export function buildFirstSourceRawBackfillSql(): string {
+  return `
+WITH ev AS (
+  SELECT vid, ts, marketing_source,
+         COALESCE(utm_source_raw, marketing_source) AS source_raw,
+         medium_raw, campaign_raw
+  FROM (
+    SELECT pe."visitorId" AS vid, pe.timestamp AS ts,
+           (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS marketing_source,
+           NULLIF(LOWER(pe."utmParams"->>'source'), '') AS utm_source_raw,
+           LOWER(COALESCE(pe."utmParams"->>'medium', '')) AS medium_raw,
+           NULLIF(pe."utmParams"->>'campaign', '') AS campaign_raw
+    FROM pixel_events pe
+    WHERE pe."organizationId" = $1
+      AND ${WEBHOOK_SESSION_FILTER}
+      AND EXISTS (
+        SELECT 1 FROM pixel_visitor_first_source d
+        WHERE d."organizationId" = $1 AND d."visitorId" = pe."visitorId"
+          AND d.source_raw IS NULL
+      )
+  ) x
+),
+picked AS (
+  SELECT DISTINCT ON (vid) vid, source_raw, medium_raw, campaign_raw
+  FROM ev
+  WHERE marketing_source IS NOT NULL
+  ORDER BY vid, ts ASC
+)
+UPDATE pixel_visitor_first_source d
+SET source_raw = p.source_raw,
+    medium_raw = p.medium_raw,
+    campaign_raw = p.campaign_raw
+FROM picked p
+WHERE d."organizationId" = $1 AND d."visitorId" = p.vid
+  AND d.source_raw IS NULL`.trim();
+}
+
+/**
  * ¿Quedan candidatos DENTRO de la ventana del batch? $1 = org, $2 = días.
  *
  * Contesta "¿tiene sentido volver a llamar al batch AHORA?" y por eso comparte

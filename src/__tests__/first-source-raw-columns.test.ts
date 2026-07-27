@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
-import { buildFirstSourceBatchSql } from "@/lib/pixel/first-source-batch";
+import {
+  buildFirstSourceBatchSql,
+  buildFirstSourceRawBackfillSql,
+} from "@/lib/pixel/first-source-batch";
 
 // ══════════════════════════════════════════════════════════════════════════
 // F3.1 canales — la dim guarda el CRUDO del primer toque (Opción C)
@@ -126,5 +129,29 @@ describe("F3.1 — crudos del primer toque en la dim", () => {
     expect(r.source_raw).toBe("google");
     expect(r.medium_raw).toBe("");
     expect(r.campaign_raw).toBeNull();
+  });
+
+  it("el backfill rellena crudos de filas viejas (source_raw NULL), idempotente", async () => {
+    await addVisitor(db, "v1");
+    await evt(db, "v1", 100, { source: "adwords", medium: "cpc", campaign: "X" });
+    // Simular fila VIEJA: first_source seteado, crudos en NULL (como en prod).
+    await db.query(
+      `INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
+       VALUES ($1,'v1','google')`,
+      [ORG]
+    );
+    let r = await dimRow(db, "v1");
+    expect(r.source_raw).toBeNull(); // antes del backfill
+
+    const BACKFILL = buildFirstSourceRawBackfillSql();
+    await db.query(BACKFILL, [ORG]);
+    r = await dimRow(db, "v1");
+    expect(r.source_raw).toBe("adwords"); // el crudo del primer toque
+    expect(r.medium_raw).toBe("cpc");
+    expect(r.first_source).toBe("google"); // NO se toca
+
+    // Idempotente: correrlo de nuevo no rompe ni cambia.
+    await db.query(BACKFILL, [ORG]);
+    expect((await dimRow(db, "v1")).source_raw).toBe("adwords");
   });
 });
