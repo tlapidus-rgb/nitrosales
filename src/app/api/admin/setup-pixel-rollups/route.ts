@@ -115,6 +115,7 @@ const DDL: string[] = [
   // 6) Dimensión first-touch source por visitante (inmutable).
   `CREATE TABLE IF NOT EXISTS pixel_visitor_first_source (
     "organizationId" text NOT NULL, "visitorId" text NOT NULL, first_source text NOT NULL,
+    source_raw text, medium_raw text, campaign_raw text,
     PRIMARY KEY ("organizationId", "visitorId"))`,
   // 6b) Visitantes YA EVALUADOS que no tienen canal de marketing (todos sus
   //     eventos clasifican a NULL: pasarelas de pago, vueltas de checkout).
