@@ -174,6 +174,10 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   // lo agarra g-meta-ads (está en META_PAID_SOURCES); el resto es orgánico.
   { id: "g-ig-organico", priority: 20, source: { match: "in", pattern: "instagram|ig" }, medium: { match: "in", pattern: "social|organic|organic-social|" }, channel: "Instagram Orgánico" },
 
+  // Meta "pelado" (utm_source=meta, sin medium de pago): una source taggeada
+  // 'meta' es una campaña = pago. Consistente con "Meta unificado" (decisión 1).
+  { id: "g-meta-bare", priority: 15, source: { match: "in", pattern: "meta|meta-story" }, channel: "Meta Ads" },
+
   // ── Decisión 1: Google (pago vs orgánico) ──
   { id: "g-google-ads-alias", priority: 30, source: { match: "in", pattern: GOOGLE_UTM_ALIASES.join("|") }, channel: "Google Ads" },
   { id: "g-google-ads-cpc", priority: 31, source: { match: "exact", pattern: "google" }, medium: { match: "in", pattern: "cpc|ppc|paid" }, channel: "Google Ads" },
@@ -206,6 +210,16 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   { id: "g-gocuotas", priority: 40, source: { match: "contains", pattern: "gocuotas" }, channel: "GoCuotas" },
   { id: "g-mercadopago", priority: 40, source: { match: "prefix", pattern: "mercadopago" }, channel: "Mercado Pago" },
   { id: "g-modo", priority: 40, source: { match: "exact", pattern: "modo" }, channel: "MODO" },
+
+  // ── Consolidación de variantes de códigos PROPIOS del cliente ──
+  // Tomy (2026-07-27): "el canal no tiene que definir qué es cada cosa; si es
+  // Icomm, que diga Icomm". O sea: NO bucketear en categorías genéricas (Email,
+  // etc.) — el nombre del origen ES el canal. Lo único que consolidamos es la
+  // MISMA cosa escrita distinto (su versión del problema adwords/google). El
+  // resto se muestra tal cual (passthrough). El operador arma más de estas
+  // desde el panel.
+  { id: "g-icomm", priority: 50, source: { match: "contains", pattern: "icomm" }, channel: "Icomm" },
+  { id: "g-influencers", priority: 50, source: { match: "contains", pattern: "influencer" }, channel: "Influencers" },
 
   // ── Básicos ──
   { id: "g-direct", priority: 90, source: { match: "exact", pattern: "direct" }, channel: "Directo" },
