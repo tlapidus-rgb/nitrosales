@@ -169,7 +169,10 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   // ── Decisión 1+2: Meta unificado, pago vs orgánico separados ──
   { id: "g-meta-ads", priority: 10, source: { match: "in", pattern: META_PAID_SOURCES }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "Meta Ads" },
   { id: "g-fb-organico", priority: 20, source: { match: "in", pattern: "facebook|fb" }, medium: { match: "in", pattern: "social|organic|" }, channel: "Facebook Orgánico" },
-  { id: "g-ig-organico", priority: 20, source: { match: "exact", pattern: "instagram" }, medium: { match: "in", pattern: "social|organic|organic-social|" }, channel: "Instagram Orgánico" },
+  // 'ig' es el alias estándar de Instagram (Arredo: 89.341 visitantes caían en
+  // passthrough porque la regla sólo miraba 'instagram' exacto). El 'ig' pago ya
+  // lo agarra g-meta-ads (está en META_PAID_SOURCES); el resto es orgánico.
+  { id: "g-ig-organico", priority: 20, source: { match: "in", pattern: "instagram|ig" }, medium: { match: "in", pattern: "social|organic|organic-social|" }, channel: "Instagram Orgánico" },
 
   // ── Decisión 1: Google (pago vs orgánico) ──
   { id: "g-google-ads-alias", priority: 30, source: { match: "in", pattern: GOOGLE_UTM_ALIASES.join("|") }, channel: "Google Ads" },
@@ -193,6 +196,11 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   { id: "g-whatsapp", priority: 36, source: { match: "exact", pattern: "whatsapp" }, channel: "WhatsApp" },
   { id: "g-twitter", priority: 36, source: { match: "exact", pattern: "twitter" }, channel: "Twitter/X" },
   { id: "g-linkedin", priority: 36, source: { match: "exact", pattern: "linkedin" }, channel: "LinkedIn" },
+
+  // ── Otros universales que la data de las 3 orgs destapó (nombre inequívoco) ──
+  { id: "g-email", priority: 37, source: { match: "exact", pattern: "email" }, channel: "Email" },
+  { id: "g-taboola", priority: 37, source: { match: "contains", pattern: "taboola" }, channel: "Taboola" },
+  { id: "g-webpush", priority: 37, source: { match: "in", pattern: "webpush|web-push|push" }, channel: "Notificaciones Push" },
 
   // ── Decisión 3: pasarelas como canal propio (la vuelta de pago ya se excluyó en ingest) ──
   { id: "g-gocuotas", priority: 40, source: { match: "contains", pattern: "gocuotas" }, channel: "GoCuotas" },
