@@ -24,6 +24,7 @@ import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
+import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
 import {
   loadProductSkuMap,
   foldPurchasesToProductGrain,
@@ -439,12 +440,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${touchpointSourceSql("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(
                 CASE
@@ -476,12 +472,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "LAST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${touchpointSourceSql("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -504,12 +495,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "FIRST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${touchpointSourceSql("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -531,12 +517,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `
         : prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${touchpointSourceSql("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
             FROM pixel_attributions pa
@@ -793,12 +774,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${touchpointSourceSql("tp")} as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(
             pa."attributedValue" * (
@@ -868,12 +844,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
       : prisma.$queryRaw`
         SELECT
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${touchpointSourceSql("tp")} as source,
           COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
           COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < pa."touchpointCount")::int as "assistTouch",
           COUNT(*) FILTER (WHERE tp_ord = pa."touchpointCount" AND pa."touchpointCount" > 1)::int as "lastTouch",
@@ -1055,12 +1026,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
       prisma.$queryRaw`
         SELECT
-          CASE
-            WHEN COALESCE(pa.touchpoints::jsonb->0->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pa.touchpoints::jsonb->0->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pa.touchpoints::jsonb->0->>'source','') || '_organic'
-            ELSE COALESCE(pa.touchpoints::jsonb->0->>'source', 'direct')
-          END as first_channel,
+          ${touchpointSourceSql("pa.touchpoints::jsonb->0")} as first_channel,
           CASE
             WHEN COALESCE(pa.touchpoints::jsonb->(-1)->>'medium','') IN ('organic','social','referral')
               AND COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') IN ('google','bing','yahoo','duckduckgo')
@@ -1120,12 +1086,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           pa.model::text as model,
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${touchpointSourceSql("tp")} as source,
           SUM(
             pa."attributedValue" * (
               CASE

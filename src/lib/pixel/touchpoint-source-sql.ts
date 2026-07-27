@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import {
   GOOGLE_UTM_SQL_IN,
   META_UTM_SQL_IN,
@@ -55,4 +56,21 @@ export function touchpointSourceCase(tpExpr: string): string {
     THEN (${canonical}) || '_organic'
     ELSE (${canonical})
   END`;
+}
+
+/**
+ * Igual que `touchpointSourceCase` pero envuelto en `Prisma.raw`, para
+ * interpolar dentro de un tagged template `prisma.$queryRaw`...``.
+ *
+ * POR QUÉ (P1 canales, 2026-07-26): el serve `metrics/pixel/route.ts` tenía ~8
+ * copias inline del CASE VIEJO sin alias (mostraban `adwords`/`fb` como canales
+ * propios — los $406M de TeVe), mientras F1 ya había aliaseado el rollup Gold.
+ * Con `PIXEL_USE_GOLD=true` eso daba divergencia DENTRO de la misma página. En
+ * un tagged template, `${string}` se bindea como parámetro `$1`, así que el SQL
+ * crudo del CASE hay que inyectarlo con `Prisma.raw` (mismo patrón que
+ * `ordersValidWhere`). El output es 100% literales (sin input de usuario), así
+ * que `Prisma.raw` es seguro acá.
+ */
+export function touchpointSourceSql(tpExpr: string): Prisma.Sql {
+  return Prisma.raw(touchpointSourceCase(tpExpr));
 }
