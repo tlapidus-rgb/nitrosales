@@ -33,7 +33,8 @@ const CASES: Array<{
   { source: "google", medium: "organic", campaign: null, channel: "Google Orgánico", sub: "" },
   // Sin regla → passthrough (cae en "sin mapear"), el canal es el source crudo.
   { source: "iconmarketing", medium: null, campaign: null, channel: "iconmarketing", sub: "" },
-  { source: "tiktok", medium: "paid", campaign: null, channel: "tiktok", sub: "" }, // no sembrado aún
+  { source: "tiktok", medium: "paid", campaign: null, channel: "TikTok Ads", sub: "" },
+  { source: "google_organic", medium: null, campaign: null, channel: "Google Orgánico", sub: "" }, // se junta con el organico por-utm
 ];
 
 describe("F3.2 — resolución de canal sobre la dim (reglas seed)", () => {

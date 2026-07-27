@@ -176,6 +176,24 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   { id: "g-google-ads-cpc", priority: 31, source: { match: "exact", pattern: "google" }, medium: { match: "in", pattern: "cpc|ppc|paid" }, channel: "Google Ads" },
   { id: "g-google-organico", priority: 32, source: { match: "exact", pattern: "google" }, medium: { match: "in", pattern: "organic|" }, channel: "Google Orgánico" },
 
+  // ── Búsqueda orgánica: el first-source deriva estos del referrer (google.com →
+  //    'google_organic', etc.). Sin regla quedaban SEPARADOS del "Google Orgánico"
+  //    por-utm — medido en TeVe: google_organic 69.917 vs Google Orgánico 515. Es
+  //    el mismo bug de adwords, del lado orgánico. Los juntamos. ──
+  { id: "g-google-organic-ref", priority: 33, source: { match: "exact", pattern: "google_organic" }, channel: "Google Orgánico" },
+  { id: "g-bing-organic", priority: 33, source: { match: "exact", pattern: "bing_organic" }, channel: "Bing Orgánico" },
+  { id: "g-yahoo-organic", priority: 33, source: { match: "exact", pattern: "yahoo_organic" }, channel: "Yahoo Orgánico" },
+
+  // ── TikTok (pago vs orgánico) ──
+  { id: "g-tiktok-ads", priority: 34, source: { match: "exact", pattern: "tiktok" }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "TikTok Ads" },
+  { id: "g-tiktok-organico", priority: 35, source: { match: "exact", pattern: "tiktok" }, channel: "TikTok Orgánico" },
+
+  // ── Referrers sociales/orgánicos (los deriva el first-source del referrer) ──
+  { id: "g-youtube", priority: 36, source: { match: "exact", pattern: "youtube" }, channel: "YouTube" },
+  { id: "g-whatsapp", priority: 36, source: { match: "exact", pattern: "whatsapp" }, channel: "WhatsApp" },
+  { id: "g-twitter", priority: 36, source: { match: "exact", pattern: "twitter" }, channel: "Twitter/X" },
+  { id: "g-linkedin", priority: 36, source: { match: "exact", pattern: "linkedin" }, channel: "LinkedIn" },
+
   // ── Decisión 3: pasarelas como canal propio (la vuelta de pago ya se excluyó en ingest) ──
   { id: "g-gocuotas", priority: 40, source: { match: "contains", pattern: "gocuotas" }, channel: "GoCuotas" },
   { id: "g-mercadopago", priority: 40, source: { match: "prefix", pattern: "mercadopago" }, channel: "Mercado Pago" },
