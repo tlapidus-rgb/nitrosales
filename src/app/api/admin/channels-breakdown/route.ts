@@ -29,6 +29,7 @@ import {
   type ChannelRuleRow,
 } from "@/lib/pixel/channel-rules-store";
 import { DIM_RULE_EXPRS } from "@/lib/pixel/channel-rollup";
+import { sourceDisplayName } from "@/lib/pixel/source-display-name";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -70,6 +71,13 @@ export async function GET(req: NextRequest) {
     orgId,
     min
   )) as Array<{ codigo: string; visitantes: number }>;
+  // La "izquierda" del panel: el usuario ve el NOMBRE limpio (Tomy), y el
+  // `codigo` crudo viaja para armar la regla al mapearlo.
+  const sinMapearUI = sinMapear.map((s) => ({
+    codigo: s.codigo,
+    nombre: sourceDisplayName(s.codigo),
+    visitantes: s.visitantes,
+  }));
 
   // Cuántas filas no tienen crudo todavía (F3.1 sin backfillear) — para no
   // confundir "no mapeado" con "no procesado".
@@ -93,6 +101,6 @@ export async function GET(req: NextRequest) {
     sinBackfill: meta[0]?.sin_backfill ?? 0, // filas sin source_raw (F3.1 pendiente)
     mapeadoPct: conCrudo > 0 ? Math.round((mapeados / conCrudo) * 1000) / 10 : 0,
     channels,
-    sinMapear,
+    sinMapear: sinMapearUI,
   });
 }
