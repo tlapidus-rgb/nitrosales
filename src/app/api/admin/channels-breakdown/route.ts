@@ -98,27 +98,30 @@ async function breakdown(orgId: string, min: number) {
     visitantes: s.visitantes,
   }));
 
-  // Cuántas filas no tienen crudo todavía (F3.1 sin backfillear) — para no
-  // confundir "no mapeado" con "no procesado".
+  // Cobertura REAL: `mapeados_regla` = visitantes cuyo origen lo resuelve una
+  // REGLA (no passthrough). Antes el % contaba los passthrough como "mapeados"
+  // (resuelven a sí mismos, no son sin_clasificar) → daba ~100% aunque hubiera
+  // decenas de orígenes sin mapear. `${isMapped}` es la misma condición que
+  // separa la bandeja, así el número refleja el trabajo pendiente de verdad.
   const meta = (await prisma.$queryRawUnsafe(
     `SELECT
        COUNT(*)::int AS total,
-       COUNT(*) FILTER (WHERE source_raw IS NULL)::int AS sin_backfill
-     FROM pixel_visitor_first_source WHERE "organizationId" = $1`,
+       COUNT(*) FILTER (WHERE d.source_raw IS NULL)::int AS sin_backfill,
+       COUNT(*) FILTER (WHERE d.source_raw IS NOT NULL)::int AS con_crudo,
+       COUNT(*) FILTER (WHERE d.source_raw IS NOT NULL AND (${isMapped}))::int AS mapeados_regla
+     FROM pixel_visitor_first_source d WHERE d."organizationId" = $1`,
     orgId
-  )) as Array<{ total: number; sin_backfill: number }>;
+  )) as Array<{ total: number; sin_backfill: number; con_crudo: number; mapeados_regla: number }>;
 
-  const mapeados = channels
-    .filter((c) => c.channel !== "sin_clasificar")
-    .reduce((a, c) => a + c.visitantes, 0);
-  const conCrudo = (meta[0]?.total ?? 0) - (meta[0]?.sin_backfill ?? 0);
+  const conCrudo = meta[0]?.con_crudo ?? 0;
+  const mapeadosRegla = meta[0]?.mapeados_regla ?? 0;
 
   return NextResponse.json({
     orgId,
     rules: rules.length,
     total: meta[0]?.total ?? 0,
     sinBackfill: meta[0]?.sin_backfill ?? 0, // filas sin source_raw (F3.1 pendiente)
-    mapeadoPct: conCrudo > 0 ? Math.round((mapeados / conCrudo) * 1000) / 10 : 0,
+    mapeadoPct: conCrudo > 0 ? Math.round((mapeadosRegla / conCrudo) * 1000) / 10 : 0,
     channels,
     sinMapear: sinMapearUI,
   });
