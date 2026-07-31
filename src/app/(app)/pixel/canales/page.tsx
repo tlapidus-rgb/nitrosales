@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all duration-[280ms]";
 const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
+const plural = (n: number, sing: string, plu: string) => `${n} ${n === 1 ? sing : plu}`;
 
 // Un código es "ilegible" si trae bytes de control o el carácter de reemplazo
 // (utm corrupto / binario). No se puede nombrar como canal → se oculta con conteo.
@@ -40,7 +41,9 @@ export default function Page() {
   const [retryTick, setRetryTick] = useState(0);
   // Piso de visitantes: baja el ruido de orígenes de 1-2 visitas (tests, typos).
   const [minVis, setMinVis] = useState(2);
-  // Set de códigos con POST en vuelo (dos "Conectar" simultáneos no se pisan).
+  // Mapeos propios de la org (source → canal) para poder desconectarlos.
+  const [misMapeos, setMisMapeos] = useState<any[]>([]);
+  // Set de códigos con POST/DELETE en vuelo (acciones simultáneas no se pisan).
   const [saving, setSaving] = useState<Set<string>>(() => new Set());
   const [rowError, setRowError] = useState<string | null>(null);
 
@@ -50,14 +53,20 @@ export default function Page() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/channels-breakdown?min=${minVis}`, { cache: "no-store" });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.detail || body?.error || `HTTP ${res.status}`);
+        const [bRes, rRes] = await Promise.all([
+          fetch(`/api/admin/channels-breakdown?min=${minVis}`, { cache: "no-store" }),
+          fetch(`/api/admin/channel-rules`, { cache: "no-store" }),
+        ]);
+        if (!bRes.ok) {
+          const body = await bRes.json().catch(() => ({}));
+          throw new Error(body?.detail || body?.error || `HTTP ${bRes.status}`);
         }
-        const json = await res.json();
+        const json = await bRes.json();
+        // Las reglas propias son "opcionales": si fallan, el panel igual sirve.
+        const reglas = rRes.ok ? (await rRes.json())?.rules || [] : [];
         if (cancelled) return;
         setData(json);
+        setMisMapeos(reglas.filter((r: any) => r.scope === "org"));
       } catch (err: any) {
         if (cancelled) return;
         console.error("Error cargando canales:", err);
@@ -128,6 +137,30 @@ export default function Page() {
     }
   }
 
+  // Deshace un mapeo propio (borra la regla de la org). El origen vuelve a la
+  // bandeja "sin mapear" en el próximo refresh.
+  async function desconectar(id: string) {
+    setRowError(null);
+    setSaving((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/admin/channel-rules?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
+      refetch();
+    } catch (err: any) {
+      console.error("Error desconectando:", err);
+      setRowError(`No se pudo desconectar: ${err?.message || "error"}`);
+    } finally {
+      setSaving((prev) => {
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
+      });
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-1">
@@ -155,9 +188,9 @@ export default function Page() {
       {data?.channels && (
         <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
           <span><span className="font-semibold text-gray-700">{data.mapeadoPct}%</span> mapeado</span>
-          <span>{canalesReales.length} canales</span>
-          <span>{sinMapearVisible.length} orígenes sin mapear</span>
-          {ilegibles > 0 && <span title="utm corrupto / binario — no se puede nombrar">{ilegibles} ilegibles ocultos</span>}
+          <span>{plural(canalesReales.length, "canal", "canales")}</span>
+          <span>{plural(sinMapearVisible.length, "origen sin mapear", "orígenes sin mapear")}</span>
+          {ilegibles > 0 && <span title="utm corrupto / binario — no se puede nombrar">{plural(ilegibles, "ilegible oculto", "ilegibles ocultos")}</span>}
           {data.sinBackfill > 0 && <span className="text-cyan-600">{fmt(data.sinBackfill)} sin procesar</span>}
         </div>
       )}
@@ -174,6 +207,7 @@ export default function Page() {
           <div className={`${cardStyle} p-5 h-[460px] animate-pulse`} style={cardShadow} />
         </div>
       ) : data?.channels ? (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
           {/* IZQUIERDA — orígenes sin mapear */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
@@ -203,11 +237,6 @@ export default function Page() {
               {sinMapearVisible.map((s: any) => (
                 <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving.has(s.codigo)} onAsignar={asignar} />
               ))}
-              {ilegibles > 0 && (
-                <div className="text-center text-[10px] text-gray-300 pt-2">
-                  {ilegibles} orígenes ilegibles ocultos (utm corrupto)
-                </div>
-              )}
             </div>
           </div>
 
@@ -243,6 +272,37 @@ export default function Page() {
             </div>
           </div>
         </div>
+
+        {/* TUS MAPEOS — reglas propias de la org, con opción de desconectar */}
+        {misMapeos.length > 0 && (
+          <div className={`${cardStyle} p-5 mt-5`} style={cardShadow}>
+            <div className="flex items-center justify-between mb-3 gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Tus mapeos</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5">Los orígenes que conectaste vos. Desconectá para que vuelvan a la bandeja.</p>
+              </div>
+              <span className="text-[10px] text-gray-300">{misMapeos.length}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {misMapeos.map((m: any) => (
+                <div key={m.id} className="flex items-center gap-2 text-[11px] border border-gray-100 rounded-lg pl-2.5 pr-1.5 py-1 bg-gray-50/40">
+                  <span className="text-gray-500 truncate max-w-[140px]" title={m.source}>{m.source}</span>
+                  <span className="text-gray-300">→</span>
+                  <span className="font-medium text-gray-700 truncate max-w-[140px]" title={m.channel}>{m.channel}</span>
+                  <button
+                    onClick={() => desconectar(m.id)}
+                    disabled={saving.has(m.id)}
+                    title="Desconectar"
+                    className="ml-0.5 w-4 h-4 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                  >
+                    {saving.has(m.id) ? "·" : "×"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        </>
       ) : !error ? (
         <div className="text-gray-400 text-sm py-16 text-center">Sin datos.</div>
       ) : null}
