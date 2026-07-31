@@ -49,6 +49,20 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const min = Math.max(1, parseInt(url.searchParams.get("min") || "20", 10) || 20);
 
+  try {
+    return await breakdown(orgId, min);
+  } catch (e: any) {
+    // Gate isInternalUser() → es seguro devolver el detalle. Sirve para diagnosticar
+    // (ej. "relation channel_rule does not exist" = falta correr el SQL en ESTA DB).
+    console.error("[channels-breakdown] error:", e);
+    return NextResponse.json(
+      { error: "Error al resolver canales", detail: String(e?.message ?? e) },
+      { status: 500 }
+    );
+  }
+}
+
+async function breakdown(orgId: string, min: number) {
   // Reglas de la org (globales + propias) → CASE de canal + "está mapeado".
   const rows = (await prisma.$queryRawUnsafe(
     LOAD_CHANNEL_RULES_SQL,

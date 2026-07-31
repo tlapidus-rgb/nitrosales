@@ -38,14 +38,17 @@ export default function Page() {
       setError(null);
       try {
         const res = await fetch(`/api/admin/channels-breakdown?min=1`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.detail || body?.error || `HTTP ${res.status}`);
+        }
         const json = await res.json();
         if (cancelled) return;
         setData(json);
       } catch (err: any) {
         if (cancelled) return;
         console.error("Error cargando canales:", err);
-        setError("No se pudieron cargar los canales. Probá de nuevo.");
+        setError(`No se pudieron cargar los canales: ${err?.message || "error"}`);
       } finally {
         if (!cancelled) setLoading(false);
       }

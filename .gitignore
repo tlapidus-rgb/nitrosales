@@ -15,3 +15,4 @@ prisma/*.db
 
 # Docs de trabajo locales (contexto de sesion, no se pushean)
 *.local.md
+*.local.sql
