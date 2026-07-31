@@ -1027,12 +1027,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       prisma.$queryRaw`
         SELECT
           ${touchpointSourceSql("pa.touchpoints::jsonb->0")} as first_channel,
-          CASE
-            WHEN COALESCE(pa.touchpoints::jsonb->(-1)->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') || '_organic'
-            ELSE COALESCE(pa.touchpoints::jsonb->(-1)->>'source', 'direct')
-          END as last_channel,
+          ${touchpointSourceSql("pa.touchpoints::jsonb->(-1)")} as last_channel,
           COUNT(*)::int as journeys,
           SUM(pa."attributedValue")::float as revenue,
           AVG(pa."attributedValue")::float as aov
