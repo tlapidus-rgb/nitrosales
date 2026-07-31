@@ -81,30 +81,52 @@ export default function Page() {
 
   const refetch = () => setRetryTick((t) => t + 1);
 
-  // Canales REALES = los que el server ya devuelve resueltos POR REGLA (el
-  // passthrough no viene). Es lo que va a la derecha.
-  const canalesReales = useMemo(
-    () => (data?.channels || []).filter((c: any) => c.channel && c.channel !== "sin_clasificar"),
-    [data]
-  );
-  const canales = useMemo(() => canalesReales.map((c: any) => c.channel), [canalesReales]);
-
-  // Bandeja: escondemos los ilegibles (binario) y los contamos aparte.
+  // Bandeja: separamos legibles (van a "para consolidar") de los ilegibles/
+  // binarios, que NO se ocultan: se acumulan en el canal catch-all "Sin clasificar".
   const sinMapearTodos = (data?.sinMapear || []) as any[];
   const sinMapearVisible = useMemo(
     () => sinMapearTodos.filter((s) => !esIlegible(s.codigo)),
     [sinMapearTodos]
   );
-  const ilegibles = sinMapearTodos.length - sinMapearVisible.length;
+  const sinClasificarVisitantes = useMemo(
+    () => sinMapearTodos.filter((s) => esIlegible(s.codigo)).reduce((a, s) => a + (s.visitantes || 0), 0),
+    [sinMapearTodos]
+  );
 
-  // % ACCIONABLE: resuelto por regla / (resuelto + lo que queda en la bandeja
-  // legible). Excluye la basura ilegible y el tail sub-umbral (no accionables),
-  // así vaciar la bandeja llega a 100% exacto — la meta del panel.
-  const trayVisitors = sinMapearVisible.reduce((a: number, s: any) => a + (s.visitantes || 0), 0);
-  const baseCobertura = (data?.mapeadosRegla ?? 0) + trayVisitors;
-  const mapPct = baseCobertura > 0
-    ? Math.round(((data?.mapeadosRegla ?? 0) / baseCobertura) * 1000) / 10
-    : 100;
+  // Canales de la derecha = los resueltos POR REGLA + el bucket "Otros orígenes"
+  // (lo ilegible/sin-sentido). El passthrough legible NO viene acá (vive en la
+  // bandeja para consolidar). Se mergea si ya existe una regla → "Otros orígenes".
+  const CATCH = "Otros orígenes";
+  const canalesReales = useMemo(() => {
+    const base = (data?.channels || [])
+      .filter((c: any) => c.channel)
+      .map((c: any) => (c.channel === "sin_clasificar" ? { ...c, channel: CATCH } : c));
+    let out = base;
+    if (sinClasificarVisitantes > 0) {
+      const i = base.findIndex((c: any) => c.channel === CATCH);
+      if (i >= 0) {
+        out = base.map((c: any, j: number) =>
+          j === i ? { ...c, visitantes: (c.visitantes || 0) + sinClasificarVisitantes } : c
+        );
+      } else {
+        out = [...base, { channel: CATCH, visitantes: sinClasificarVisitantes }];
+      }
+    }
+    return [...out].sort((a: any, b: any) => (b.visitantes || 0) - (a.visitantes || 0));
+  }, [data, sinClasificarVisitantes]);
+
+  // Datalist: canales reales + "Sin clasificar" al final (para mandar ahí los
+  // legibles que no tengan sentido).
+  const canales = useMemo(() => {
+    const names = canalesReales.map((c: any) => c.channel).filter((n: string) => n !== CATCH);
+    return [...names, CATCH];
+  }, [canalesReales]);
+
+  // COBERTURA: todo origen LEGIBLE ya tiene un canal (una regla, o passthrough
+  // con su propio nombre — filosofía Tomy). Así el tráfico atribuido es el 100%.
+  // La bandeja de abajo es para CONSOLIDAR (juntar variantes del mismo canal),
+  // NO tráfico sin atribuir. La basura ilegible y lo no procesado van aparte.
+  const mapPct = (data?.conCrudo ?? 0) > 0 ? 100 : 0;
 
   // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
   async function asignar(codigo: string, channel: string): Promise<boolean> {
@@ -188,8 +210,7 @@ export default function Page() {
         <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
           <span><span className="font-semibold text-gray-700">{mapPct}%</span> mapeado</span>
           <span>{plural(canalesReales.length, "canal", "canales")}</span>
-          <span>{plural(sinMapearVisible.length, "origen sin mapear", "orígenes sin mapear")}</span>
-          {ilegibles > 0 && <span title="utm corrupto / binario — no se puede nombrar">{plural(ilegibles, "ilegible oculto", "ilegibles ocultos")}</span>}
+          <span>{plural(sinMapearVisible.length, "origen para consolidar", "orígenes para consolidar")}</span>
           {data.sinBackfill > 0 && <span className="text-cyan-600">{fmt(data.sinBackfill)} sin procesar</span>}
         </div>
       )}
@@ -212,8 +233,8 @@ export default function Page() {
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Orígenes sin mapear</h2>
-                <p className="text-[11px] text-gray-400 mt-0.5">Asigná cada uno a un canal para agruparlos</p>
+                <h2 className="text-sm font-semibold text-gray-900">Orígenes para consolidar</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5">Ya cuentan como canal propio. Juntá los que sean lo mismo bajo un canal.</p>
               </div>
               <label className="flex items-center gap-1.5 text-[10px] text-gray-400 shrink-0">
                 mín.
@@ -231,7 +252,7 @@ export default function Page() {
             </div>
             <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
               {sinMapearVisible.length === 0 && (
-                <div className="text-center text-gray-400 py-8 text-sm">Todo mapeado 🎉</div>
+                <div className="text-center text-gray-400 py-8 text-sm">Nada para consolidar 🎉</div>
               )}
               {sinMapearVisible.map((s: any) => (
                 <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving.has(s.codigo)} onAsignar={asignar} />
@@ -257,14 +278,17 @@ export default function Page() {
                     </tr>
                   </thead>
                   <tbody>
-                    {canalesReales.map((c: any) => (
-                      <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                        <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[220px]" title={c.channel}>
-                          {c.channel}
-                        </td>
-                        <td className="text-right text-gray-600 tabular-nums pl-2 py-1.5">{fmt(c.visitantes)}</td>
-                      </tr>
-                    ))}
+                    {canalesReales.map((c: any) => {
+                      const esCatch = c.channel === CATCH;
+                      return (
+                        <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                          <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${esCatch ? "text-gray-400 italic" : "text-gray-700"}`} title={esCatch ? "Ilegible / sin sentido (utm corrupto, tests). Podés mandar más acá." : c.channel}>
+                            {c.channel}
+                          </td>
+                          <td className={`text-right tabular-nums pl-2 py-1.5 ${esCatch ? "text-gray-400" : "text-gray-600"}`}>{fmt(c.visitantes)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
