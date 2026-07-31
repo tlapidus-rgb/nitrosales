@@ -81,22 +81,12 @@ export default function Page() {
 
   const refetch = () => setRetryTick((t) => t + 1);
 
-  // Los códigos que están en la bandeja "sin mapear" (para NO listarlos como
-  // canales reales a la derecha — su "canal" es el passthrough del propio código).
-  const sinMapearSet = useMemo(
-    () => new Set((data?.sinMapear || []).map((s: any) => s.codigo)),
+  // Canales REALES = los que el server ya devuelve resueltos POR REGLA (el
+  // passthrough no viene). Es lo que va a la derecha.
+  const canalesReales = useMemo(
+    () => (data?.channels || []).filter((c: any) => c.channel && c.channel !== "sin_clasificar"),
     [data]
   );
-
-  // Canales REALES = los resueltos por una regla (no passthrough, no sin_clasificar).
-  // Es lo que va a la derecha; el crudo sin mapear vive solo en la izquierda.
-  const canalesReales = useMemo(() => {
-    if (!data?.channels) return [];
-    return data.channels.filter(
-      (c: any) => c.channel !== "sin_clasificar" && !sinMapearSet.has(c.channel)
-    );
-  }, [data, sinMapearSet]);
-
   const canales = useMemo(() => canalesReales.map((c: any) => c.channel), [canalesReales]);
 
   // Bandeja: escondemos los ilegibles (binario) y los contamos aparte.
@@ -106,6 +96,15 @@ export default function Page() {
     [sinMapearTodos]
   );
   const ilegibles = sinMapearTodos.length - sinMapearVisible.length;
+
+  // % ACCIONABLE: resuelto por regla / (resuelto + lo que queda en la bandeja
+  // legible). Excluye la basura ilegible y el tail sub-umbral (no accionables),
+  // así vaciar la bandeja llega a 100% exacto — la meta del panel.
+  const trayVisitors = sinMapearVisible.reduce((a: number, s: any) => a + (s.visitantes || 0), 0);
+  const baseCobertura = (data?.mapeadosRegla ?? 0) + trayVisitors;
+  const mapPct = baseCobertura > 0
+    ? Math.round(((data?.mapeadosRegla ?? 0) / baseCobertura) * 1000) / 10
+    : 100;
 
   // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
   async function asignar(codigo: string, channel: string): Promise<boolean> {
@@ -187,7 +186,7 @@ export default function Page() {
 
       {data?.channels && (
         <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
-          <span><span className="font-semibold text-gray-700">{data.mapeadoPct}%</span> mapeado</span>
+          <span><span className="font-semibold text-gray-700">{mapPct}%</span> mapeado</span>
           <span>{plural(canalesReales.length, "canal", "canales")}</span>
           <span>{plural(sinMapearVisible.length, "origen sin mapear", "orígenes sin mapear")}</span>
           {ilegibles > 0 && <span title="utm corrupto / binario — no se puede nombrar">{plural(ilegibles, "ilegible oculto", "ilegibles ocultos")}</span>}

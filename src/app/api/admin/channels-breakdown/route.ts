@@ -72,11 +72,13 @@ async function breakdown(orgId: string, min: number) {
   const channelCase = buildChannelRuleCase(rules, DIM_RULE_EXPRS);
   const isMapped = buildIsMappedCase(rules, DIM_RULE_EXPRS);
 
-  // Breakdown por canal resuelto (exacto, desde la dim).
+  // Breakdown por canal RESUELTO POR REGLA (exacto, desde la dim). El passthrough
+  // (orígenes sin regla) NO va acá — vive en la bandeja `sinMapear`. Así "Tus
+  // canales" muestra solo canales de verdad y el conteo no incluye crudos.
   const channels = (await prisma.$queryRawUnsafe(
-    `SELECT COALESCE(${channelCase}, 'sin_clasificar') AS channel, COUNT(*)::int AS visitantes
+    `SELECT ${channelCase} AS channel, COUNT(*)::int AS visitantes
      FROM pixel_visitor_first_source d
-     WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL
+     WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL AND (${isMapped})
      GROUP BY 1 ORDER BY 2 DESC`,
     orgId
   )) as Array<{ channel: string; visitantes: number }>;
@@ -121,6 +123,8 @@ async function breakdown(orgId: string, min: number) {
     rules: rules.length,
     total: meta[0]?.total ?? 0,
     sinBackfill: meta[0]?.sin_backfill ?? 0, // filas sin source_raw (F3.1 pendiente)
+    conCrudo,
+    mapeadosRegla, // visitantes resueltos por regla — el cliente calcula el % accionable
     mapeadoPct: conCrudo > 0 ? Math.round((mapeadosRegla / conCrudo) * 1000) / 10 : 0,
     channels,
     sinMapear: sinMapearUI,
