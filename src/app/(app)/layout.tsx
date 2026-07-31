@@ -605,6 +605,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
                         },
                         {
+                          href: "/pixel/canales",
+                          label: "Canales",
+                          sublabel: "Mapeo de orígenes",
+                          iconPath:
+                            "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
+                        },
+                        {
                           href: "/pixel/journeys",
                           label: "Journeys",
                           sublabel: "Recorrido del cliente",
@@ -907,6 +914,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 const subActive =
                                   (sub.href === "/pixel/analytics" && pathname.startsWith("/pixel/analytics")) ||
                                   (sub.href === "/pixel" && pathname === "/pixel") ||
+                                  (sub.href === "/pixel/canales" && pathname.startsWith("/pixel/canales")) ||
                                   (sub.href === "/pixel/journeys" && pathname.startsWith("/pixel/journeys")) ||
                                   (sub.href === "/pixel/configuracion" && pathname.startsWith("/pixel/configuracion"));
                                 return (
