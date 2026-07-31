@@ -1,0 +1,174 @@
+// @ts-nocheck
+"use client";
+
+// ══════════════════════════════════════════════════════════════
+// /pixel/canales — Mapeo de canales (self-service, pivot v2)
+// ══════════════════════════════════════════════════════════════
+// "Conectar palabras": IZQUIERDA los orígenes que van entrando (con nombre
+// legible), DERECHA los canales del usuario. El usuario conecta cada origen a
+// un canal; graba una regla de la org y el rollup resuelve con ella.
+// Estilo alineado a ConversionRateTables (dashboard claro, Tailwind).
+//
+// Nota: selector de org (interno). El cliente lo usará sobre SU org por sesión
+// — auth pendiente en /api/admin/channel-rules.
+// ══════════════════════════════════════════════════════════════
+
+import { useEffect, useMemo, useState } from "react";
+
+const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all duration-[280ms]";
+const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
+const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
+
+const ORGS = [
+  { id: "cmohl80fx009j1sdusurp7fbj", name: "Arredo" },
+  { id: "cmmmga1uq0000sb43w0krvvys", name: "El Mundo del Juguete" },
+  { id: "cmod6ns420047dlnth544px9c", name: "TeVe Compras" },
+];
+
+export default function Page() {
+  const [orgId, setOrgId] = useState(ORGS[0].id);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    fetch(`/api/admin/channels-breakdown?orgId=${orgId}&min=1`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setData)
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [orgId]);
+
+  const canales = useMemo(() => {
+    if (!data?.channels) return [];
+    const sinMapear = new Set((data.sinMapear || []).map((s: any) => s.codigo));
+    return data.channels
+      .filter((c: any) => c.channel !== "sin_clasificar" && !sinMapear.has(c.channel))
+      .map((c: any) => c.channel);
+  }, [data]);
+
+  async function asignar(codigo: string, channel: string) {
+    if (!channel?.trim()) return;
+    setSaving(codigo);
+    await fetch(`/api/admin/channel-rules`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orgId, source: codigo, channel: channel.trim() }),
+    });
+    setSaving(null);
+    load();
+  }
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h1 className="text-lg font-semibold text-gray-900">Canales</h1>
+        <div className="flex items-center gap-2">
+          <select
+            value={orgId}
+            onChange={(e) => setOrgId(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 text-gray-700"
+          >
+            {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          <button onClick={load} className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+            Actualizar
+          </button>
+        </div>
+      </div>
+      <p className="text-[13px] text-gray-400 mb-5">
+        Conectá cada origen que entra con uno de tus canales. Lo que definís se aplica solo.
+      </p>
+
+      {data && (
+        <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
+          <span><span className="font-semibold text-gray-700">{data.mapeadoPct}%</span> mapeado</span>
+          <span>{canales.length} canales</span>
+          <span>{(data.sinMapear || []).length} orígenes sin mapear</span>
+          {data.sinBackfill > 0 && <span className="text-cyan-600">{fmt(data.sinBackfill)} sin procesar</span>}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-gray-400 text-sm py-16 text-center">Cargando…</div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
+          {/* IZQUIERDA — orígenes sin mapear */}
+          <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-gray-900">Orígenes sin mapear</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">Asigná cada uno a un canal para agruparlos</p>
+            </div>
+            <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+              {(data?.sinMapear || []).length === 0 && (
+                <div className="text-center text-gray-400 py-8 text-sm">Todo mapeado 🎉</div>
+              )}
+              {(data?.sinMapear || []).map((s: any) => (
+                <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving === s.codigo} onAsignar={asignar} />
+              ))}
+            </div>
+          </div>
+
+          {/* DERECHA — tus canales */}
+          <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
+            <div className="flex items-center justify-between mb-3 gap-3">
+              <h2 className="text-sm font-semibold text-gray-900">Tus canales</h2>
+              <span className="text-[10px] text-gray-300">{(data?.channels || []).length}</span>
+            </div>
+            <div className="overflow-y-auto flex-1 pr-1" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
+                    <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">Visitantes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.channels || []).map((c: any) => (
+                    <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                      <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${c.channel === "sin_clasificar" ? "text-gray-300 italic" : "text-gray-700"}`} title={c.channel}>
+                        {c.channel === "sin_clasificar" ? "Sin clasificar" : c.channel}
+                      </td>
+                      <td className="text-right text-gray-600 tabular-nums pl-2 py-1.5">{fmt(c.visitantes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilaSinMapear({ s, canales, saving, onAsignar }: any) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-100 hover:bg-gray-50/50 transition-colors">
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-medium text-gray-800 truncate" title={s.nombre}>{s.nombre}</div>
+        <div className="text-[10px] text-gray-400 truncate">{s.codigo} · {fmt(s.visitantes)} visitantes</div>
+      </div>
+      <input
+        list="canales-existentes"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        placeholder="Asignar a canal…"
+        onKeyDown={(e) => e.key === "Enter" && onAsignar(s.codigo, val)}
+        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 w-44 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 placeholder-gray-400"
+      />
+      <button
+        disabled={saving || !val.trim()}
+        onClick={() => onAsignar(s.codigo, val)}
+        className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${val.trim() ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "bg-gray-100 text-gray-300 cursor-default"}`}
+      >
+        {saving ? "…" : "Conectar"}
+      </button>
+      <datalist id="canales-existentes">
+        {canales.map((c: string) => <option key={c} value={c} />)}
+      </datalist>
+    </div>
+  );
+}
