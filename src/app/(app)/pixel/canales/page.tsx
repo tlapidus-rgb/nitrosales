@@ -5,8 +5,8 @@
 // /pixel/canales — Mapeo de canales (self-service, pivot v2)
 // ══════════════════════════════════════════════════════════════
 // "Conectar palabras": IZQUIERDA los orígenes que van entrando (con nombre
-// legible), DERECHA los canales del usuario. El usuario conecta cada origen a
-// un canal; graba una regla de la org y el rollup resuelve con ella.
+// legible), DERECHA los canales YA resueltos por una regla. El usuario conecta
+// cada origen a un canal; graba una regla de la org y el rollup resuelve con ella.
 // Estilo alineado a ConversionRateTables (dashboard claro, Tailwind): mismo
 // patrón de fetch (chequeo res.ok, tarjeta de error + Reintentar, flag de
 // cancelación, skeleton) para que un 403/500 NO se vea como "todo mapeado".
@@ -22,11 +22,24 @@ const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all du
 const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
 
+// Un código es "ilegible" si trae bytes de control o el carácter de reemplazo
+// (utm corrupto / binario). No se puede nombrar como canal → se oculta con conteo.
+function esIlegible(codigo: string): boolean {
+  const s = codigo || "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 32 || c === 0xfffd) return true; // control o U+FFFD (replacement)
+  }
+  return false;
+}
+
 export default function Page() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
+  // Piso de visitantes: baja el ruido de orígenes de 1-2 visitas (tests, typos).
+  const [minVis, setMinVis] = useState(2);
   // Set de códigos con POST en vuelo (dos "Conectar" simultáneos no se pisan).
   const [saving, setSaving] = useState<Set<string>>(() => new Set());
   const [rowError, setRowError] = useState<string | null>(null);
@@ -37,7 +50,7 @@ export default function Page() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/channels-breakdown?min=1`, { cache: "no-store" });
+        const res = await fetch(`/api/admin/channels-breakdown?min=${minVis}`, { cache: "no-store" });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body?.detail || body?.error || `HTTP ${res.status}`);
@@ -55,17 +68,35 @@ export default function Page() {
     };
     run();
     return () => { cancelled = true; };
-  }, [retryTick]);
+  }, [retryTick, minVis]);
 
   const refetch = () => setRetryTick((t) => t + 1);
 
-  const canales = useMemo(() => {
+  // Los códigos que están en la bandeja "sin mapear" (para NO listarlos como
+  // canales reales a la derecha — su "canal" es el passthrough del propio código).
+  const sinMapearSet = useMemo(
+    () => new Set((data?.sinMapear || []).map((s: any) => s.codigo)),
+    [data]
+  );
+
+  // Canales REALES = los resueltos por una regla (no passthrough, no sin_clasificar).
+  // Es lo que va a la derecha; el crudo sin mapear vive solo en la izquierda.
+  const canalesReales = useMemo(() => {
     if (!data?.channels) return [];
-    const sinMapear = new Set((data.sinMapear || []).map((s: any) => s.codigo));
-    return data.channels
-      .filter((c: any) => c.channel !== "sin_clasificar" && !sinMapear.has(c.channel))
-      .map((c: any) => c.channel);
-  }, [data]);
+    return data.channels.filter(
+      (c: any) => c.channel !== "sin_clasificar" && !sinMapearSet.has(c.channel)
+    );
+  }, [data, sinMapearSet]);
+
+  const canales = useMemo(() => canalesReales.map((c: any) => c.channel), [canalesReales]);
+
+  // Bandeja: escondemos los ilegibles (binario) y los contamos aparte.
+  const sinMapearTodos = (data?.sinMapear || []) as any[];
+  const sinMapearVisible = useMemo(
+    () => sinMapearTodos.filter((s) => !esIlegible(s.codigo)),
+    [sinMapearTodos]
+  );
+  const ilegibles = sinMapearTodos.length - sinMapearVisible.length;
 
   // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
   async function asignar(codigo: string, channel: string): Promise<boolean> {
@@ -124,8 +155,9 @@ export default function Page() {
       {data?.channels && (
         <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
           <span><span className="font-semibold text-gray-700">{data.mapeadoPct}%</span> mapeado</span>
-          <span>{canales.length} canales</span>
-          <span>{(data.sinMapear || []).length} orígenes sin mapear</span>
+          <span>{canalesReales.length} canales</span>
+          <span>{sinMapearVisible.length} orígenes sin mapear</span>
+          {ilegibles > 0 && <span title="utm corrupto / binario — no se puede nombrar">{ilegibles} ilegibles ocultos</span>}
           {data.sinBackfill > 0 && <span className="text-cyan-600">{fmt(data.sinBackfill)} sin procesar</span>}
         </div>
       )}
@@ -145,45 +177,69 @@ export default function Page() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
           {/* IZQUIERDA — orígenes sin mapear */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold text-gray-900">Orígenes sin mapear</h2>
-              <p className="text-[11px] text-gray-400 mt-0.5">Asigná cada uno a un canal para agruparlos</p>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Orígenes sin mapear</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5">Asigná cada uno a un canal para agruparlos</p>
+              </div>
+              <label className="flex items-center gap-1.5 text-[10px] text-gray-400 shrink-0">
+                mín.
+                <select
+                  value={minVis}
+                  onChange={(e) => setMinVis(Number(e.target.value))}
+                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 text-gray-600"
+                >
+                  <option value={1}>todos</option>
+                  <option value={2}>≥ 2 visitas</option>
+                  <option value={5}>≥ 5 visitas</option>
+                  <option value={10}>≥ 10 visitas</option>
+                </select>
+              </label>
             </div>
             <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
-              {(data?.sinMapear || []).length === 0 && (
+              {sinMapearVisible.length === 0 && (
                 <div className="text-center text-gray-400 py-8 text-sm">Todo mapeado 🎉</div>
               )}
-              {(data?.sinMapear || []).map((s: any) => (
+              {sinMapearVisible.map((s: any) => (
                 <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving.has(s.codigo)} onAsignar={asignar} />
               ))}
+              {ilegibles > 0 && (
+                <div className="text-center text-[10px] text-gray-300 pt-2">
+                  {ilegibles} orígenes ilegibles ocultos (utm corrupto)
+                </div>
+              )}
             </div>
           </div>
 
-          {/* DERECHA — tus canales */}
+          {/* DERECHA — tus canales (solo los resueltos por una regla) */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-center justify-between mb-3 gap-3">
               <h2 className="text-sm font-semibold text-gray-900">Tus canales</h2>
-              <span className="text-[10px] text-gray-300">{(data?.channels || []).length}</span>
+              <span className="text-[10px] text-gray-300">{canalesReales.length}</span>
             </div>
             <div className="overflow-y-auto flex-1 pr-1" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-white z-10">
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
-                    <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">Visitantes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.channels || []).map((c: any) => (
-                    <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                      <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${c.channel === "sin_clasificar" ? "text-gray-300 italic" : "text-gray-700"}`} title={c.channel}>
-                        {c.channel === "sin_clasificar" ? "Sin clasificar" : c.channel}
-                      </td>
-                      <td className="text-right text-gray-600 tabular-nums pl-2 py-1.5">{fmt(c.visitantes)}</td>
+              {canalesReales.length === 0 ? (
+                <div className="text-center text-gray-400 py-8 text-sm">Todavía no hay canales resueltos</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-white z-10">
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
+                      <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">Visitantes</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {canalesReales.map((c: any) => (
+                      <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                        <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[220px]" title={c.channel}>
+                          {c.channel}
+                        </td>
+                        <td className="text-right text-gray-600 tabular-nums pl-2 py-1.5">{fmt(c.visitantes)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
