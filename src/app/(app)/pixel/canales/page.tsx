@@ -23,14 +23,20 @@ const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px r
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
 const plural = (n: number, sing: string, plu: string) => `${n} ${n === 1 ? sing : plu}`;
 
-// Un código es "ilegible" si trae bytes de control o el carácter de reemplazo
-// (utm corrupto / binario). No se puede nombrar como canal → se oculta con conteo.
-function esIlegible(codigo: string): boolean {
+// Un origen "no tiene sentido" (→ va al bucket "Otros orígenes") si:
+//  · trae bytes de control / carácter de reemplazo (utm binario corrupto), o
+//  · es spam de referrer/utm: texto promocional inyectado (espacios + signos
+//    tipo ¡ ! @ o una URL), o absurdamente largo (títulos de spam).
+// Los dominios reales cortos (chatgpt.com, copilot.com) NO caen acá: son tráfico
+// legítimo y quedan en la bandeja para consolidar.
+function esSinSentido(codigo: string): boolean {
   const s = codigo || "";
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
     if (c < 32 || c === 0xfffd) return true; // control o U+FFFD (replacement)
   }
+  if (/\s/.test(s) && /[¡!@]|https?:|www\./i.test(s)) return true; // spam con texto promo
+  if (s.length > 60) return true; // título de spam absurdamente largo
   return false;
 }
 
@@ -85,11 +91,11 @@ export default function Page() {
   // binarios, que NO se ocultan: se acumulan en el canal catch-all "Sin clasificar".
   const sinMapearTodos = (data?.sinMapear || []) as any[];
   const sinMapearVisible = useMemo(
-    () => sinMapearTodos.filter((s) => !esIlegible(s.codigo)),
+    () => sinMapearTodos.filter((s) => !esSinSentido(s.codigo)),
     [sinMapearTodos]
   );
   const sinClasificarVisitantes = useMemo(
-    () => sinMapearTodos.filter((s) => esIlegible(s.codigo)).reduce((a, s) => a + (s.visitantes || 0), 0),
+    () => sinMapearTodos.filter((s) => esSinSentido(s.codigo)).reduce((a, s) => a + (s.visitantes || 0), 0),
     [sinMapearTodos]
   );
 
@@ -211,7 +217,6 @@ export default function Page() {
           <span><span className="font-semibold text-gray-700">{mapPct}%</span> mapeado</span>
           <span>{plural(canalesReales.length, "canal", "canales")}</span>
           <span>{plural(sinMapearVisible.length, "origen para consolidar", "orígenes para consolidar")}</span>
-          {data.sinBackfill > 0 && <span className="text-cyan-600">{fmt(data.sinBackfill)} sin procesar</span>}
         </div>
       )}
 
@@ -282,7 +287,7 @@ export default function Page() {
                       const esCatch = c.channel === CATCH;
                       return (
                         <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                          <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${esCatch ? "text-gray-400 italic" : "text-gray-700"}`} title={esCatch ? "Ilegible / sin sentido (utm corrupto, tests). Podés mandar más acá." : c.channel}>
+                          <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${esCatch ? "text-gray-400 italic" : "text-gray-700"}`} title={esCatch ? "Orígenes que no se pudieron identificar. Podés mandar más acá." : c.channel}>
                             {c.channel}
                           </td>
                           <td className={`text-right tabular-nums pl-2 py-1.5 ${esCatch ? "text-gray-400" : "text-gray-600"}`}>{fmt(c.visitantes)}</td>
