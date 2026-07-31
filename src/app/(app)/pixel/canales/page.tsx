@@ -11,8 +11,9 @@
 // patrón de fetch (chequeo res.ok, tarjeta de error + Reintentar, flag de
 // cancelación, skeleton) para que un 403/500 NO se vea como "todo mapeado".
 //
-// Nota: selector de org (interno). El cliente lo usará sobre SU org por sesión
-// — auth pendiente en /api/admin/channel-rules.
+// Nota: la ORG es SIEMPRE la de la sesión / vista actual ("view-as") — el panel
+// NO elige org (si no, un cliente vería canales de otra org). El endpoint la saca
+// de getOrganizationId(); acá no se manda ningún orgId.
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
@@ -21,14 +22,7 @@ const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all du
 const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
 
-const ORGS = [
-  { id: "cmohl80fx009j1sdusurp7fbj", name: "Arredo" },
-  { id: "cmmmga1uq0000sb43w0krvvys", name: "El Mundo del Juguete" },
-  { id: "cmod6ns420047dlnth544px9c", name: "TeVe Compras" },
-];
-
 export default function Page() {
-  const [orgId, setOrgId] = useState(ORGS[0].id);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +37,7 @@ export default function Page() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/channels-breakdown?orgId=${orgId}&min=1`, { cache: "no-store" });
+        const res = await fetch(`/api/admin/channels-breakdown?min=1`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
@@ -58,7 +52,7 @@ export default function Page() {
     };
     run();
     return () => { cancelled = true; };
-  }, [orgId, retryTick]);
+  }, [retryTick]);
 
   const refetch = () => setRetryTick((t) => t + 1);
 
@@ -79,7 +73,7 @@ export default function Page() {
       const res = await fetch(`/api/admin/channel-rules`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId, source: codigo, channel: channel.trim() }),
+        body: JSON.stringify({ source: codigo, channel: channel.trim() }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -104,18 +98,9 @@ export default function Page() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-1">
         <h1 className="text-lg font-semibold text-gray-900">Canales</h1>
-        <div className="flex items-center gap-2">
-          <select
-            value={orgId}
-            onChange={(e) => setOrgId(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 text-gray-700"
-          >
-            {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-          <button onClick={refetch} className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
-            Actualizar
-          </button>
-        </div>
+        <button onClick={refetch} className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+          Actualizar
+        </button>
       </div>
       <p className="text-[13px] text-gray-400 mb-5">
         Conectá cada origen que entra con uno de tus canales. Lo que definís se aplica solo.

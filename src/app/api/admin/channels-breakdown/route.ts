@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-// GET /api/admin/channels-breakdown?orgId=X&key=Y&min=20
+// GET /api/admin/channels-breakdown?min=20
 // ══════════════════════════════════════════════════════════════════════════
 // Base de datos del panel de canales (F4). Resuelve el canal EN VIVO sobre la
 // dimensión (source_raw/medium_raw/campaign_raw) con las reglas de la org, y
@@ -15,13 +15,16 @@
 // Requiere que source_raw esté backfilleado (F3.1). Reporta cuántas filas no lo
 // están (sin_backfill) para no confundir "no mapeado" con "no procesado".
 //
-// Gate: isInternalUser() o ?key=<ADMIN_API_KEY>.
+// ⚠️ ORG: sale de la SESIÓN (getOrganizationId, que respeta el "view-as" de los
+// internos), NUNCA de un ?orgId= del cliente — si no, un cliente podría espiar los
+// canales de otra org (IDOR). Gate isInternalUser() hasta que el panel entre al nav
+// del cliente (F4): ahí se cambia por "sesión válida + permiso de sección".
 // ══════════════════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { getOrganizationId } from "@/lib/auth-guard";
 import { buildChannelRuleCase, buildIsMappedCase } from "@/lib/pixel/channel-rules";
 import {
   LOAD_CHANNEL_RULES_SQL,
@@ -35,13 +38,15 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const allowed =
-    url.searchParams.get("key") === ADMIN_API_KEY || (await isInternalUser());
-  if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const orgId = url.searchParams.get("orgId");
-  if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
+  let orgId: string;
+  try {
+    orgId = await getOrganizationId(); // sesión / view-as — nunca del cliente
+  } catch {
+    return NextResponse.json({ error: "Sin organización en la sesión" }, { status: 403 });
+  }
+  const url = new URL(req.url);
   const min = Math.max(1, parseInt(url.searchParams.get("min") || "20", 10) || 20);
 
   // Reglas de la org (globales + propias) → CASE de canal + "está mapeado".
