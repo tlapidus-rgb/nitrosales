@@ -115,6 +115,11 @@ export function buildChannelRuleCase(rules: ChannelRule[], exprs: RuleExprs): st
   const whens = sortRules(rules).map(
     (r) => `    WHEN ${ruleCondSql(r, exprs)} THEN '${escLit(r.channel)}'`
   );
+  // Sin reglas → passthrough PURO. Un `CASE ELSE x END` sin WHEN es error de
+  // sintaxis en Postgres, así que devolvemos la expresión sola. Esto es lo que
+  // hace válida la resiliencia de loadOrgChannelCases (channel_rule ausente/vacía
+  // → rows=[] → este passthrough, no un CASE roto).
+  if (whens.length === 0) return `(${exprs.source})`;
   return `CASE\n${whens.join("\n")}\n    ELSE ${exprs.source}\n  END`;
 }
 

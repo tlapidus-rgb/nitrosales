@@ -4,6 +4,7 @@ import {
   buildChannelRuleCase,
   buildIsMappedCase,
   SEED_CHANNEL_RULES,
+  type ChannelRule,
 } from "@/lib/pixel/channel-rules";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -111,6 +112,61 @@ describe("channel-rules — resolución de canal (seed globales)", () => {
       `SELECT id, ${sql} AS mapped FROM t ORDER BY id`
     );
     expect(res.rows.map((r) => r.mapped)).toEqual([true, false, true]); // 2 = sin mapear
+    await db.close();
+  });
+
+  // ── Precedencia ORG-sobre-GLOBAL (el sort org-first, no solo priority) ──
+  // sortRules ordena las de la org ANTES que las globales aunque la global tenga
+  // MEJOR priority. Sin ese desempate, la global (priority 10) ganaría a la org
+  // (priority 50) y el mapeo del cliente se ignoraría. Este test se rompe si se
+  // saca la línea `if (aOrg !== bOrg) return aOrg - bOrg`.
+  it("una regla de la ORG gana sobre una global que matchea igual, aunque tenga PEOR prioridad", async () => {
+    const db = new PGlite();
+    await db.query(`CREATE TABLE t (id int PRIMARY KEY, data jsonb)`);
+    await db.query(`INSERT INTO t VALUES (1,'{"source":"fb","medium":"paid"}'::jsonb)`);
+    const rules: ChannelRule[] = [
+      // global: MEJOR priority (10), sin organizationId
+      { id: "glob", priority: 10, source: { match: "exact", pattern: "fb" }, medium: { match: "exact", pattern: "paid" }, channel: "Global Meta" },
+      // org: PEOR priority (50), pero es de la org → debe ganar igual
+      { id: "org", organizationId: "org1", priority: 50, source: { match: "exact", pattern: "fb" }, medium: { match: "exact", pattern: "paid" }, channel: "Canal del Cliente" },
+    ];
+    const sql = buildChannelRuleCase(rules, EXPRS);
+    const res = await db.query<{ ch: string }>(`SELECT (${sql}) ch FROM t`);
+    expect(res.rows[0].ch).toBe("Canal del Cliente"); // org gana a pesar de peor priority
+    await db.close();
+  });
+
+  // ── Inyección: escLit/escLike son la ÚNICA defensa sobre channel/pattern que
+  //    escribe el usuario. Metemos comillas y comodines LIKE y verificamos que se
+  //    tratan como LITERALES (no rompen el SQL ni actúan como wildcard). ──
+  it("neutraliza inyección de comillas en el channel y comodines LIKE en el pattern", async () => {
+    const db = new PGlite();
+    await db.query(`CREATE TABLE t (id int PRIMARY KEY, data jsonb)`);
+    const inputs = [
+      { source: "o'brien" },   // 0: comilla en el source de entrada → prueba escLit del pattern
+      { source: "xa%by" },     // 1: contiene el LITERAL "a%b"
+      { source: "axxb" },      // 2: matchearía SOLO si '%' fuese comodín (no debe)
+    ];
+    for (let i = 0; i < inputs.length; i++) {
+      await db.query(`INSERT INTO t VALUES ($1, $2::jsonb)`, [i, JSON.stringify(inputs[i])]);
+    }
+    const evilChannel = "a' THEN 'PWNED' -- ";
+    const rules: ChannelRule[] = [
+      { id: "r1", priority: 1, source: { match: "exact", pattern: "o'brien" }, channel: evilChannel },
+      { id: "r2", priority: 2, source: { match: "contains", pattern: "a%b" }, channel: "LiteralPct" },
+    ];
+    const sql = buildChannelRuleCase(rules, EXPRS);
+    const res = await db.query<{ id: number; ch: string }>(
+      `SELECT id, (${sql}) ch FROM t ORDER BY id`
+    );
+    // El channel malicioso se preserva EXACTO (las comillas no rompieron nada).
+    expect(res.rows[0].ch).toBe(evilChannel);
+    // '%' del pattern es literal: matchea "a%b" real, NO "axxb".
+    expect(res.rows[1].ch).toBe("LiteralPct");
+    expect(res.rows[2].ch).toBe("axxb"); // passthrough (no matcheó)
+    // La tabla sigue intacta (ningún `--`/`;` se ejecutó).
+    const n = await db.query<{ c: number }>(`SELECT COUNT(*)::int c FROM t`);
+    expect(n.rows[0].c).toBe(3);
     await db.close();
   });
 });
