@@ -7,7 +7,9 @@
 // "Conectar palabras": IZQUIERDA los orígenes que van entrando (con nombre
 // legible), DERECHA los canales del usuario. El usuario conecta cada origen a
 // un canal; graba una regla de la org y el rollup resuelve con ella.
-// Estilo alineado a ConversionRateTables (dashboard claro, Tailwind).
+// Estilo alineado a ConversionRateTables (dashboard claro, Tailwind): mismo
+// patrón de fetch (chequeo res.ok, tarjeta de error + Reintentar, flag de
+// cancelación, skeleton) para que un 403/500 NO se vea como "todo mapeado".
 //
 // Nota: selector de org (interno). El cliente lo usará sobre SU org por sesión
 // — auth pendiente en /api/admin/channel-rules.
@@ -29,16 +31,36 @@ export default function Page() {
   const [orgId, setOrgId] = useState(ORGS[0].id);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
+  // Set de códigos con POST en vuelo (dos "Conectar" simultáneos no se pisan).
+  const [saving, setSaving] = useState<Set<string>>(() => new Set());
+  const [rowError, setRowError] = useState<string | null>(null);
 
-  const load = () => {
-    setLoading(true);
-    fetch(`/api/admin/channels-breakdown?orgId=${orgId}&min=1`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, [orgId]);
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/admin/channels-breakdown?orgId=${orgId}&min=1`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+        setData(json);
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error("Error cargando canales:", err);
+        setError("No se pudieron cargar los canales. Probá de nuevo.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [orgId, retryTick]);
+
+  const refetch = () => setRetryTick((t) => t + 1);
 
   const canales = useMemo(() => {
     if (!data?.channels) return [];
@@ -48,16 +70,34 @@ export default function Page() {
       .map((c: any) => c.channel);
   }, [data]);
 
-  async function asignar(codigo: string, channel: string) {
-    if (!channel?.trim()) return;
-    setSaving(codigo);
-    await fetch(`/api/admin/channel-rules`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orgId, source: codigo, channel: channel.trim() }),
-    });
-    setSaving(null);
-    load();
+  // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
+  async function asignar(codigo: string, channel: string): Promise<boolean> {
+    if (!channel?.trim()) return false;
+    setRowError(null);
+    setSaving((prev) => new Set(prev).add(codigo));
+    try {
+      const res = await fetch(`/api/admin/channel-rules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId, source: codigo, channel: channel.trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
+      refetch();
+      return true;
+    } catch (err: any) {
+      console.error("Error asignando canal:", err);
+      setRowError(`No se pudo conectar "${codigo}": ${err?.message || "error"}`);
+      return false;
+    } finally {
+      setSaving((prev) => {
+        const n = new Set(prev);
+        n.delete(codigo);
+        return n;
+      });
+    }
   }
 
   return (
@@ -72,7 +112,7 @@ export default function Page() {
           >
             {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
-          <button onClick={load} className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+          <button onClick={refetch} className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
             Actualizar
           </button>
         </div>
@@ -81,7 +121,19 @@ export default function Page() {
         Conectá cada origen que entra con uno de tus canales. Lo que definís se aplica solo.
       </p>
 
-      {data && (
+      {error && (
+        <div className="flex items-center justify-between bg-red-50 border border-red-200/60 rounded-xl px-4 py-3 mb-4">
+          <p className="text-[12px] text-red-700">{error}</p>
+          <button
+            onClick={refetch}
+            className="text-[11px] text-red-700 hover:text-red-900 font-semibold px-3 py-1 rounded-lg hover:bg-red-100 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {data?.channels && (
         <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
           <span><span className="font-semibold text-gray-700">{data.mapeadoPct}%</span> mapeado</span>
           <span>{canales.length} canales</span>
@@ -90,9 +142,18 @@ export default function Page() {
         </div>
       )}
 
-      {loading ? (
-        <div className="text-gray-400 text-sm py-16 text-center">Cargando…</div>
-      ) : (
+      {rowError && (
+        <div className="bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-2.5 mb-4">
+          <p className="text-[12px] text-amber-800">{rowError}</p>
+        </div>
+      )}
+
+      {loading && !data ? (
+        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
+          <div className={`${cardStyle} p-5 h-[460px] animate-pulse`} style={cardShadow} />
+          <div className={`${cardStyle} p-5 h-[460px] animate-pulse`} style={cardShadow} />
+        </div>
+      ) : data?.channels ? (
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
           {/* IZQUIERDA — orígenes sin mapear */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
@@ -105,7 +166,7 @@ export default function Page() {
                 <div className="text-center text-gray-400 py-8 text-sm">Todo mapeado 🎉</div>
               )}
               {(data?.sinMapear || []).map((s: any) => (
-                <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving === s.codigo} onAsignar={asignar} />
+                <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving.has(s.codigo)} onAsignar={asignar} />
               ))}
             </div>
           </div>
@@ -138,13 +199,19 @@ export default function Page() {
             </div>
           </div>
         </div>
-      )}
+      ) : !error ? (
+        <div className="text-gray-400 text-sm py-16 text-center">Sin datos.</div>
+      ) : null}
     </div>
   );
 }
 
 function FilaSinMapear({ s, canales, saving, onAsignar }: any) {
   const [val, setVal] = useState("");
+  const conectar = async () => {
+    const ok = await onAsignar(s.codigo, val);
+    if (ok) setVal(""); // sólo limpia si grabó; si falló, deja lo escrito
+  };
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-100 hover:bg-gray-50/50 transition-colors">
       <div className="flex-1 min-w-0">
@@ -156,13 +223,13 @@ function FilaSinMapear({ s, canales, saving, onAsignar }: any) {
         value={val}
         onChange={(e) => setVal(e.target.value)}
         placeholder="Asignar a canal…"
-        onKeyDown={(e) => e.key === "Enter" && onAsignar(s.codigo, val)}
+        onKeyDown={(e) => e.key === "Enter" && conectar()}
         className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 w-44 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 placeholder-gray-400"
       />
       <button
         disabled={saving || !val.trim()}
-        onClick={() => onAsignar(s.codigo, val)}
-        className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${val.trim() ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "bg-gray-100 text-gray-300 cursor-default"}`}
+        onClick={conectar}
+        className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${val.trim() && !saving ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "bg-gray-100 text-gray-300 cursor-default"}`}
       >
         {saving ? "…" : "Conectar"}
       </button>
