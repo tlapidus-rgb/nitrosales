@@ -25,6 +25,9 @@ import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
 import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
+import { touchpointChannelSql } from "@/lib/pixel/touchpoint-channel-sql";
+import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
+import type { ChannelRule } from "@/lib/pixel/channel-rules";
 import {
   loadProductSkuMap,
   foldPurchasesToProductGrain,
@@ -258,6 +261,27 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ? pixelInstalledAt
       : dateFrom;
 
+    // ── Canales en el serve (F4), detrás de flag propio, OFF por default ──
+    // Con el flag OFF el comportamiento es IDÉNTICO (agrupa por source, como
+    // siempre). Con el flag ON agrupa por el CANAL resuelto por channel_rule
+    // (mismas reglas que el panel /pixel/canales). Es SOLO lectura: re-agrupa la
+    // misma plata ya atribuida — NO toca attribution.ts. Resiliente: si
+    // channel_rule no existe, cae a passthrough (source). Ver
+    // canales-serve-integration.local.md.
+    const usePixelChannels = process.env.PIXEL_USE_CHANNELS === "true";
+    let channelRules: ChannelRule[] = [];
+    if (usePixelChannels) {
+      try {
+        const rows = (await prisma.$queryRawUnsafe(LOAD_CHANNEL_RULES_SQL, ORG_ID)) as ChannelRuleRow[];
+        channelRules = rows.map(rowToChannelRule);
+      } catch {
+        channelRules = []; // tabla ausente → passthrough, no rompe el serve
+      }
+    }
+    // source (default) o canal (flag ON) para un touchpoint. Misma firma → drop-in.
+    const tpSourceOrChannel = (tp: string) =>
+      usePixelChannels ? touchpointChannelSql(channelRules, tp) : touchpointSourceSql(tp);
+
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
     // ══════════════════════════════════════════════════════════
@@ -440,7 +464,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
-              ${touchpointSourceSql("tp")} as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(
                 CASE
