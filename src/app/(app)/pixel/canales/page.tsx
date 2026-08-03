@@ -18,8 +18,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all duration-[280ms]";
-const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
+// Enterprise sobrio (Linear/Vercel): elevación por BORDE, sombra apenas perceptible,
+// radios contenidos. Nada de halos de color ni esquinas muy redondeadas.
+const cardStyle = "bg-white rounded-xl border border-slate-200 transition-colors duration-200";
+const cardShadow = { boxShadow: "0 1px 2px 0 rgba(15,23,42,0.04)" };
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
 const plural = (n: number, sing: string, plu: string) => `${n} ${n === 1 ? sing : plu}`;
 
@@ -191,12 +193,12 @@ export default function Page() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-1">
-        <h1 className="text-lg font-semibold text-gray-900">Canales</h1>
-        <button onClick={refetch} className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+        <h1 className="text-lg font-semibold text-slate-900">Canales</h1>
+        <button onClick={refetch} className="text-xs text-slate-400 hover:text-slate-700 border border-slate-200 rounded-lg px-2.5 py-1.5 transition-colors">
           Actualizar
         </button>
       </div>
-      <p className="text-[13px] text-gray-400 mb-5">
+      <p className="text-[13px] text-slate-400 mb-5">
         Conectá cada origen que entra con uno de tus canales. Lo que definís se aplica solo.
       </p>
 
@@ -213,10 +215,18 @@ export default function Page() {
       )}
 
       {data?.channels && (
-        <div className="flex items-center gap-4 text-[11px] text-gray-400 mb-4">
-          <span><span className="font-semibold text-gray-700">{mapPct}%</span> mapeado</span>
-          <span>{plural(canalesReales.length, "canal", "canales")}</span>
-          <span>{plural(sinMapearVisible.length, "origen para consolidar", "orígenes para consolidar")}</span>
+        <div className="flex items-center gap-5 mb-5">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-lg font-semibold text-slate-900 tabular-nums">{mapPct}%</span>
+            <span className="text-[11px] text-slate-400">mapeado</span>
+          </div>
+          <div className="h-1 w-28 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-valuenow={mapPct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full rounded-full bg-slate-900 transition-all duration-500" style={{ width: `${Math.min(mapPct, 100)}%` }} />
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-slate-400">
+            <span className="tabular-nums">{plural(canalesReales.length, "canal", "canales")}</span>
+            <span className="tabular-nums">{plural(sinMapearVisible.length, "origen para consolidar", "orígenes para consolidar")}</span>
+          </div>
         </div>
       )}
 
@@ -238,15 +248,15 @@ export default function Page() {
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Orígenes para consolidar</h2>
-                <p className="text-[11px] text-gray-400 mt-0.5">Ya cuentan como canal propio. Juntá los que sean lo mismo bajo un canal.</p>
+                <h2 className="text-sm font-semibold text-slate-900">Orígenes para consolidar</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">Ya cuentan como canal propio. Juntá los que sean lo mismo bajo un canal.</p>
               </div>
-              <label className="flex items-center gap-1.5 text-[10px] text-gray-400 shrink-0">
+              <label className="flex items-center gap-1.5 text-[10px] text-slate-400 shrink-0">
                 mín.
                 <select
                   value={minVis}
                   onChange={(e) => setMinVis(Number(e.target.value))}
-                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 text-gray-600"
+                  className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 text-slate-600"
                 >
                   <option value={1}>todos</option>
                   <option value={2}>≥ 2 visitas</option>
@@ -257,7 +267,7 @@ export default function Page() {
             </div>
             <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
               {sinMapearVisible.length === 0 && (
-                <div className="text-center text-gray-400 py-8 text-sm">Nada para consolidar 🎉</div>
+                <div className="text-center text-slate-400 py-8 text-sm">Todo consolidado</div>
               )}
               {sinMapearVisible.map((s: any) => (
                 <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving.has(s.codigo)} onAsignar={asignar} />
@@ -268,29 +278,29 @@ export default function Page() {
           {/* DERECHA — tus canales (solo los resueltos por una regla) */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-center justify-between mb-3 gap-3">
-              <h2 className="text-sm font-semibold text-gray-900">Tus canales</h2>
-              <span className="text-[10px] text-gray-300">{canalesReales.length}</span>
+              <h2 className="text-sm font-semibold text-slate-900">Tus canales</h2>
+              <span className="text-[10px] text-slate-300">{canalesReales.length}</span>
             </div>
             <div className="overflow-y-auto flex-1 pr-1" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
               {canalesReales.length === 0 ? (
-                <div className="text-center text-gray-400 py-8 text-sm">Todavía no hay canales resueltos</div>
+                <div className="text-center text-slate-400 py-8 text-sm">Todavía no hay canales resueltos</div>
               ) : (
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-white z-10">
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
-                      <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">Visitantes</th>
+                    <tr className="border-b border-slate-100">
+                      <th className="text-left text-[10px] font-medium text-slate-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
+                      <th className="text-right text-[10px] font-medium text-slate-400 uppercase tracking-wider pb-2 pl-2">Visitantes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {canalesReales.map((c: any) => {
                       const esCatch = c.channel === CATCH;
                       return (
-                        <tr key={c.channel} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                          <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${esCatch ? "text-gray-400 italic" : "text-gray-700"}`} title={esCatch ? "Orígenes que no se pudieron identificar. Podés mandar más acá." : c.channel}>
+                        <tr key={c.channel} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
+                          <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${esCatch ? "text-slate-400 italic" : "text-slate-700"}`} title={esCatch ? "Orígenes que no se pudieron identificar. Podés mandar más acá." : c.channel}>
                             {c.channel}
                           </td>
-                          <td className={`text-right tabular-nums pl-2 py-1.5 ${esCatch ? "text-gray-400" : "text-gray-600"}`}>{fmt(c.visitantes)}</td>
+                          <td className={`text-right tabular-nums pl-2 py-1.5 ${esCatch ? "text-slate-400" : "text-slate-600"}`}>{fmt(c.visitantes)}</td>
                         </tr>
                       );
                     })}
@@ -306,22 +316,22 @@ export default function Page() {
           <div className={`${cardStyle} p-5 mt-5`} style={cardShadow}>
             <div className="flex items-center justify-between mb-3 gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Tus mapeos</h2>
-                <p className="text-[11px] text-gray-400 mt-0.5">Los orígenes que conectaste vos. Desconectá para que vuelvan a la bandeja.</p>
+                <h2 className="text-sm font-semibold text-slate-900">Tus mapeos</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">Los orígenes que conectaste vos. Desconectá para que vuelvan a la bandeja.</p>
               </div>
-              <span className="text-[10px] text-gray-300">{misMapeos.length}</span>
+              <span className="text-[10px] text-slate-300">{misMapeos.length}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {misMapeos.map((m: any) => (
-                <div key={m.id} className="flex items-center gap-2 text-[11px] border border-gray-100 rounded-lg pl-2.5 pr-1.5 py-1 bg-gray-50/40">
-                  <span className="text-gray-500 truncate max-w-[140px]" title={m.source}>{m.source}</span>
-                  <span className="text-gray-300">→</span>
-                  <span className="font-medium text-gray-700 truncate max-w-[140px]" title={m.channel}>{m.channel}</span>
+                <div key={m.id} className="flex items-center gap-2 text-[11px] border border-slate-100 rounded-lg pl-2.5 pr-1.5 py-1 bg-slate-50/40">
+                  <span className="text-slate-500 truncate max-w-[140px]" title={m.source}>{m.source}</span>
+                  <span className="text-slate-300">→</span>
+                  <span className="font-medium text-slate-700 truncate max-w-[140px]" title={m.channel}>{m.channel}</span>
                   <button
                     onClick={() => desconectar(m.id)}
                     disabled={saving.has(m.id)}
                     title="Desconectar"
-                    className="ml-0.5 w-4 h-4 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                    className="ml-0.5 w-4 h-4 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
                   >
                     {saving.has(m.id) ? "·" : "×"}
                   </button>
@@ -332,7 +342,7 @@ export default function Page() {
         )}
         </>
       ) : !error ? (
-        <div className="text-gray-400 text-sm py-16 text-center">Sin datos.</div>
+        <div className="text-slate-400 text-sm py-16 text-center">Sin datos.</div>
       ) : null}
     </div>
   );
@@ -345,10 +355,10 @@ function FilaSinMapear({ s, canales, saving, onAsignar }: any) {
     if (ok) setVal(""); // sólo limpia si grabó; si falló, deja lo escrito
   };
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-100 hover:bg-gray-50/50 transition-colors">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-gray-800 truncate" title={s.nombre}>{s.nombre}</div>
-        <div className="text-[10px] text-gray-400 truncate">{s.codigo} · {fmt(s.visitantes)} visitantes</div>
+        <div className="text-[13px] font-medium text-slate-800 truncate" title={s.nombre}>{s.nombre}</div>
+        <div className="text-[10px] text-slate-400 truncate">{s.codigo} · {fmt(s.visitantes)} visitantes</div>
       </div>
       <input
         list="canales-existentes"
@@ -356,12 +366,12 @@ function FilaSinMapear({ s, canales, saving, onAsignar }: any) {
         onChange={(e) => setVal(e.target.value)}
         placeholder="Asignar a canal…"
         onKeyDown={(e) => e.key === "Enter" && conectar()}
-        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 w-44 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 placeholder-gray-400"
+        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-44 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-400"
       />
       <button
         disabled={saving || !val.trim()}
         onClick={conectar}
-        className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${val.trim() && !saving ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "bg-gray-100 text-gray-300 cursor-default"}`}
+        className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${val.trim() && !saving ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-slate-100 text-slate-400 cursor-default"}`}
       >
         {saving ? "…" : "Conectar"}
       </button>
