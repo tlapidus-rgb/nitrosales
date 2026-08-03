@@ -52,6 +52,11 @@ export default function Page() {
   const [rowError, setRowError] = useState<string | null>(null);
   // Canal seleccionado en la izquierda. null = "Sin clasificar" (vista por default).
   const [selected, setSelected] = useState<string | null>(null);
+  // Canales creados por el usuario que todavía no tienen ningún origen (borrador):
+  // aparecen en la lista y en el autocomplete hasta que se les asigna un origen.
+  const [borradores, setBorradores] = useState<string[]>([]);
+  const [creando, setCreando] = useState(false);
+  const [nuevoCanal, setNuevoCanal] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -125,8 +130,28 @@ export default function Page() {
   // legibles que no tengan sentido).
   const canales = useMemo(() => {
     const names = canalesReales.map((c: any) => c.channel).filter((n: string) => n !== CATCH);
-    return [...names, CATCH];
-  }, [canalesReales]);
+    const extra = borradores.filter((b) => !names.includes(b) && b !== CATCH);
+    return [...names, ...extra, CATCH];
+  }, [canalesReales, borradores]);
+
+  // Lista de la izquierda: canales reales + los borradores que todavía no tienen
+  // origen (visitantes 0), para que aparezcan apenas los creás.
+  const canalesListado = useMemo(() => {
+    const reales = new Set(canalesReales.map((c: any) => c.channel));
+    const drafts = borradores
+      .filter((b) => !reales.has(b))
+      .map((b) => ({ channel: b, visitantes: 0, draft: true }));
+    return [...canalesReales, ...drafts];
+  }, [canalesReales, borradores]);
+
+  function crearCanal() {
+    const nombre = nuevoCanal.trim();
+    setCreando(false);
+    setNuevoCanal("");
+    if (!nombre) return;
+    if (!borradores.includes(nombre)) setBorradores((prev) => [...prev, nombre]);
+    setSelected(nombre); // te lleva al canal nuevo (vacío) para empezar a llenarlo
+  }
 
   // Orígenes del canal seleccionado (drill-down). Para el catch-all "Otros
   // orígenes" muestro los ilegibles/sin-sentido (el server los deja sin-mapear
@@ -262,8 +287,31 @@ export default function Page() {
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-center justify-between mb-3 gap-3">
               <h2 className="text-sm font-semibold text-slate-900">Tus canales</h2>
-              <span className="text-[10px] text-slate-300 tabular-nums">{canalesReales.length}</span>
+              <button
+                onClick={() => setCreando(true)}
+                className="text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors"
+                title="Crear un canal nuevo"
+              >
+                + Crear canal
+              </button>
             </div>
+            {creando && (
+              <div className="flex items-center gap-1.5 mb-2">
+                <input
+                  autoFocus
+                  value={nuevoCanal}
+                  onChange={(e) => setNuevoCanal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") crearCanal();
+                    if (e.key === "Escape") { setCreando(false); setNuevoCanal(""); }
+                  }}
+                  placeholder="Nombre del canal…"
+                  className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-400"
+                />
+                <button onClick={crearCanal} disabled={!nuevoCanal.trim()} className={`text-xs font-medium rounded-lg px-2.5 py-1.5 transition-colors ${nuevoCanal.trim() ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-slate-100 text-slate-400 cursor-default"}`}>Crear</button>
+                <button onClick={() => { setCreando(false); setNuevoCanal(""); }} className="text-xs text-slate-400 hover:text-slate-700 px-1" title="Cancelar" aria-label="Cancelar">✕</button>
+              </div>
+            )}
             <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-0.5" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
               <ItemCanal
                 nombre="Sin clasificar"
@@ -274,14 +322,15 @@ export default function Page() {
                 onClick={() => setSelected(null)}
               />
               <div className="h-px bg-slate-100 my-1.5" />
-              {canalesReales.length === 0 ? (
+              {canalesListado.length === 0 ? (
                 <div className="text-center text-slate-400 py-6 text-xs">Todavía no hay canales resueltos</div>
               ) : (
-                canalesReales.map((c: any) => (
+                canalesListado.map((c: any) => (
                   <ItemCanal
                     key={c.channel}
                     nombre={c.channel}
                     visitantes={c.visitantes}
+                    draft={c.draft}
                     selected={selected === c.channel}
                     muted={c.channel === CATCH}
                     onClick={() => setSelected(c.channel)}
@@ -319,7 +368,7 @@ export default function Page() {
                     <div className="text-center text-slate-400 py-8 text-sm">Todo consolidado</div>
                   )}
                   {sinMapearVisible.map((s: any) => (
-                    <FilaOrigen key={s.codigo} o={s} canales={canales} saving={saving} onAsignar={asignar} accion="Conectar" placeholder="Asignar a canal…" />
+                    <FilaOrigen key={s.codigo} o={s} canales={canales} saving={saving} onAsignar={asignar} onExcluir={() => asignar(s.codigo, CATCH)} accion="Conectar" placeholder="Asignar a canal…" />
                   ))}
                 </div>
               </>
@@ -365,7 +414,7 @@ export default function Page() {
 }
 
 // Un canal en la lista de la izquierda (clickeable, con estado seleccionado).
-function ItemCanal({ nombre, visitantes, badge, selected, muted, onClick }: any) {
+function ItemCanal({ nombre, visitantes, badge, draft, selected, muted, onClick }: any) {
   return (
     <button
       onClick={onClick}
@@ -378,56 +427,60 @@ function ItemCanal({ nombre, visitantes, badge, selected, muted, onClick }: any)
         {typeof badge === "number" && badge > 0 && (
           <span className={`px-1.5 py-px rounded-full text-[10px] ${selected ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>{badge}</span>
         )}
-        {fmt(visitantes)}
+        {draft ? <span className={`italic ${selected ? "text-slate-300" : "text-slate-300"}`}>nuevo</span> : fmt(visitantes)}
       </span>
     </button>
   );
 }
 
-// Una fila de origen en la derecha. En "Sin clasificar" el botón es "Conectar";
-// dentro de un canal es "Mover" (+ "Sacar" si el origen lo mapea una regla propia).
-function FilaOrigen({ o, canales, saving, onAsignar, accion, placeholder, ruleId, onSacar }: any) {
+// Una fila de origen en la derecha. En "Sin clasificar" el botón es "Conectar"
+// (+ "Excluir" para mandarlo a Otros orígenes); dentro de un canal es "Mover"
+// (+ "Sacar" si el origen lo mapea una regla propia). Muestra un PREVIEW en vivo
+// de a dónde va antes de aplicar.
+function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placeholder, ruleId, onSacar }: any) {
   const [val, setVal] = useState("");
   const busy = saving.has(o.codigo) || (ruleId && saving.has(ruleId));
   const aplicar = async () => {
     const ok = await onAsignar(o.codigo, val);
     if (ok) setVal(""); // sólo limpia si grabó; si falló, deja lo escrito
   };
+  const v = val.trim();
+  const match = v ? canales.find((c: string) => c.toLowerCase() === v.toLowerCase()) : null;
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-slate-800 truncate" title={o.nombre}>{o.nombre}</div>
-        <div className="text-[10px] text-slate-400 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
+    <div className="flex flex-col gap-1 px-3 py-2 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-medium text-slate-800 truncate" title={o.nombre}>{o.nombre}</div>
+          <div className="text-[10px] text-slate-400 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
+        </div>
+        <input
+          list="canales-existentes"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={placeholder}
+          onKeyDown={(e) => e.key === "Enter" && aplicar()}
+          className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-36 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-400"
+        />
+        {v ? (
+          <button disabled={busy} onClick={aplicar} className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white transition-colors disabled:opacity-50">{busy ? "…" : accion}</button>
+        ) : ruleId ? (
+          <button disabled={busy} onClick={() => onSacar(ruleId)} title="Sacar del canal (vuelve a sin clasificar)" className="text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50">{busy ? "…" : "Sacar"}</button>
+        ) : accion === "Mover" ? (
+          <span className="text-[10px] text-slate-300 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
+        ) : onExcluir ? (
+          <button disabled={busy} onClick={onExcluir} title="Excluir: mandarlo a «Otros orígenes»" className="text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-colors disabled:opacity-50">{busy ? "…" : "Excluir"}</button>
+        ) : (
+          <button disabled className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-100 text-slate-400 cursor-default">{accion}</button>
+        )}
       </div>
-      <input
-        list="canales-existentes"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        placeholder={placeholder}
-        onKeyDown={(e) => e.key === "Enter" && aplicar()}
-        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-36 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-400"
-      />
-      {val.trim() ? (
-        <button
-          disabled={busy}
-          onClick={aplicar}
-          className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white transition-colors disabled:opacity-50"
-        >
-          {busy ? "…" : accion}
-        </button>
-      ) : ruleId ? (
-        <button
-          disabled={busy}
-          onClick={() => onSacar(ruleId)}
-          title="Sacar del canal (vuelve a sin clasificar)"
-          className="text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
-        >
-          {busy ? "…" : "Sacar"}
-        </button>
-      ) : accion === "Mover" ? (
-        <span className="text-[10px] text-slate-300 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
-      ) : (
-        <button disabled className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-100 text-slate-400 cursor-default">{accion}</button>
+      {v && (
+        <div className="text-[10px] pl-0.5">
+          {match ? (
+            <span className="text-slate-500">→ se agrupa en <span className="font-medium text-slate-700">{match}</span> · {fmt(o.visitantes)} visitantes</span>
+          ) : (
+            <span className="text-slate-500">→ crea el canal <span className="font-medium text-slate-700">«{v}»</span></span>
+          )}
+        </div>
       )}
       <datalist id="canales-existentes">
         {canales.map((c: string) => <option key={c} value={c} />)}
