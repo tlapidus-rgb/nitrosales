@@ -282,14 +282,18 @@ export default function Page() {
           <div className={`${cardStyle} p-5 h-[460px] animate-pulse`} style={cardShadow} />
         </div>
       ) : data?.channels ? (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
           {/* IZQUIERDA — Tus canales (clickeables) */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
-            <div className="flex items-center justify-between mb-3 gap-3">
-              <h2 className="text-sm font-semibold text-slate-900">Tus canales</h2>
+            <div className="flex items-start justify-between mb-3 gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Tus canales</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">Cada canal agrupa varios orígenes bajo un nombre.</p>
+              </div>
               <button
                 onClick={() => setCreando(true)}
-                className="text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors"
+                className="text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors shrink-0"
                 title="Crear un canal nuevo"
               >
                 + Crear canal
@@ -406,6 +410,18 @@ export default function Page() {
             )}
           </div>
         </div>
+
+        {/* Texto explicativo — help-center al pie, cubre canales y orígenes */}
+        <div className={`${cardStyle} p-5 mt-5`} style={cardShadow}>
+          <h3 className="text-[13px] font-semibold text-slate-900 mb-3">Cómo funciona</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-[12px] leading-relaxed">
+            <p className="text-slate-500"><span className="font-medium text-slate-700">Canales.</span> Un canal agrupa varios orígenes de tráfico bajo un mismo nombre —por ejemplo «Meta Ads» junta fb, ig, facebook y meta—. Así leés tus métricas por canal en vez de por cada origen suelto.</p>
+            <p className="text-slate-500"><span className="font-medium text-slate-700">Sin clasificar.</span> Los orígenes que todavía no pertenecen a ningún canal. Asignalos a uno existente, creá uno nuevo, o excluílos. No es obligatorio: agrupá lo que te sirva.</p>
+            <p className="text-slate-500"><span className="font-medium text-slate-700">Otros orígenes.</span> El canal donde caen los que excluís —ilegibles, spam o irrelevantes—. No se pierden: quedan agrupados y fuera del camino.</p>
+            <p className="text-slate-500"><span className="font-medium text-slate-700">Cobertura.</span> El porcentaje de visitantes cuyo origen ya está agrupado en un canal. No hace falta llegar al 100&nbsp;%: agrupá lo que te sirva para leer mejor.</p>
+          </div>
+        </div>
+        </>
       ) : !error ? (
         <div className="text-slate-400 text-sm py-16 text-center">Sin datos.</div>
       ) : null}
