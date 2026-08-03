@@ -4,16 +4,13 @@
 // ══════════════════════════════════════════════════════════════
 // /pixel/canales — Mapeo de canales (self-service, pivot v2)
 // ══════════════════════════════════════════════════════════════
-// "Conectar palabras": IZQUIERDA los orígenes que van entrando (con nombre
-// legible), DERECHA los canales YA resueltos por una regla. El usuario conecta
-// cada origen a un canal; graba una regla de la org y el rollup resuelve con ella.
-// Estilo alineado a ConversionRateTables (dashboard claro, Tailwind): mismo
-// patrón de fetch (chequeo res.ok, tarjeta de error + Reintentar, flag de
-// cancelación, skeleton) para que un 403/500 NO se vea como "todo mapeado".
+// Layout canal-céntrico (rediseño Tomy): IZQUIERDA la lista de TUS CANALES
+// (clickeables) con "Sin clasificar" arriba; DERECHA, contextual: los orígenes
+// del canal seleccionado (movibles a otro canal o de vuelta al bucket), o —por
+// default— los orígenes sin clasificar para asignarlos. Estilo enterprise sobrio.
 //
 // Nota: la ORG es SIEMPRE la de la sesión / vista actual ("view-as") — el panel
-// NO elige org (si no, un cliente vería canales de otra org). El endpoint la saca
-// de getOrganizationId(); acá no se manda ningún orgId.
+// NO elige org. El endpoint la saca de getOrganizationId(); acá no se manda orgId.
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
@@ -29,8 +26,7 @@ const plural = (n: number, sing: string, plu: string) => `${n} ${n === 1 ? sing 
 //  · trae bytes de control / carácter de reemplazo (utm binario corrupto), o
 //  · es spam de referrer/utm: texto promocional inyectado (espacios + signos
 //    tipo ¡ ! @ o una URL), o absurdamente largo (títulos de spam).
-// Los dominios reales cortos (chatgpt.com, copilot.com) NO caen acá: son tráfico
-// legítimo y quedan en la bandeja para consolidar.
+// Los dominios reales cortos (chatgpt.com, copilot.com) NO caen acá.
 function esSinSentido(codigo: string): boolean {
   const s = codigo || "";
   for (let i = 0; i < s.length; i++) {
@@ -54,6 +50,8 @@ export default function Page() {
   // Set de códigos con POST/DELETE en vuelo (acciones simultáneas no se pisan).
   const [saving, setSaving] = useState<Set<string>>(() => new Set());
   const [rowError, setRowError] = useState<string | null>(null);
+  // Canal seleccionado en la izquierda. null = "Sin clasificar" (vista por default).
+  const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,8 +87,8 @@ export default function Page() {
 
   const refetch = () => setRetryTick((t) => t + 1);
 
-  // Bandeja: separamos legibles (van a "para consolidar") de los ilegibles/
-  // binarios, que NO se ocultan: se acumulan en el canal catch-all "Sin clasificar".
+  // Bandeja: separamos legibles (van a "sin clasificar") de los ilegibles/binarios,
+  // que NO se ocultan: se acumulan en el canal catch-all "Otros orígenes".
   const sinMapearTodos = (data?.sinMapear || []) as any[];
   const sinMapearVisible = useMemo(
     () => sinMapearTodos.filter((s) => !esSinSentido(s.codigo)),
@@ -101,9 +99,9 @@ export default function Page() {
     [sinMapearTodos]
   );
 
-  // Canales de la derecha = los resueltos POR REGLA + el bucket "Otros orígenes"
-  // (lo ilegible/sin-sentido). El passthrough legible NO viene acá (vive en la
-  // bandeja para consolidar). Se mergea si ya existe una regla → "Otros orígenes".
+  // Canales de la izquierda = los resueltos POR REGLA + el bucket "Otros orígenes"
+  // (lo ilegible/sin-sentido). El passthrough legible NO viene acá (vive en "Sin
+  // clasificar"). Se mergea si ya existe una regla → "Otros orígenes".
   const CATCH = "Otros orígenes";
   const canalesReales = useMemo(() => {
     const base = (data?.channels || [])
@@ -123,17 +121,34 @@ export default function Page() {
     return [...out].sort((a: any, b: any) => (b.visitantes || 0) - (a.visitantes || 0));
   }, [data, sinClasificarVisitantes]);
 
-  // Datalist: canales reales + "Sin clasificar" al final (para mandar ahí los
+  // Datalist: canales reales + "Otros orígenes" al final (para mandar ahí los
   // legibles que no tengan sentido).
   const canales = useMemo(() => {
     const names = canalesReales.map((c: any) => c.channel).filter((n: string) => n !== CATCH);
     return [...names, CATCH];
   }, [canalesReales]);
 
-  // COBERTURA: todo origen LEGIBLE ya tiene un canal (una regla, o passthrough
-  // con su propio nombre — filosofía Tomy). Así el tráfico atribuido es el 100%.
-  // La bandeja de abajo es para CONSOLIDAR (juntar variantes del mismo canal),
-  // NO tráfico sin atribuir. La basura ilegible y lo no procesado van aparte.
+  // Orígenes del canal seleccionado (drill-down). Para el catch-all "Otros
+  // orígenes" muestro los ilegibles/sin-sentido (el server los deja sin-mapear
+  // pero el cliente los agrupa acá).
+  const originesDelCanal = useMemo(() => {
+    if (selected === null) return [];
+    if (selected === CATCH) {
+      return sinMapearTodos
+        .filter((s: any) => esSinSentido(s.codigo))
+        .map((s: any) => ({ ...s, channel: CATCH }));
+    }
+    return (data?.origins || []).filter((o: any) => o.channel === selected);
+  }, [data, selected, sinMapearTodos]);
+
+  // id de la regla PROPIA de un origen (para poder "sacarlo" del canal). null si
+  // lo mapea una regla global (seed) → ese solo se puede MOVER, no desconectar.
+  const userRuleIdFor = (codigo: string) => {
+    const m = misMapeos.find((r: any) => r.source === (codigo || "").toLowerCase());
+    return m ? m.id : null;
+  };
+
+  // COBERTURA: todo origen legible ya tiene un canal (regla o passthrough).
   const mapPct = (data?.conCrudo ?? 0) > 0 ? 100 : 0;
 
   // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
@@ -155,7 +170,7 @@ export default function Page() {
       return true;
     } catch (err: any) {
       console.error("Error asignando canal:", err);
-      setRowError(`No se pudo conectar "${codigo}": ${err?.message || "error"}`);
+      setRowError(`No se pudo asignar "${codigo}": ${err?.message || "error"}`);
       return false;
     } finally {
       setSaving((prev) => {
@@ -166,8 +181,8 @@ export default function Page() {
     }
   }
 
-  // Deshace un mapeo propio (borra la regla de la org). El origen vuelve a la
-  // bandeja "sin mapear" en el próximo refresh.
+  // Deshace un mapeo propio (borra la regla de la org). El origen vuelve a "sin
+  // clasificar" en el próximo refresh.
   async function desconectar(id: string) {
     setRowError(null);
     setSaving((prev) => new Set(prev).add(id));
@@ -180,7 +195,7 @@ export default function Page() {
       refetch();
     } catch (err: any) {
       console.error("Error desconectando:", err);
-      setRowError(`No se pudo desconectar: ${err?.message || "error"}`);
+      setRowError(`No se pudo sacar del canal: ${err?.message || "error"}`);
     } finally {
       setSaving((prev) => {
         const n = new Set(prev);
@@ -199,7 +214,7 @@ export default function Page() {
         </button>
       </div>
       <p className="text-[13px] text-slate-400 mb-5">
-        Conectá cada origen que entra con uno de tus canales. Lo que definís se aplica solo.
+        Agrupá los orígenes de tráfico en canales. Elegí un canal para ver y editar qué orígenes tiene.
       </p>
 
       {error && (
@@ -225,7 +240,7 @@ export default function Page() {
           </div>
           <div className="flex items-center gap-4 text-[11px] text-slate-400">
             <span className="tabular-nums">{plural(canalesReales.length, "canal", "canales")}</span>
-            <span className="tabular-nums">{plural(sinMapearVisible.length, "origen para consolidar", "orígenes para consolidar")}</span>
+            <span className="tabular-nums">{plural(sinMapearVisible.length, "origen sin clasificar", "orígenes sin clasificar")}</span>
           </div>
         </div>
       )}
@@ -237,110 +252,111 @@ export default function Page() {
       )}
 
       {loading && !data ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
           <div className={`${cardStyle} p-5 h-[460px] animate-pulse`} style={cardShadow} />
           <div className={`${cardStyle} p-5 h-[460px] animate-pulse`} style={cardShadow} />
         </div>
       ) : data?.channels ? (
-        <>
-        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-5">
-          {/* IZQUIERDA — orígenes sin mapear */}
-          <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Orígenes para consolidar</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">Ya cuentan como canal propio. Juntá los que sean lo mismo bajo un canal.</p>
-              </div>
-              <label className="flex items-center gap-1.5 text-[10px] text-slate-400 shrink-0">
-                mín.
-                <select
-                  value={minVis}
-                  onChange={(e) => setMinVis(Number(e.target.value))}
-                  className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 text-slate-600"
-                >
-                  <option value={1}>todos</option>
-                  <option value={2}>≥ 2 visitas</option>
-                  <option value={5}>≥ 5 visitas</option>
-                  <option value={10}>≥ 10 visitas</option>
-                </select>
-              </label>
-            </div>
-            <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
-              {sinMapearVisible.length === 0 && (
-                <div className="text-center text-slate-400 py-8 text-sm">Todo consolidado</div>
-              )}
-              {sinMapearVisible.map((s: any) => (
-                <FilaSinMapear key={s.codigo} s={s} canales={canales} saving={saving.has(s.codigo)} onAsignar={asignar} />
-              ))}
-            </div>
-          </div>
-
-          {/* DERECHA — tus canales (solo los resueltos por una regla) */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
+          {/* IZQUIERDA — Tus canales (clickeables) */}
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-center justify-between mb-3 gap-3">
               <h2 className="text-sm font-semibold text-slate-900">Tus canales</h2>
-              <span className="text-[10px] text-slate-300">{canalesReales.length}</span>
+              <span className="text-[10px] text-slate-300 tabular-nums">{canalesReales.length}</span>
             </div>
-            <div className="overflow-y-auto flex-1 pr-1" style={{ maxHeight: 460, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+            <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-0.5" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+              <ItemCanal
+                nombre="Sin clasificar"
+                visitantes={sinMapearVisible.reduce((a: number, s: any) => a + (s.visitantes || 0), 0)}
+                badge={sinMapearVisible.length}
+                selected={selected === null}
+                muted
+                onClick={() => setSelected(null)}
+              />
+              <div className="h-px bg-slate-100 my-1.5" />
               {canalesReales.length === 0 ? (
-                <div className="text-center text-slate-400 py-8 text-sm">Todavía no hay canales resueltos</div>
+                <div className="text-center text-slate-400 py-6 text-xs">Todavía no hay canales resueltos</div>
               ) : (
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="border-b border-slate-100">
-                      <th className="text-left text-[10px] font-medium text-slate-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
-                      <th className="text-right text-[10px] font-medium text-slate-400 uppercase tracking-wider pb-2 pl-2">Visitantes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {canalesReales.map((c: any) => {
-                      const esCatch = c.channel === CATCH;
-                      return (
-                        <tr key={c.channel} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                          <td className={`py-1.5 pr-2 font-medium truncate max-w-[220px] ${esCatch ? "text-slate-400 italic" : "text-slate-700"}`} title={esCatch ? "Orígenes que no se pudieron identificar. Podés mandar más acá." : c.channel}>
-                            {c.channel}
-                          </td>
-                          <td className={`text-right tabular-nums pl-2 py-1.5 ${esCatch ? "text-slate-400" : "text-slate-600"}`}>{fmt(c.visitantes)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                canalesReales.map((c: any) => (
+                  <ItemCanal
+                    key={c.channel}
+                    nombre={c.channel}
+                    visitantes={c.visitantes}
+                    selected={selected === c.channel}
+                    muted={c.channel === CATCH}
+                    onClick={() => setSelected(c.channel)}
+                  />
+                ))
               )}
             </div>
           </div>
-        </div>
 
-        {/* TUS MAPEOS — reglas propias de la org, con opción de desconectar */}
-        {misMapeos.length > 0 && (
-          <div className={`${cardStyle} p-5 mt-5`} style={cardShadow}>
-            <div className="flex items-center justify-between mb-3 gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Tus mapeos</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">Los orígenes que conectaste vos. Desconectá para que vuelvan a la bandeja.</p>
-              </div>
-              <span className="text-[10px] text-slate-300">{misMapeos.length}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {misMapeos.map((m: any) => (
-                <div key={m.id} className="flex items-center gap-2 text-[11px] border border-slate-100 rounded-lg pl-2.5 pr-1.5 py-1 bg-slate-50/40">
-                  <span className="text-slate-500 truncate max-w-[140px]" title={m.source}>{m.source}</span>
-                  <span className="text-slate-300">→</span>
-                  <span className="font-medium text-slate-700 truncate max-w-[140px]" title={m.channel}>{m.channel}</span>
-                  <button
-                    onClick={() => desconectar(m.id)}
-                    disabled={saving.has(m.id)}
-                    title="Desconectar"
-                    className="ml-0.5 w-4 h-4 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
-                  >
-                    {saving.has(m.id) ? "·" : "×"}
-                  </button>
+          {/* DERECHA — contextual: sin clasificar (default) o los orígenes del canal */}
+          <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
+            {selected === null ? (
+              <>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900">Sin clasificar</h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Asigná cada origen a un canal para agruparlos.</p>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-[10px] text-slate-400 shrink-0">
+                    mín.
+                    <select
+                      value={minVis}
+                      onChange={(e) => setMinVis(Number(e.target.value))}
+                      className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 text-slate-600"
+                    >
+                      <option value={1}>todos</option>
+                      <option value={2}>≥ 2 visitas</option>
+                      <option value={5}>≥ 5 visitas</option>
+                      <option value={10}>≥ 10 visitas</option>
+                    </select>
+                  </label>
                 </div>
-              ))}
-            </div>
+                <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+                  {sinMapearVisible.length === 0 && (
+                    <div className="text-center text-slate-400 py-8 text-sm">Todo consolidado</div>
+                  )}
+                  {sinMapearVisible.map((s: any) => (
+                    <FilaOrigen key={s.codigo} o={s} canales={canales} saving={saving} onAsignar={asignar} accion="Conectar" placeholder="Asignar a canal…" />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                      <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-800 transition-colors" title="Volver a sin clasificar" aria-label="Volver">←</button>
+                      <span className={`truncate ${selected === CATCH ? "italic text-slate-500" : ""}`}>{selected}</span>
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Orígenes agrupados en este canal. Movelos a otro canal o sacalos.</p>
+                  </div>
+                  <span className="text-[10px] text-slate-300 shrink-0 tabular-nums">{originesDelCanal.length}</span>
+                </div>
+                <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+                  {originesDelCanal.length === 0 && (
+                    <div className="text-center text-slate-400 py-8 text-sm">Sin orígenes en este canal.</div>
+                  )}
+                  {originesDelCanal.map((o: any) => (
+                    <FilaOrigen
+                      key={o.codigo}
+                      o={o}
+                      canales={canales}
+                      saving={saving}
+                      onAsignar={asignar}
+                      accion="Mover"
+                      placeholder="Mover a…"
+                      ruleId={userRuleIdFor(o.codigo)}
+                      onSacar={desconectar}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        )}
-        </>
+        </div>
       ) : !error ? (
         <div className="text-slate-400 text-sm py-16 text-center">Sin datos.</div>
       ) : null}
@@ -348,33 +364,71 @@ export default function Page() {
   );
 }
 
-function FilaSinMapear({ s, canales, saving, onAsignar }: any) {
+// Un canal en la lista de la izquierda (clickeable, con estado seleccionado).
+function ItemCanal({ nombre, visitantes, badge, selected, muted, onClick }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg transition-colors ${selected ? "bg-slate-900" : "hover:bg-slate-50"}`}
+    >
+      <span className={`text-[13px] font-medium truncate ${selected ? "text-white" : muted ? "text-slate-400 italic" : "text-slate-700"}`} title={nombre}>
+        {nombre}
+      </span>
+      <span className={`flex items-center gap-1.5 shrink-0 text-[11px] tabular-nums ${selected ? "text-slate-300" : "text-slate-400"}`}>
+        {typeof badge === "number" && badge > 0 && (
+          <span className={`px-1.5 py-px rounded-full text-[10px] ${selected ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>{badge}</span>
+        )}
+        {fmt(visitantes)}
+      </span>
+    </button>
+  );
+}
+
+// Una fila de origen en la derecha. En "Sin clasificar" el botón es "Conectar";
+// dentro de un canal es "Mover" (+ "Sacar" si el origen lo mapea una regla propia).
+function FilaOrigen({ o, canales, saving, onAsignar, accion, placeholder, ruleId, onSacar }: any) {
   const [val, setVal] = useState("");
-  const conectar = async () => {
-    const ok = await onAsignar(s.codigo, val);
+  const busy = saving.has(o.codigo) || (ruleId && saving.has(ruleId));
+  const aplicar = async () => {
+    const ok = await onAsignar(o.codigo, val);
     if (ok) setVal(""); // sólo limpia si grabó; si falló, deja lo escrito
   };
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-slate-800 truncate" title={s.nombre}>{s.nombre}</div>
-        <div className="text-[10px] text-slate-400 truncate">{s.codigo} · {fmt(s.visitantes)} visitantes</div>
+        <div className="text-[13px] font-medium text-slate-800 truncate" title={o.nombre}>{o.nombre}</div>
+        <div className="text-[10px] text-slate-400 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
       </div>
       <input
         list="canales-existentes"
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        placeholder="Asignar a canal…"
-        onKeyDown={(e) => e.key === "Enter" && conectar()}
-        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-44 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-400"
+        placeholder={placeholder}
+        onKeyDown={(e) => e.key === "Enter" && aplicar()}
+        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-36 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-400"
       />
-      <button
-        disabled={saving || !val.trim()}
-        onClick={conectar}
-        className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${val.trim() && !saving ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-slate-100 text-slate-400 cursor-default"}`}
-      >
-        {saving ? "…" : "Conectar"}
-      </button>
+      {val.trim() ? (
+        <button
+          disabled={busy}
+          onClick={aplicar}
+          className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white transition-colors disabled:opacity-50"
+        >
+          {busy ? "…" : accion}
+        </button>
+      ) : ruleId ? (
+        <button
+          disabled={busy}
+          onClick={() => onSacar(ruleId)}
+          title="Sacar del canal (vuelve a sin clasificar)"
+          className="text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+        >
+          {busy ? "…" : "Sacar"}
+        </button>
+      ) : accion === "Mover" ? (
+        <span className="text-[10px] text-slate-300 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
+      ) : (
+        <button disabled className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-100 text-slate-400 cursor-default">{accion}</button>
+      )}
       <datalist id="canales-existentes">
         {canales.map((c: string) => <option key={c} value={c} />)}
       </datalist>

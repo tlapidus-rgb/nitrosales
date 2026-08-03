@@ -83,6 +83,24 @@ async function breakdown(orgId: string, min: number) {
     orgId
   )) as Array<{ channel: string; visitantes: number }>;
 
+  // Todos los orígenes con su canal RESUELTO — para el drill-down (clic en un
+  // canal → sus orígenes). `mapped` distingue los resueltos por regla del
+  // passthrough. El canal de un origen sin mapear es null (va a "para consolidar").
+  const originsRaw = (await prisma.$queryRawUnsafe(
+    `SELECT d.source_raw AS codigo, ${channelCase} AS channel, (${isMapped}) AS mapped, COUNT(*)::int AS visitantes
+     FROM pixel_visitor_first_source d
+     WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL
+     GROUP BY 1, 2, 3 ORDER BY 4 DESC`,
+    orgId
+  )) as Array<{ codigo: string; channel: string; mapped: boolean; visitantes: number }>;
+  const origins = originsRaw.map((o) => ({
+    codigo: o.codigo,
+    nombre: sourceDisplayName(o.codigo),
+    channel: o.mapped ? o.channel : null,
+    mapped: o.mapped,
+    visitantes: o.visitantes,
+  }));
+
   // Bandeja "sin mapear": los que NINGUNA regla agarra (passthrough), por volumen.
   const sinMapear = (await prisma.$queryRawUnsafe(
     `SELECT d.source_raw AS codigo, COUNT(*)::int AS visitantes
@@ -127,6 +145,7 @@ async function breakdown(orgId: string, min: number) {
     mapeadosRegla, // visitantes resueltos por regla — el cliente calcula el % accionable
     mapeadoPct: conCrudo > 0 ? Math.round((mapeadosRegla / conCrudo) * 1000) / 10 : 0,
     channels,
+    origins, // todos los orígenes con su canal resuelto (para el drill-down)
     sinMapear: sinMapearUI,
   });
 }
