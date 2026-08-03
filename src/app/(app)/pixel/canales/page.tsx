@@ -418,7 +418,7 @@ export default function Page() {
             <p className="text-slate-500"><span className="font-medium text-slate-700">Canales.</span> Un canal agrupa varios orígenes de tráfico bajo un mismo nombre —por ejemplo «Meta Ads» junta fb, ig, facebook y meta—. Así leés tus métricas por canal en vez de por cada origen suelto.</p>
             <p className="text-slate-500"><span className="font-medium text-slate-700">Sin clasificar.</span> Los orígenes que todavía no pertenecen a ningún canal. Asignalos a uno existente, creá uno nuevo, o excluílos. No es obligatorio: agrupá lo que te sirva.</p>
             <p className="text-slate-500"><span className="font-medium text-slate-700">Otros orígenes.</span> El canal donde caen los que excluís —ilegibles, spam o irrelevantes—. No se pierden: quedan agrupados y fuera del camino.</p>
-            <p className="text-slate-500"><span className="font-medium text-slate-700">Cobertura.</span> El porcentaje de visitantes cuyo origen ya está agrupado en un canal. No hace falta llegar al 100&nbsp;%: agrupá lo que te sirva para leer mejor.</p>
+            <p className="text-slate-500"><span className="font-medium text-slate-700">Cobertura.</span> El porcentaje de visitantes cuyo origen ya está agrupado en un canal. No hace falta llegar al 100&nbsp;%.</p>
           </div>
         </div>
         </>
