@@ -17,13 +17,14 @@
 //
 // ⚠️ ORG: sale de la SESIÓN (getOrganizationId, que respeta el "view-as" de los
 // internos), NUNCA de un ?orgId= del cliente — si no, un cliente podría espiar los
-// canales de otra org (IDOR). Gate isInternalUser() hasta que el panel entre al nav
-// del cliente (F4): ahí se cambia por "sesión válida + permiso de sección".
+// canales de otra org (IDOR). F4 HECHO: gate por permiso de sección "pixel" (read)
+// vía requirePermission — el staff pasa por su bypass; el cliente con NitroPixel
+// Analytics también. Ya no es solo-internos.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { isInternalUser } from "@/lib/feature-flags";
+import { requirePermission } from "@/lib/permission-guard";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { buildChannelRuleCase, buildIsMappedCase } from "@/lib/pixel/channel-rules";
 import {
@@ -38,7 +39,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // F4: gate por permiso de sección (staff pasa por el bypass de requirePermission).
+  const check = await requirePermission("pixel", "read");
+  if (check.response) return check.response; // presente sólo cuando no está permitido
 
   let orgId: string;
   try {

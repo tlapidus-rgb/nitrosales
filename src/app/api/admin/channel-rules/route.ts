@@ -11,13 +11,15 @@
 //
 // ⚠️ ORG: SIEMPRE de la SESIÓN (getOrganizationId, que respeta el "view-as" de
 // los internos). NO se acepta orgId del cliente — si no, uno podría escribir/leer/
-// borrar reglas de otra org (IDOR). Gate isInternalUser() hasta que el panel entre
-// al nav del cliente (F4): ahí se cambia por "sesión válida + permiso de sección".
+// borrar reglas de otra org (IDOR). F4 HECHO: gate por permiso de sección "pixel"
+// (read para GET, write para POST/DELETE) vía requirePermission — staff pasa por su
+// bypass; el cliente con NitroPixel Analytics también.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { isInternalUser } from "@/lib/feature-flags";
+import { requirePermission } from "@/lib/permission-guard";
+import type { AccessLevel } from "@/lib/permissions";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ruleInsertParams, INSERT_CHANNEL_RULE_SQL, LOAD_CHANNEL_RULES_SQL, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
 import { buildUserChannelRule, userRuleId, UserRuleError } from "@/lib/pixel/user-channel-rule";
@@ -25,9 +27,15 @@ import { buildUserChannelRule, userRuleId, UserRuleError } from "@/lib/pixel/use
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-/** Gate + org de la sesión (view-as respetado). 403 si no autorizado / sin org. */
-async function gate(): Promise<{ orgId: string } | NextResponse> {
-  if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+/**
+ * Gate por permiso de sección "pixel" + org de la sesión (view-as respetado).
+ * F4: `read` para GET, `write` para POST/DELETE. El staff pasa por el bypass de
+ * requirePermission; el cliente con NitroPixel Analytics (read/write) también.
+ * 401/403 con su response si no autorizado; 403 si no hay org resoluble.
+ */
+async function gate(level: AccessLevel = "read"): Promise<{ orgId: string } | NextResponse> {
+  const check = await requirePermission("pixel", level);
+  if (check.response) return check.response; // presente sólo cuando no está permitido
   try {
     return { orgId: await getOrganizationId() };
   } catch {
@@ -54,7 +62,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const g = await gate();
+  const g = await gate("write");
   if (g instanceof NextResponse) return g;
   const { orgId } = g;
   let body: any;
@@ -78,7 +86,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const g = await gate();
+  const g = await gate("write");
   if (g instanceof NextResponse) return g;
   const { orgId } = g;
   const url = new URL(req.url);
