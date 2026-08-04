@@ -24,6 +24,37 @@ const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
 const plural = (n: number, sing: string, plu: string) => `${n} ${n === 1 ? sing : plu}`;
 
+// Distancia de edición (typos chicos). Corto por diferencia de largo > 2: solo
+// nos importan errores de tipeo, no cadenas muy distintas.
+function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 2) return 99;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[m][n];
+}
+
+// Sugiere un canal existente parecido al texto (no exacto) para evitar canales
+// fantasma por typo/variante ("Meta Adss" → "Meta Ads"). null si no hay match ni
+// nada suficientemente cercano.
+function sugerirCanal(val: string, canales: string[]): string | null {
+  const v = val.trim().toLowerCase();
+  if (v.length < 3) return null;
+  let best: string | null = null;
+  let bestD = 3;
+  for (const c of canales) {
+    const cl = c.toLowerCase();
+    if (cl === v) return null; // hay match exacto → no se sugiere nada
+    const d = cl.includes(v) || v.includes(cl) ? 1 : editDistance(v, cl);
+    if (d <= 2 && d < bestD) { bestD = d; best = c; }
+  }
+  return best;
+}
+
 // Un origen "no tiene sentido" (→ va al bucket "Otros orígenes") si:
 //  · trae bytes de control / carácter de reemplazo (utm binario corrupto), o
 //  · es spam de referrer/utm: texto promocional inyectado (espacios + signos
@@ -59,6 +90,11 @@ export default function Page() {
   const [borradores, setBorradores] = useState<string[]>([]);
   const [creando, setCreando] = useState(false);
   const [nuevoCanal, setNuevoCanal] = useState("");
+  // Confirmación de éxito (verde), con "Deshacer" opcional. Se autolimpia.
+  const [rowOk, setRowOk] = useState<{ msg: string; undo?: () => void } | null>(null);
+  // Selección múltiple en "Sin clasificar" (bulk assign): set de códigos tildados.
+  const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set());
+  const [bulkCanal, setBulkCanal] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +129,20 @@ export default function Page() {
   }, [retryTick, minVis]);
 
   const refetch = () => setRetryTick((t) => t + 1);
+
+  // El toast de éxito se autolimpia (no tapa la UI). Se resetea su timer en cada
+  // nuevo `rowOk`.
+  useEffect(() => {
+    if (!rowOk) return;
+    const t = setTimeout(() => setRowOk(null), 6000);
+    return () => clearTimeout(t);
+  }, [rowOk]);
+
+  // La selección múltiple vive solo en "Sin clasificar" → al entrar a un canal se
+  // limpia (evita acciones sobre códigos que ya no se ven).
+  useEffect(() => {
+    if (selected !== null) setSeleccion(new Set());
+  }, [selected]);
 
   // Bandeja: separamos legibles (van a "sin clasificar") de los ilegibles/binarios,
   // que NO se ocultan: se acumulan en el canal catch-all "Otros orígenes".
@@ -181,22 +231,35 @@ export default function Page() {
   // cubierto → la barra refleja el avance real de consolidación, no un 100% fijo.
   const mapPct = data?.mapeadoPct ?? 0;
 
+  // POST puro de un mapeo (sin refetch ni UI). Devuelve el id de la regla creada
+  // (para poder deshacer) o lanza. Reutilizado por `asignar` (1 fila) y por el bulk.
+  async function postRule(codigo: string, channel: string): Promise<string> {
+    const res = await fetch(`/api/admin/channel-rules`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: codigo, channel: channel.trim() }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || `HTTP ${res.status}`);
+    }
+    const body = await res.json().catch(() => ({}));
+    return body?.id as string;
+  }
+
   // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
+  // En éxito muestra un toast con "Deshacer" (borra la regla recién creada).
   async function asignar(codigo: string, channel: string): Promise<boolean> {
     if (!channel?.trim()) return false;
     setRowError(null);
     setSaving((prev) => new Set(prev).add(codigo));
     try {
-      const res = await fetch(`/api/admin/channel-rules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: codigo, channel: channel.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `HTTP ${res.status}`);
-      }
+      const id = await postRule(codigo, channel);
       refetch();
+      setRowOk({
+        msg: `Se agrupó «${codigo}» en ${channel.trim()}`,
+        undo: id ? () => desconectar(id) : undefined,
+      });
       return true;
     } catch (err: any) {
       console.error("Error asignando canal:", err);
@@ -209,6 +272,37 @@ export default function Page() {
         return n;
       });
     }
+  }
+
+  // Bulk: asigna TODOS los códigos seleccionados a un mismo canal (loop de POSTs,
+  // un solo refetch al final). Para excluir en lote, channel = "Otros orígenes".
+  async function asignarLote(channel: string) {
+    const c = channel.trim();
+    if (!c) return;
+    const codigos = [...seleccion];
+    if (codigos.length === 0) return;
+    setRowError(null);
+    setSaving((prev) => new Set([...prev, ...codigos]));
+    let ok = 0;
+    const errores: string[] = [];
+    for (const codigo of codigos) {
+      try {
+        await postRule(codigo, c);
+        ok++;
+      } catch (err: any) {
+        errores.push(codigo);
+      }
+    }
+    setSaving((prev) => {
+      const n = new Set(prev);
+      codigos.forEach((x) => n.delete(x));
+      return n;
+    });
+    setSeleccion(new Set());
+    setBulkCanal("");
+    refetch();
+    if (errores.length) setRowError(`No se pudieron asignar ${errores.length} de ${codigos.length} orígenes.`);
+    if (ok) setRowOk({ msg: `Se agruparon ${ok} ${ok === 1 ? "origen" : "orígenes"} en ${c}` });
   }
 
   // Deshace un mapeo propio (borra la regla de la org). El origen vuelve a "sin
@@ -278,6 +372,20 @@ export default function Page() {
       {rowError && (
         <div className="bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-2.5 mb-4">
           <p className="text-[12px] text-amber-800">{rowError}</p>
+        </div>
+      )}
+
+      {rowOk && (
+        <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200/60 rounded-xl px-4 py-2.5 mb-4">
+          <p className="text-[12px] text-emerald-800">{rowOk.msg}</p>
+          {rowOk.undo && (
+            <button
+              onClick={() => { rowOk.undo?.(); setRowOk(null); }}
+              className={`text-[11px] text-emerald-800 hover:text-emerald-900 font-semibold px-3 py-1 rounded-lg hover:bg-emerald-100 transition-colors ${focusRing}`}
+            >
+              Deshacer
+            </button>
+          )}
         </div>
       )}
 
@@ -377,12 +485,56 @@ export default function Page() {
                     </select>
                   </label>
                 </div>
+                {/* Barra de acción en lote: aparece al seleccionar ≥1 origen. */}
+                {seleccion.size > 0 && (
+                  <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-white border border-slate-200" style={cardShadow}>
+                    <span className="text-[11px] font-medium text-slate-600 tabular-nums shrink-0 pl-1">{seleccion.size} sel.</span>
+                    <input
+                      list="canales-existentes"
+                      value={bulkCanal}
+                      onChange={(e) => setBulkCanal(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && asignarLote(bulkCanal)}
+                      placeholder="Asignar a canal…"
+                      className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-500"
+                    />
+                    <button disabled={!bulkCanal.trim()} onClick={() => asignarLote(bulkCanal)} className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${focusRing} ${bulkCanal.trim() ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-slate-100 text-slate-400 cursor-default"}`}>Asignar</button>
+                    <button onClick={() => asignarLote(CATCH)} title="Excluir los seleccionados (→ Otros orígenes)" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors ${focusRing}`}>Excluir</button>
+                    <button onClick={() => setSeleccion(new Set())} title="Limpiar selección" aria-label="Limpiar selección" className={`text-xs text-slate-500 hover:text-slate-800 px-1 rounded ${focusRing}`}>✕</button>
+                  </div>
+                )}
                 <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
                   {sinMapearVisible.length === 0 && (
                     <div className="text-center text-slate-500 py-8 text-sm">Todo consolidado</div>
                   )}
+                  {sinMapearVisible.length > 0 && (
+                    <label className="flex items-center gap-2 px-3 py-1 text-[11px] text-slate-500 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="accent-slate-900 w-3.5 h-3.5"
+                        checked={seleccion.size > 0 && seleccion.size === sinMapearVisible.length}
+                        ref={(el) => { if (el) el.indeterminate = seleccion.size > 0 && seleccion.size < sinMapearVisible.length; }}
+                        onChange={(e) => setSeleccion(e.target.checked ? new Set(sinMapearVisible.map((s: any) => s.codigo)) : new Set())}
+                      />
+                      Seleccionar todos
+                    </label>
+                  )}
                   {sinMapearVisible.map((s: any) => (
-                    <FilaOrigen key={s.codigo} o={s} canales={canales} saving={saving} onAsignar={asignar} onExcluir={() => asignar(s.codigo, CATCH)} accion="Conectar" placeholder="Asignar a canal…" />
+                    <FilaOrigen
+                      key={s.codigo}
+                      o={s}
+                      canales={canales}
+                      saving={saving}
+                      onAsignar={asignar}
+                      onExcluir={() => asignar(s.codigo, CATCH)}
+                      accion="Conectar"
+                      placeholder="Asignar a canal…"
+                      checked={seleccion.has(s.codigo)}
+                      onToggle={() => setSeleccion((prev) => {
+                        const n = new Set(prev);
+                        n.has(s.codigo) ? n.delete(s.codigo) : n.add(s.codigo);
+                        return n;
+                      })}
+                    />
                   ))}
                 </div>
               </>
@@ -463,7 +615,7 @@ function ItemCanal({ nombre, visitantes, badge, draft, selected, muted, onClick 
 // (+ "Excluir" para mandarlo a Otros orígenes); dentro de un canal es "Mover"
 // (+ "Sacar" si el origen lo mapea una regla propia). Muestra un PREVIEW en vivo
 // de a dónde va antes de aplicar.
-function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placeholder, ruleId, onSacar }: any) {
+function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placeholder, ruleId, onSacar, checked, onToggle }: any) {
   const [val, setVal] = useState("");
   const busy = saving.has(o.codigo) || (ruleId && saving.has(ruleId));
   const aplicar = async () => {
@@ -472,9 +624,21 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
   };
   const v = val.trim();
   const match = v ? canales.find((c: string) => c.toLowerCase() === v.toLowerCase()) : null;
+  // Sugerencia anti-fragmentación: si escribiste algo parecido a un canal que ya
+  // existe (pero no exacto), ofrecemos usarlo en vez de crear un duplicado.
+  const sugerido = v && !match ? sugerirCanal(v, canales) : null;
   return (
-    <div className="flex flex-col gap-1 px-3 py-2 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
+    <div className={`flex flex-col gap-1 px-3 py-2 rounded-xl border transition-colors ${checked ? "border-slate-300 bg-slate-50" : "border-slate-100 hover:bg-slate-50/50"}`}>
       <div className="flex items-center gap-2">
+        {onToggle && (
+          <input
+            type="checkbox"
+            checked={!!checked}
+            onChange={onToggle}
+            className="accent-slate-900 shrink-0 w-3.5 h-3.5"
+            aria-label={`Seleccionar ${o.nombre}`}
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-medium text-slate-800 truncate" title={o.nombre}>{o.nombre}</div>
           <div className="text-[10px] text-slate-500 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
@@ -503,6 +667,13 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
         <div className="text-[10px] pl-0.5">
           {match ? (
             <span className="text-slate-500">→ se agrupa en <span className="font-medium text-slate-700">{match}</span> · {fmt(o.visitantes)} visitantes</span>
+          ) : sugerido ? (
+            <span className="text-slate-500">
+              → crea el canal <span className="font-medium text-slate-700">«{v}»</span> ·{" "}
+              <button type="button" onClick={() => setVal(sugerido)} className={`text-slate-600 underline decoration-dotted underline-offset-2 hover:text-slate-900 rounded ${focusRing}`}>
+                ¿quisiste decir «{sugerido}»?
+              </button>
+            </span>
           ) : (
             <span className="text-slate-500">→ crea el canal <span className="font-medium text-slate-700">«{v}»</span></span>
           )}
