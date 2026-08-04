@@ -264,7 +264,7 @@ export async function identifyVisitor(
         where: { organizationId_visitorId: { organizationId, visitorId } }
       });
       if (!currentVisitor) {
-        console.error('[NitroPixel] identifyVisitor (phone): visitor not found', visitorId);
+        console.warn('[NitroPixel] identifyVisitor (phone): visitor not found', visitorId);
         return null;
       }
       if (currentVisitor.phone === phone) return currentVisitor;
@@ -298,7 +298,7 @@ export async function identifyVisitor(
     });
 
     if (!currentVisitor) {
-      console.error('[NitroPixel] identifyVisitor: visitor not found', visitorId);
+      console.warn('[NitroPixel] identifyVisitor: visitor not found', visitorId);
       return null;
     }
 
