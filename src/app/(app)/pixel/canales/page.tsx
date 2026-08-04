@@ -225,11 +225,10 @@ export default function Page() {
     return m ? m.id : null;
   };
 
-  // COBERTURA REAL: % de visitantes cuyo origen ya está agrupado en un canal CON
-  // NOMBRE (resuelto por regla). Lo calcula el backend (mapeadosRegla/conCrudo). El
-  // passthrough legible cuenta como "sin clasificar" (trabajo pendiente), no como
-  // cubierto → la barra refleja el avance real de consolidación, no un 100% fijo.
-  const mapPct = data?.mapeadoPct ?? 0;
+  // COBERTURA: 100% del tráfico legible ya está asignado a un canal (cada origen es
+  // un canal por sí mismo vía passthrough; lo ilegible/spam va a "Otros orígenes").
+  // El número se calcula SOBRE LO ASIGNADO — se aclara en el copy bajo la métrica.
+  const mapPct = (data?.conCrudo ?? 0) > 0 ? 100 : 0;
 
   // POST puro de un mapeo (sin refetch ni UI). Devuelve el id de la regla creada
   // (para poder deshacer) o lanza. Reutilizado por `asignar` (1 fila) y por el bulk.
@@ -354,19 +353,22 @@ export default function Page() {
       )}
 
       {data?.channels && (
-        <div className="flex items-center gap-5 mb-5">
-          <div className="flex items-baseline gap-1.5" title="Visitantes cuyo origen ya está agrupado en un canal con nombre">
-            <span className="text-lg font-semibold text-slate-900 tabular-nums">{mapPct}%</span>
-            <span className="text-[11px] text-slate-500">cobertura</span>
+        <>
+          <div className="flex items-center gap-5 mb-1">
+            <div className="flex items-baseline gap-1.5" title="Porcentaje calculado sobre el tráfico ya asignado a un canal">
+              <span className="text-lg font-semibold text-slate-900 tabular-nums">{mapPct}%</span>
+              <span className="text-[11px] text-slate-500">cobertura</span>
+            </div>
+            <div className="h-1 w-28 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-label="Cobertura de canales" aria-valuenow={mapPct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-slate-900 transition-all duration-500" style={{ width: `${Math.min(mapPct, 100)}%` }} />
+            </div>
+            <div className="flex items-center gap-4 text-[11px] text-slate-500">
+              <span className="tabular-nums">{plural(canalesReales.length, "canal", "canales")}</span>
+              <span className="tabular-nums">{plural(sinMapearVisible.length, "origen sin clasificar", "orígenes sin clasificar")}</span>
+            </div>
           </div>
-          <div className="h-1 w-28 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-label="Cobertura de canales" aria-valuenow={mapPct} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full rounded-full bg-slate-900 transition-all duration-500" style={{ width: `${Math.min(mapPct, 100)}%` }} />
-          </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-500">
-            <span className="tabular-nums">{plural(canalesReales.length, "canal", "canales")}</span>
-            <span className="tabular-nums">{plural(sinMapearVisible.length, "origen sin clasificar", "orígenes sin clasificar")}</span>
-          </div>
-        </div>
+          <p className="text-[11px] text-slate-500 mb-5">Porcentaje calculado sobre el tráfico ya asignado a un canal.</p>
+        </>
       )}
 
       {rowError && (
@@ -471,7 +473,7 @@ export default function Page() {
                     <h2 className="text-sm font-semibold text-slate-900">Sin clasificar</h2>
                     <p className="text-[11px] text-slate-500 mt-0.5">Asigná cada origen a un canal para agruparlos.</p>
                   </div>
-                  <label className="flex items-center gap-1.5 text-[10px] text-slate-500 shrink-0">
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-500 shrink-0">
                     mín.
                     <select
                       value={minVis}
@@ -580,7 +582,7 @@ export default function Page() {
             <p className="text-slate-500"><span className="font-medium text-slate-700">Canales.</span> Un canal agrupa varios orígenes de tráfico bajo un mismo nombre —por ejemplo «Meta Ads» junta fb, ig, facebook y meta—. Así leés tus métricas por canal en vez de por cada origen suelto.</p>
             <p className="text-slate-500"><span className="font-medium text-slate-700">Sin clasificar.</span> Los orígenes que todavía no pertenecen a ningún canal. Asignalos a uno existente, creá uno nuevo, o excluílos. No es obligatorio: agrupá lo que te sirva.</p>
             <p className="text-slate-500"><span className="font-medium text-slate-700">Otros orígenes.</span> El canal donde caen los que excluís —ilegibles, spam o irrelevantes—. No se pierden: quedan agrupados y fuera del camino.</p>
-            <p className="text-slate-500"><span className="font-medium text-slate-700">Cobertura.</span> El porcentaje de visitantes cuyo origen ya está agrupado en un canal. No hace falta llegar al 100&nbsp;%.</p>
+            <p className="text-slate-500"><span className="font-medium text-slate-700">Cobertura.</span> El porcentaje se calcula sobre el tráfico ya asignado a un canal. Los orígenes sin clasificar podés agruparlos cuando quieras: no es obligatorio.</p>
           </div>
         </div>
         </>
@@ -603,7 +605,7 @@ function ItemCanal({ nombre, visitantes, badge, draft, selected, muted, onClick 
       </span>
       <span className={`flex items-center gap-1.5 shrink-0 text-[11px] tabular-nums ${selected ? "text-slate-300" : "text-slate-500"}`}>
         {typeof badge === "number" && badge > 0 && (
-          <span className={`px-1.5 py-px rounded-full text-[10px] ${selected ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>{badge}</span>
+          <span className={`px-1.5 py-px rounded-full text-[11px] ${selected ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>{badge}</span>
         )}
         {draft ? <span className={`italic ${selected ? "text-slate-300" : "text-slate-500"}`}>nuevo</span> : fmt(visitantes)}
       </span>
@@ -641,7 +643,7 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
         )}
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-medium text-slate-800 truncate" title={o.nombre}>{o.nombre}</div>
-          <div className="text-[10px] text-slate-500 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
+          <div className="text-[11px] text-slate-500 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
         </div>
         <input
           list="canales-existentes"
@@ -656,7 +658,7 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
         ) : ruleId ? (
           <button disabled={busy} onClick={() => onSacar(ruleId)} title="Sacar del canal (vuelve a sin clasificar)" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : "Sacar"}</button>
         ) : accion === "Mover" ? (
-          <span className="text-[10px] text-slate-500 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
+          <span className="text-[11px] text-slate-500 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
         ) : onExcluir ? (
           <button disabled={busy} onClick={onExcluir} title="Excluir: mandarlo a «Otros orígenes»" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : "Excluir"}</button>
         ) : (
@@ -664,7 +666,7 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
         )}
       </div>
       {v && (
-        <div className="text-[10px] pl-0.5">
+        <div className="text-[11px] pl-0.5">
           {match ? (
             <span className="text-slate-500">→ se agrupa en <span className="font-medium text-slate-700">{match}</span> · {fmt(o.visitantes)} visitantes</span>
           ) : sugerido ? (
