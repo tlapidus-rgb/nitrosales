@@ -282,6 +282,14 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     const tpSourceOrChannel = (tp: string) =>
       usePixelChannels ? touchpointChannelSql(channelRules, tp) : touchpointSourceSql(tp);
 
+    // Las 4 queries de atribución tienen una rama Gold que lee gold_attribution_source
+    // (grain por SOURCE, sin medium → no se puede resolver el canal ahí). Cuando los
+    // canales están ON, se PREFIERE la rama Bronze (touchpoint, que sí tiene
+    // source/medium/campaign) para resolver el canal fiel al panel. Trade-off: esas
+    // 4 queries pierden la perf del rollup Gold mientras los canales estén ON (el fix
+    // "de fondo" perf+canal sería un rollup Gold por CANAL — pendiente).
+    const useGoldSource = usePixelGold && !usePixelChannels;
+
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
     // ══════════════════════════════════════════════════════════
@@ -450,7 +458,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
       // 9. Attribution by source (weighted for NITRO, simple for others)
       // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(orders)::int as orders,
@@ -787,7 +795,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // segun la logica de cada modelo (last_click / first_click / linear / nitro).
       // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
       // la tarjeta de revenue por canal por dia.
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, source, orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
@@ -854,7 +862,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ` as Promise<Array<{ day: string; source: string; spend: number }>>,
 
       // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(first_touch_count)::int as "firstTouch",
@@ -1074,7 +1082,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
       // la formula de cada modelo para repartir el attributedValue por canal.
       // GROUP BY (model, source) → ~4 modelos × N canales rows.
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             WITH src AS (
               SELECT source,
