@@ -496,7 +496,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "LAST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              ${touchpointSourceSql("tp")} as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -519,7 +519,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "FIRST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              ${touchpointSourceSql("tp")} as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -541,7 +541,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `
         : prisma.$queryRaw`
             SELECT
-              ${touchpointSourceSql("tp")} as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
             FROM pixel_attributions pa
@@ -798,7 +798,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          ${touchpointSourceSql("tp")} as source,
+          ${tpSourceOrChannel("tp")} as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(
             pa."attributedValue" * (
@@ -868,7 +868,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
       : prisma.$queryRaw`
         SELECT
-          ${touchpointSourceSql("tp")} as source,
+          ${tpSourceOrChannel("tp")} as source,
           COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
           COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < pa."touchpointCount")::int as "assistTouch",
           COUNT(*) FILTER (WHERE tp_ord = pa."touchpointCount" AND pa."touchpointCount" > 1)::int as "lastTouch",
@@ -1050,8 +1050,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
       prisma.$queryRaw`
         SELECT
-          ${touchpointSourceSql("pa.touchpoints::jsonb->0")} as first_channel,
-          ${touchpointSourceSql("pa.touchpoints::jsonb->(-1)")} as last_channel,
+          ${tpSourceOrChannel("pa.touchpoints::jsonb->0")} as first_channel,
+          ${tpSourceOrChannel("pa.touchpoints::jsonb->(-1)")} as last_channel,
           COUNT(*)::int as journeys,
           SUM(pa."attributedValue")::float as revenue,
           AVG(pa."attributedValue")::float as aov
@@ -1105,7 +1105,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           pa.model::text as model,
-          ${touchpointSourceSql("tp")} as source,
+          ${tpSourceOrChannel("tp")} as source,
           SUM(
             pa."attributedValue" * (
               CASE

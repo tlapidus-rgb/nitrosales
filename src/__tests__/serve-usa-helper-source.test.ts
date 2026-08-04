@@ -49,8 +49,15 @@ describe("el serve NO tiene copias inline del CASE de source (P1)", () => {
     expect(inlineCopies).toBe(0);
   });
 
-  it("clasifica el source vía el helper compartido", () => {
-    expect(src).toContain('touchpointSourceSql("tp")');
+  it("clasifica el source vía el helper compartido (envuelto en tpSourceOrChannel, flag-aware)", () => {
+    // El call-site pasó de `touchpointSourceSql("tp")` a `tpSourceOrChannel("tp")`,
+    // un wrapper que enruta al MISMO helper compartido cuando PIXEL_USE_CHANNELS
+    // está OFF (byte-idéntico) o resuelve el CANAL del cliente cuando está ON.
+    // Sigue sin haber copias inline del CASE (lo garantiza el test de arriba).
+    expect(src).toContain('tpSourceOrChannel("tp")');
+    expect(src).toContain(
+      "usePixelChannels ? touchpointChannelSql(channelRules, tp) : touchpointSourceSql(tp)"
+    );
     expect(src).toContain(
       'import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql"'
     );
