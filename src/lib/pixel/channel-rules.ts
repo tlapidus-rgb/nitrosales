@@ -161,6 +161,9 @@ export function buildIsMappedCase(rules: ChannelRule[], exprs: RuleExprs): strin
 // pago/orgánico. Las org-específicas (TV de TeVe, etc.) viven en channel_rule.
 
 // Meta pago = todas las variantes/placements con medium de pauta.
+// (Los alias compartidos META_UTM_ALIASES/INSTAGRAM_UTM_ALIASES viven en
+// source-classification.ts y ALIMENTAN atribution.ts (CORE) → NO se tocan; las
+// variantes extra se agregan SOLO acá, en la capa de canales.)
 const META_PAID_SOURCES = [
   ...META_UTM_ALIASES, // meta_ads, fb, fb_ads, facebook_ads, …
   ...INSTAGRAM_UTM_ALIASES, // ig, instagram_ads, instagram-ads (placement Meta pago)
@@ -170,9 +173,19 @@ const META_PAID_SOURCES = [
   "an", // Audience Network
   "th", // Threads
   "meta-story",
+  // Variantes estándar adicionales de placements/redacciones de Meta pago.
+  "messenger", "msg", "ig_ads", "ig-ads", "igads", "fbig",
+  "audiencenetwork", "audience_network", "meta_business", "metabusiness",
+  "fb_reels", "ig_reels", "facebook_reels", "instagram_reels", "reels",
 ].join("|");
 const PAID_MEDIUMS =
-  "paid|cpc|ppc|paid_social|social-paid|paid-social|trafico|video|paidsocial";
+  "paid|cpc|ppc|paid_social|social-paid|paid-social|trafico|video|paidsocial|paidsearch|display";
+
+// Variantes estándar de Google Ads (además de GOOGLE_UTM_ALIASES, que va a CORE).
+const GOOGLE_ADS_SOURCES =
+  "gads|google-adwords|googleadwords|google_cpc|google_ads_cpc|pmax|performance_max|performancemax|gdn|google_display|googledisplay|google_search|googlesearch";
+// Variantes estándar de TikTok.
+const TIKTOK_SOURCES = "tiktok|tt|tiktok_ads|tiktok-ads|tiktokads|tt_ads|tik_tok|tik-tok";
 
 export const SEED_CHANNEL_RULES: ChannelRule[] = [
   // ── Decisión 1+2: Meta unificado, pago vs orgánico separados ──
@@ -189,6 +202,7 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
 
   // ── Decisión 1: Google (pago vs orgánico) ──
   { id: "g-google-ads-alias", priority: 30, source: { match: "in", pattern: GOOGLE_UTM_ALIASES.join("|") }, channel: "Google Ads" },
+  { id: "g-google-ads-extra", priority: 30, source: { match: "in", pattern: GOOGLE_ADS_SOURCES }, channel: "Google Ads" },
   { id: "g-google-ads-cpc", priority: 31, source: { match: "exact", pattern: "google" }, medium: { match: "in", pattern: "cpc|ppc|paid" }, channel: "Google Ads" },
   { id: "g-google-organico", priority: 32, source: { match: "exact", pattern: "google" }, medium: { match: "in", pattern: "organic|" }, channel: "Google Orgánico" },
 
@@ -201,19 +215,43 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   { id: "g-yahoo-organic", priority: 33, source: { match: "exact", pattern: "yahoo_organic" }, channel: "Yahoo Orgánico" },
 
   // ── TikTok (pago vs orgánico) ──
-  { id: "g-tiktok-ads", priority: 34, source: { match: "exact", pattern: "tiktok" }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "TikTok Ads" },
-  { id: "g-tiktok-organico", priority: 35, source: { match: "exact", pattern: "tiktok" }, channel: "TikTok Orgánico" },
+  { id: "g-tiktok-ads", priority: 34, source: { match: "in", pattern: TIKTOK_SOURCES }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "TikTok Ads" },
+  { id: "g-tiktok-organico", priority: 35, source: { match: "in", pattern: TIKTOK_SOURCES }, channel: "TikTok Orgánico" },
+
+  // ── Microsoft/Bing Ads (pago) — distinto de bing_organico (búsqueda orgánica) ──
+  { id: "g-microsoft-ads", priority: 34, source: { match: "in", pattern: "bing_ads|bingads|bing-ads|microsoft|microsoft_ads|microsoftads|msn_ads|msads" }, channel: "Microsoft Ads" },
+  { id: "g-bing-ads-cpc", priority: 34, source: { match: "in", pattern: "bing|msn|microsoft" }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "Microsoft Ads" },
 
   // ── Referrers sociales/orgánicos (los deriva el first-source del referrer) ──
-  { id: "g-youtube", priority: 36, source: { match: "exact", pattern: "youtube" }, channel: "YouTube" },
-  { id: "g-whatsapp", priority: 36, source: { match: "exact", pattern: "whatsapp" }, channel: "WhatsApp" },
-  { id: "g-twitter", priority: 36, source: { match: "exact", pattern: "twitter" }, channel: "Twitter/X" },
-  { id: "g-linkedin", priority: 36, source: { match: "exact", pattern: "linkedin" }, channel: "LinkedIn" },
+  { id: "g-youtube", priority: 36, source: { match: "in", pattern: "youtube|yt|youtube_ads|youtube-ads" }, channel: "YouTube" },
+  { id: "g-whatsapp", priority: 36, source: { match: "in", pattern: "whatsapp|wa|whatsapp_business" }, channel: "WhatsApp" },
+  { id: "g-twitter", priority: 36, source: { match: "in", pattern: "twitter|twitter_ads|twitter-ads|x_ads" }, channel: "Twitter/X" },
+  { id: "g-linkedin", priority: 36, source: { match: "in", pattern: "linkedin|linkedin_ads|linkedin-ads" }, channel: "LinkedIn" },
+  { id: "g-pinterest", priority: 36, source: { match: "in", pattern: "pinterest|pin|pinterest_ads|pinterest-ads|pin_ads" }, channel: "Pinterest" },
+  { id: "g-snapchat", priority: 36, source: { match: "in", pattern: "snapchat|snap|snapchat_ads|snap_ads|snapchatads" }, channel: "Snapchat" },
+  { id: "g-reddit", priority: 36, source: { match: "in", pattern: "reddit|reddit_ads|reddit-ads" }, channel: "Reddit" },
 
   // ── Otros universales que la data de las 3 orgs destapó (nombre inequívoco) ──
   { id: "g-email", priority: 37, source: { match: "exact", pattern: "email" }, channel: "Email" },
   { id: "g-taboola", priority: 37, source: { match: "contains", pattern: "taboola" }, channel: "Taboola" },
   { id: "g-webpush", priority: 37, source: { match: "in", pattern: "webpush|web-push|push" }, channel: "Notificaciones Push" },
+
+  // ── Más plataformas de PAUTA (allowlist estándar tipo Triple Whale; cada
+  //    plataforma = su propio canal, no un bucket genérico). Variantes UTM
+  //    públicas, no la lista propietaria de TW. ──
+  { id: "g-amazon-ads", priority: 37, source: { match: "in", pattern: "amazon_ads|amazonads|amazon-ads|amazon_dsp|amazondsp" }, channel: "Amazon Ads" },
+  { id: "g-criteo", priority: 37, source: { match: "contains", pattern: "criteo" }, channel: "Criteo" },
+  { id: "g-outbrain", priority: 37, source: { match: "contains", pattern: "outbrain" }, channel: "Outbrain" },
+  { id: "g-applovin", priority: 37, source: { match: "contains", pattern: "applovin" }, channel: "AppLovin" },
+  { id: "g-google-shopping", priority: 29, source: { match: "in", pattern: "google_shopping|googleshopping|google-shopping" }, channel: "Google Shopping" },
+
+  // ── Email / SMS por plataforma (nombre = canal; NO se bucketea en "Email"). ──
+  { id: "g-klaviyo", priority: 38, source: { match: "contains", pattern: "klaviyo" }, channel: "Klaviyo" },
+  { id: "g-mailchimp", priority: 38, source: { match: "contains", pattern: "mailchimp" }, channel: "Mailchimp" },
+  { id: "g-attentive", priority: 38, source: { match: "contains", pattern: "attentive" }, channel: "Attentive" },
+  { id: "g-postscript", priority: 38, source: { match: "contains", pattern: "postscript" }, channel: "Postscript" },
+  { id: "g-omnisend", priority: 38, source: { match: "contains", pattern: "omnisend" }, channel: "Omnisend" },
+  { id: "g-sms", priority: 39, source: { match: "in", pattern: "sms|sms_marketing|textmarketing" }, channel: "SMS" },
 
   // ── Decisión 3: pasarelas como canal propio (la vuelta de pago ya se excluyó en ingest) ──
   { id: "g-gocuotas", priority: 40, source: { match: "contains", pattern: "gocuotas" }, channel: "GoCuotas" },
