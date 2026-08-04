@@ -78,6 +78,10 @@ function dimCondSql(expr: string, dim: RuleDim): string {
       return `${expr} LIKE '${escLike(p)}%' ESCAPE '\\'`;
     case "contains":
       return `${expr} LIKE '%${escLike(p)}%' ESCAPE '\\'`;
+    default:
+      // match desconocido (fila corrupta que se saltó dimFrom) → condición que NO
+      // dispara, nunca `undefined` (que rompería el SQL del CASE).
+      return "FALSE";
   }
 }
 
