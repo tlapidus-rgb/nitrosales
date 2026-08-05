@@ -261,7 +261,7 @@ function DarkStyles() {
       @keyframes pixelSynapseFlow { 0% { stroke-dashoffset: 100; } 50% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
       @keyframes pixelBreath { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.05); filter: brightness(1.2); } }
       .attr-refetching { position: relative; transition: opacity 0.4s ease; }
-      .attr-refetching::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 20; pointer-events: none; background: linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.06) 30%, rgba(6,182,212,0.12) 50%, rgba(6,182,212,0.06) 70%, transparent 100%); background-size: 200% 100%; animation: attrShimmer 1.8s ease-in-out infinite; }
+      .attr-refetching::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 20; pointer-events: none; background: linear-gradient(90deg, transparent 0%, rgba(28,27,24,0.03) 30%, rgba(28,27,24,0.05) 50%, rgba(28,27,24,0.03) 70%, transparent 100%); background-size: 200% 100%; animation: attrShimmer 1.8s ease-in-out infinite; }
       .attr-stagger > * { animation: attrFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
       .attr-stagger > *:nth-child(1) { animation-delay: 0ms; }
       .attr-stagger > *:nth-child(2) { animation-delay: 60ms; }
@@ -271,76 +271,26 @@ function DarkStyles() {
       .attr-stagger > *:nth-child(6) { animation-delay: 300ms; }
       .attr-stagger > *:nth-child(7) { animation-delay: 360ms; }
       .attr-stagger > *:nth-child(8) { animation-delay: 420ms; }
-      .attr-glass { background: linear-gradient(160deg, rgba(15,23,42,0.85), rgba(8,12,24,0.95)); border: 1px solid rgba(6,182,212,0.12); }
-      .attr-glass:hover { border-color: rgba(6,182,212,0.25); }
-      .attr-grid-bg { background-image: linear-gradient(rgba(6,182,212,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.08) 1px, transparent 1px); background-size: 40px 40px; animation: attrGridDrift 60s linear infinite; }
+      .attr-glass { background: rgb(var(--ent-elevated)); border: 1px solid rgb(var(--ent-hairline)); box-shadow: 0 1px 2px rgba(28,27,24,.05); }
+      .attr-glass:hover { border-color: rgb(var(--ent-hairline-2)); }
+      .attr-grid-bg { background-image: none; }
       input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; }
       input[type="range"]::-moz-range-thumb { appearance: none; border: none; background: transparent; }
       .scrollbar-dark::-webkit-scrollbar { width: 4px; }
       .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
-      .scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.2); border-radius: 2px; }
+      .scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(28,27,24,0.15); border-radius: 2px; }
     `}</style>
   );
 }
 
-// ── PixelBrain Mini — Animated logo from NitroPixel hero ──
-function PixelBrainMini({ size = 32, color = "#06b6d4" }: { size?: number; color?: string }) {
-  const neurons = useMemo(() => {
-    const count = 8;
-    const arr = [];
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const radius = 90 + (i % 3) * 10;
-      arr.push({ id: i, x: 150 + Math.cos(angle) * radius, y: 150 + Math.sin(angle) * radius, delay: (i * 120) % 2000 });
-    }
-    return arr;
-  }, []);
-  const synapses = useMemo(() => {
-    const arr: Array<{ x1: number; y1: number; x2: number; y2: number; delay: number }> = [];
-    for (let i = 0; i < neurons.length; i++) {
-      const a = neurons[i];
-      const b = neurons[(i + 2) % neurons.length];
-      arr.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: i * 200 });
-    }
-    return arr;
-  }, [neurons]);
+// ── PixelBrain Mini — marca sobria (rings hairline + punto accent) ──
+function PixelBrainMini({ size = 32 }: { size?: number; color?: string }) {
   return (
     <div style={{ width: size, height: size }}>
       <svg viewBox="0 0 300 300" className="w-full h-full">
-        <defs>
-          <radialGradient id="coreMini" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#a5f3fc" stopOpacity="1" />
-            <stop offset="35%" stopColor={color} stopOpacity="0.95" />
-            <stop offset="70%" stopColor="#0891b2" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#0c1424" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="haloMini" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={color} stopOpacity="0" />
-            <stop offset="60%" stopColor={color} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </radialGradient>
-          <filter id="blurMini"><feGaussianBlur stdDeviation="2" /></filter>
-        </defs>
-        <circle cx="150" cy="150" r="140" fill="url(#haloMini)" />
-        <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbitReverse 28s linear infinite" }}>
-          <circle cx="150" cy="150" r="120" fill="none" stroke={color} strokeOpacity="0.18" strokeWidth="0.8" strokeDasharray="3 6" />
-          <circle cx="270" cy="150" r="3" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
-        </g>
-        <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbit 18s linear infinite" }}>
-          <circle cx="150" cy="150" r="100" fill="none" stroke="#8b5cf6" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="2 5" />
-          <circle cx="50" cy="150" r="3" fill="#a855f7" style={{ filter: `drop-shadow(0 0 4px #a855f7)` }} />
-        </g>
-        {synapses.map((s, i) => (
-          <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={color} strokeOpacity="0.35" strokeWidth="0.6" strokeDasharray="100" style={{ animation: `pixelSynapseFlow 3s ease-in-out infinite ${s.delay}ms` }} />
-        ))}
-        {neurons.map((n) => (
-          <circle key={n.id} cx={n.x} cy={n.y} r="2.5" fill={color} style={{ transformOrigin: `${n.x}px ${n.y}px`, animation: `pixelNeuronPulse 2.4s ease-in-out infinite ${n.delay}ms`, filter: `drop-shadow(0 0 4px ${color})` }} />
-        ))}
-        <g style={{ transformOrigin: "150px 150px", animation: "pixelBreath 2.8s ease-in-out infinite" }}>
-          <circle cx="150" cy="150" r="55" fill="url(#coreMini)" filter="url(#blurMini)" />
-          <circle cx="150" cy="150" r="32" fill="#a5f3fc" opacity="0.85" />
-          <circle cx="150" cy="150" r="20" fill="#ffffff" opacity="0.9" />
-        </g>
+        <circle cx="150" cy="150" r="120" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="6" />
+        <circle cx="150" cy="150" r="78" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="6" />
+        <circle cx="150" cy="150" r="30" fill="rgb(var(--ent-accent))" />
       </svg>
     </div>
   );
@@ -361,14 +311,14 @@ function DarkTip({ text }: { text: string }) {
       content={text}
       bubbleClassName="px-3 py-2 rounded-lg text-[10px] leading-snug font-normal text-left"
       bubbleStyle={{
-        background: "rgba(15,23,42,0.98)",
-        border: "1px solid rgba(6,182,212,0.25)",
-        color: "rgba(226,232,240,0.9)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        background: "rgb(var(--ent-ink))",
+        border: "1px solid rgb(var(--ent-ink))",
+        color: "rgba(255,255,255,0.92)",
+        boxShadow: "0 8px 24px rgba(28,27,24,0.18)",
         whiteSpace: "normal",
       }}
     >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400/40 hover:text-cyan-400 transition-colors">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-ink-40 hover:text-ink transition-colors">
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="16" x2="12" y2="12" />
         <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -554,13 +504,13 @@ export default function PixelPage() {
   // ── LOADING STATE (dark) ──
   if (loading && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#05060a" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FBFAF7" }}>
         <DarkStyles />
         <div className="flex flex-col items-center gap-5">
           <PixelBrainMini size={80} />
           <div className="text-center">
-            <p className="text-sm font-semibold text-white tracking-tight">NitroPixel</p>
-            <p className="text-xs text-cyan-400/60 mt-1">Cargando atribuciones...</p>
+            <p className="text-sm font-semibold text-ink tracking-tight">NitroPixel</p>
+            <p className="text-xs text-ink-40 mt-1">Cargando atribuciones...</p>
           </div>
         </div>
       </div>
@@ -569,11 +519,11 @@ export default function PixelPage() {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#05060a" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FBFAF7" }}>
         <div className="text-center">
           <p className="text-lg font-semibold text-red-400 mb-2">Error al cargar datos</p>
           <p className="text-sm text-gray-500">{error}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 rounded-lg text-sm text-white" style={{ background: "rgba(6,182,212,0.15)", border: "1px solid rgba(6,182,212,0.3)" }}>Reintentar</button>
+          <button onClick={fetchData} className="mt-4 px-4 py-2 rounded-lg text-sm text-ink" style={{ background: "rgba(229,225,216,0.15)", border: "1px solid rgba(229,225,216,0.3)" }}>Reintentar</button>
         </div>
       </div>
     );
@@ -584,39 +534,39 @@ export default function PixelPage() {
   const maxChannelRevenue = Math.max(...channels.map(c => Math.max(c.pixelRevenue, c.platformRevenue)), 1);
 
   return (
-    <div className={`min-h-screen relative ${isRefetching ? "attr-refetching" : ""}`} style={{ background: "#05060a", color: "#e2e8f0" }}>
+    <div className={`min-h-screen relative ${isRefetching ? "attr-refetching" : ""}`} style={{ background: "#FBFAF7", color: "#e2e8f0" }}>
       <DarkStyles />
 
       {/* ── Refetching overlay ── */}
       {/* Recalculando pill with smooth fade */}
-      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full flex items-center gap-2.5 pointer-events-none" style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)", backdropFilter: "blur(16px)", opacity: isRefetching ? 1 : 0, transform: isRefetching ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(-8px)", transition: "opacity 0.4s cubic-bezier(0.16,1,0.3,1), transform 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
-        <div className="w-2 h-2 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1s ease-in-out infinite" }} />
-        <span className="text-[11px] font-semibold text-cyan-300 tracking-wide">Recalculando atribuciones</span>
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full flex items-center gap-2.5 pointer-events-none" style={{ background: "rgba(229,225,216,0.12)", border: "1px solid rgba(229,225,216,0.25)", backdropFilter: "blur(16px)", opacity: isRefetching ? 1 : 0, transform: isRefetching ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(-8px)", transition: "opacity 0.4s cubic-bezier(0.16,1,0.3,1), transform 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+        <div className="w-2 h-2 rounded-full bg-accent" style={{ animation: "attrPulse 1s ease-in-out infinite" }} />
+        <span className="text-[11px] font-semibold text-ink tracking-wide">Recalculando atribuciones</span>
         <div className="flex gap-0.5">
-          <div className="w-1 h-1 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1.2s ease-in-out infinite 0ms" }} />
-          <div className="w-1 h-1 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1.2s ease-in-out infinite 200ms" }} />
-          <div className="w-1 h-1 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1.2s ease-in-out infinite 400ms" }} />
+          <div className="w-1 h-1 rounded-full bg-accent" style={{ animation: "attrPulse 1.2s ease-in-out infinite 0ms" }} />
+          <div className="w-1 h-1 rounded-full bg-accent" style={{ animation: "attrPulse 1.2s ease-in-out infinite 200ms" }} />
+          <div className="w-1 h-1 rounded-full bg-accent" style={{ animation: "attrPulse 1.2s ease-in-out infinite 400ms" }} />
         </div>
       </div>
 
       {/* ── Background ambient ── */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
         <div className="absolute inset-0 attr-grid-bg opacity-[0.03]" />
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(6,182,212,0.08) 0%, transparent 70%)", filter: "blur(80px)" }} />
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(229,225,216,0.08) 0%, transparent 70%)", filter: "blur(80px)" }} />
         <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", filter: "blur(80px)" }} />
       </div>
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* BLOQUE 0 — STICKY HEADER                                 */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40" style={{ background: "rgba(5,6,10,0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)", borderBottom: "1px solid rgba(6,182,212,0.08)" }}>
+      <div className="sticky top-0 z-40" style={{ background: "rgba(5,6,10,0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)", borderBottom: "1px solid rgba(229,225,216,0.08)" }}>
         <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           {/* Left — Logo + Title */}
           <div className="flex items-center gap-3">
             <PixelBrainMini size={32} />
             <div>
-              <h1 className="text-sm font-semibold text-white tracking-tight">Atribución</h1>
-              <p className="text-[10px] text-cyan-400/50 font-mono uppercase tracking-widest">NitroPixel</p>
+              <h1 className="text-sm font-semibold text-ink tracking-tight">Atribución</h1>
+              <p className="text-[10px] text-ink-40 font-mono uppercase tracking-widest">NitroPixel</p>
             </div>
           </div>
 
@@ -625,20 +575,20 @@ export default function PixelPage() {
             href="/pixel/configuracion"
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-medium transition-all hover:scale-[1.02]"
             style={{
-              background: "rgba(15,23,42,0.6)",
-              border: "1px solid rgba(6,182,212,0.15)",
+              background: "rgba(245,243,238,0.6)",
+              border: "1px solid rgba(229,225,216,0.15)",
               color: "rgba(148,163,184,0.85)",
             }}
             title="Cambiar modelo y ventanas en Configuración"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400/70">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-ink-40">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
-            <span className="text-white font-semibold">{MODEL_LABELS[selectedModel] || selectedModel}</span>
-            <span className="text-white/30">·</span>
+            <span className="text-ink font-semibold">{MODEL_LABELS[selectedModel] || selectedModel}</span>
+            <span className="text-ink-40">·</span>
             <span>{globalWindow}d</span>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-white/40 ml-1">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-ink-60 ml-1">
               <path d="M9 18l6-6-6-6" />
             </svg>
           </a>
@@ -656,7 +606,7 @@ export default function PixelPage() {
             )}
             <div className="flex items-center gap-1">
               {[7, 30, 90].map(d => (
-                <button key={d} onClick={() => setQuickRange(d)} className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all" style={activeQuickRange === d ? { background: "rgba(6,182,212,0.15)", color: "#67e8f9", border: "1px solid rgba(6,182,212,0.3)" } : { color: "rgba(148,163,184,0.5)" }}>
+                <button key={d} onClick={() => setQuickRange(d)} className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all" style={activeQuickRange === d ? { background: "rgba(229,225,216,0.15)", color: "#67e8f9", border: "1px solid rgba(229,225,216,0.3)" } : { color: "rgba(148,163,184,0.5)" }}>
                   {d}d
                 </button>
               ))}
@@ -664,7 +614,7 @@ export default function PixelPage() {
           </div>
         </div>
         {/* Rainbow line */}
-        <div className="h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.4) 20%, rgba(139,92,246,0.4) 50%, rgba(249,115,22,0.4) 80%, transparent)" }} />
+        <div className="h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(229,225,216,0.4) 20%, rgba(139,92,246,0.4) 50%, rgba(249,115,22,0.4) 80%, transparent)" }} />
       </div>
 
       {/* ══════════════════════════════════════════════════════════ */}
@@ -679,13 +629,13 @@ export default function PixelPage() {
           {/* Title */}
           <div className="flex items-end justify-between mb-6">
             <div>
-              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-400/50 mb-1">Revenue Attribution Map</p>
+              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-ink-40 mb-1">Revenue Attribution Map</p>
               <div className="flex items-baseline gap-4">
-                <span className="text-4xl font-bold tracking-tight" style={{ background: "linear-gradient(135deg, #e2e8f0, #06b6d4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                <span className="text-4xl font-bold tracking-tight" style={{ background: "linear-gradient(135deg, #e2e8f0, #2F9153)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                   {fmtCompact(Math.round(revCountUp))}
                 </span>
-                <span className="text-lg font-semibold text-white/40">
-                  ROAS <span className="text-cyan-400">{roasCountUp.toFixed(1)}x</span>
+                <span className="text-lg font-semibold text-ink-60">
+                  ROAS <span className="text-ink">{roasCountUp.toFixed(1)}x</span>
                 </span>
               </div>
             </div>
@@ -706,7 +656,7 @@ export default function PixelPage() {
           </div>
 
           {/* ── The Hero Bar ── */}
-          <div className="relative rounded-2xl overflow-hidden" style={{ background: "rgba(15,23,42,0.4)", border: "1px solid rgba(6,182,212,0.1)", padding: "3px" }}>
+          <div className="relative rounded-2xl overflow-hidden" style={{ background: "rgba(245,243,238,0.4)", border: "1px solid rgba(229,225,216,0.1)", padding: "3px" }}>
             <div className="flex rounded-[13px] overflow-hidden" style={{ height: "72px" }}>
               {sortedChannels.filter(c => c.pixelRevenue > 0).map((ch, i) => {
                 const info = getSourceInfo(ch.source);
@@ -720,7 +670,7 @@ export default function PixelPage() {
                       width: `${pct}%`,
                       minWidth: pct > 3 ? "60px" : "24px",
                       background: `linear-gradient(180deg, ${info.color}dd, ${info.color}99)`,
-                      boxShadow: isHovered ? `0 0 30px ${info.color}40, inset 0 1px 0 rgba(255,255,255,0.2)` : `inset 0 1px 0 rgba(255,255,255,0.1)`,
+                      boxShadow: isHovered ? `0 0 30px ${info.color}40, inset 0 1px 0 rgba(255,255,255,0.2)` : `inset 0 1px 0 rgba(28,27,24,0.06)`,
                       transform: isHovered ? "scaleY(1.08)" : "scaleY(1)",
                       zIndex: isHovered ? 10 : 1,
                       animation: `attrBarGrow 0.8s cubic-bezier(0.16,1,0.3,1) ${i * 80}ms both`,
@@ -737,17 +687,17 @@ export default function PixelPage() {
                     {/* Label + amount — only show if segment wide enough */}
                     {pct > 8 && (
                       <div className="flex flex-col items-start min-w-0">
-                        <span className="text-[10px] font-bold text-white/90 truncate">{info.label}</span>
-                        <span className="text-[11px] font-mono font-bold text-white">{fmtCompact(ch.pixelRevenue)}</span>
+                        <span className="text-[10px] font-bold text-ink truncate">{info.label}</span>
+                        <span className="text-[11px] font-mono font-bold text-ink">{fmtCompact(ch.pixelRevenue)}</span>
                       </div>
                     )}
                     {/* Hover tooltip */}
                     {isHovered && (
-                      <div className="absolute -top-[88px] left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-center z-50 whitespace-nowrap" style={{ background: "rgba(15,23,42,0.95)", border: `1px solid ${info.color}40`, boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 20px ${info.color}15` }}>
-                        <p className="text-[10px] font-semibold text-white/60 mb-1">{info.label}</p>
-                        <p className="text-sm font-bold text-white">{fmtCompact(ch.pixelRevenue)} · ROAS {ch.pixelRoas.toFixed(1)}x</p>
-                        <p className="text-[10px] text-white/40 mt-0.5">{fmt(ch.orders)} órdenes · CPA {ch.spend > 0 && ch.orders > 0 ? fmtCompact(ch.spend / ch.orders) : "—"}</p>
-                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45" style={{ background: "rgba(15,23,42,0.95)", borderRight: `1px solid ${info.color}40`, borderBottom: `1px solid ${info.color}40` }} />
+                      <div className="absolute -top-[88px] left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-center z-50 whitespace-nowrap" style={{ background: "rgba(245,243,238,0.95)", border: `1px solid ${info.color}40`, boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 20px ${info.color}15` }}>
+                        <p className="text-[10px] font-semibold text-ink-60 mb-1">{info.label}</p>
+                        <p className="text-sm font-bold text-ink">{fmtCompact(ch.pixelRevenue)} · ROAS {ch.pixelRoas.toFixed(1)}x</p>
+                        <p className="text-[10px] text-ink-60 mt-0.5">{fmt(ch.orders)} órdenes · CPA {ch.spend > 0 && ch.orders > 0 ? fmtCompact(ch.spend / ch.orders) : "—"}</p>
+                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45" style={{ background: "rgba(245,243,238,0.95)", borderRight: `1px solid ${info.color}40`, borderBottom: `1px solid ${info.color}40` }} />
                       </div>
                     )}
                   </div>
@@ -762,9 +712,9 @@ export default function PixelPage() {
               const info = getSourceInfo(ch.source);
               const pct = totalPixelRevenue > 0 ? ((ch.pixelRevenue / totalPixelRevenue) * 100).toFixed(1) : "0";
               return (
-                <div key={ch.source} className="flex items-center gap-1.5 text-[11px] text-white/50">
+                <div key={ch.source} className="flex items-center gap-1.5 text-[11px] text-ink-60">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color }} />
-                  <span className="font-medium text-white/70">{info.label}</span>
+                  <span className="font-medium text-ink">{info.label}</span>
                   <span className="font-mono">{pct}%</span>
                 </div>
               );
@@ -784,11 +734,11 @@ export default function PixelPage() {
               <button
                 type="button"
                 onClick={() => setTruthGapOpen(o => !o)}
-                className="w-full flex items-center justify-between gap-4 p-4 hover:bg-cyan-500/5 transition-colors"
+                className="w-full flex items-center justify-between gap-4 p-4 hover:bg-surface transition-colors"
               >
                 <div className="flex items-center gap-3 text-left">
-                  <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/50">La Verdad</span>
-                  <span className="text-sm font-semibold text-white">Pixel vs Plataformas</span>
+                  <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-ink-40">La Verdad</span>
+                  <span className="text-sm font-semibold text-ink">Pixel vs Plataformas</span>
                   {overReporting.length > 0 && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
                       {overReporting.length} {overReporting.length === 1 ? "canal infla" : "canales inflan"} sus números
@@ -796,12 +746,12 @@ export default function PixelPage() {
                   )}
                   <DarkTip text="Compara revenue real (NitroPixel) vs revenue que reportan Meta y Google. Las plataformas tipicamente inflan porque cada una se queda con el crédito completo (last-click). Si Meta dice $100 y Pixel dice $70, +43% inflado significa que Meta se atribuye ventas que también ven otros canales." />
                 </div>
-                <svg className={`w-4 h-4 text-cyan-400/50 transition-transform ${truthGapOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 text-ink-40 transition-transform ${truthGapOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {truthGapOpen && (
-                <div className="px-4 pb-4 space-y-3 attr-stagger" style={{ borderTop: "1px solid rgba(6,182,212,0.08)" }}>
+                <div className="px-4 pb-4 space-y-3 attr-stagger" style={{ borderTop: "1px solid rgba(229,225,216,0.08)" }}>
                   {channelsWithData.map(ch => {
                     const info = getSourceInfo(ch.source);
                     const diff = ch.diffPercent;
@@ -816,28 +766,28 @@ export default function PixelPage() {
                           </div>
                           <div className="flex-1 min-w-0 space-y-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400/50 w-16 flex-shrink-0">Pixel</span>
-                              <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
+                              <span className="text-[9px] font-mono uppercase tracking-wider text-ink-40 w-16 flex-shrink-0">Pixel</span>
+                              <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(245,243,238,0.5)" }}>
                                 <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(pixelPct, 2)}%`, background: `linear-gradient(90deg, ${info.color}cc, ${info.color}88)`, boxShadow: `0 0 12px ${info.color}30` }}>
-                                  <span className="text-[10px] font-bold text-white whitespace-nowrap">{fmtCompact(ch.pixelRevenue)}</span>
+                                  <span className="text-[10px] font-bold text-ink whitespace-nowrap">{fmtCompact(ch.pixelRevenue)}</span>
                                 </div>
                               </div>
                             </div>
                             {ch.platformRevenue > 0 && (
                               <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-mono uppercase tracking-wider text-white/25 w-16 flex-shrink-0">{info.label}</span>
-                                <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
+                                <span className="text-[9px] font-mono uppercase tracking-wider text-ink-40 w-16 flex-shrink-0">{info.label}</span>
+                                <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(245,243,238,0.5)" }}>
                                   <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(platPct, 2)}%`, background: "repeating-linear-gradient(135deg, rgba(148,163,184,0.12), rgba(148,163,184,0.12) 4px, rgba(148,163,184,0.06) 4px, rgba(148,163,184,0.06) 8px)" }}>
-                                    <span className="text-[10px] font-medium text-white/40 whitespace-nowrap">{fmtCompact(ch.platformRevenue)}</span>
+                                    <span className="text-[10px] font-medium text-ink-60 whitespace-nowrap">{fmtCompact(ch.platformRevenue)}</span>
                                   </div>
                                 </div>
                               </div>
                             )}
                           </div>
                           <div className="flex-shrink-0 text-right w-28">
-                            <div className="text-sm font-bold text-white">{ch.pixelRoas.toFixed(1)}x <span className="text-[9px] font-normal text-cyan-400/50">ROAS</span></div>
+                            <div className="text-sm font-bold text-ink">{ch.pixelRoas.toFixed(1)}x <span className="text-[9px] font-normal text-ink-40">ROAS</span></div>
                             {ch.platformRoas > 0 && (
-                              <div className="text-xs text-white/25 line-through">{ch.platformRoas.toFixed(1)}x plat.</div>
+                              <div className="text-xs text-ink-40 line-through">{ch.platformRoas.toFixed(1)}x plat.</div>
                             )}
                             {isOverReporting && (
                               <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
@@ -858,9 +808,9 @@ export default function PixelPage() {
 
         {/* ── Section divider ── */}
         <div className="flex items-center gap-4">
-          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
-          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/30">Métricas</span>
-          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(229,225,216,0.15), transparent)" }} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-ink-40">Métricas</span>
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(229,225,216,0.15), transparent)" }} />
         </div>
 
         {/* ════════════════════════════════════════════════════════ */}
@@ -872,49 +822,42 @@ export default function PixelPage() {
               {
                 label: "Revenue Atribuido",
                 value: fmtCompact(bk.pixelRevenue),
-                change: bk.changes?.pixelRevenue,
-                gradient: "from-cyan-400 to-blue-400",
+                change: bk.changes?.pixelRevenue,
                 tip: `Suma del valor de las órdenes atribuidas por NitroPixel en el período, según el modelo ${MODEL_LABELS[selectedModel]}. Excluye marketplace (FVG/BPR/MELI). Cambia si cambiás el modelo en /pixel/configuracion.`,
               },
               {
                 label: "ROAS Blended",
                 value: `${bk.pixelRoas.toFixed(1)}x`,
-                change: bk.changes?.pixelRoas,
-                gradient: "from-emerald-400 to-cyan-400",
+                change: bk.changes?.pixelRoas,
                 tip: "Revenue Atribuido ÷ Inversión Total (Meta + Google + manual). Es 'blended' porque combina todas las plataformas en un solo número. Mayor que el ROAS reportado por las plataformas suele indicar inflado de ellas.",
               },
               {
                 label: "Órdenes Atribuidas",
                 value: fmt(bk.ordersAttributed),
-                change: bk.changes?.ordersAttributed,
-                gradient: "from-violet-400 to-purple-400",
+                change: bk.changes?.ordersAttributed,
                 tip: "Cantidad de órdenes a las que NitroPixel asoció al menos un touchpoint. No es el total de órdenes — solo las que el cliente pasó por el pixel antes de comprar.",
               },
               {
                 label: "Tasa de Atribución",
                 value: `${bk.attributionRate}%`,
-                change: null,
-                gradient: "from-orange-400 to-amber-400",
+                change: null,
                 tip: "Órdenes atribuidas ÷ órdenes totales del período. Si está baja: el snippet del pixel no está en todas las páginas, los visitantes llegan directo al checkout sin pasar por el sitio, o el dominio del pixel no matchea el del checkout. Benchmark sano: >40%.",
               },
               {
                 label: "Inversión Total",
                 value: fmtCompact(bk.totalAdSpend),
-                change: null,
-                gradient: "from-pink-400 to-rose-400",
+                change: null,
                 tip: "Suma de spend de Meta Ads + Google Ads + spend manual cargado en /pixel/analytics (TV, radio, OOH, etc). Es lo que está en juego: el ROAS Blended divide Revenue Atribuido por este número.",
               },
             ].map((kpi, i) => (
               <div key={i} className="text-center lg:text-left">
                 <div className="flex items-center justify-center lg:justify-start gap-1.5 mb-1">
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-white/30">{kpi.label}</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-40">{kpi.label}</p>
                   <DarkTip text={kpi.tip} />
                 </div>
-                <p className="text-xl font-bold tracking-tight" style={{ background: `linear-gradient(135deg, var(--tw-gradient-stops))`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  <span className={`bg-gradient-to-r ${kpi.gradient} bg-clip-text text-transparent`}>{kpi.value}</span>
-                </p>
+                <p className="text-xl font-semibold tracking-tight text-ink tabular-nums">{kpi.value}</p>
                 {kpi.change !== null && kpi.change !== undefined && (
-                  <span className={`text-[11px] font-semibold ${kpi.change > 0 ? "text-emerald-400" : kpi.change < 0 ? "text-red-400" : "text-white/20"}`}>
+                  <span className={`text-[11px] font-semibold ${kpi.change > 0 ? "text-accent" : kpi.change < 0 ? "text-red-600" : "text-ink-40"}`}>
                     {pctBadge(kpi.change)}
                   </span>
                 )}
@@ -983,11 +926,11 @@ export default function PixelPage() {
             <section className="attr-glass rounded-2xl p-5" style={{ animation: "attrFadeUp 0.6s 0.4s both" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-white tracking-tight">Comparación de modelos</h2>
+                  <h2 className="text-sm font-semibold text-ink tracking-tight">Comparación de modelos</h2>
                   <DarkTip text={`Cómo cambia la distribución del revenue entre canales según el modelo de atribución. El total queda igual (es la misma plata). Lo que cambia es CUÁNTO de cada canal se queda con el crédito. El modelo activo (${MODEL_LABELS[activeModel]}) se usa en todo el dashboard.`} />
                 </div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400/40">
-                  Activo: <span className="text-cyan-300 font-semibold">{MODEL_LABELS[activeModel]}</span>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-40">
+                  Activo: <span className="text-ink font-semibold">{MODEL_LABELS[activeModel]}</span>
                 </span>
               </div>
 
@@ -1007,13 +950,13 @@ export default function PixelPage() {
                       style={isActive ? {
                         background: "linear-gradient(90deg, rgba(249,115,22,0.08), rgba(249,115,22,0.02))",
                         borderColor: "rgba(249,115,22,0.25)",
-                      } : { background: "rgba(15,23,42,0.4)" }}
+                      } : { background: "rgba(245,243,238,0.4)" }}
                     >
                       <div className="flex items-center gap-4">
                         {/* Model name */}
                         <div className="w-28 flex-shrink-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-sm font-bold ${isActive ? "text-orange-400" : "text-white/80"}`}>
+                            <span className={`text-sm font-bold ${isActive ? "text-orange-400" : "text-ink"}`}>
                               {MODEL_LABELS[model]}
                             </span>
                             {isActive && (
@@ -1026,7 +969,7 @@ export default function PixelPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             {/* Track */}
-                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.6)" }}>
+                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "rgba(245,243,238,0.6)" }}>
                               {/* Container con ancho proporcional al maxTotal */}
                               <div className="h-full flex" style={{ width: `${Math.max(widthPct, 2)}%` }}>
                                 {md.channels.map((c, i) => {
@@ -1050,12 +993,12 @@ export default function PixelPage() {
                                 })}
                               </div>
                             </div>
-                            <span className={`text-sm font-bold tabular-nums w-24 text-right ${isActive ? "text-orange-400" : "text-cyan-400"}`}>
+                            <span className={`text-sm font-bold tabular-nums w-24 text-right ${isActive ? "text-orange-400" : "text-ink"}`}>
                               {fmtCompact(total)}
                             </span>
                           </div>
                           {/* Mini-leyenda inline: top 3 canales del modelo */}
-                          <div className="flex items-center gap-2 text-[10px] text-white/40 font-mono flex-wrap">
+                          <div className="flex items-center gap-2 text-[10px] text-ink-60 font-mono flex-wrap">
                             {md.channels.slice(0, 3).map(c => {
                               const info = c.source === "otros"
                                 ? { color: "#475569", label: "Otros" }
@@ -1064,13 +1007,13 @@ export default function PixelPage() {
                               return (
                                 <span key={c.source} className="flex items-center gap-1">
                                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: info.color }} />
-                                  <span className="text-white/60">{info.label}</span>
+                                  <span className="text-ink-60">{info.label}</span>
                                   <span>{pct.toFixed(0)}%</span>
                                 </span>
                               );
                             })}
                             {md.channels.length > 3 && (
-                              <span className="text-white/20">+{md.channels.length - 3} más</span>
+                              <span className="text-ink-40">+{md.channels.length - 3} más</span>
                             )}
                           </div>
                         </div>
@@ -1086,8 +1029,8 @@ export default function PixelPage() {
                               disabled={applyingModel !== null}
                               className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
                               style={{
-                                background: applyingModel === model ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.08)",
-                                border: "1px solid rgba(6,182,212,0.2)",
+                                background: applyingModel === model ? "rgba(229,225,216,0.15)" : "rgba(229,225,216,0.08)",
+                                border: "1px solid rgba(229,225,216,0.2)",
                                 color: "#67e8f9",
                                 opacity: applyingModel !== null && applyingModel !== model ? 0.4 : 1,
                               }}
@@ -1108,7 +1051,7 @@ export default function PixelPage() {
                   {legendSources.slice(0, 12).map(src => {
                     const info = src === "otros" ? { color: "#475569", label: "Otros" } : getSourceInfo(src);
                     return (
-                      <span key={src} className="flex items-center gap-1.5 text-[10px] text-white/50">
+                      <span key={src} className="flex items-center gap-1.5 text-[10px] text-ink-60">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color }} />
                         <span>{info.label}</span>
                       </span>
@@ -1117,8 +1060,8 @@ export default function PixelPage() {
                 </div>
               )}
 
-              <p className="text-[10px] text-white/30 mt-3 leading-relaxed">
-                El total de revenue queda igual (mismas órdenes). Lo que cambia es <strong className="text-white/50">cómo se reparte el crédito entre canales</strong>: <strong className="text-white/50">Last Click</strong> le da todo al último, <strong className="text-white/50">First Click</strong> al primero, <strong className="text-white/50">Linear</strong> reparte parejo, <strong className="text-white/50">Nitro</strong> pondera según el rol.
+              <p className="text-[10px] text-ink-40 mt-3 leading-relaxed">
+                El total de revenue queda igual (mismas órdenes). Lo que cambia es <strong className="text-ink-60">cómo se reparte el crédito entre canales</strong>: <strong className="text-ink-60">Last Click</strong> le da todo al último, <strong className="text-ink-60">First Click</strong> al primero, <strong className="text-ink-60">Linear</strong> reparte parejo, <strong className="text-ink-60">Nitro</strong> pondera según el rol.
               </p>
             </section>
           );
@@ -1126,9 +1069,9 @@ export default function PixelPage() {
 
         {/* ── Section divider ── */}
         <div className="flex items-center gap-4">
-          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
-          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/30">Órdenes en Vivo</span>
-          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(229,225,216,0.15), transparent)" }} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-ink-40">Órdenes en Vivo</span>
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(229,225,216,0.15), transparent)" }} />
         </div>
 
         {/* ════════════════════════════════════════════════════════ */}
@@ -1181,7 +1124,7 @@ export default function PixelPage() {
               <div className="attr-glass rounded-xl p-3 flex items-center gap-3 flex-wrap">
                 {/* Channel chips */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30 mr-1">Canal</span>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-ink-40 mr-1">Canal</span>
                   {sortedChannelChips.map(ch => {
                     const info = getSourceInfo(ch);
                     const isSelected = journeyChannelFilter.includes(ch);
@@ -1194,8 +1137,8 @@ export default function PixelPage() {
                         )}
                         className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-all"
                         style={{
-                          background: isSelected ? `${info.color}25` : "rgba(15,23,42,0.5)",
-                          border: `1px solid ${isSelected ? info.color + "60" : "rgba(6,182,212,0.1)"}`,
+                          background: isSelected ? `${info.color}25` : "rgba(245,243,238,0.5)",
+                          border: `1px solid ${isSelected ? info.color + "60" : "rgba(229,225,216,0.1)"}`,
                           color: isSelected ? "#fff" : "rgba(148,163,184,0.7)",
                         }}
                       >
@@ -1213,7 +1156,7 @@ export default function PixelPage() {
 
                 {/* Min value */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Min</span>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-ink-40">Min</span>
                   <input
                     type="number"
                     min={0}
@@ -1221,19 +1164,19 @@ export default function PixelPage() {
                     value={journeyMinValue || ""}
                     placeholder="$0"
                     onChange={e => setJourneyMinValue(Number(e.target.value) || 0)}
-                    className="w-24 px-2 py-1 rounded-md text-[11px] text-white/80 font-mono outline-none"
-                    style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}
+                    className="w-24 px-2 py-1 rounded-md text-[11px] text-ink font-mono outline-none"
+                    style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(229,225,216,0.1)" }}
                   />
                 </div>
 
                 {/* Touchpoints */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Touchpoints ≥</span>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-ink-40">Touchpoints ≥</span>
                   <select
                     value={journeyMinTouchpoints}
                     onChange={e => setJourneyMinTouchpoints(Number(e.target.value))}
-                    className="px-2 py-1 rounded-md text-[11px] text-white/80 font-mono outline-none cursor-pointer"
-                    style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}
+                    className="px-2 py-1 rounded-md text-[11px] text-ink font-mono outline-none cursor-pointer"
+                    style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(229,225,216,0.1)" }}
                   >
                     <option value={0}>Todos</option>
                     <option value={2}>≥ 2</option>
@@ -1245,10 +1188,10 @@ export default function PixelPage() {
 
                 {/* Counter + clear */}
                 <div className="flex-1" />
-                <span className="text-[11px] text-white/40 font-mono">
+                <span className="text-[11px] text-ink-60 font-mono">
                   {hasFilters ? (
                     <span>
-                      <span className="text-cyan-400 font-semibold">{filteredJourneys.length}</span>
+                      <span className="text-ink font-semibold">{filteredJourneys.length}</span>
                       {" / "}
                       {totalAvailable} órdenes
                     </span>
@@ -1264,7 +1207,7 @@ export default function PixelPage() {
                       setJourneyMinValue(0);
                       setJourneyMinTouchpoints(0);
                     }}
-                    className="text-[10px] text-cyan-400/70 hover:text-cyan-400 underline-offset-2 hover:underline"
+                    className="text-[10px] text-ink-40 hover:text-ink underline-offset-2 hover:underline"
                   >
                     Limpiar filtros
                   </button>
@@ -1274,8 +1217,8 @@ export default function PixelPage() {
               {/* Lista de journeys filtradas */}
               {visibleJourneys.length === 0 ? (
                 <div className="attr-glass rounded-xl p-8 text-center">
-                  <p className="text-sm text-white/40">No hay órdenes que coincidan con los filtros aplicados.</p>
-                  <p className="text-[11px] text-white/20 mt-1">Probá quitando algún filtro o ampliando el rango de fechas.</p>
+                  <p className="text-sm text-ink-60">No hay órdenes que coincidan con los filtros aplicados.</p>
+                  <p className="text-[11px] text-ink-40 mt-1">Probá quitando algún filtro o ampliando el rango de fechas.</p>
                 </div>
               ) : (
                 <section className="space-y-3 attr-stagger">
@@ -1288,7 +1231,7 @@ export default function PixelPage() {
                 <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => setExpandedJourney(isExpanded ? null : j.orderId)}>
                   {/* Revenue */}
                   <div className="flex-shrink-0">
-                    <span className="text-lg font-bold text-white">{fmtCompact(j.revenue)}</span>
+                    <span className="text-lg font-bold text-ink">{fmtCompact(j.revenue)}</span>
                   </div>
 
                   {/* Journey dots */}
@@ -1329,12 +1272,12 @@ export default function PixelPage() {
 
                   {/* Meta */}
                   <div className="flex-shrink-0 text-right">
-                    <p className="text-[10px] text-white/30 font-mono">#{(j.orderExternalId || j.orderId).slice(-6)}</p>
-                    <p className="text-[10px] text-white/20">{j.touchpointCount} touchpoints · {j.conversionLag}d</p>
+                    <p className="text-[10px] text-ink-40 font-mono">#{(j.orderExternalId || j.orderId).slice(-6)}</p>
+                    <p className="text-[10px] text-ink-40">{j.touchpointCount} touchpoints · {j.conversionLag}d</p>
                   </div>
 
                   {/* Expand arrow */}
-                  <svg className={`w-4 h-4 text-white/20 transition-transform duration-300 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  <svg className={`w-4 h-4 text-ink-40 transition-transform duration-300 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </div>
 
                 {/* Credit bar (mini version of hero) */}
@@ -1350,7 +1293,7 @@ export default function PixelPage() {
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 pt-1 space-y-2" style={{ borderTop: "1px solid rgba(6,182,212,0.06)" }}>
+                  <div className="px-4 pb-4 pt-1 space-y-2" style={{ borderTop: "1px solid rgba(229,225,216,0.06)" }}>
                     {j.touchpoints.map((tp, i) => {
                       const info = getSourceInfo(tp.source || "direct");
                       const credit = credits.find(c => c.source === (tp.source || "direct"));
@@ -1359,11 +1302,11 @@ export default function PixelPage() {
                           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${info.color}20` }}>
                             <ChannelLogo source={tp.source} size={10} />
                           </div>
-                          <span className="font-medium text-white/70 w-20 flex-shrink-0">{info.label}</span>
-                          <span className="text-white/30 flex-1 truncate font-mono text-[10px]">{tp.campaign || cleanUrl(tp.page) || "—"}</span>
-                          {tp.clickType && <span className="text-cyan-400/40 text-[9px] font-mono">{tp.clickType}</span>}
-                          <span className="text-white/20 text-[10px] font-mono flex-shrink-0">{new Date(tp.timestamp).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                          {credit && <span className="text-white/50 font-bold text-[10px] flex-shrink-0 w-10 text-right">{credit.pct}%</span>}
+                          <span className="font-medium text-ink w-20 flex-shrink-0">{info.label}</span>
+                          <span className="text-ink-40 flex-1 truncate font-mono text-[10px]">{tp.campaign || cleanUrl(tp.page) || "—"}</span>
+                          {tp.clickType && <span className="text-ink-40 text-[9px] font-mono">{tp.clickType}</span>}
+                          <span className="text-ink-40 text-[10px] font-mono flex-shrink-0">{new Date(tp.timestamp).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                          {credit && <span className="text-ink-60 font-bold text-[10px] flex-shrink-0 w-10 text-right">{credit.pct}%</span>}
                         </div>
                       );
                     })}
@@ -1377,11 +1320,11 @@ export default function PixelPage() {
                   {journeyTotalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 pt-4">
                       {pageClamped > 1 && (
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Anterior</button>
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="px-3 py-1.5 rounded-lg text-xs text-ink-60" style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(229,225,216,0.1)" }}>Anterior</button>
                       )}
-                      <span className="text-xs text-white/20 font-mono">{pageClamped} / {journeyTotalPages}</span>
+                      <span className="text-xs text-ink-40 font-mono">{pageClamped} / {journeyTotalPages}</span>
                       {pageClamped < journeyTotalPages && (
-                        <button onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Siguiente</button>
+                        <button onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-ink-60" style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(229,225,216,0.1)" }}>Siguiente</button>
                       )}
                     </div>
                   )}
@@ -1400,18 +1343,18 @@ export default function PixelPage() {
               {/* Status */}
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: data?.liveStatus?.status === "LIVE" ? "#4ade80" : data?.liveStatus?.status === "ACTIVE" ? "#fbbf24" : "#ef4444", animation: data?.liveStatus?.status === "LIVE" ? "attrPulse 2s infinite" : undefined }} />
-                <span className="text-[11px] font-semibold text-white/60">{data?.liveStatus?.status || "—"}</span>
+                <span className="text-[11px] font-semibold text-ink-60">{data?.liveStatus?.status || "—"}</span>
               </div>
 
               {/* Attribution Rate */}
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4" viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(6,182,212,0.1)" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#06b6d4" strokeWidth="3" strokeDasharray={`${(health.attributionRate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(229,225,216,0.1)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#2F9153" strokeWidth="3" strokeDasharray={`${(health.attributionRate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
                 </svg>
                 <div>
-                  <p className="text-xs font-bold text-cyan-400">{health.attributionRate}%</p>
-                  <p className="text-[9px] text-white/25 font-mono uppercase">Atribución</p>
+                  <p className="text-xs font-bold text-ink">{health.attributionRate}%</p>
+                  <p className="text-[9px] text-ink-40 font-mono uppercase">Atribución</p>
                 </div>
               </div>
 
@@ -1423,11 +1366,11 @@ export default function PixelPage() {
                   <>
                     <svg className="w-4 h-4" viewBox="0 0 36 36">
                       <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.1)"} strokeWidth="3" />
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "#f87171" : "#8b5cf6"} strokeWidth="3" strokeDasharray={`${(rate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "#f87171" : "#9A978D"} strokeWidth="3" strokeDasharray={`${(rate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
                     </svg>
                     <div>
                       <p className={`text-xs font-bold ${lowCoverage ? "text-red-400" : "text-violet-400"}`}>{rate}%</p>
-                      <p className="text-[9px] text-white/25 font-mono uppercase">Click IDs</p>
+                      <p className="text-[9px] text-ink-40 font-mono uppercase">Click IDs</p>
                     </div>
                     {lowCoverage && (
                       <span className="text-[9px] text-red-300/80 ml-1 hidden md:inline">
@@ -1453,8 +1396,8 @@ export default function PixelPage() {
 
               {/* Events */}
               <div>
-                <p className="text-xs font-bold text-white/60">{fmt(health.eventsInPeriod)}</p>
-                <p className="text-[9px] text-white/25 font-mono uppercase">Eventos</p>
+                <p className="text-xs font-bold text-ink-60">{fmt(health.eventsInPeriod)}</p>
+                <p className="text-[9px] text-ink-40 font-mono uppercase">Eventos</p>
               </div>
 
               {/* Model + weights chip — read-only, link a /pixel/configuracion */}
@@ -1536,19 +1479,19 @@ export default function PixelPage() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ animation: "attrFadeUp 0.3s ease both" }}>
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDrillChannel(null)} />
-            <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl" style={{ background: "rgba(8,12,24,0.98)", border: `1px solid ${info.color}40`, boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 40px ${info.color}20` }}>
+            <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl" style={{ background: "rgba(237,234,227,0.98)", border: `1px solid ${info.color}40`, boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 40px ${info.color}20` }}>
               {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b" style={{ borderColor: `${info.color}25`, background: "rgba(8,12,24,0.98)", backdropFilter: "blur(8px)" }}>
+              <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b" style={{ borderColor: `${info.color}25`, background: "rgba(237,234,227,0.98)", backdropFilter: "blur(8px)" }}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}25`, boxShadow: `0 0 20px ${info.color}30` }}>
                     <ChannelLogo source={drillChannel} size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-white">{info.label}</h2>
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Detalle del canal</p>
+                    <h2 className="text-base font-bold text-ink">{info.label}</h2>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-ink-60">Detalle del canal</p>
                   </div>
                 </div>
-                <button onClick={() => setDrillChannel(null)} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all" title="Cerrar">
+                <button onClick={() => setDrillChannel(null)} className="p-2 rounded-lg text-ink-60 hover:text-ink hover:bg-white/5 transition-all" title="Cerrar">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
@@ -1557,17 +1500,17 @@ export default function PixelPage() {
               <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: "Revenue Atribuido", value: fmtCompact(channelRevenue), color: info.color, tip: `Plata generada por las órdenes que ${info.label} ayudó a cerrar (según el modelo de atribución activo). En este canal específicamente.` },
-                  { label: "Órdenes", value: fmt(channelOrders), color: "#06b6d4", tip: `Cantidad de órdenes en el rango actual donde ${info.label} aparece como uno de los touchpoints del recorrido del cliente.` },
-                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#8b5cf6", tip: "Average Order Value — ticket promedio de las órdenes de este canal. Revenue dividido órdenes. Útil para saber si el canal trae compras grandes o chicas." },
+                  { label: "Órdenes", value: fmt(channelOrders), color: "#2F9153", tip: `Cantidad de órdenes en el rango actual donde ${info.label} aparece como uno de los touchpoints del recorrido del cliente.` },
+                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#9A978D", tip: "Average Order Value — ticket promedio de las órdenes de este canal. Revenue dividido órdenes. Útil para saber si el canal trae compras grandes o chicas." },
                   { label: "Inversión", value: ch.spend > 0 ? fmtCompact(ch.spend) : "—", color: "#f97316", tip: "Plata invertida en este canal en el período. Para canales pagos (Meta/Google/etc) viene de la integración con la plataforma. Para canales orgánicos es 0." },
                   { label: "ROAS Pixel", value: ch.pixelRoas > 0 ? `${ch.pixelRoas.toFixed(1)}x` : "—", color: "#10b981", tip: "Return On Ad Spend según NitroPixel. Revenue Atribuido ÷ Inversión. 3.5x = ganaste $3.5 por cada $1 invertido. Es la verdad real, no la inflada que reportan las plataformas." },
                   { label: "CPA", value: cpa > 0 ? fmtCompact(Math.round(cpa)) : "—", color: "#ec4899", tip: "Cost Per Acquisition — cuánto te cuesta cada orden de este canal. Inversión ÷ Órdenes. Usalo para comparar eficiencia entre canales pagos." },
                   { label: "Lag promedio", value: avgLag > 0 ? `${avgLag.toFixed(1)}d` : "—", color: "#fbbf24", tip: `Días promedio entre el PRIMER click del cliente en ${info.label} y la compra. Un lag de 7d significa que en promedio los clientes de este canal tardan una semana en cerrar la venta. Útil para: (1) ajustar la ventana de atribución (si los clientes tardan 14d no tiene sentido ventana de 7d), (2) entender canales rápidos vs lentos (Email suele ser rápido, Meta más lento).` },
                   { label: "ROAS Plataforma", value: ch.platformRoas > 0 ? `${ch.platformRoas.toFixed(1)}x` : "—", color: "#94a3b8", tip: "ROAS que reporta la plataforma misma (Meta Ads / Google Ads). Tipicamente más alto que el ROAS Pixel porque cada plataforma se atribuye el crédito completo (last-click), generando double-counting con otros canales." },
                 ].map((kpi, i) => (
-                  <div key={i} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div key={i} className="rounded-xl p-3" style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(28,27,24,0.04)" }}>
                     <div className="flex items-center gap-1.5 mb-1">
-                      <p className="text-[10px] font-mono uppercase tracking-wider text-white/30">{kpi.label}</p>
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-40">{kpi.label}</p>
                       <DarkTip text={kpi.tip} />
                     </div>
                     <p className="text-lg font-bold tabular-nums" style={{ color: kpi.color }}>{kpi.value}</p>
@@ -1578,22 +1521,22 @@ export default function PixelPage() {
               {/* Top campañas */}
               {topCampaigns.length > 0 && (
                 <div className="px-5 pb-5">
-                  <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">Top campañas</h3>
+                  <h3 className="text-xs font-semibold text-ink uppercase tracking-wider mb-3">Top campañas</h3>
                   <div className="space-y-1.5">
                     {topCampaigns.map((c, i) => {
                       const maxRev = Math.max(...topCampaigns.map(x => x.revenue), 1);
                       const widthPct = (c.revenue / maxRev) * 100;
                       return (
-                        <div key={i} className="rounded-lg p-2.5" style={{ background: "rgba(15,23,42,0.5)" }}>
+                        <div key={i} className="rounded-lg p-2.5" style={{ background: "rgba(245,243,238,0.5)" }}>
                           <div className="flex items-center justify-between gap-3 mb-1">
-                            <span className="text-xs text-white/80 font-mono truncate flex-1">{c.campaign}</span>
+                            <span className="text-xs text-ink font-mono truncate flex-1">{c.campaign}</span>
                             <span className="text-xs font-bold tabular-nums" style={{ color: info.color }}>{fmtCompact(Math.round(c.revenue))}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(28,27,24,0.04)" }}>
                               <div className="h-full transition-all" style={{ width: `${widthPct}%`, background: info.color }} />
                             </div>
-                            <span className="text-[10px] text-white/30 font-mono whitespace-nowrap">{c.orders} ord · {c.touchpoints} toques</span>
+                            <span className="text-[10px] text-ink-40 font-mono whitespace-nowrap">{c.orders} ord · {c.touchpoints} toques</span>
                           </div>
                         </div>
                       );
@@ -1605,17 +1548,17 @@ export default function PixelPage() {
               {/* Journeys recientes del canal */}
               {channelJourneys.length > 0 && (
                 <div className="px-5 pb-5">
-                  <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">Últimas órdenes con {info.label}</h3>
+                  <h3 className="text-xs font-semibold text-ink uppercase tracking-wider mb-3">Últimas órdenes con {info.label}</h3>
                   <div className="space-y-1.5">
                     {channelJourneys.slice(0, 8).map(j => (
-                      <div key={j.orderId} className="flex items-center gap-3 rounded-lg p-2.5" style={{ background: "rgba(15,23,42,0.5)" }}>
-                        <span className="text-sm font-bold text-white tabular-nums w-20">{fmtCompact(j.revenue)}</span>
+                      <div key={j.orderId} className="flex items-center gap-3 rounded-lg p-2.5" style={{ background: "rgba(245,243,238,0.5)" }}>
+                        <span className="text-sm font-bold text-ink tabular-nums w-20">{fmtCompact(j.revenue)}</span>
                         <div className="flex-1 flex items-center gap-1 min-w-0 overflow-hidden">
                           {(j.touchpoints || []).slice(0, 8).map((tp, ti) => {
                             const tpInfo = getSourceInfo(tp.source || "direct");
                             return (
                               <div key={ti} className="flex items-center flex-shrink-0">
-                                {ti > 0 && <div className="w-2 h-px" style={{ background: "rgba(255,255,255,0.1)" }} />}
+                                {ti > 0 && <div className="w-2 h-px" style={{ background: "rgba(28,27,24,0.06)" }} />}
                                 <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: `${tpInfo.color}25`, border: `1px solid ${tpInfo.color}50` }}>
                                   <ChannelLogo source={tp.source} size={10} />
                                 </div>
@@ -1623,7 +1566,7 @@ export default function PixelPage() {
                             );
                           })}
                         </div>
-                        <span className="text-[10px] text-white/30 font-mono whitespace-nowrap">{j.touchpointCount}t · {j.conversionLag || 0}d</span>
+                        <span className="text-[10px] text-ink-40 font-mono whitespace-nowrap">{j.touchpointCount}t · {j.conversionLag || 0}d</span>
                       </div>
                     ))}
                   </div>
@@ -1631,8 +1574,8 @@ export default function PixelPage() {
               )}
 
               {/* Footer con CTA */}
-              <div className="sticky bottom-0 p-4 border-t flex items-center justify-between" style={{ borderColor: `${info.color}15`, background: "rgba(8,12,24,0.98)", backdropFilter: "blur(8px)" }}>
-                <p className="text-[10px] text-white/30">
+              <div className="sticky bottom-0 p-4 border-t flex items-center justify-between" style={{ borderColor: `${info.color}15`, background: "rgba(237,234,227,0.98)", backdropFilter: "blur(8px)" }}>
+                <p className="text-[10px] text-ink-40">
                   Datos del rango actual · Click fuera o ✕ para cerrar
                 </p>
                 <button
@@ -1659,15 +1602,15 @@ export default function PixelPage() {
       {paletteOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPaletteOpen(false)} />
-          <div className="relative w-full max-w-md rounded-2xl p-4 space-y-3" style={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(6,182,212,0.2)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
-            <div className="flex items-center gap-2 text-sm text-white/50">
+          <div className="relative w-full max-w-md rounded-2xl p-4 space-y-3" style={{ background: "rgba(245,243,238,0.95)", border: "1px solid rgba(229,225,216,0.2)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+            <div className="flex items-center gap-2 text-sm text-ink-60">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <span>Acciones rápidas</span>
             </div>
-            <button onClick={() => { fetchData(); setPaletteOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/70 hover:bg-white/5 transition-colors">
+            <button onClick={() => { fetchData(); setPaletteOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-ink hover:bg-white/5 transition-colors">
               Actualizar datos
             </button>
-            <button onClick={() => { setWeightsOpen(true); setPaletteOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/70 hover:bg-white/5 transition-colors">
+            <button onClick={() => { setWeightsOpen(true); setPaletteOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-ink hover:bg-white/5 transition-colors">
               Configurar modelo Nitro
             </button>
           </div>

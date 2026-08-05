@@ -621,7 +621,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   : isJourneys
                   ? "flex-1 p-0 overflow-y-auto bg-canvas"
                   : isPixelAttribution
-                  ? "flex-1 p-0 overflow-y-auto bg-[#05060a]"
+                  ? "flex-1 p-0 overflow-y-auto bg-canvas"
                   : isAura
                   ? "flex-1 p-0 overflow-y-auto bg-[#05070d]"
                   : isAlertas
