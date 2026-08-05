@@ -3,12 +3,14 @@
 // ══════════════════════════════════════════════════════════════
 // Customer Journeys — recorrido visual de cada cliente
 // ══════════════════════════════════════════════════════════════
-// Tema: dark, premium, nivel startup unicornio.
-// Solo visualizacion del recorrido. La atribucion vive en /pixel.
+// Tema: enterprise sobrio (design system --ent-*). Solo visualización
+// del recorrido; la atribución vive en /pixel. El color de marca de
+// cada canal se conserva como identidad de dato (fill plano, sin glow).
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { LivePulse } from "@/components/enterprise/ui";
 
 // ── Tipos ─────────────────────────────────────────────────────
 interface JourneyTouchpoint {
@@ -42,32 +44,25 @@ interface JourneyResponse {
   model: string;
 }
 
-// ── Channel meta (color + gradient para dark) ─────────────────
-const CHANNEL_META: Record<string, { color: string; bg: string; ring: string; label: string }> = {
-  meta:           { color: "#0866FF", bg: "linear-gradient(135deg,#0866FF,#1877F2)",                 ring: "rgba(8,102,255,0.55)",  label: "Meta Ads" },
-  facebook:       { color: "#1877F2", bg: "linear-gradient(135deg,#0866FF,#1877F2)",                 ring: "rgba(8,102,255,0.55)",  label: "Facebook" },
-  instagram:      { color: "#E1306C", bg: "linear-gradient(135deg,#F77737,#E1306C,#833AB4)",         ring: "rgba(225,48,108,0.55)", label: "Instagram" },
-  google:         { color: "#4285F4", bg: "linear-gradient(135deg,#4285F4,#34A853)",                 ring: "rgba(66,133,244,0.55)", label: "Google Ads" },
-  google_organic: { color: "#34A853", bg: "linear-gradient(135deg,#34A853,#4285F4)",                 ring: "rgba(52,168,83,0.55)",  label: "Google Orgánico" },
-  tiktok:         { color: "#25F4EE", bg: "linear-gradient(135deg,#25F4EE,#0a0a0f,#FE2C55)",         ring: "rgba(254,44,85,0.55)",  label: "TikTok" },
-  youtube:        { color: "#FF0000", bg: "linear-gradient(135deg,#FF0000,#CC0000)",                 ring: "rgba(255,0,0,0.55)",    label: "YouTube" },
-  mercadolibre:   { color: "#FFE600", bg: "linear-gradient(135deg,#FFE600,#FFCC00)",                 ring: "rgba(255,230,0,0.55)",  label: "MercadoLibre" },
-  email:          { color: "#FBBF24", bg: "linear-gradient(135deg,#FBBF24,#F59E0B)",                 ring: "rgba(251,191,36,0.55)", label: "Email" },
-  whatsapp:       { color: "#25D366", bg: "linear-gradient(135deg,#25D366,#128C7E)",                 ring: "rgba(37,211,102,0.55)", label: "WhatsApp" },
-  direct:         { color: "#94A3B8", bg: "linear-gradient(135deg,#94A3B8,#475569)",                 ring: "rgba(148,163,184,0.55)", label: "Directo" },
-  organic:        { color: "#A78BFA", bg: "linear-gradient(135deg,#A78BFA,#8B5CF6)",                 ring: "rgba(167,139,250,0.55)", label: "Orgánico" },
-  referral:       { color: "#F472B6", bg: "linear-gradient(135deg,#F472B6,#EC4899)",                 ring: "rgba(244,114,182,0.55)", label: "Referral" },
+// ── Channel meta (color de marca plano = identidad de dato) ───
+const CHANNEL_META: Record<string, { color: string; label: string }> = {
+  meta:           { color: "#0866FF", label: "Meta Ads" },
+  facebook:       { color: "#1877F2", label: "Facebook" },
+  instagram:      { color: "#E1306C", label: "Instagram" },
+  google:         { color: "#4285F4", label: "Google Ads" },
+  google_organic: { color: "#34A853", label: "Google Orgánico" },
+  tiktok:         { color: "#111111", label: "TikTok" },
+  youtube:        { color: "#FF0000", label: "YouTube" },
+  mercadolibre:   { color: "#2D3277", label: "MercadoLibre" },
+  email:          { color: "#D97706", label: "Email" },
+  whatsapp:       { color: "#25D366", label: "WhatsApp" },
+  direct:         { color: "#64748B", label: "Directo" },
+  organic:        { color: "#7C3AED", label: "Orgánico" },
+  referral:       { color: "#DB2777", label: "Referral" },
 };
 
 function metaForChannel(src: string) {
-  return (
-    CHANNEL_META[src.toLowerCase()] || {
-      color: "#9CA3AF",
-      bg: "linear-gradient(135deg,#9CA3AF,#6B7280)",
-      ring: "rgba(156,163,175,0.55)",
-      label: src,
-    }
-  );
+  return CHANNEL_META[src.toLowerCase()] || { color: "#6B685F", label: src };
 }
 
 // ── SVG icons (white) ─────────────────────────────────────────
@@ -92,7 +87,7 @@ function ChannelIcon({ source, size = 20 }: { source: string; size?: number }) {
     case "email":
       return (<svg {...props} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>);
     case "mercadolibre":
-      return (<svg {...props}><circle cx="12" cy="12" r="9" fill="white"/><text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#1e3a8a">ML</text></svg>);
+      return (<svg {...props}><circle cx="12" cy="12" r="9" fill="white"/><text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#2D3277">ML</text></svg>);
     case "direct":
       return (<svg {...props} fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>);
     case "organic":
@@ -128,36 +123,26 @@ function shortHash(str: string, len = 8) {
 }
 
 // ── Componentes ───────────────────────────────────────────────
-function ChannelBubble({ source, label, size = 48, isLast = false, index = 0 }: { source: string; label: string; size?: number; isLast?: boolean; index?: number }) {
+function ChannelBubble({ source, label, size = 48, isLast = false }: { source: string; label: string; size?: number; isLast?: boolean; index?: number }) {
   const meta = metaForChannel(source);
   return (
     <div className="flex flex-col items-center gap-2 min-w-[72px]">
       <div className="relative">
-        {/* Outer glow ring */}
         <div
-          className="absolute inset-0 rounded-full blur-md"
-          style={{ background: meta.bg, opacity: 0.45, transform: "scale(1.25)" }}
-        />
-        <div
-          className="relative rounded-full flex items-center justify-center"
+          className="relative rounded-full flex items-center justify-center shadow-ent-xs"
           style={{
             width: size,
             height: size,
-            background: meta.bg,
-            boxShadow: `0 0 24px ${meta.ring}, inset 0 1px 0 rgba(255,255,255,0.18)`,
-            border: "1px solid rgba(255,255,255,0.12)",
-            animation: isLast ? "pixelJourneyDot 2.4s ease-in-out infinite" : `pixelFadeUp 600ms ease-out ${index * 80}ms both`,
+            background: meta.color,
+            border: "1px solid rgba(0,0,0,0.06)",
           }}
         >
           <ChannelIcon source={source} size={size * 0.5} />
         </div>
         {isLast && (
           <div
-            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
-            style={{
-              background: "linear-gradient(135deg,#10b981,#059669)",
-              boxShadow: "0 0 12px rgba(16,185,129,0.7), 0 0 0 2px #05060a",
-            }}
+            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center bg-accent"
+            style={{ boxShadow: "0 0 0 2px var(--ent-elevated, #fff)" }}
             title="Conversión"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round">
@@ -166,7 +151,7 @@ function ChannelBubble({ source, label, size = 48, isLast = false, index = 0 }: 
           </div>
         )}
       </div>
-      <span className="text-[10px] font-medium text-cyan-100/70 text-center max-w-[76px] truncate" title={label}>
+      <span className="text-[10px] font-medium text-ink-60 text-center max-w-[76px] truncate" title={label}>
         {label}
       </span>
     </div>
@@ -176,21 +161,8 @@ function ChannelBubble({ source, label, size = 48, isLast = false, index = 0 }: 
 function JourneyConnector() {
   return (
     <div className="flex items-center px-1 mt-[-14px] relative">
-      <div
-        className="w-7 h-[2px] rounded-full relative overflow-hidden"
-        style={{
-          background: "linear-gradient(90deg, rgba(6,182,212,0.5), rgba(139,92,246,0.5))",
-        }}
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)",
-            animation: "pixelShimmer 2.2s linear infinite",
-          }}
-        />
-      </div>
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(139,92,246,0.85)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+      <div className="w-7 h-px bg-hairline-2" />
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ent-ink-40))" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
         <polyline points="9 18 15 12 9 6" />
       </svg>
     </div>
@@ -198,103 +170,75 @@ function JourneyConnector() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { bg: string; color: string; border: string; label: string }> = {
-    APPROVED:  { bg: "rgba(16,185,129,0.12)", color: "#34d399", border: "rgba(16,185,129,0.35)", label: "Aprobada" },
-    INVOICED:  { bg: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "rgba(59,130,246,0.35)", label: "Facturada" },
-    DELIVERED: { bg: "rgba(16,185,129,0.12)", color: "#34d399", border: "rgba(16,185,129,0.35)", label: "Entregada" },
-    SHIPPED:   { bg: "rgba(99,102,241,0.12)", color: "#818cf8", border: "rgba(99,102,241,0.35)", label: "Enviada" },
-    PENDING:   { bg: "rgba(245,158,11,0.12)", color: "#fbbf24", border: "rgba(245,158,11,0.35)", label: "Pendiente" },
-    CANCELLED: { bg: "rgba(239,68,68,0.12)",  color: "#f87171", border: "rgba(239,68,68,0.35)",  label: "Cancelada" },
-    RETURNED:  { bg: "rgba(236,72,153,0.12)", color: "#f472b6", border: "rgba(236,72,153,0.35)", label: "Devuelta" },
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    APPROVED:  { bg: "rgba(16,185,129,0.10)", color: "#047857", label: "Aprobada" },
+    INVOICED:  { bg: "rgba(37,99,235,0.10)",  color: "#1d4ed8", label: "Facturada" },
+    DELIVERED: { bg: "rgba(16,185,129,0.10)", color: "#047857", label: "Entregada" },
+    SHIPPED:   { bg: "rgba(79,70,229,0.10)",  color: "#4338ca", label: "Enviada" },
+    PENDING:   { bg: "rgba(217,119,6,0.12)",  color: "#b45309", label: "Pendiente" },
+    CANCELLED: { bg: "rgba(220,38,38,0.10)",  color: "#b91c1c", label: "Cancelada" },
+    RETURNED:  { bg: "rgba(219,39,119,0.10)", color: "#be185d", label: "Devuelta" },
   };
-  const m = map[status] || { bg: "rgba(148,163,184,0.12)", color: "#94a3b8", border: "rgba(148,163,184,0.35)", label: status };
+  const m = map[status] || { bg: "rgba(100,116,139,0.10)", color: "#475569", label: status };
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider"
-      style={{ background: m.bg, color: m.color, border: `1px solid ${m.border}` }}
+      style={{ background: m.bg, color: m.color }}
     >
-      <span className="w-1 h-1 rounded-full" style={{ background: m.color, boxShadow: `0 0 4px ${m.color}` }} />
+      <span className="w-1 h-1 rounded-full" style={{ background: m.color }} />
       {m.label}
     </span>
   );
 }
 
-function JourneyCard({ order, idx }: { order: JourneyOrder; idx: number }) {
+function JourneyCard({ order }: { order: JourneyOrder; idx: number }) {
   const tps = order.touchpoints.length > 0
     ? order.touchpoints
     : [{ source: "direct", label: "Directo", ts: order.orderDate, medium: null, campaign: null, page: null }];
 
   return (
-    <div
-      className="group relative rounded-2xl overflow-hidden"
-      style={{
-        background: "linear-gradient(160deg, rgba(15,23,42,0.85), rgba(8,12,24,0.95))",
-        border: "1px solid rgba(6,182,212,0.18)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(165,243,252,0.05)",
-        animation: `pixelFadeUp 700ms ease-out ${idx * 60}ms both`,
-      }}
-    >
-      {/* Top accent line */}
-      <div
-        className="absolute top-0 left-4 right-4 h-[1px] opacity-70"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.6), rgba(139,92,246,0.6), transparent)" }}
-      />
-
+    <div className="group relative rounded-2xl overflow-hidden bg-elevated border border-hairline shadow-ent-soft">
       {/* Header */}
-      <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-white/[0.05]">
+      <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-hairline">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-[10px] text-cyan-300/40 uppercase tracking-[0.25em]">Orden</span>
-            <span className="font-mono text-[12px] font-semibold text-cyan-50/95">
+            <span className="font-geistmono text-[10px] text-ink-40 uppercase tracking-[0.25em]">Orden</span>
+            <span className="font-geistmono text-[12px] font-semibold text-ink">
               #{shortHash(order.externalId) || shortHash(order.orderId)}
             </span>
             <StatusBadge status={order.status} />
           </div>
-          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-cyan-100/40">
+          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-40">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
             </svg>
-            <span className="truncate max-w-[180px]">{order.customerEmail || "Cliente anónimo"}</span>
-            <span className="text-cyan-300/20">·</span>
+            <span className="truncate max-w-[180px] text-ink-60">{order.customerEmail || "Cliente anónimo"}</span>
+            <span className="text-hairline-2">·</span>
             <span>{fmtRelative(order.orderDate)}</span>
-            <span className="text-cyan-300/20">·</span>
+            <span className="text-hairline-2">·</span>
             <span>{order.itemCount} {order.itemCount === 1 ? "ítem" : "ítems"}</span>
           </div>
         </div>
         <div className="text-right flex-shrink-0">
-          <div className="text-[9px] font-mono uppercase tracking-[0.25em] text-cyan-300/40">Total</div>
-          <div
-            className="text-xl font-bold tabular-nums"
-            style={{
-              background: "linear-gradient(135deg, #06b6d4, #a855f7)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              color: "#a5f3fc",
-            }}
-          >
+          <div className="text-[9px] font-geistmono uppercase tracking-[0.25em] text-ink-40">Total</div>
+          <div className="text-xl font-semibold tabular-nums text-ink">
             {fmtCurrency(order.totalValue, order.currency)}
           </div>
         </div>
       </div>
 
       {/* Journey timeline */}
-      <div
-        className="px-5 py-5 relative"
-        style={{
-          background:
-            "radial-gradient(ellipse at top, rgba(6,182,212,0.08), transparent 70%), radial-gradient(ellipse at bottom right, rgba(139,92,246,0.06), transparent 60%)",
-        }}
-      >
-        <div className="flex items-center gap-2 text-[9px] uppercase font-semibold tracking-[0.25em] text-cyan-300/50 mb-4">
+      <div className="px-5 py-5 relative bg-surface/40">
+        <div className="flex items-center gap-2 text-[9px] uppercase font-semibold tracking-[0.25em] text-ink-40 mb-4">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" /><path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
           </svg>
           Customer Journey
-          <span className="text-cyan-300/25 normal-case font-normal tracking-normal ml-1">
+          <span className="text-ink-40 normal-case font-normal tracking-normal ml-1">
             · {tps.length} {tps.length === 1 ? "touchpoint" : "touchpoints"}
           </span>
           {order.conversionLag != null && (
-            <span className="ml-auto text-cyan-300/40 normal-case font-normal tracking-normal flex items-center gap-1">
+            <span className="ml-auto text-ink-40 normal-case font-normal tracking-normal flex items-center gap-1">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
               </svg>
@@ -350,58 +294,29 @@ export default function CustomerJourneysPage() {
   }, [data]);
 
   return (
-    <div className="min-h-screen text-cyan-50" style={{ background: "#05060a" }}>
+    <div className="min-h-screen text-ink">
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       {/* ═══ HERO ═══ */}
-      <div className="relative overflow-hidden border-b border-cyan-500/10">
-        {/* Ambient glow background */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 50% at 30% 20%, rgba(6,182,212,0.16), transparent 70%), radial-gradient(ellipse 50% 60% at 80% 80%, rgba(139,92,246,0.14), transparent 70%)",
-          }}
-        />
-        {/* Grid overlay */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-[0.035]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(165,243,252,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(165,243,252,0.6) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-            animation: "pixelGridShift 60s linear infinite",
-          }}
-        />
-
-        <div className="relative max-w-7xl mx-auto px-6 py-10">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.35em] text-cyan-300/40 mb-3">
-            <Link href="/nitropixel" className="hover:text-cyan-300 transition-colors">NitroPixel</Link>
-            <span className="text-cyan-300/20">/</span>
-            <span className="text-cyan-300">Customer Journeys</span>
+      <div className="border-b border-hairline">
+        <div className="max-w-7xl mx-auto px-6 py-10">
+          <div className="flex items-center gap-2 text-[10px] font-geistmono uppercase tracking-[0.35em] text-ink-40 mb-3">
+            <Link href="/nitropixel" className="hover:text-ink transition-colors">NitroPixel</Link>
+            <span className="text-hairline-2">/</span>
+            <span className="text-ink-60">Customer Journeys</span>
           </div>
 
-          <h1 className="text-3xl lg:text-5xl font-bold tracking-tight leading-tight">
-            <span className="text-cyan-50">El recorrido de cada cliente,</span>
+          <h1 className="text-3xl lg:text-[2.75rem] font-medium tracking-[-0.02em] leading-[1.1] text-ink">
+            El recorrido de cada cliente,
             <br />
-            <span
-              style={{
-                background: "linear-gradient(135deg, #06b6d4 0%, #a855f7 50%, #ec4899 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                color: "#a5f3fc",
-              }}
-            >
-              visible por primera vez
-            </span>
+            visible por primera vez
           </h1>
-          <p className="mt-3 text-sm lg:text-base text-cyan-100/55 max-w-2xl leading-relaxed">
+          <p className="mt-3 text-sm lg:text-base text-ink-60 max-w-2xl leading-relaxed">
             Cada orden es un viaje. NitroPixel reconstruye los touchpoints que tocó tu cliente
             antes de comprar — cookies, sesiones, dispositivos — en un solo recorrido visual.
-            Algo que ninguna herramienta en LATAM puede mostrar así.
           </p>
 
           {/* Stat strip */}
@@ -417,29 +332,22 @@ export default function CustomerJourneysPage() {
       {/* ═══ CONTROLS ═══ */}
       <div className="max-w-7xl mx-auto px-6 pt-6">
         <div className="flex flex-wrap items-center gap-3">
-          <div
-            className="flex items-center gap-1 rounded-xl p-1"
-            style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(6,182,212,0.18)" }}
-          >
-            <span className="px-2 text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300/40">Mostrar</span>
+          <div className="flex items-center gap-1 rounded-xl p-1 bg-surface border border-hairline">
+            <span className="px-2 text-[10px] font-geistmono uppercase tracking-[0.25em] text-ink-40">Mostrar</span>
             {[10, 20, 30, 50].map((n) => (
               <button
                 key={n}
                 onClick={() => setLimit(n)}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
-                style={{
-                  background: limit === n ? "linear-gradient(135deg, #06b6d4, #8b5cf6)" : "transparent",
-                  color: limit === n ? "white" : "rgba(165,243,252,0.55)",
-                  boxShadow: limit === n ? "0 0 16px rgba(6,182,212,0.45)" : undefined,
-                }}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors duration-150 ease-ent ${
+                  limit === n ? "bg-ink text-white" : "text-ink-60 hover:bg-white/70 hover:text-ink"
+                }`}
               >
                 {n}
               </button>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300/40">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" style={{ boxShadow: "0 0 8px #06b6d4", animation: "pixelHeartbeat 1.6s ease-in-out infinite" }} />
-            EN VIVO
+          <div className="ml-auto">
+            <LivePulse status="LIVE" />
           </div>
         </div>
       </div>
@@ -449,15 +357,15 @@ export default function CustomerJourneysPage() {
         {loading && <SkeletonGrid />}
         {!loading && error && (
           <div className="text-center py-20">
-            <div className="text-4xl mb-3">⚠</div>
-            <p className="text-sm text-cyan-100/50">{error}</p>
+            <div className="text-3xl mb-3 text-ink-40">⚠</div>
+            <p className="text-sm text-ink-60">{error}</p>
           </div>
         )}
         {!loading && !error && data && data.orders.length === 0 && (
           <div className="text-center py-24">
-            <div className="text-5xl mb-4 opacity-50">⌬</div>
-            <p className="text-lg font-semibold text-cyan-50/90">Todavía no hay journeys atribuidos</p>
-            <p className="text-sm text-cyan-100/50 mt-1">Cuando lleguen órdenes con touchpoints del pixel, las vas a ver acá.</p>
+            <div className="text-4xl mb-4 text-ink-40">⌬</div>
+            <p className="text-lg font-medium text-ink">Todavía no hay journeys atribuidos</p>
+            <p className="text-sm text-ink-60 mt-1">Cuando lleguen órdenes con touchpoints del pixel, las vas a ver acá.</p>
           </div>
         )}
         {!loading && !error && data && data.orders.length > 0 && (
@@ -480,26 +388,13 @@ function StatPill({ icon, label, value }: { icon: "cart" | "branch" | "pin" | "g
     globe:  (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>),
   };
   return (
-    <div
-      className="rounded-xl px-4 py-3 flex items-center gap-3 relative overflow-hidden group"
-      style={{
-        background: "linear-gradient(135deg, rgba(6,182,212,0.08), rgba(139,92,246,0.04))",
-        border: "1px solid rgba(6,182,212,0.20)",
-      }}
-    >
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-        style={{ background: "linear-gradient(135deg, rgba(6,182,212,0.10), rgba(139,92,246,0.06))" }}
-      />
-      <div
-        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-cyan-300"
-        style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)" }}
-      >
+    <div className="rounded-xl px-4 py-3 flex items-center gap-3 bg-elevated border border-hairline shadow-ent-xs">
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-ink-60 bg-surface border border-hairline">
         {ICONS[icon]}
       </div>
-      <div className="min-w-0 relative">
-        <div className="text-[9px] uppercase tracking-[0.25em] text-cyan-300/45 font-semibold">{label}</div>
-        <div className="text-xl font-bold text-cyan-50 tabular-nums">{value}</div>
+      <div className="min-w-0">
+        <div className="text-[9px] uppercase tracking-[0.25em] text-ink-40 font-semibold">{label}</div>
+        <div className="text-xl font-semibold text-ink tabular-nums">{value}</div>
       </div>
     </div>
   );
@@ -509,19 +404,12 @@ function SkeletonGrid() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-2xl p-5 animate-pulse"
-          style={{
-            background: "linear-gradient(160deg, rgba(15,23,42,0.7), rgba(8,12,24,0.9))",
-            border: "1px solid rgba(6,182,212,0.15)",
-          }}
-        >
-          <div className="h-3 bg-cyan-500/10 rounded w-1/3 mb-2" />
-          <div className="h-2 bg-cyan-500/10 rounded w-1/2 mb-5" />
+        <div key={i} className="rounded-2xl p-5 animate-pulse bg-elevated border border-hairline">
+          <div className="h-3 bg-surface-2 rounded w-1/3 mb-2" />
+          <div className="h-2 bg-surface-2 rounded w-1/2 mb-5" />
           <div className="flex items-center gap-3">
             {Array.from({ length: 4 }).map((_, j) => (
-              <div key={j} className="w-12 h-12 rounded-full bg-cyan-500/10" />
+              <div key={j} className="w-12 h-12 rounded-full bg-surface-2" />
             ))}
           </div>
         </div>

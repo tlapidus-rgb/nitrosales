@@ -618,7 +618,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? "flex-1 p-0 overflow-y-auto bg-[#0a0a0f]"
                   : isNitropixel
                   ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
-                  : (isJourneys || isPixelAttribution)
+                  : isJourneys
+                  ? "flex-1 p-0 overflow-y-auto bg-canvas"
+                  : isPixelAttribution
                   ? "flex-1 p-0 overflow-y-auto bg-[#05060a]"
                   : isAura
                   ? "flex-1 p-0 overflow-y-auto bg-[#05070d]"
