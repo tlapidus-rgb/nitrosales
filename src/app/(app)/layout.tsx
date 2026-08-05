@@ -16,6 +16,20 @@ import { ImpersonateBanner } from "@/components/ImpersonateBanner";
 import { ViewAsOrgBanner } from "@/components/ViewAsOrgBanner";
 import OnboardingGate from "@/components/OnboardingGate";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
+import { LivePulse } from "@/components/enterprise/ui";
+
+// NitroPixel es el único item premium sin `children` en NAV_GROUPS (sus sub-pantallas
+// vivían hardcodeadas en la premium-card). En el sidebar sobrio siempre-expandido las
+// mostramos como hijos normales.
+const PIXEL_CHILDREN = [
+  { href: "/pixel/analytics", label: "Analytics" },
+  { href: "/pixel", label: "Atribución" },
+  { href: "/pixel/canales", label: "Canales" },
+  { href: "/pixel/journeys", label: "Journeys" },
+  { href: "/pixel/configuracion", label: "Configuración" },
+];
 
 type NavItem = {
   href: string;
@@ -294,7 +308,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <OnboardingGate>
     <PermissionsProvider>
     <AurumProvider>
-    <div className="h-screen bg-nitro-bg flex overflow-hidden">
+    <div className={`${GeistSans.variable} ${GeistMono.variable} font-geist h-screen bg-canvas text-ink flex overflow-hidden`}>
       {/* Aurum oculto por pedido de Tomy (reunión 08/07/26): botón flotante
           desactivado. El provider/contexto queda para reactivar sin romper nada. */}
       {/* <FloatingAurum /> */}
@@ -461,898 +475,107 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
+      {/* Sidebar — sobrio, siempre expandido (design system enterprise) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 bg-nitro-bg2 flex flex-col transition-transform duration-500 ease-nitro lg:translate-x-0 lg:static border-r border-nitro-border ${
+        className={`fixed inset-y-0 left-0 z-50 w-[248px] bg-surface flex flex-col border-r border-hairline transition-transform duration-300 ease-ent lg:translate-x-0 lg:static ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-nitro-border">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
-              style={{ background: "var(--nitro-gradient)" }}
-            >
-              <span className="text-nitro-bg">N</span>
-            </div>
-            <span className="font-headline text-lg tracking-tight text-white">
-              NITRO<span style={{ color: "var(--nitro-orange)" }}>SALES</span>
-            </span>
+        <div className="px-4 h-14 shrink-0 flex items-center gap-2.5 border-b border-hairline">
+          <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setSidebarOpen(false)}>
+            <div className="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center font-semibold text-[13px] tracking-tight">N</div>
+            <span className="text-[14px] font-semibold text-ink tracking-[-.02em]">NitroSales</span>
           </Link>
         </div>
 
-        {/* Org Switcher (admin only) */}
-        <OrgSwitcher />
+        {/* Org switcher */}
+        <div className="px-3 pt-3">
+          <OrgSwitcher />
+        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {/* Navigation — grupos siempre expandidos */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2.5">
           {NAV_GROUPS.map((group, gi) => {
-            // Recolecto todos los hrefs del grupo (item principal + children)
-            // para que NavGroupGate decida si al menos uno es accesible.
-            const groupHrefs: string[] = group.items.flatMap((it) => [
-              it.href,
-              ...(it.children?.map((c) => c.href) ?? []),
-            ]);
+            const groupHrefs = group.items.flatMap((it) => [it.href, ...(it.children?.map((c) => c.href) ?? [])]);
             return (
-            <NavGroupGate key={gi} itemHrefs={groupHrefs}>
-            <div>
-              {/* Group separator + label */}
-              {gi > 0 && <div className="my-3 mx-3 border-t border-nitro-border/40" />}
-              {group.label && (
-                <p
-                  className={`px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] select-none flex items-center gap-2 ${
-                    group.label === "ACTIVOS DIGITALES"
-                      ? "text-cyan-400/80"
-                      : group.label === "FIDELIZACIÓN Y COMUNIDAD"
-                      ? "text-emerald-400/80"
-                      : "text-nitro-muted/60"
-                  }`}
-                  style={
-                    group.label === "ACTIVOS DIGITALES"
-                      ? {
-                          background: "linear-gradient(90deg, #06b6d4, #8b5cf6)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          letterSpacing: "0.22em",
-                        }
-                      : group.label === "FIDELIZACIÓN Y COMUNIDAD"
-                      ? {
-                          background: "linear-gradient(90deg, #10b981, #ec4899)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          letterSpacing: "0.22em",
-                        }
-                      : undefined
-                  }
-                >
-                  {group.label}
-                  {group.label === "ACTIVOS DIGITALES" && (
-                    <span
-                      aria-hidden
-                      className="inline-block w-1.5 h-1.5 rounded-full"
-                      style={{
-                        background: "#22d3ee",
-                        boxShadow: "0 0 8px rgba(34, 211, 238, 0.8)",
-                        animation: "livePulse 2s ease-in-out infinite",
-                      }}
-                    />
+              <NavGroupGate key={gi} itemHrefs={groupHrefs}>
+                <div className="mb-4">
+                  {group.label && (
+                    <p className="px-2.5 pb-1 font-geistmono text-[10px] font-medium uppercase tracking-[.11em] text-ink-40 select-none">{group.label}</p>
                   )}
-                </p>
-              )}
-              {group.items.map((item) => {
-                // Content routes that belong to "Contenido" not "Influencers"
-                const contentRoutes = ["/influencers/briefings", "/influencers/content", "/influencers/ugc", "/influencers/seeding"];
-                const isContentRoute = contentRoutes.some(r => pathname.startsWith(r));
-                // Aurum-specific routes: /chat, /sinapsis, /boveda, /memory all activate Aurum
-                const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
-                const isAurumRoute = item.label === "Aurum" && aurumRoutes.some(r => pathname.startsWith(r));
-                // NitroPixel umbrella: /nitropixel (asset hero) AND /pixel (analytics)
-                const nitropixelRoutes = ["/nitropixel", "/pixel"];
-                const isNitropixelRoute = item.label === "NitroPixel" && nitropixelRoutes.some(r => pathname.startsWith(r));
-                const isActive =
-                  // Aurum umbrella activation
-                  isAurumRoute ||
-                  // NitroPixel umbrella activation
-                  isNitropixelRoute ||
-                  // Check if any child matches exactly
-                  (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href))) ||
-                  // Or direct match
-                  pathname === item.href ||
-                  // Or prefix match, but exclude content routes from influencers parent, and exclude Aurum/NitroPixel (handled above)
-                  (item.href !== "/dashboard" && item.href !== "/influencers" && item.label !== "Aurum" && item.label !== "NitroPixel" && pathname.startsWith(item.href)) ||
-                  // Influencers only active when NOT on a content route
-                  (item.href === "/influencers" && pathname.startsWith("/influencers") && !isContentRoute);
-                const hasChildren = item.children && item.children.length > 0;
-
-                // ═══ Premium tool cards (Aurum, NitroPixel, LTV) ═══
-                if (item.premium) {
-                  const isAurum = item.label === "Aurum";
-                  const isPixel = item.label === "NitroPixel";
-                  const isAura = item.label === "Aura";
-                  const isBondly = item.label === "Bondly";
-                  const aurumSubItems = isAurum
-                    ? [
-                        {
-                          href: "/sinapsis",
-                          label: "Sinapsis",
-                          sublabel: "Memoria viva",
-                          iconPath:
-                            "M8 3v4m0 0l-2.5 2.5M8 7l2.5 2.5M16 21v-4m0 0l-2.5-2.5M16 17l2.5-2.5M3 12h4m0 0l2.5-2.5M7 12l2.5 2.5M21 12h-4m0 0l-2.5-2.5M17 12l-2.5 2.5",
-                        },
-                        {
-                          href: "/boveda",
-                          label: "Bóveda",
-                          sublabel: "Artefactos",
-                          iconPath:
-                            "M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4",
-                        },
-                      ]
-                    : [];
-                  const pixelSubItems = isPixel
-                    ? [
-                        {
-                          href: "/pixel/analytics",
-                          label: "Analytics",
-                          sublabel: "Intelligence dashboard",
-                          iconPath:
-                            "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-                        },
-                        {
-                          href: "/pixel",
-                          label: "Atribución",
-                          sublabel: "Modelo y canales",
-                          iconPath:
-                            "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
-                        },
-                        {
-                          href: "/pixel/journeys",
-                          label: "Journeys",
-                          sublabel: "Recorrido del cliente",
-                          iconPath:
-                            "M4 12h4m8 0h4M9 12a3 3 0 116 0 3 3 0 01-6 0zM4 12a0 0 0 100 0M20 12a0 0 0 100 0",
-                        },
-                        {
-                          href: "/pixel/configuracion",
-                          label: "Configuración",
-                          sublabel: "UTMs, snippet, tagueo",
-                          iconPath:
-                            "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
-                        },
-                      ]
-                    : [];
-                  return (
-                    <NavItemGate
-                      key={item.href}
-                      href={item.href}
-                      childHrefs={item.children?.map((c) => c.href)}
-                    >
-                    <div className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""} ${isBondly ? "bondly-card-wrapper" : ""}`}>
-                      <Link
-                        href={item.href}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`group block relative rounded-xl overflow-hidden transition-all duration-500 ${isAura ? "aura-holo-conic aura-holo-veil" : ""}`}
-                        style={{
-                          background: isAurum
-                            ? (isActive
-                                ? "linear-gradient(135deg, rgba(251,191,36,0.18), rgba(245,158,11,0.08) 50%, rgba(251,191,36,0.03))"
-                                : "linear-gradient(135deg, rgba(251,191,36,0.08), rgba(245,158,11,0.03) 50%, rgba(255,255,255,0.02))")
-                            : isPixel
-                            ? (isActive
-                                ? "linear-gradient(135deg, rgba(6,182,212,0.20), rgba(139,92,246,0.10) 50%, rgba(6,182,212,0.04))"
-                                : "linear-gradient(135deg, rgba(6,182,212,0.10), rgba(139,92,246,0.04) 50%, rgba(255,255,255,0.02))")
-                            : isAura
-                            ? "#0a0714"
-                            : isBondly
-                            ? (isActive
-                                ? "linear-gradient(135deg, rgba(16,185,129,0.18), rgba(6,182,212,0.10) 50%, rgba(99,102,241,0.04))"
-                                : "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.04) 50%, rgba(99,102,241,0.02))")
-                            : (isActive
-                                ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
-                                : "rgba(255,255,255,0.02)"),
-                          border: isAurum
-                            ? (isActive ? "1px solid rgba(251,191,36,0.45)" : "1px solid rgba(251,191,36,0.22)")
-                            : isPixel
-                            ? (isActive ? "1px solid rgba(6,182,212,0.50)" : "1px solid rgba(6,182,212,0.25)")
-                            : isAura
-                            ? (isActive ? "1px solid rgba(168,85,247,0.40)" : "1px solid rgba(168,85,247,0.18)")
-                            : isBondly
-                            ? (isActive ? "1px solid rgba(16,185,129,0.45)" : "1px solid rgba(16,185,129,0.22)")
-                            : (isActive ? `1px solid ${item.premium.badgeColor}33` : "1px solid rgba(255,255,255,0.06)"),
-                          boxShadow: isAurum
-                            ? (isActive
-                                ? "0 0 30px rgba(251,191,36,0.20), inset 0 1px 0 rgba(253,224,71,0.15)"
-                                : "0 0 18px rgba(251,191,36,0.08), inset 0 1px 0 rgba(253,224,71,0.08)")
-                            : isPixel
-                            ? (isActive
-                                ? "0 0 32px rgba(6,182,212,0.25), inset 0 1px 0 rgba(165,243,252,0.15)"
-                                : "0 0 18px rgba(6,182,212,0.10), inset 0 1px 0 rgba(165,243,252,0.08)")
-                            : isAura
-                            ? (isActive
-                                ? "0 0 28px rgba(168,85,247,0.22), inset 0 1px 0 rgba(255,255,255,0.06)"
-                                : "0 0 16px rgba(168,85,247,0.10), inset 0 1px 0 rgba(255,255,255,0.04)")
-                            : isBondly
-                            ? (isActive
-                                ? "0 0 28px rgba(16,185,129,0.22), inset 0 1px 0 rgba(110,231,183,0.15)"
-                                : "0 0 16px rgba(16,185,129,0.10), inset 0 1px 0 rgba(110,231,183,0.08)")
-                            : undefined,
-                        }}
-                      >
-                        {/* Aurum shimmer sweep */}
-                        {isAurum && (
-                          <div
-                            className="absolute inset-0 pointer-events-none aurum-shimmer"
-                            style={{
-                              background: "linear-gradient(110deg, transparent 30%, rgba(253,224,71,0.10) 50%, transparent 70%)",
-                              backgroundSize: "200% 100%",
-                            }}
-                          />
-                        )}
-                        {/* Pixel data-flow scan */}
-                        {isPixel && (
-                          <div
-                            className="absolute inset-0 pointer-events-none pixel-scan"
-                            style={{
-                              background: "linear-gradient(110deg, transparent 30%, rgba(165,243,252,0.12) 50%, transparent 70%)",
-                              backgroundSize: "200% 100%",
-                            }}
-                          />
-                        )}
-                        {/* Pixel heartbeat dot (top-right corner) */}
-                        {isPixel && (
-                          <div
-                            className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full pixel-heartbeat"
-                            style={{
-                              background: "#06b6d4",
-                              boxShadow: "0 0 8px rgba(6,182,212,0.8)",
-                            }}
-                          />
-                        )}
-                        {/* Top glow line */}
-                        <div
-                          className="absolute top-0 left-2 right-2 h-[1px] opacity-60 group-hover:opacity-100 transition-opacity duration-500"
-                          style={{ background: `linear-gradient(90deg, transparent, ${item.premium.badgeColor}, transparent)` }}
-                        />
-                        <div className="px-3 py-2.5 flex items-center gap-3" style={isAura ? { position: "relative", zIndex: 2 } : undefined}>
-                          {/* Icon with glow background */}
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-105"
-                            style={{
-                              background: isAura
-                                ? "linear-gradient(135deg, rgba(255,0,128,0.22), rgba(168,85,247,0.18), rgba(0,212,255,0.20))"
-                                : `linear-gradient(135deg, ${item.premium.glowColor}, ${item.premium.badgeColor}15)`,
-                              boxShadow: isAura
-                                ? (isActive ? "0 0 14px rgba(168,85,247,0.45)" : "0 0 8px rgba(168,85,247,0.25)")
-                                : (isActive ? `0 0 12px ${item.premium.glowColor}` : "none"),
-                            }}
+                  {group.items.map((item) => {
+                    const kids = item.label === "NitroPixel" ? PIXEL_CHILDREN : (item.children ?? []);
+                    const childHrefs = kids.map((c) => c.href);
+                    const bestChild = kids.reduce<{ href: string; label: string } | null>(
+                      (b, c) =>
+                        (pathname === c.href || pathname.startsWith(c.href + "/")) && (!b || c.href.length > b.href.length) ? c : b,
+                      null
+                    );
+                    const parentActive =
+                      !bestChild &&
+                      (pathname === item.href ||
+                        (kids.length === 0 && pathname.startsWith(item.href + "/")) ||
+                        (item.label === "NitroPixel" && pathname.startsWith("/nitropixel")));
+                    return (
+                      <NavItemGate key={item.href} href={item.href} childHrefs={childHrefs}>
+                        <div className={kids.length ? "relative pl-1.5 mb-0.5" : "mb-0.5"}>
+                          {kids.length > 0 && <span className="absolute left-[13px] top-9 bottom-1 w-px bg-hairline-2" aria-hidden="true" />}
+                          <Link
+                            href={item.href}
+                            onClick={() => setSidebarOpen(false)}
+                            aria-current={parentActive ? "page" : undefined}
+                            className={`group relative flex items-center gap-2.5 px-2.5 h-8 rounded-lg text-[13px] font-medium tracking-[-.01em] transition-colors duration-150 ease-ent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-surface ${
+                              parentActive ? "bg-white text-ink shadow-ent-xs" : "text-ink-60 hover:bg-white/70 hover:text-ink"
+                            }`}
                           >
-                            {isPixel ? (
-                              <PixelBrainSidebar size={28} />
-                            ) : isAurum ? (
-                              <AurumOrb size={26} />
-                            ) : (
-                              <svg
-                                className="w-4 h-4 transition-colors duration-300"
-                                style={{ color: item.premium.badgeColor }}
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={1.8}
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-sm font-semibold transition-colors duration-300 ${isAura ? "aura-holo-title" : isActive ? "text-white" : "text-nitro-text2 group-hover:text-white"}`}
-                              >
-                                {item.label}
-                              </span>
-                              <span
-                                className="px-1.5 py-0.5 rounded-md text-[8px] font-bold font-mono uppercase tracking-widest flex items-center gap-1"
-                                style={
-                                  isAura
-                                    ? {
-                                        background: "rgba(255,255,255,0.06)",
-                                        color: "rgba(255,255,255,0.85)",
-                                        border: "1px solid rgba(255,255,255,0.12)",
-                                        backdropFilter: "blur(8px)",
-                                        WebkitBackdropFilter: "blur(8px)",
-                                      }
-                                    : {
-                                        background: `${item.premium.badgeColor}20`,
-                                        color: item.premium.badgeColor,
-                                        border: `1px solid ${item.premium.badgeColor}30`,
-                                        textShadow: `0 0 8px ${item.premium.badgeColor}40`,
-                                      }
-                                }
-                              >
-                                {item.premium.badge === "LIVE" && (
-                                  <span
-                                    className="w-1 h-1 rounded-full animate-pulse"
-                                    style={{ backgroundColor: isAura ? "#a855f7" : item.premium.badgeColor }}
-                                  />
-                                )}
-                                {item.premium.badge}
-                              </span>
-                            </div>
-                            <p className={`text-[10px] mt-0.5 font-mono tracking-wide ${isAura ? "text-white/55" : "text-nitro-muted"}`}>
-                              {item.premium.description}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-
-                      {/* Aurum sub-items (Sinapsis + Bóveda) */}
-                      {isAurum && (
-                        <div
-                          className="overflow-hidden"
-                          style={{
-                            display: "grid",
-                            gridTemplateRows: isActive ? "1fr" : "0fr",
-                            opacity: isActive ? 1 : 0,
-                            marginTop: isActive ? "4px" : "0px",
-                            transition:
-                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
-                          }}
-                        >
-                          <div className="min-h-0">
-                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
-                              {/* Gold connector line */}
-                              <div
-                                className="absolute left-0 top-2 bottom-2 w-[1px]"
-                                style={{
-                                  background:
-                                    "linear-gradient(180deg, rgba(251,191,36,0.5), rgba(251,191,36,0.1))",
-                                }}
-                              />
-                              {aurumSubItems.map((sub, si) => {
-                                const subActive = pathname.startsWith(sub.href);
-                                return (
-                                  <Link
-                                    key={sub.href}
-                                    href={sub.href}
-                                    onClick={() => setSidebarOpen(false)}
-                                    className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
-                                    style={{
-                                      background: subActive
-                                        ? "linear-gradient(90deg, rgba(251,191,36,0.12), rgba(251,191,36,0.02))"
-                                        : "transparent",
-                                      border: subActive
-                                        ? "1px solid rgba(251,191,36,0.25)"
-                                        : "1px solid transparent",
-                                      transitionDelay: isActive ? `${si * 60}ms` : "0ms",
-                                      transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                      opacity: isActive ? 1 : 0,
-                                      transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
-                                    }}
-                                  >
-                                    {/* Branch dot */}
-                                    <span
-                                      className="absolute -left-4 top-1/2 w-2 h-[1px]"
-                                      style={{
-                                        background: subActive
-                                          ? "#fbbf24"
-                                          : "rgba(251,191,36,0.35)",
-                                        transform: "translateY(-0.5px)",
-                                      }}
-                                    />
-                                    <svg
-                                      className="w-3 h-3 flex-shrink-0"
-                                      style={{
-                                        color: subActive ? "#fbbf24" : "rgba(251,191,36,0.55)",
-                                        filter: subActive
-                                          ? "drop-shadow(0 0 4px rgba(251,191,36,0.6))"
-                                          : "none",
-                                      }}
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                      strokeWidth={1.8}
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d={sub.iconPath}
-                                      />
-                                    </svg>
-                                    <div className="flex-1 min-w-0">
-                                      <div
-                                        className="text-[11px] font-semibold transition-colors"
-                                        style={{
-                                          color: subActive
-                                            ? "#fde68a"
-                                            : "rgba(253,230,138,0.7)",
-                                        }}
-                                      >
-                                        {sub.label}
-                                      </div>
-                                      <div className="text-[9px] font-mono tracking-wider text-[#fde68a]/40 uppercase">
-                                        {sub.sublabel}
-                                      </div>
-                                    </div>
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* NitroPixel sub-items (Analytics) */}
-                      {isPixel && (
-                        <div
-                          className="overflow-hidden"
-                          style={{
-                            display: "grid",
-                            gridTemplateRows: isActive ? "1fr" : "0fr",
-                            opacity: isActive ? 1 : 0,
-                            marginTop: isActive ? "4px" : "0px",
-                            transition:
-                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
-                          }}
-                        >
-                          <div className="min-h-0">
-                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
-                              {/* Cyan connector line */}
-                              <div
-                                className="absolute left-0 top-2 bottom-2 w-[1px]"
-                                style={{
-                                  background:
-                                    "linear-gradient(180deg, rgba(6,182,212,0.55), rgba(139,92,246,0.15))",
-                                }}
-                              />
-                              {pixelSubItems.map((sub, si) => {
-                                const subActive =
-                                  (sub.href === "/pixel/analytics" && pathname.startsWith("/pixel/analytics")) ||
-                                  (sub.href === "/pixel" && pathname === "/pixel") ||
-                                  (sub.href === "/pixel/journeys" && pathname.startsWith("/pixel/journeys")) ||
-                                  (sub.href === "/pixel/configuracion" && pathname.startsWith("/pixel/configuracion"));
-                                return (
-                                  <Link
-                                    key={sub.href}
-                                    href={sub.href}
-                                    onClick={() => setSidebarOpen(false)}
-                                    className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
-                                    style={{
-                                      background: subActive
-                                        ? "linear-gradient(90deg, rgba(6,182,212,0.14), rgba(139,92,246,0.04))"
-                                        : "transparent",
-                                      border: subActive
-                                        ? "1px solid rgba(6,182,212,0.30)"
-                                        : "1px solid transparent",
-                                      transitionDelay: isActive ? `${si * 60}ms` : "0ms",
-                                      transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                      opacity: isActive ? 1 : 0,
-                                      transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
-                                    }}
-                                  >
-                                    <span
-                                      className="absolute -left-4 top-1/2 w-2 h-[1px]"
-                                      style={{
-                                        background: subActive ? "#06b6d4" : "rgba(6,182,212,0.40)",
-                                        transform: "translateY(-0.5px)",
-                                      }}
-                                    />
-                                    <svg
-                                      className="w-3 h-3 flex-shrink-0"
-                                      style={{
-                                        color: subActive ? "#06b6d4" : "rgba(6,182,212,0.60)",
-                                        filter: subActive
-                                          ? "drop-shadow(0 0 4px rgba(6,182,212,0.7))"
-                                          : "none",
-                                      }}
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                      strokeWidth={1.8}
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d={sub.iconPath}
-                                      />
-                                    </svg>
-                                    <div className="flex-1 min-w-0">
-                                      <div
-                                        className="text-[11px] font-semibold transition-colors"
-                                        style={{
-                                          color: subActive ? "#a5f3fc" : "rgba(165,243,252,0.7)",
-                                        }}
-                                      >
-                                        {sub.label}
-                                      </div>
-                                      <div className="text-[9px] font-mono tracking-wider text-[#a5f3fc]/40 uppercase">
-                                        {sub.sublabel}
-                                      </div>
-                                    </div>
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Aura sub-items (Creator Gradient) */}
-                      {isAura && item.children && item.children.length > 0 && (
-                        <div
-                          className="overflow-hidden"
-                          style={{
-                            display: "grid",
-                            gridTemplateRows: isActive ? "1fr" : "0fr",
-                            opacity: isActive ? 1 : 0,
-                            marginTop: isActive ? "4px" : "0px",
-                            transition:
-                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
-                          }}
-                        >
-                          <div className="min-h-0">
-                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
-                              {/* Magenta/purple connector line */}
-                              <div
-                                className="absolute left-0 top-2 bottom-2 w-[1px]"
-                                style={{
-                                  background:
-                                    "linear-gradient(180deg, rgba(244,114,182,0.55), rgba(168,85,247,0.15))",
-                                }}
-                              />
-                              {/* Determinar el match más específico (href más largo) para evitar doble selección */}
-                              {(() => null)()}
-                              {item.children.map((sub, si) => {
-                                const children = item.children!;
-                                const matchingHrefs = children
-                                  .filter(
-                                    (c) =>
-                                      pathname === c.href ||
-                                      (c.href !== "/aura/inicio" &&
-                                        pathname.startsWith(c.href + "/")),
-                                  )
-                                  .map((c) => c.href);
-                                const bestMatch = matchingHrefs.reduce(
-                                  (best, h) => (h.length > best.length ? h : best),
-                                  "",
-                                );
-                                const subActive = sub.href === bestMatch;
-                                const prevGroup = si > 0 ? item.children![si - 1].group : undefined;
-                                const showGroupHeader = sub.group && sub.group !== prevGroup;
-                                return (
-                                  <div key={sub.href}>
-                                    {showGroupHeader ? (
-                                      <div
-                                        className="relative flex items-center gap-2 px-2.5 pt-3 pb-1 select-none"
-                                        style={{
-                                          transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                          opacity: isActive ? 1 : 0,
-                                          transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms`,
-                                        }}
-                                      >
-                                        <span
-                                          className="text-[9px] font-semibold tracking-[0.18em] uppercase"
-                                          style={{ color: "rgba(251,207,232,0.42)" }}
-                                        >
-                                          {sub.group}
-                                        </span>
-                                        <span
-                                          className="flex-1 h-[1px]"
-                                          style={{
-                                            background:
-                                              "linear-gradient(90deg, rgba(244,114,182,0.22), rgba(244,114,182,0) 80%)",
-                                          }}
-                                        />
-                                      </div>
-                                    ) : null}
-                                  <Link
-                                    href={sub.href}
-                                    onClick={() => setSidebarOpen(false)}
-                                    className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
-                                    style={{
-                                      background: subActive
-                                        ? "linear-gradient(90deg, rgba(244,114,182,0.14), rgba(168,85,247,0.04))"
-                                        : "transparent",
-                                      border: subActive
-                                        ? "1px solid rgba(244,114,182,0.28)"
-                                        : "1px solid transparent",
-                                      transitionDelay: isActive ? `${si * 60}ms` : "0ms",
-                                      transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                      opacity: isActive ? 1 : 0,
-                                      transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
-                                    }}
-                                  >
-                                    <span
-                                      className="absolute -left-4 top-1/2 w-2 h-[1px]"
-                                      style={{
-                                        background: subActive
-                                          ? "#f472b6"
-                                          : "rgba(244,114,182,0.35)",
-                                        transform: "translateY(-0.5px)",
-                                      }}
-                                    />
-                                    <span
-                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                      style={{
-                                        background: subActive
-                                          ? "linear-gradient(135deg, #ff0080, #a855f7 50%, #00d4ff)"
-                                          : "rgba(244,114,182,0.4)",
-                                        boxShadow: subActive
-                                          ? "0 0 8px rgba(244,114,182,0.6)"
-                                          : "none",
-                                      }}
-                                    />
-                                    <div
-                                      className="text-[11px] font-semibold transition-colors"
-                                      style={{
-                                        color: subActive
-                                          ? "#fbcfe8"
-                                          : "rgba(251,207,232,0.7)",
-                                      }}
-                                    >
-                                      {sub.label}
-                                    </div>
-                                  </Link>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Bondly sub-items (emerald → cyan → indigo gradient) */}
-                      {isBondly && item.children && item.children.length > 0 && (
-                        <div
-                          className="overflow-hidden"
-                          style={{
-                            display: "grid",
-                            gridTemplateRows: isActive ? "1fr" : "0fr",
-                            opacity: isActive ? 1 : 0,
-                            marginTop: isActive ? "4px" : "0px",
-                            transition:
-                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
-                          }}
-                        >
-                          <div className="min-h-0">
-                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
-                              {/* Emerald/cyan connector line */}
-                              <div
-                                className="absolute left-0 top-2 bottom-2 w-[1px]"
-                                style={{
-                                  background:
-                                    "linear-gradient(180deg, rgba(16,185,129,0.55), rgba(6,182,212,0.25) 50%, rgba(99,102,241,0.12))",
-                                }}
-                              />
-                              {item.children.map((sub, si) => {
-                                const children = item.children!;
-                                const matchingHrefs = children
-                                  .filter(
-                                    (c) =>
-                                      pathname === c.href ||
-                                      (c.href !== "/bondly/overview" &&
-                                        pathname.startsWith(c.href + "/")),
-                                  )
-                                  .map((c) => c.href);
-                                const bestMatch = matchingHrefs.reduce(
-                                  (best, h) => (h.length > best.length ? h : best),
-                                  "",
-                                );
-                                const subActive = sub.href === bestMatch;
-                                const prevGroup = si > 0 ? item.children![si - 1].group : undefined;
-                                const showGroupHeader = sub.group && sub.group !== prevGroup;
-                                return (
-                                  <div key={sub.href}>
-                                    {showGroupHeader ? (
-                                      <div
-                                        className="relative flex items-center gap-2 px-2.5 pt-3 pb-1 select-none"
-                                        style={{
-                                          transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                          opacity: isActive ? 1 : 0,
-                                          transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms`,
-                                        }}
-                                      >
-                                        <span
-                                          className="text-[9px] font-semibold tracking-[0.18em] uppercase"
-                                          style={{ color: "rgba(167,243,208,0.42)" }}
-                                        >
-                                          {sub.group}
-                                        </span>
-                                        <span
-                                          className="flex-1 h-[1px]"
-                                          style={{
-                                            background:
-                                              "linear-gradient(90deg, rgba(16,185,129,0.22), rgba(16,185,129,0) 80%)",
-                                          }}
-                                        />
-                                      </div>
-                                    ) : null}
-                                    <Link
-                                      href={sub.href}
-                                      onClick={() => setSidebarOpen(false)}
-                                      className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
-                                      style={{
-                                        background: subActive
-                                          ? "linear-gradient(90deg, rgba(16,185,129,0.14), rgba(6,182,212,0.04))"
-                                          : "transparent",
-                                        border: subActive
-                                          ? "1px solid rgba(16,185,129,0.28)"
-                                          : "1px solid transparent",
-                                        transitionDelay: isActive ? `${si * 60}ms` : "0ms",
-                                        transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                        opacity: isActive ? 1 : 0,
-                                        transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
-                                      }}
-                                    >
-                                      <span
-                                        className="absolute -left-4 top-1/2 w-2 h-[1px]"
-                                        style={{
-                                          background: subActive
-                                            ? "#10b981"
-                                            : "rgba(16,185,129,0.35)",
-                                          transform: "translateY(-0.5px)",
-                                        }}
-                                      />
-                                      <span
-                                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                        style={{
-                                          background: subActive
-                                            ? "linear-gradient(135deg, #10b981, #06b6d4 50%, #6366f1)"
-                                            : "rgba(16,185,129,0.4)",
-                                          boxShadow: subActive
-                                            ? "0 0 8px rgba(16,185,129,0.6)"
-                                            : "none",
-                                        }}
-                                      />
-                                      <div
-                                        className="text-[11px] font-semibold transition-colors"
-                                        style={{
-                                          color: subActive
-                                            ? "#d1fae5"
-                                            : "rgba(209,250,229,0.7)",
-                                        }}
-                                      >
-                                        {sub.label}
-                                      </div>
-                                    </Link>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    </NavItemGate>
-                  );
-                }
-
-                // ═══ Regular nav items ═══
-                return (
-                  <NavItemGate
-                    key={item.href}
-                    href={item.href}
-                    childHrefs={item.children?.map((c) => c.href)}
-                  >
-                  <div>
-                    <Link
-                      href={item.href}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ease-nitro ${
-                        isActive
-                          ? "bg-white/5 text-white"
-                          : "text-nitro-text2 hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      {/* Active indicator */}
-                      {isActive && (
-                        <span
-                          className="absolute left-0 w-[3px] h-5 rounded-r-full"
-                          style={{ background: "var(--nitro-gradient)" }}
-                        />
-                      )}
-                      {item.label === "NitroPixel" ? <PixelBrainSidebar size={28} /> : <svg
-                        className={`w-5 h-5 flex-shrink-0 transition-colors duration-300 ${
-                          isActive ? "text-nitro-orange" : "text-nitro-muted group-hover:text-nitro-text2"
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                      </svg>}
-                      {item.label}
-                      {item.href === "/alertas" && <AlertsBadge />}
-                      {hasChildren && (
-                        <svg
-                          className="w-3.5 h-3.5 ml-auto text-nitro-muted transition-transform duration-400 ease-nitro"
-                          style={{
-                            transform: isActive ? "rotate(180deg)" : "rotate(0deg)",
-                            transition: "transform 400ms cubic-bezier(0.16, 1, 0.3, 1)",
-                          }}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                      )}
-                      {item.href === "/chat" && (
-                        <span className="ml-auto flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-nitro-green animate-pulse-live" />
-                          <span className="text-[10px] text-nitro-muted font-mono uppercase tracking-widest">
-                            AI
-                          </span>
-                        </span>
-                      )}
-                    </Link>
-                    {/* Sub-items with smooth expand/collapse */}
-                    {hasChildren && (
-                      <div
-                        className="sidebar-dropdown ml-8 space-y-0.5 overflow-hidden transition-all duration-400 ease-nitro"
-                        style={{
-                          display: "grid",
-                          gridTemplateRows: isActive ? "1fr" : "0fr",
-                          opacity: isActive ? 1 : 0,
-                          marginTop: isActive ? "4px" : "0px",
-                          transition: "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
-                        }}
-                      >
-                        <div className="min-h-0 space-y-0.5">
-                          {item.children!.map((child, ci) => {
-                            const childActive = pathname === child.href;
+                            {parentActive && <span className="absolute left-1 top-2 bottom-2 w-0.5 rounded-full bg-accent" aria-hidden="true" />}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 ${parentActive ? "text-ink" : "text-ink-40 group-hover:text-ink-60"}`}>
+                              <path d={item.icon} />
+                            </svg>
+                            <span className="truncate">{item.label}</span>
+                            {item.href === "/alertas" && <AlertsBadge />}
+                          </Link>
+                          {kids.map((child) => {
+                            const active = bestChild ? child.href === bestChild.href : false;
                             return (
                               <Link
                                 key={child.href}
                                 href={child.href}
                                 onClick={() => setSidebarOpen(false)}
-                                className={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ease-nitro ${
-                                  childActive
-                                    ? "text-nitro-orange bg-white/5"
-                                    : "text-nitro-muted hover:text-nitro-text2 hover:bg-white/5"
+                                aria-current={active ? "page" : undefined}
+                                className={`relative flex items-center pl-6 pr-2.5 h-[30px] rounded-lg text-[12.5px] tracking-[-.01em] transition-colors duration-150 ease-ent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-surface ${
+                                  active ? "bg-white text-ink font-medium shadow-ent-xs" : "text-ink-60 hover:bg-white/70 hover:text-ink"
                                 }`}
-                                style={{
-                                  transitionDelay: isActive ? `${ci * 50}ms` : "0ms",
-                                  transform: isActive ? "translateX(0)" : "translateX(-8px)",
-                                  opacity: isActive ? 1 : 0,
-                                  transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? ci * 50 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? ci * 50 : 0}ms, color 200ms, background-color 200ms`,
-                                }}
                               >
-                                {child.label}
+                                {active && <span className="absolute left-2 top-2 bottom-2 w-0.5 rounded-full bg-accent" aria-hidden="true" />}
+                                <span className="truncate">{child.label}</span>
                               </Link>
                             );
                           })}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                  </NavItemGate>
-                );
-              })}
-            </div>
-            </NavGroupGate>
+                      </NavItemGate>
+                    );
+                  })}
+                </div>
+              </NavGroupGate>
             );
           })}
         </nav>
 
         {/* User section */}
-        <div className="px-4 py-4 border-t border-nitro-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-nitro-bg"
-              style={{ background: "var(--nitro-gradient)" }}
-            >
+        <div className="border-t border-hairline px-3 py-3 shrink-0">
+          <div className="flex items-center gap-2.5 mb-2 px-1">
+            <div className="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center text-[12px] font-semibold shrink-0">
               {(session.user.name || session.user.email || "U")[0].toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-nitro-text2 truncate">{session.user.email}</p>
-            </div>
+            <p className="text-[12px] text-ink-60 truncate min-w-0">{session.user.email}</p>
           </div>
           <button
             onClick={() => signOut()}
-            className="w-full text-xs text-nitro-muted hover:text-nitro-orange py-1.5 px-2 rounded-lg hover:bg-white/5 transition-all duration-300 ease-nitro text-left"
+            className="w-full text-left text-[12px] text-ink-40 hover:text-ink hover:bg-surface-2 py-1.5 px-2 rounded-lg transition-colors duration-150 ease-ent"
           >
-            Cerrar sesion
+            Cerrar sesión
           </button>
         </div>
       </aside>
@@ -1360,31 +583,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top bar */}
-        <header className="glass border-b border-nitro-border px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-14 shrink-0 bg-canvas/85 backdrop-blur-sm border-b border-hairline px-4 lg:px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              className="lg:hidden p-1.5 rounded-lg text-ink-60 hover:bg-surface transition-colors"
             >
-              <svg
-                className="w-5 h-5 text-nitro-text2"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <span className="text-sm font-medium text-nitro-text2">{(session.user as any).organizationName || "Tu negocio"}</span>
-            <span className="flex items-center gap-1.5 ml-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-nitro-green animate-pulse-live" />
-              <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
-                Live
-              </span>
-            </span>
+            <span className="text-[13px] font-medium text-ink">{(session.user as any).organizationName || "Tu negocio"}</span>
           </div>
-
+          <LivePulse status="LIVE" />
         </header>
 
         {/* Page content — Aurum + NitroPixel routes get full-bleed dark canvas, others get padded light bg */}
@@ -1413,7 +624,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? "flex-1 p-0 overflow-y-auto bg-[#05070d]"
                   : isAlertas
                   ? "flex-1 p-0 overflow-hidden bg-[#fafafa]"
-                  : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
+                  : "flex-1 p-4 lg:p-6 bg-canvas overflow-y-auto"
               }
             >
               <ImpersonateBanner />
