@@ -21,15 +21,16 @@ module.exports = {
           muted:   "#555555",
           hover:   "#1a1a1a",
         },
-        // ── Design system "enterprise" (inspo AppStack, feedback Tomy) ──
-        // Warm-neutral ("como Claude"), casi monocromo + 1 acento verde apagado
-        // usado <2% (solo status). Ver design-appstack-enterprise.local.md.
-        ink:      { DEFAULT: "#1C1B18", 60: "#6B685F", 40: "#9A978D" },
-        canvas:   "#FBFAF7",
-        surface:  { DEFAULT: "#F5F3EE", 2: "#EDEAE3" },
-        hairline: { DEFAULT: "#E5E1D8", 2: "#DCD8CD" },
-        accent:   { DEFAULT: "#2F9153", soft: "#EAF2EC" },
-        live:     { amber: "#C98A1A" },
+        // ── Design system "enterprise" — referencian el ÚNICO source of truth
+        // (variables --ent-* en globals.css). Cambiar el tema = editar SÓLO ese
+        // bloque. rgb(var()/<alpha-value>) → soporta opacidad (bg-ink/60, etc.).
+        ink:      { DEFAULT: "rgb(var(--ent-ink) / <alpha-value>)", 60: "rgb(var(--ent-ink-60) / <alpha-value>)", 40: "rgb(var(--ent-ink-40) / <alpha-value>)" },
+        canvas:   "rgb(var(--ent-bg) / <alpha-value>)",
+        elevated: "rgb(var(--ent-elevated) / <alpha-value>)",
+        surface:  { DEFAULT: "rgb(var(--ent-surface) / <alpha-value>)", 2: "rgb(var(--ent-surface-2) / <alpha-value>)" },
+        hairline: { DEFAULT: "rgb(var(--ent-hairline) / <alpha-value>)", 2: "rgb(var(--ent-hairline-2) / <alpha-value>)" },
+        accent:   { DEFAULT: "rgb(var(--ent-accent) / <alpha-value>)", soft: "rgb(var(--ent-accent) / 0.10)" },
+        live:     { amber: "rgb(var(--ent-amber) / <alpha-value>)" },
       },
       fontFamily: {
         sans:      ['DM Sans', 'system-ui', 'sans-serif'],

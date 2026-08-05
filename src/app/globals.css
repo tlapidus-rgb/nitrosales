@@ -20,6 +20,26 @@
   --nitro-text2:    #A0A0A0;
   --nitro-muted:    #777777;
   --nitro-gradient: linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 50%, #FFB800 100%);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     DESIGN SYSTEM "ENTERPRISE" — ÚNICO SOURCE OF TRUTH DE COLORES
+     ══════════════════════════════════════════════════════════════════════
+     Toda la app nueva referencia estos tokens (vía Tailwind: bg-canvas,
+     text-ink, border-hairline, text-accent…). Cambiar el tema mañana =
+     editar SOLO este bloque. Formato canal RGB (espacios) para que Tailwind
+     pueda aplicar opacidad (bg-ink/60, etc.). Ver design-appstack-enterprise.
+     Valores actuales: warm-neutral ("como Claude") + acento verde apagado.  */
+  --ent-bg:         251 250 247; /* #FBFAF7 canvas (hueso cálido) */
+  --ent-surface:    245 243 238; /* #F5F3EE  */
+  --ent-surface-2:  237 234 227; /* #EDEAE3  */
+  --ent-elevated:   255 255 255; /* cards blancas */
+  --ent-ink:         28  27  24; /* #1C1B18 near-black cálido */
+  --ent-ink-60:     107 104  95; /* #6B685F secundario */
+  --ent-ink-40:     154 151 141; /* #9A978D terciario */
+  --ent-hairline:   229 225 216; /* #E5E1D8 bordes 1px */
+  --ent-hairline-2: 220 216 205; /* #DCD8CD */
+  --ent-accent:      47 145  83; /* #2F9153 verde apagado, SOLO status */
+  --ent-amber:      201 138  26; /* #C98A1A estado "activo" */
   --ease-nitro:     cubic-bezier(0.16, 1, 0.3, 1);
 }
 
