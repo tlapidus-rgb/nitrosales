@@ -566,7 +566,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* User section */}
         <div className="border-t border-hairline px-3 py-3 shrink-0">
           <div className="flex items-center gap-2.5 mb-2 px-1">
-            <div className="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center text-[12px] font-semibold shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-surface-2 text-ink border border-hairline grid place-items-center text-[12px] font-semibold shrink-0">
               {(session.user.name || session.user.email || "U")[0].toUpperCase()}
             </div>
             <p className="text-[12px] text-ink-60 truncate min-w-0">{session.user.email}</p>
