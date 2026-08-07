@@ -1042,7 +1042,7 @@ export default function AnalyticsPage() {
           const totalAssist = Object.values(channelRoles).reduce((s, r) => s + r.assist, 0) || 1;
           const totalLast = Object.values(channelRoles).reduce((s, r) => s + r.last, 0) || 1;
 
-          type RoleColumn = { key: string; title: string; subtitle: string; color: string; gradient: string; borderColor: string; getVal: (r: { first: number; assist: number; last: number }) => number; total: number };
+          type RoleColumn = { key: string; title: string; subtitle: string; color: string; getVal: (r: { first: number; assist: number; last: number }) => number; total: number };
           const columns: RoleColumn[] = [
             { key: "first", title: "Descubrimiento", subtitle: "Primer toque", color: "#06b6d4", getVal: (r) => r.first, total: totalFirst },
             { key: "assist", title: "Asistencia", subtitle: "Toques intermedios", color: "#8b5cf6", getVal: (r) => r.assist, total: totalAssist },
