@@ -423,13 +423,10 @@ function SectionNav() {
                   : "text-gray-500 hover:text-gray-800 hover:bg-gray-100/60"
               }`}
               style={isActive ? {
-                background: "linear-gradient(135deg, #f97316, #fb923c)",
-                boxShadow: "0 2px 8px rgba(249,115,22,0.3)",
+                background: "#1C1B18",
+                boxShadow: "0 1px 2px rgba(28,27,24,0.12)",
               } : undefined}
             >
-              {isActive && (
-                <span className="absolute top-0.5 right-1 w-1 h-1 rounded-full bg-white/80 animate-pulse" />
-              )}
               {sec.label}
             </button>
           );
@@ -564,7 +561,7 @@ export default function AnalyticsPage() {
   // ── Loading state ──
   if (loading && !pixelData) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] p-6">
+      <div className="min-h-screen bg-canvas p-6">
         <div className="max-w-[1440px] mx-auto space-y-6">
           {/* Skeleton header */}
           <div className="h-10 bg-gray-100 rounded-xl w-72 animate-pulse" />
@@ -592,7 +589,7 @@ export default function AnalyticsPage() {
   // ── Error state ──
   if (error && !pixelData) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className={`${cardStyle} p-8 max-w-md text-center`} style={cardShadow}>
           <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -668,7 +665,7 @@ export default function AnalyticsPage() {
   const totalJourneys = Object.values(channelRoles).reduce((s, r) => s + r.first, 0) || 1;
 
   return (
-    <div className={`min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] ${isRefetching ? "pixel-refetching" : ""}`}>
+    <div className={`min-h-screen bg-canvas ${isRefetching ? "pixel-refetching" : ""}`}>
       <style>{`
         .pixel-refetching { position: relative; }
         .pixel-refetching::after {
@@ -691,7 +688,7 @@ export default function AnalyticsPage() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <div className="w-9 h-9 rounded-xl bg-ink flex items-center justify-center shadow-ent-xs">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
@@ -755,7 +752,6 @@ export default function AnalyticsPage() {
               change: bk?.changes?.pixelRevenue || 0,
               tooltip: "Suma de la facturación de las órdenes web que el pixel logró atribuir a un canal. NO es la facturación total — son solo las ventas que el pixel pudo trackear hasta el origen.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>),
-              gradient: "from-cyan-500 to-blue-600",
             },
             {
               label: "ROAS Real", value: `${roasCountUp.toFixed(1)}x`,
@@ -763,7 +759,6 @@ export default function AnalyticsPage() {
               change: bk?.changes?.pixelRoas || 0,
               tooltip: "Retorno de la inversión publicitaria SEGÚN EL PIXEL (no según las plataformas). Por cada $1 gastado en ads, cuántos $ atribuidos volvieron como venta. Más realista que el ROAS que reportan Meta o Google.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>),
-              gradient: "from-violet-500 to-purple-600",
             },
             {
               label: "Ordenes Atribuidas", value: fmt(Math.round(ordersCountUp)),
@@ -771,7 +766,6 @@ export default function AnalyticsPage() {
               change: bk?.changes?.ordersAttributed || 0,
               tooltip: "Cantidad de órdenes web (del módulo Pedidos) que el pixel pudo seguir hasta saber de qué canal vinieron. Coincide con la etapa 'Compra' del funnel cuando el filtro de canal está en 'Todos'. Ticket promedio = revenue atribuido dividido entre estas órdenes.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>),
-              gradient: "from-emerald-500 to-teal-600",
             },
             {
               label: "Tasa de Atribución", value: `${attrRateCountUp.toFixed(0)}%`,
@@ -779,7 +773,6 @@ export default function AnalyticsPage() {
               change: 0,
               tooltip: "Qué porcentaje de las órdenes web del período el pixel logró atribuir. 100% = todas trackeadas. Menos = hay clientes que compraron sin que el pixel los siguiera (ej: bloqueadores, móviles sin cookies).",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>),
-              gradient: "from-orange-500 to-amber-600",
             },
           ].map((kpi, i) => (
             <div
@@ -792,7 +785,7 @@ export default function AnalyticsPage() {
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</span>
                   <InfoTip text={kpi.tooltip} />
                 </div>
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${kpi.gradient} flex items-center justify-center text-white opacity-80 group-hover:opacity-100 transition-opacity`}>
+                <div className="w-8 h-8 rounded-lg bg-surface-2 border border-hairline flex items-center justify-center text-ink-60 group-hover:text-ink transition-colors">
                   {kpi.icon}
                 </div>
               </div>
@@ -1051,9 +1044,9 @@ export default function AnalyticsPage() {
 
           type RoleColumn = { key: string; title: string; subtitle: string; color: string; gradient: string; borderColor: string; getVal: (r: { first: number; assist: number; last: number }) => number; total: number };
           const columns: RoleColumn[] = [
-            { key: "first", title: "Descubrimiento", subtitle: "Primer toque", color: "#06b6d4", gradient: "from-cyan-50 to-cyan-100/50", borderColor: "border-cyan-200", getVal: (r) => r.first, total: totalFirst },
-            { key: "assist", title: "Asistencia", subtitle: "Toques intermedios", color: "#8b5cf6", gradient: "from-violet-50 to-violet-100/50", borderColor: "border-violet-200", getVal: (r) => r.assist, total: totalAssist },
-            { key: "last", title: "Cierre", subtitle: "Último toque", color: "#f97316", gradient: "from-orange-50 to-orange-100/50", borderColor: "border-orange-200", getVal: (r) => r.last, total: totalLast },
+            { key: "first", title: "Descubrimiento", subtitle: "Primer toque", color: "#06b6d4", getVal: (r) => r.first, total: totalFirst },
+            { key: "assist", title: "Asistencia", subtitle: "Toques intermedios", color: "#8b5cf6", getVal: (r) => r.assist, total: totalAssist },
+            { key: "last", title: "Cierre", subtitle: "Último toque", color: "#f97316", getVal: (r) => r.last, total: totalLast },
           ];
 
           return (
@@ -1155,12 +1148,13 @@ export default function AnalyticsPage() {
             {(() => {
               const f = funnelOverride || funnel;
               if (!f) return null;
+              // Secuencial monocromo: se oscurece hacia la conversión; Compra = accent (el objetivo)
               const steps = [
-                { label: "Visitas", value: f.pageView, color: "#06b6d4", gradient: "from-cyan-400 to-cyan-600" },
-                { label: "Vio Producto", value: f.viewProduct, color: "#8b5cf6", gradient: "from-violet-400 to-violet-600" },
-                { label: "Carrito", value: f.addToCart, color: "#f97316", gradient: "from-orange-400 to-orange-600" },
-                { label: "Checkout", value: f.checkoutStart, color: "#eab308", gradient: "from-yellow-400 to-yellow-600" },
-                { label: "Compra", value: f.purchase, color: "#22c55e", gradient: "from-emerald-400 to-emerald-600" },
+                { label: "Visitas", value: f.pageView, color: "#57544C" },
+                { label: "Vio Producto", value: f.viewProduct, color: "#47443D" },
+                { label: "Carrito", value: f.addToCart, color: "#38362F" },
+                { label: "Checkout", value: f.checkoutStart, color: "#2A2925" },
+                { label: "Compra", value: f.purchase, color: "#2F9153" },
               ];
               const firstVal = steps[0].value || 1;
 
@@ -1202,8 +1196,8 @@ export default function AnalyticsPage() {
                               height: 52,
                             }}
                           >
-                            {/* Gradient background */}
-                            <div className={`absolute inset-0 bg-gradient-to-r ${step.gradient} opacity-90 group-hover/step:opacity-100 transition-opacity`} />
+                            {/* Solid sober background */}
+                            <div className="absolute inset-0 opacity-95 group-hover/step:opacity-100 transition-opacity" style={{ background: step.color }} />
 
                             {/* Content overlay */}
                             <div className="relative h-full flex items-center justify-between px-4">
