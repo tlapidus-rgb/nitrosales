@@ -534,7 +534,7 @@ export default function PixelPage() {
   const maxChannelRevenue = Math.max(...channels.map(c => Math.max(c.pixelRevenue, c.platformRevenue)), 1);
 
   return (
-    <div className={`min-h-screen relative ${isRefetching ? "attr-refetching" : ""}`} style={{ background: "#FBFAF7", color: "#e2e8f0" }}>
+    <div className={`min-h-screen relative ${isRefetching ? "attr-refetching" : ""}`} style={{ background: "#FBFAF7", color: "#1C1B18" }}>
       <DarkStyles />
 
       {/* ── Refetching overlay ── */}
@@ -553,13 +553,13 @@ export default function PixelPage() {
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
         <div className="absolute inset-0 attr-grid-bg opacity-[0.03]" />
         <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(229,225,216,0.08) 0%, transparent 70%)", filter: "blur(80px)" }} />
-        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", filter: "blur(80px)" }} />
+        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(229,225,216,0.05) 0%, transparent 70%)", filter: "blur(80px)" }} />
       </div>
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* BLOQUE 0 — STICKY HEADER                                 */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40" style={{ background: "rgba(5,6,10,0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)", borderBottom: "1px solid rgba(229,225,216,0.08)" }}>
+      <div className="sticky top-0 z-40" style={{ background: "rgba(251,250,247,0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)", borderBottom: "1px solid rgb(var(--ent-hairline))" }}>
         <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           {/* Left — Logo + Title */}
           <div className="flex items-center gap-3">
@@ -822,31 +822,31 @@ export default function PixelPage() {
               {
                 label: "Revenue Atribuido",
                 value: fmtCompact(bk.pixelRevenue),
-                change: bk.changes?.pixelRevenue,
+                change: bk.changes?.pixelRevenue,
                 tip: `Suma del valor de las órdenes atribuidas por NitroPixel en el período, según el modelo ${MODEL_LABELS[selectedModel]}. Excluye marketplace (FVG/BPR/MELI). Cambia si cambiás el modelo en /pixel/configuracion.`,
               },
               {
                 label: "ROAS Blended",
                 value: `${bk.pixelRoas.toFixed(1)}x`,
-                change: bk.changes?.pixelRoas,
+                change: bk.changes?.pixelRoas,
                 tip: "Revenue Atribuido ÷ Inversión Total (Meta + Google + manual). Es 'blended' porque combina todas las plataformas en un solo número. Mayor que el ROAS reportado por las plataformas suele indicar inflado de ellas.",
               },
               {
                 label: "Órdenes Atribuidas",
                 value: fmt(bk.ordersAttributed),
-                change: bk.changes?.ordersAttributed,
+                change: bk.changes?.ordersAttributed,
                 tip: "Cantidad de órdenes a las que NitroPixel asoció al menos un touchpoint. No es el total de órdenes — solo las que el cliente pasó por el pixel antes de comprar.",
               },
               {
                 label: "Tasa de Atribución",
                 value: `${bk.attributionRate}%`,
-                change: null,
+                change: null,
                 tip: "Órdenes atribuidas ÷ órdenes totales del período. Si está baja: el snippet del pixel no está en todas las páginas, los visitantes llegan directo al checkout sin pasar por el sitio, o el dominio del pixel no matchea el del checkout. Benchmark sano: >40%.",
               },
               {
                 label: "Inversión Total",
                 value: fmtCompact(bk.totalAdSpend),
-                change: null,
+                change: null,
                 tip: "Suma de spend de Meta Ads + Google Ads + spend manual cargado en /pixel/analytics (TV, radio, OOH, etc). Es lo que está en juego: el ROAS Blended divide Revenue Atribuido por este número.",
               },
             ].map((kpi, i) => (
