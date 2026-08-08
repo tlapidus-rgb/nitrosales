@@ -52,20 +52,20 @@ function PlatformBadge({ platform }: { platform: string }) {
   };
   const labels: Record<string, string> = { GOOGLE: "Google", META: "Meta", TIKTOK: "TikTok" };
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors[platform] || "bg-gray-100 text-gray-700"}`}>
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors[platform] || "bg-surface-2 text-ink-60"}`}>
       {labels[platform] || platform}
     </span>
   );
 }
 
 function RoasBadge({ value, breakeven }: { value: number; breakeven?: number | null }) {
-  let color = "text-gray-600 bg-gray-50";
+  let color = "text-ink-60 bg-surface";
   if (breakeven && breakeven > 0) {
-    if (value >= breakeven * 1.5) color = "text-green-600 bg-green-50";
-    else if (value >= breakeven) color = "text-amber-600 bg-amber-50";
-    else if (value > 0) color = "text-red-600 bg-red-50";
+    if (value >= breakeven * 1.5) color = "text-emerald-700 bg-emerald-50";
+    else if (value >= breakeven) color = "text-amber-700 bg-amber-50";
+    else if (value > 0) color = "text-red-700 bg-red-50";
   } else {
-    color = value >= 3 ? "text-green-600 bg-green-50" : value >= 1.5 ? "text-amber-600 bg-amber-50" : value > 0 ? "text-red-600 bg-red-50" : "text-gray-600 bg-gray-50";
+    color = value >= 3 ? "text-emerald-700 bg-emerald-50" : value >= 1.5 ? "text-amber-700 bg-amber-50" : value > 0 ? "text-red-700 bg-red-50" : "text-ink-60 bg-surface";
   }
   return <span className={`px-2 py-1 rounded-md text-xs font-bold ${color}`}>{value}x</span>;
 }
@@ -116,14 +116,14 @@ function BreakevenBanner({
     }
   }
 
-  // Paleta por estado — premium, contraste alto
+  // Paleta por estado — sobria, solo status (verde/ámbar/rojo semánticos)
   const palette = {
-    stellar:   { accent: "#059669", from: "from-emerald-100/70", via: "via-teal-50/40",     to: "to-white",          ring: "ring-emerald-200/80",  chipBg: "bg-emerald-600 text-white",     icon: "bg-emerald-100 text-emerald-700", glow: "from-emerald-300/30",  bar: ["#10b981","#059669","#047857"] },
-    excellent: { accent: "#10b981", from: "from-emerald-50",     via: "via-emerald-50/40",  to: "to-white",          ring: "ring-emerald-200",     chipBg: "bg-emerald-500 text-white",     icon: "bg-emerald-100 text-emerald-700", glow: "from-emerald-300/25",  bar: ["#34d399","#10b981","#059669"] },
-    healthy:   { accent: "#10b981", from: "from-emerald-50/70",  via: "via-white",          to: "to-emerald-50/40",  ring: "ring-emerald-200",     chipBg: "bg-emerald-500 text-white",     icon: "bg-emerald-100 text-emerald-700", glow: "from-emerald-200/20",  bar: ["#34d399","#10b981"] },
-    edge:      { accent: "#f59e0b", from: "from-amber-50",       via: "via-yellow-50/30",   to: "to-white",          ring: "ring-amber-200",       chipBg: "bg-amber-500 text-white",       icon: "bg-amber-100 text-amber-700",     glow: "from-amber-200/30",    bar: ["#fbbf24","#f59e0b"] },
-    loss:      { accent: "#ef4444", from: "from-rose-50",        via: "via-red-50/30",      to: "to-white",          ring: "ring-rose-200",        chipBg: "bg-rose-600 text-white",        icon: "bg-rose-100 text-rose-700",       glow: "from-rose-300/25",     bar: ["#f87171","#ef4444"] },
-    none:      { accent: "#64748b", from: "from-slate-50",       via: "via-white",          to: "to-slate-50",       ring: "ring-slate-200",       chipBg: "bg-slate-200 text-slate-700",   icon: "bg-slate-100 text-slate-600",     glow: "from-slate-200/30",    bar: ["#cbd5e1","#94a3b8"] },
+    stellar:   { accent: "#2F9153", ring: "border-hairline",  chipBg: "bg-[#2F9153] text-white", icon: "bg-accent-soft text-accent",  bar: ["#2F9153","#237741"] },
+    excellent: { accent: "#2F9153", ring: "border-hairline",  chipBg: "bg-[#2F9153] text-white", icon: "bg-accent-soft text-accent",  bar: ["#2F9153","#237741"] },
+    healthy:   { accent: "#2F9153", ring: "border-hairline",  chipBg: "bg-[#2F9153] text-white", icon: "bg-accent-soft text-accent",  bar: ["#2F9153"] },
+    edge:      { accent: "#b45309", ring: "border-hairline",  chipBg: "bg-amber-600 text-white", icon: "bg-amber-50 text-amber-700",  bar: ["#f59e0b"] },
+    loss:      { accent: "#b91c1c", ring: "border-hairline",  chipBg: "bg-red-700 text-white",   icon: "bg-red-50 text-red-700",      bar: ["#dc2626"] },
+    none:      { accent: "#6B685F", ring: "border-hairline",  chipBg: "bg-surface-2 text-ink-60", icon: "bg-surface-2 text-ink-60",   bar: ["#9A978D"] },
   } as const;
   const p = palette[status];
 
@@ -160,59 +160,48 @@ function BreakevenBanner({
   const beMarkerPct = 20; // BE siempre cae al final del primer tramo (Pérdida)
 
   return (
-    <div className={`relative rounded-3xl overflow-hidden shadow-sm ring-1 ${p.ring} ns-fade-up`}>
-      {/* Background premium: gradient sutil + 2 blobs de color */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${p.from} ${p.via} ${p.to}`} />
-      <div className={`pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-br ${p.glow} to-transparent blur-3xl`} />
-      <div className={`pointer-events-none absolute -bottom-24 -right-32 w-96 h-96 rounded-full bg-gradient-to-br ${p.glow} to-transparent blur-3xl opacity-60`} />
-
-      <div className="relative p-6 md:p-7">
+    <div className={`relative rounded-3xl overflow-hidden bg-elevated border ${p.ring} shadow-ent-xs`}>
+      <div className="p-6 md:p-7">
         {/* TOP ROW: Headline + Metrics mini-cards */}
         <div className="flex items-start justify-between gap-6 flex-wrap">
           {/* LEFT: status + headline */}
           <div className="flex items-start gap-3.5 min-w-0 flex-1">
-            <div className={`p-2.5 rounded-2xl ${p.icon} ring-1 ring-white/60 shadow-sm`}>
+            <div className={`p-2.5 rounded-2xl ${p.icon}`}>
               <Icon size={22} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-1 rounded-full shadow-sm ${p.chipBg}`}>
-                  {status === "stellar" && <Sparkles size={10} className="text-amber-300" />}
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-1 rounded-full ${p.chipBg}`}>
+                  {status === "stellar" && <Sparkles size={10} />}
                   {statusLabel}
                 </span>
-                <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Salud publicitaria</span>
-                {status !== "none" && status !== "loss" && (
-                  <span className="relative flex w-1.5 h-1.5 ml-0.5">
-                    <span className="absolute inset-0 rounded-full opacity-75 ns-pulse-halo" style={{ background: p.accent }} />
-                    <span className="relative rounded-full w-1.5 h-1.5" style={{ background: p.accent }} />
-                  </span>
-                )}
+                <span className="text-[11px] text-ink-60 uppercase tracking-wider font-semibold">Salud publicitaria</span>
               </div>
 
               {/* HERO: multiplicador como protagonista */}
               {hasData ? (
                 <div className="mt-2.5">
                   <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-[40px] md:text-[44px] font-bold text-slate-900 tabular-nums leading-none tracking-tight">
-                      {multiple.toFixed(1)}<span className="text-[26px] text-slate-400 font-semibold">×</span>
+                    <span className="text-[40px] md:text-[44px] font-bold text-ink tabular-nums leading-none tracking-tight">
+                      {multiple.toFixed(1)}<span className="text-[26px] text-ink-40 font-semibold">×</span>
                     </span>
-                    <span className="text-[14px] text-slate-600">sobre el break-even</span>
+                    <span className="text-[14px] text-ink-60">sobre el break-even</span>
                   </div>
-                  <p className="text-[12.5px] text-slate-600 mt-1.5 max-w-xl leading-relaxed">{statusSub}</p>
-                  <div className="mt-2 inline-flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/70 ring-1 ring-slate-200/80 backdrop-blur tabular-nums">
-                      <span className="font-semibold text-slate-700">Blended ROAS</span> {blendedRoas.toFixed(2)}x
+                  <p className="text-[12.5px] text-ink-60 mt-1.5 max-w-xl leading-relaxed">{statusSub}</p>
+                  <div className="mt-2 inline-flex items-center gap-2 text-[11px] text-ink-60">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-surface border border-hairline tabular-nums">
+                      <span className="font-semibold text-ink">Blended ROAS</span> {blendedRoas.toFixed(2)}x
                     </span>
-                    <span className="text-slate-300">·</span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/70 ring-1 ring-slate-200/80 backdrop-blur tabular-nums">
-                      <span className="font-semibold text-slate-700">Break-even</span> {breakevenRoas.toFixed(2)}x
+                    <span className="text-ink-40">·</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-surface border border-hairline tabular-nums">
+                      <span className="font-semibold text-ink">Break-even</span> {breakevenRoas.toFixed(2)}x
                     </span>
                   </div>
                 </div>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold text-slate-900 mt-1">Break-even ROAS</h2>
-                  <p className="text-sm text-slate-600 mt-0.5">{statusSub}</p>
+                  <h2 className="text-xl font-bold text-ink mt-1">Break-even ROAS</h2>
+                  <p className="text-sm text-ink-60 mt-0.5">{statusSub}</p>
                 </>
               )}
             </div>
@@ -242,17 +231,17 @@ function BreakevenBanner({
           </div>
         </div>
 
-        {/* ZONE GAUGE: 5 tramos nombrados con marker glowing */}
+        {/* ZONE GAUGE: 5 tramos nombrados */}
         <div className="mt-7">
           <div className="flex items-end justify-between mb-1.5 px-0.5">
-            <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-slate-500">Zona de salud</span>
-            <span className="text-[10px] text-slate-400 tabular-nums">
+            <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-ink-60">Zona de salud</span>
+            <span className="text-[10px] text-ink-40 tabular-nums">
               {hasData ? `Tu ROAS ${blendedRoas.toFixed(2)}x está en zona ` : ""}
               {hasData && <span className="font-semibold" style={{ color: p.accent }}>{zoneName}</span>}
             </span>
           </div>
 
-          <div className="relative h-9 rounded-2xl overflow-hidden ring-1 ring-slate-200/80 shadow-inner bg-slate-50">
+          <div className="relative h-9 rounded-2xl overflow-hidden border border-hairline bg-surface">
             {/* Tramos */}
             <div className="absolute inset-0 flex">
               {zoneStops.map((z, i) => (
@@ -283,7 +272,7 @@ function BreakevenBanner({
             {/* BE line */}
             {hasData && (
               <div
-                className="absolute top-0 bottom-0 w-px bg-slate-700/80"
+                className="absolute top-0 bottom-0 w-px bg-ink/70"
                 style={{ left: `${beMarkerPct}%` }}
               />
             )}
@@ -294,21 +283,18 @@ function BreakevenBanner({
                 className="absolute top-1/2 -translate-y-1/2 z-10"
                 style={{ left: `${markerPct}%`, transform: "translate(-50%, -50%)" }}
               >
-                <div className="relative">
-                  <span className="absolute inset-0 rounded-full ns-pulse-halo opacity-60" style={{ background: p.accent, width: 22, height: 22, top: -3, left: -3 }} />
-                  <div
-                    className="relative flex items-center justify-center rounded-full ring-2 ring-white shadow-lg"
-                    style={{ width: 16, height: 16, background: `linear-gradient(135deg, ${p.bar[0]} 0%, ${p.bar[p.bar.length - 1]} 100%)` }}
-                  />
-                </div>
+                <div
+                  className="flex items-center justify-center rounded-full ring-2 ring-white shadow-ent-xs"
+                  style={{ width: 16, height: 16, background: p.bar[0] }}
+                />
               </div>
             )}
           </div>
 
           {/* Eje inferior: 0x · BE · 1.5×BE · 3×BE · 5×BE · 8×BE+ */}
-          <div className="flex justify-between mt-1.5 text-[10px] text-slate-500 tabular-nums px-0.5">
+          <div className="flex justify-between mt-1.5 text-[10px] text-ink-60 tabular-nums px-0.5">
             <span>0x</span>
-            <span className="font-semibold text-slate-700">BE {hasData ? breakevenRoas.toFixed(2) : "--"}x</span>
+            <span className="font-semibold text-ink">BE {hasData ? breakevenRoas.toFixed(2) : "--"}x</span>
             <span>{hasData ? (breakevenRoas * 1.5).toFixed(1) : "--"}x</span>
             <span>{hasData ? (breakevenRoas * 3).toFixed(1) : "--"}x</span>
             <span>{hasData ? (breakevenRoas * 5).toFixed(1) : "--"}x</span>
@@ -326,17 +312,16 @@ function MetricMini({
 }: { label: string; value: string; hint?: string; accent: string; highlight?: boolean }) {
   return (
     <div
-      className={`relative rounded-xl px-3 py-2.5 ring-1 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md ${
-        highlight ? "bg-white shadow-sm ring-white" : "bg-white/70 ring-slate-200/80"
+      className={`relative rounded-xl px-3 py-2.5 border transition-colors ${
+        highlight ? "bg-elevated border-hairline shadow-ent-xs" : "bg-surface border-hairline"
       }`}
-      style={highlight ? { boxShadow: `0 1px 0 ${accent}33, 0 4px 12px ${accent}1a` } : undefined}
     >
       {highlight && (
         <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: accent }} />
       )}
-      <p className="text-[9.5px] uppercase tracking-[0.14em] text-slate-500 font-bold">{label}</p>
-      <p className="text-[18px] font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{value}</p>
-      {hint && <p className="text-[9.5px] text-slate-400 mt-0.5">{hint}</p>}
+      <p className="text-[9.5px] uppercase tracking-[0.14em] text-ink-60 font-bold">{label}</p>
+      <p className="text-[18px] font-bold text-ink tabular-nums leading-tight mt-0.5">{value}</p>
+      {hint && <p className="text-[9.5px] text-ink-40 mt-0.5">{hint}</p>}
     </div>
   );
 }
@@ -357,20 +342,21 @@ function ConversionFunnel({ impressions, clicks, conversions }: { impressions: n
       {steps.map((s, i) => (
         <div key={s.label}>
           <div className="flex justify-between text-xs mb-1">
-            <span className="text-gray-600 font-medium">{s.label}</span>
-            <span className="text-gray-900 font-bold">{formatCompact(s.value)}</span>
+            <span className="text-ink-60 font-medium">{s.label}</span>
+            <span className="text-ink font-bold">{formatCompact(s.value)}</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-3">
+          <div className="w-full bg-surface-2 rounded-full h-3">
             <div
               className="h-3 rounded-full transition-all"
               style={{
                 width: `${Math.max((s.value / maxVal) * 100, 2)}%`,
-                backgroundColor: i === 0 ? "#6366f1" : i === 1 ? "#8b5cf6" : "#10b981",
+                // Secuencial monocromo que se oscurece; la meta (conversión) en accent
+                backgroundColor: i === 0 ? "#B8B4A8" : i === 1 ? "#6B685F" : "#2F9153",
               }}
             />
           </div>
           {i < steps.length - 1 && (
-            <div className="text-[10px] text-gray-400 mt-0.5 text-right">
+            <div className="text-[10px] text-ink-40 mt-0.5 text-right">
               {i === 0 ? `CTR: ${ctr.toFixed(2)}%` : `Conv Rate: ${convRate.toFixed(2)}%`}
             </div>
           )}
@@ -411,94 +397,78 @@ function DiscrepancyBlock({
   const platformBarPct = (attributedRevenue / maxRev) * 100;
   const vtexBarPct = (vtexRevenue / maxRev) * 100;
 
-  return (
-    <div className="relative rounded-3xl overflow-hidden ns-fade-up ring-1 ring-slate-200 shadow-sm bg-white">
-      {/* Background blobs */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/60 via-white to-emerald-50/60" />
-      <div className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-indigo-300/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-emerald-300/20 blur-3xl" />
+  const diffTone = positive ? { text: "text-emerald-700", chip: "bg-emerald-50 text-emerald-700" } : { text: "text-red-700", chip: "bg-red-50 text-red-700" };
 
-      <div className="relative p-6 md:p-7">
+  return (
+    <div className="relative rounded-3xl overflow-hidden bg-elevated border border-hairline shadow-ent-xs">
+      <div className="p-6 md:p-7">
         {/* Edge badge */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-bold uppercase tracking-[0.18em] shadow-sm">
-            <Sparkles size={11} className="text-amber-300" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ink text-white text-[10px] font-bold uppercase tracking-[0.18em]">
+            <Sparkles size={11} />
             NitroSales Edge
           </span>
-          <span className="text-[11px] text-slate-500">Plataformas vs Realidad VTEX · lo que solo vos ves</span>
+          <span className="text-[11px] text-ink-60">Plataformas vs Realidad VTEX · lo que solo vos ves</span>
         </div>
 
         {/* Headline insight */}
-        <h3 className="text-[20px] md:text-[22px] font-bold text-slate-900 leading-tight max-w-3xl">
+        <h3 className="text-[20px] md:text-[22px] font-bold text-ink leading-tight max-w-3xl">
           {headline}
         </h3>
-        <p className="text-[13px] text-slate-600 mt-1.5 max-w-3xl">{subline}</p>
+        <p className="text-[13px] text-ink-60 mt-1.5 max-w-3xl">{subline}</p>
 
-        {/* 3 cards de colores fuertes */}
+        {/* 3 cards — sobrias, sin gradiente */}
         <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Plataformas dicen — morado/violeta */}
-          <div className="relative rounded-2xl p-4 text-white overflow-hidden shadow-md"
-               style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)" }}>
-            <div className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-white/80" />
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Plataformas dicen</p>
-              </div>
-              <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5">{formatCompact(attributedRevenue)}</p>
-              <p className="text-[11px] text-white/80 mt-0.5">Meta + Google atribuido</p>
-              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-white/15 backdrop-blur px-2 py-0.5 text-[11px] font-semibold tabular-nums">
-                ROAS {attributedRoas.toFixed(2)}x
-              </div>
+          {/* Plataformas dicen — neutral */}
+          <div className="relative rounded-2xl p-4 bg-surface border border-hairline">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-ink-40" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-60">Plataformas dicen</p>
+            </div>
+            <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5 text-ink">{formatCompact(attributedRevenue)}</p>
+            <p className="text-[11px] text-ink-40 mt-0.5">Meta + Google atribuido</p>
+            <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-ink-60">
+              ROAS {attributedRoas.toFixed(2)}x
             </div>
           </div>
 
-          {/* Realidad VTEX — verde */}
-          <div className="relative rounded-2xl p-4 text-white overflow-hidden shadow-md"
-               style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}>
-            <div className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-1.5">
-                <span className={`relative w-2 h-2 rounded-full bg-white ${positive ? "ns-pulse-dot" : ""}`} />
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/90">Realidad VTEX</p>
-              </div>
-              <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5">{formatCompact(vtexRevenue)}</p>
-              <p className="text-[11px] text-white/85 mt-0.5">Lo que entró a caja</p>
-              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-white/15 backdrop-blur px-2 py-0.5 text-[11px] font-semibold tabular-nums">
-                Blended ROAS {blendedRoas.toFixed(2)}x
-              </div>
+          {/* Realidad VTEX — la métrica real, acento verde */}
+          <div className="relative rounded-2xl p-4 bg-elevated border border-hairline">
+            <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-accent" />
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-accent" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-60">Realidad VTEX</p>
+            </div>
+            <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5 text-ink">{formatCompact(vtexRevenue)}</p>
+            <p className="text-[11px] text-ink-40 mt-0.5">Lo que entró a caja</p>
+            <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent">
+              Blended ROAS {blendedRoas.toFixed(2)}x
             </div>
           </div>
 
-          {/* Diferencia */}
-          <div className="relative rounded-2xl p-4 text-white overflow-hidden shadow-md"
-               style={{ background: positive
-                 ? "linear-gradient(135deg, #0f766e 0%, #059669 100%)"
-                 : "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)" }}>
-            <div className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-1.5">
-                {positive ? <TrendingUp size={12} className="text-white" /> : <TrendingDown size={12} className="text-white" />}
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/90">
-                  {positive ? "Halo + directo" : "Sobre-atribución"}
-                </p>
-              </div>
-              <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5">
-                {positive ? "+" : ""}{formatCompact(diff)}
+          {/* Diferencia — semántico (positivo/negativo) */}
+          <div className="relative rounded-2xl p-4 bg-surface border border-hairline">
+            <div className="flex items-center gap-1.5">
+              {positive ? <TrendingUp size={12} className={diffTone.text} /> : <TrendingDown size={12} className={diffTone.text} />}
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-60">
+                {positive ? "Halo + directo" : "Sobre-atribución"}
               </p>
-              <p className="text-[11px] text-white/85 mt-0.5">Diferencia VTEX − plataformas</p>
-              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-white/15 backdrop-blur px-2 py-0.5 text-[11px] font-semibold tabular-nums">
-                {positive ? "+" : ""}{diffPct.toFixed(0)}%
-              </div>
+            </div>
+            <p className={`text-[24px] font-bold tabular-nums leading-tight mt-1.5 ${diffTone.text}`}>
+              {positive ? "+" : ""}{formatCompact(diff)}
+            </p>
+            <p className="text-[11px] text-ink-40 mt-0.5">Diferencia VTEX − plataformas</p>
+            <div className={`mt-3 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold tabular-nums ${diffTone.chip}`}>
+              {positive ? "+" : ""}{diffPct.toFixed(0)}%
             </div>
           </div>
         </div>
 
         {/* Footer insight */}
-        <div className="mt-4 flex items-start gap-2 text-[11.5px] text-slate-600 bg-white/70 backdrop-blur rounded-xl px-3 py-2 ring-1 ring-slate-200/60">
-          <Scale size={14} className="text-indigo-600 mt-0.5 shrink-0" />
+        <div className="mt-4 flex items-start gap-2 text-[11.5px] text-ink-60 bg-surface rounded-xl px-3 py-2 border border-hairline">
+          <Scale size={14} className="text-ink-40 mt-0.5 shrink-0" />
           <p>
-            <span className="font-semibold text-slate-800">Por qué importa:</span>{" "}
+            <span className="font-semibold text-ink">Por qué importa:</span>{" "}
             Meta y Google se pelean por atribuirse las ventas. VTEX te dice lo que realmente entró a caja.
             La brecha revela el impacto real de tus ads en el negocio —no solo lo que cada plataforma reclama.
           </p>
@@ -680,34 +650,36 @@ function UrgentActionCard({ action }: { action: UrgentAction }) {
     ring: string; chipBg: string; chipText: string; iconBg: string;
     Icon: any; label: string; accent: string;
   }> = {
+    // Semánticos: kill=malo (rojo), scale=bueno (verde), rescue=alerta (ámbar)
     kill: {
-      ring: "ring-red-200", chipBg: "bg-red-100", chipText: "text-red-800",
-      iconBg: "bg-red-100 text-red-600", Icon: Scissors, label: "Cortar gasto", accent: "text-red-700",
+      ring: "border-hairline", chipBg: "bg-red-50", chipText: "text-red-700",
+      iconBg: "bg-red-50 text-red-600", Icon: Scissors, label: "Cortar gasto", accent: "text-red-700",
     },
     scale: {
-      ring: "ring-emerald-200", chipBg: "bg-emerald-100", chipText: "text-emerald-800",
-      iconBg: "bg-emerald-100 text-emerald-600", Icon: Rocket, label: "Escalar", accent: "text-emerald-700",
+      ring: "border-hairline", chipBg: "bg-emerald-50", chipText: "text-emerald-700",
+      iconBg: "bg-emerald-50 text-emerald-600", Icon: Rocket, label: "Escalar", accent: "text-emerald-700",
     },
     rescue: {
-      ring: "ring-amber-200", chipBg: "bg-amber-100", chipText: "text-amber-800",
-      iconBg: "bg-amber-100 text-amber-600", Icon: ShieldCheck, label: "Rescatar", accent: "text-amber-700",
+      ring: "border-hairline", chipBg: "bg-amber-50", chipText: "text-amber-700",
+      iconBg: "bg-amber-50 text-amber-600", Icon: ShieldCheck, label: "Rescatar", accent: "text-amber-700",
     },
+    // Técnicos / no-semánticos: neutro ink
     bid: {
-      ring: "ring-cyan-200", chipBg: "bg-cyan-100", chipText: "text-cyan-800",
-      iconBg: "bg-cyan-100 text-cyan-600", Icon: Gauge, label: "Ajustar puja", accent: "text-cyan-700",
+      ring: "border-hairline", chipBg: "bg-surface-2", chipText: "text-ink-60",
+      iconBg: "bg-surface-2 text-ink-60", Icon: Gauge, label: "Ajustar puja", accent: "text-ink",
     },
     creative: {
-      ring: "ring-purple-200", chipBg: "bg-purple-100", chipText: "text-purple-800",
-      iconBg: "bg-purple-100 text-purple-600", Icon: Sparkles, label: "Nuevo creativo", accent: "text-purple-700",
+      ring: "border-hairline", chipBg: "bg-surface-2", chipText: "text-ink-60",
+      iconBg: "bg-surface-2 text-ink-60", Icon: Sparkles, label: "Nuevo creativo", accent: "text-ink",
     },
     consolidated: {
-      ring: "ring-orange-200", chipBg: "bg-orange-100", chipText: "text-orange-800",
-      iconBg: "bg-orange-100 text-orange-600", Icon: Flame, label: "Revisión grupal", accent: "text-orange-700",
+      ring: "border-hairline", chipBg: "bg-surface-2", chipText: "text-ink-60",
+      iconBg: "bg-surface-2 text-ink-60", Icon: Flame, label: "Revisión grupal", accent: "text-ink",
     },
     // Backward compat: si llega "fix" antiguo
     fix: {
-      ring: "ring-amber-200", chipBg: "bg-amber-100", chipText: "text-amber-800",
-      iconBg: "bg-amber-100 text-amber-600", Icon: Flame, label: "Revisar", accent: "text-amber-700",
+      ring: "border-hairline", chipBg: "bg-amber-50", chipText: "text-amber-700",
+      iconBg: "bg-amber-50 text-amber-600", Icon: Flame, label: "Revisar", accent: "text-amber-700",
     },
   };
 
@@ -726,7 +698,7 @@ function UrgentActionCard({ action }: { action: UrgentAction }) {
   };
 
   return (
-    <div className={`relative bg-white rounded-2xl shadow-sm ring-1 ${s.ring} p-5 flex flex-col gap-3 overflow-hidden`}>
+    <div className={`relative bg-elevated rounded-2xl shadow-ent-xs border ${s.ring} p-5 flex flex-col gap-3 overflow-hidden`}>
       {/* Top: Label + Icon */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -744,28 +716,28 @@ function UrgentActionCard({ action }: { action: UrgentAction }) {
 
       {/* Title (human-first) */}
       <div>
-        <h3 className="text-[15px] font-bold text-slate-900 leading-snug line-clamp-2">{action.title}</h3>
-        <p className="text-xs text-slate-600 mt-1 leading-relaxed">{action.whyHuman}</p>
+        <h3 className="text-[15px] font-bold text-ink leading-snug line-clamp-2">{action.title}</h3>
+        <p className="text-xs text-ink-60 mt-1 leading-relaxed">{action.whyHuman}</p>
       </div>
 
       {/* Tech line — siempre visible para el que quiere el dato */}
-      <p className="text-[11px] text-slate-500 font-mono tabular-nums bg-slate-50 rounded-lg px-2 py-1.5 leading-snug">
+      <p className="text-[11px] text-ink-60 font-mono tabular-nums bg-surface rounded-lg px-2 py-1.5 leading-snug">
         {action.whyTech}
       </p>
 
       {/* Impact + CTA */}
-      <div className="mt-auto flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+      <div className="mt-auto flex items-center justify-between gap-2 pt-2 border-t border-hairline">
         <div>
-          <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Impacto</p>
+          <p className="text-[9px] uppercase tracking-wider text-ink-40 font-semibold">Impacto</p>
           <p className={`text-sm font-bold tabular-nums ${s.accent}`}>{action.impactLabel}</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button
             onClick={copyRecommendation}
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 transition-colors"
+            className="p-1.5 rounded-lg border border-hairline hover:bg-surface text-ink-60 transition-colors"
             title="Copiar recomendación"
           >
-            {copied ? <CheckCircle2 size={14} className="text-emerald-600" /> : <Copy size={14} />}
+            {copied ? <CheckCircle2 size={14} className="text-accent" /> : <Copy size={14} />}
           </button>
         </div>
       </div>
@@ -776,18 +748,15 @@ function UrgentActionCard({ action }: { action: UrgentAction }) {
 function UrgentActionsBlock({ actions }: { actions: UrgentAction[] }) {
   if (!actions || actions.length === 0) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-emerald-200 p-6 ns-fade-up">
+      <div className="bg-elevated rounded-2xl shadow-ent-xs border border-hairline p-6">
         <div className="flex items-center gap-2 mb-2">
-          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+          <div className="p-2 rounded-xl bg-accent-soft text-accent">
             <CheckCircle2 size={16} />
           </div>
-          <h3 className="font-semibold text-slate-900">Sin acciones urgentes hoy</h3>
-          <span className="relative flex w-2 h-2 ml-1">
-            <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 ns-pulse-halo" />
-            <span className="relative rounded-full w-2 h-2 bg-emerald-500" />
-          </span>
+          <h3 className="font-semibold text-ink">Sin acciones urgentes hoy</h3>
+          <span className="w-2 h-2 rounded-full bg-accent ml-1" />
         </div>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-60">
           No detectamos campañas quemando plata ni oportunidades obvias de escalar en este período.
           Probá ampliar el rango de fechas o revisar manualmente en Meta Ads y Google Ads.
         </p>
@@ -796,28 +765,26 @@ function UrgentActionsBlock({ actions }: { actions: UrgentAction[] }) {
   }
   const totalImpact = actions.reduce((s, a) => s + (a.impactArs || 0), 0);
   return (
-    <div className="ns-fade-up">
+    <div>
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-bold uppercase tracking-[0.14em]">
-            <Flame size={10} className="text-orange-300" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-ink text-white text-[10px] font-bold uppercase tracking-[0.14em]">
+            <Flame size={10} />
             {actions.length} {actions.length === 1 ? "Acción urgente" : "Acciones urgentes"}
           </span>
-          <span className="text-[11px] text-slate-500">
-            priorizadas por impacto en $ · impacto total estimado <span className="font-semibold text-slate-700">~{formatCompact(totalImpact)}</span>
+          <span className="text-[11px] text-ink-60">
+            priorizadas por impacto en $ · impacto total estimado <span className="font-semibold text-ink">~{formatCompact(totalImpact)}</span>
           </span>
           <Tooltip text="Detectamos automáticamente: campañas perdiendo plata (kill), oportunidades de escalar (scale), campañas a salvar antes de pausar (rescue), pujas demasiado caras (bid), creativos cansados con CTR bajo (creative), y revisiones grupales si hay varias en pérdida." />
         </div>
-        <span className="text-[10px] text-slate-400 inline-flex items-center gap-1">
+        <span className="text-[10px] text-ink-40 inline-flex items-center gap-1">
           <Activity size={10} />
           Se recalculan con cada cambio de fecha o sync de datos
         </span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {actions.map((a, i) => (
-          <div key={i} style={{ animationDelay: `${i * 60}ms` }} className="ns-fade-up">
-            <UrgentActionCard action={a} />
-          </div>
+          <UrgentActionCard key={i} action={a} />
         ))}
       </div>
     </div>
@@ -825,17 +792,17 @@ function UrgentActionsBlock({ actions }: { actions: UrgentAction[] }) {
 }
 
 /* ── Tooltip (explicaciones para no-técnicos) ──────── */
-// Hover sobre el ícono Info muestra la explicación. Premium feel.
+// Hover sobre el ícono Info muestra la explicación.
 
 function Tooltip({ text, side = "top" }: { text: string; side?: "top" | "bottom" }) {
   return (
     <span className="relative group/tt inline-flex items-center">
-      <Info size={11} className="text-slate-400 hover:text-slate-700 cursor-help transition-colors" />
+      <Info size={11} className="text-ink-40 hover:text-ink cursor-help transition-colors" />
       <span
-        className={`pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 ${side === "top" ? "bottom-full mb-2" : "top-full mt-2"} w-64 rounded-lg bg-slate-900 text-white text-[11px] leading-snug px-3 py-2 shadow-xl opacity-0 invisible group-hover/tt:opacity-100 group-hover/tt:visible transition-all duration-150 ring-1 ring-slate-700`}
+        className={`pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 ${side === "top" ? "bottom-full mb-2" : "top-full mt-2"} w-64 rounded-lg bg-ink text-white text-[11px] leading-snug px-3 py-2 shadow-ent-soft opacity-0 invisible group-hover/tt:opacity-100 group-hover/tt:visible transition-all duration-150`}
       >
         {text}
-        <span className={`absolute left-1/2 -translate-x-1/2 ${side === "top" ? "top-full" : "bottom-full"} w-0 h-0 border-x-4 border-x-transparent ${side === "top" ? "border-t-4 border-t-slate-900" : "border-b-4 border-b-slate-900"}`} />
+        <span className={`absolute left-1/2 -translate-x-1/2 ${side === "top" ? "top-full" : "bottom-full"} w-0 h-0 border-x-4 border-x-transparent ${side === "top" ? "border-t-4 border-t-ink" : "border-b-4 border-b-ink"}`} />
       </span>
     </span>
   );
@@ -851,11 +818,13 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
   const bof = funnelSummary.find((s) => s.stage === "BOF");
   const unknown = funnelSummary.find((s) => s.stage === "UNKNOWN");
 
+  // Secuencial monocromo TOF → MOF → BOF (se oscurece hacia el cierre);
+  // BOF es la meta (retención/venta) y va en accent. UNKNOWN = neutro.
   const stages = [
-    { key: "TOF", label: "TOF", sub: "Nuevos (prospecting)", data: tof, color: "bg-indigo-500", text: "text-indigo-700", bg: "bg-indigo-50", help: "Top of Funnel · Audiencias frías que no te conocen. Buscás darte a conocer." },
-    { key: "MOF", label: "MOF", sub: "Consideración", data: mof, color: "bg-cyan-500", text: "text-cyan-700", bg: "bg-cyan-50", help: "Middle of Funnel · Gente que te visitó pero no compró. Buscás convencerlos." },
-    { key: "BOF", label: "BOF", sub: "Retargeting / Marca", data: bof, color: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", help: "Bottom of Funnel · Carrito abandonado, recompra, marca. Cosechás ventas." },
-    { key: "UNKNOWN", label: "S/C", sub: "Sin clasificar", data: unknown, color: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", help: "Campañas que no tienen TOF/MOF/BOF en el nombre. Renombralas en Meta/Google para clasificarlas." },
+    { key: "TOF", label: "TOF", sub: "Nuevos (prospecting)", data: tof, color: "#B8B4A8", text: "text-ink-60", bg: "bg-surface", help: "Top of Funnel · Audiencias frías que no te conocen. Buscás darte a conocer." },
+    { key: "MOF", label: "MOF", sub: "Consideración", data: mof, color: "#6B685F", text: "text-ink", bg: "bg-surface-2", help: "Middle of Funnel · Gente que te visitó pero no compró. Buscás convencerlos." },
+    { key: "BOF", label: "BOF", sub: "Retargeting / Marca", data: bof, color: "#2F9153", text: "text-accent", bg: "bg-accent-soft", help: "Bottom of Funnel · Carrito abandonado, recompra, marca. Cosechás ventas." },
+    { key: "UNKNOWN", label: "S/C", sub: "Sin clasificar", data: unknown, color: "#DCD8CD", text: "text-ink-40", bg: "bg-surface", help: "Campañas que no tienen TOF/MOF/BOF en el nombre. Renombralas en Meta/Google para clasificarlas." },
   ];
 
   // Divisor REAL = suma de spend de los stages presentes. Así los % siempre suman 100.
@@ -896,9 +865,9 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
     };
   }
 
-  const warnBg = warning.tone === "warn" ? "bg-amber-50 text-amber-800 ring-amber-200"
-    : warning.tone === "info" ? "bg-slate-50 text-slate-700 ring-slate-200"
-    : "bg-emerald-50 text-emerald-800 ring-emerald-200";
+  const warnBg = warning.tone === "warn" ? "bg-amber-50 text-amber-800 border-amber-200"
+    : warning.tone === "info" ? "bg-surface text-ink-60 border-hairline"
+    : "bg-emerald-50 text-emerald-800 border-emerald-200";
   const warnIcon = warning.tone === "warn" ? AlertTriangle : warning.tone === "info" ? Info : ShieldCheck;
   const WIcon = warnIcon;
 
@@ -907,23 +876,23 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
   const gridCols = showUnknownTile ? "grid-cols-2 md:grid-cols-4" : "grid-cols-3";
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5 ns-fade-up">
+    <div className="bg-elevated rounded-2xl shadow-ent-xs border border-hairline p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Layers size={16} className="text-indigo-600" />
-        <h3 className="font-semibold text-slate-900">Salud del Mix de Inversión</h3>
+        <Layers size={16} className="text-ink-60" />
+        <h3 className="font-semibold text-ink">Salud del Mix de Inversión</h3>
         <Tooltip text="TOF (frío) → MOF (consideración) → BOF (cierre). Un mix sano tiene ~30-40% TOF, ~10-20% MOF, ~40-50% BOF. Si todo va a BOF, no hay nuevos clientes entrando." />
-        <span className="text-xs text-slate-400 ml-auto">Auto-clasificado por nombre de campaña</span>
+        <span className="text-xs text-ink-40 ml-auto">Auto-clasificado por nombre de campaña</span>
       </div>
 
       {/* Barra apilada — SIEMPRE 100% (sin huecos grises) */}
-      <div className="relative h-3 rounded-full overflow-hidden mb-3 ring-1 ring-slate-200 flex">
+      <div className="relative h-3 rounded-full overflow-hidden mb-3 border border-hairline flex">
         {visibleStages.map((st) => {
           const pct = (st.data!.spend / stageSpendTotal) * 100;
           return (
             <div
               key={st.key}
-              className={`${st.color} h-full transition-all ns-bar-fill`}
-              style={{ width: `${pct}%` }}
+              className="h-full transition-all"
+              style={{ width: `${pct}%`, background: st.color }}
               title={`${st.label}: ${pct.toFixed(1)}% · ${formatCompact(st.data!.spend)}`}
             />
           );
@@ -936,21 +905,21 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
           const pct = st.data ? (st.data.spend / stageSpendTotal) * 100 : 0;
           const hasData = !!st.data && st.data.spend > 0;
           return (
-            <div key={st.key} className={`rounded-xl p-3 ring-1 ring-slate-100 ${hasData ? st.bg : "bg-slate-50"}`}>
+            <div key={st.key} className={`rounded-xl p-3 border border-hairline ${hasData ? st.bg : "bg-surface"}`}>
               <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${hasData ? st.text : "text-slate-400"}`}>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${hasData ? st.text : "text-ink-40"}`}>
                   {st.label}
                   <Tooltip text={st.help} />
                 </span>
-                <span className={`text-[10px] font-semibold tabular-nums ${hasData ? "text-slate-700" : "text-slate-400"}`}>
+                <span className={`text-[10px] font-semibold tabular-nums ${hasData ? "text-ink" : "text-ink-40"}`}>
                   {pct.toFixed(0)}%
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 mt-0.5">{st.sub}</p>
-              <p className={`text-sm font-bold tabular-nums mt-1 ${hasData ? "text-slate-900" : "text-slate-400"}`}>
+              <p className="text-[10px] text-ink-60 mt-0.5">{st.sub}</p>
+              <p className={`text-sm font-bold tabular-nums mt-1 ${hasData ? "text-ink" : "text-ink-40"}`}>
                 {hasData ? formatCompact(st.data!.spend) : "--"}
               </p>
-              <p className="text-[10px] text-slate-500 font-mono tabular-nums mt-0.5">
+              <p className="text-[10px] text-ink-60 font-mono tabular-nums mt-0.5">
                 {hasData ? `ROAS ${st.data!.roas}x · ${st.data!.conversions} conv` : "sin inversión"}
               </p>
             </div>
@@ -959,7 +928,7 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
       </div>
 
       {/* Alerta contextual */}
-      <div className={`mt-4 rounded-xl px-3 py-2 ring-1 ${warnBg} flex items-start gap-2`}>
+      <div className={`mt-4 rounded-xl px-3 py-2 border ${warnBg} flex items-start gap-2`}>
         <WIcon size={14} className="flex-shrink-0 mt-0.5" />
         <p className="text-[12px] leading-snug">{warning.msg}</p>
       </div>
@@ -970,50 +939,39 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
 /* ── Premium KPI Card (Hoy) ────────────────────────── */
 
 function PremiumKpi({
-  label, value, subtitle, deltaPct, accent = "indigo", delay = 0, healthy = false, help,
+  label, value, subtitle, deltaPct, accent = "amber", delay = 0, healthy = false, help,
 }: {
   label: string; value: string; subtitle?: string | null; deltaPct?: number | null;
-  accent?: "indigo" | "emerald" | "red" | "amber" | "cyan" | "purple" | "blue";
+  accent?: "emerald" | "red" | "amber";
   delay?: number;
-  healthy?: boolean; // true = pulso verde (todo está OK)
+  healthy?: boolean; // true = punto verde (todo está OK)
   help?: string;     // tooltip explicativo
 }) {
-  const accents: Record<string, { bar: string; chipBg: string; chipText: string; glow: string }> = {
-    indigo:  { bar: "bg-indigo-500",  chipBg: "bg-indigo-50",  chipText: "text-indigo-700",  glow: "from-indigo-400/15" },
-    emerald: { bar: "bg-emerald-500", chipBg: "bg-emerald-50", chipText: "text-emerald-700", glow: "from-emerald-400/15" },
-    red:     { bar: "bg-red-500",     chipBg: "bg-red-50",     chipText: "text-red-700",     glow: "from-red-400/15" },
-    amber:   { bar: "bg-amber-500",   chipBg: "bg-amber-50",   chipText: "text-amber-700",   glow: "from-amber-400/15" },
-    cyan:    { bar: "bg-cyan-500",    chipBg: "bg-cyan-50",    chipText: "text-cyan-700",    glow: "from-cyan-400/15" },
-    purple:  { bar: "bg-purple-500",  chipBg: "bg-purple-50",  chipText: "text-purple-700",  glow: "from-purple-400/15" },
-    blue:    { bar: "bg-blue-500",    chipBg: "bg-blue-50",    chipText: "text-blue-700",    glow: "from-blue-400/15" },
+  // Solo los 3 tonos semánticos usados por los KPIs de este strip
+  const accents: Record<string, { bar: string; chipBg: string; chipText: string }> = {
+    emerald: { bar: "bg-emerald-500", chipBg: "bg-emerald-50", chipText: "text-emerald-700" },
+    red:     { bar: "bg-red-500",     chipBg: "bg-red-50",     chipText: "text-red-700" },
+    amber:   { bar: "bg-amber-500",   chipBg: "bg-amber-50",   chipText: "text-amber-700" },
   };
   const a = accents[accent];
   const hasDelta = typeof deltaPct === "number" && deltaPct !== 0;
   const deltaUp = (deltaPct || 0) >= 0;
 
   return (
-    <div
-      className="group relative bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-5 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ns-fade-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
+    <div className="relative bg-elevated rounded-2xl shadow-ent-xs border border-hairline p-5 overflow-hidden">
       {/* Accent bar */}
       <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${a.bar}`} />
-      {/* Soft glow */}
-      <div className={`pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br ${a.glow} to-transparent blur-2xl opacity-70 group-hover:opacity-100 transition-opacity`} />
 
       <div className="relative">
         <div className="flex items-center gap-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-60">{label}</p>
           {help && <Tooltip text={help} />}
           {healthy && (
-            <span className="relative flex w-1.5 h-1.5" title="Saludable">
-              <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 ns-pulse-halo" />
-              <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Saludable" />
           )}
         </div>
         <div className="flex items-baseline gap-2 mt-1.5">
-          <p className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{value}</p>
+          <p className="text-[28px] font-bold text-ink tabular-nums leading-none">{value}</p>
           {hasDelta && (
             <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${deltaUp ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
               {deltaUp ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
@@ -1021,7 +979,7 @@ function PremiumKpi({
             </span>
           )}
         </div>
-        {subtitle && <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">{subtitle}</p>}
+        {subtitle && <p className="text-[11px] text-ink-60 mt-1.5 tabular-nums">{subtitle}</p>}
       </div>
     </div>
   );
@@ -1044,35 +1002,26 @@ function PremiumKpiGauge({
   else status = roas >= breakeven * 1.2 ? "good" : roas >= breakeven ? "edge" : "bad";
 
   const cfg = status === "good"
-    ? { bar: "bg-emerald-500", text: "text-emerald-700", chip: "bg-emerald-50 text-emerald-700", glow: "from-emerald-400/15", barColor: "linear-gradient(90deg, #10b981 0%, #059669 100%)", msg: "rentable" }
+    ? { bar: "bg-emerald-500", text: "text-emerald-700", chip: "bg-emerald-50 text-emerald-700", barColor: "#2F9153", msg: "rentable" }
     : status === "edge"
-    ? { bar: "bg-amber-500", text: "text-amber-700", chip: "bg-amber-50 text-amber-700", glow: "from-amber-400/15", barColor: "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)", msg: "en equilibrio" }
-    : { bar: "bg-red-500", text: "text-red-700", chip: "bg-red-50 text-red-700", glow: "from-red-400/15", barColor: "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)", msg: "perdiendo" };
+    ? { bar: "bg-amber-500", text: "text-amber-700", chip: "bg-amber-50 text-amber-700", barColor: "#d97706", msg: "en equilibrio" }
+    : { bar: "bg-red-500", text: "text-red-700", chip: "bg-red-50 text-red-700", barColor: "#dc2626", msg: "perdiendo" };
 
   const multiple = hasBE && breakeven > 0 ? (roas / breakeven) : null;
 
   return (
-    <div
-      className="group relative bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-5 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ns-fade-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
+    <div className="relative bg-elevated rounded-2xl shadow-ent-xs border border-hairline p-5 overflow-hidden">
       <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${cfg.bar}`} />
-      <div className={`pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br ${cfg.glow} to-transparent blur-2xl opacity-70 group-hover:opacity-100 transition-opacity`} />
 
       <div className="relative">
         <div className="flex items-center gap-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-60">{label}</p>
           <Tooltip text="Blended ROAS = Revenue VTEX / Inversión total en ads. A diferencia del ROAS reportado por las plataformas, este NO depende de ventanas de atribución: es la verdad cruda de cuántos pesos de venta generaste por cada peso invertido." />
-          {status === "good" && (
-            <span className="relative flex w-1.5 h-1.5">
-              <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 ns-pulse-halo" />
-              <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
-            </span>
-          )}
+          {status === "good" && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
         </div>
 
         <div className="flex items-baseline gap-2 mt-1.5">
-          <p className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{roas.toFixed(2)}<span className="text-[18px] text-slate-400">x</span></p>
+          <p className="text-[28px] font-bold text-ink tabular-nums leading-none">{roas.toFixed(2)}<span className="text-[18px] text-ink-40">x</span></p>
           {multiple != null && (
             <span className={`inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${cfg.chip}`}>
               {multiple.toFixed(2)}× BE
@@ -1082,21 +1031,19 @@ function PremiumKpiGauge({
 
         {/* Mini gauge horizontal */}
         <div className="mt-3 relative">
-          <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden ring-1 ring-slate-200">
+          <div className="relative h-2 bg-surface-2 rounded-full overflow-hidden border border-hairline">
             <div
-              className="relative h-full rounded-full ns-bar-fill overflow-hidden"
+              className="h-full rounded-full"
               style={{ width: `${roasPct}%`, background: cfg.barColor }}
-            >
-              <span className="absolute inset-0 ns-shimmer" />
-            </div>
+            />
             {hasBE && (
-              <div className="absolute inset-y-0 w-0.5 bg-slate-900/70" style={{ left: `${bePct}%` }} />
+              <div className="absolute inset-y-0 w-0.5 bg-ink/70" style={{ left: `${bePct}%` }} />
             )}
           </div>
-          <div className="flex items-center justify-between mt-1.5 text-[10px] text-slate-500 tabular-nums">
+          <div className="flex items-center justify-between mt-1.5 text-[10px] text-ink-60 tabular-nums">
             <span>0x</span>
             {hasBE && (
-              <span className="absolute font-semibold text-slate-700" style={{ left: `${bePct}%`, transform: "translateX(-50%)" }}>
+              <span className="absolute font-semibold text-ink" style={{ left: `${bePct}%`, transform: "translateX(-50%)" }}>
                 BE {breakeven.toFixed(2)}x
               </span>
             )}
@@ -1104,8 +1051,8 @@ function PremiumKpiGauge({
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-500 mt-3 tabular-nums">
-          Margen de contribución <span className="font-semibold text-slate-700">{(contribMargin * 100).toFixed(0)}%</span> · {cfg.msg}
+        <p className="text-[11px] text-ink-60 mt-3 tabular-nums">
+          Margen de contribución <span className="font-semibold text-ink">{(contribMargin * 100).toFixed(0)}%</span> · {cfg.msg}
         </p>
       </div>
     </div>
@@ -1117,9 +1064,10 @@ function PremiumKpiGauge({
 function PlatformPremiumCard({
   platform, data, breakevenRoas, delay = 0,
 }: { platform: "META" | "GOOGLE"; data: any; breakevenRoas: number; delay?: number }) {
+  // Colores de plataforma (identidad de marca Meta/Google) — se conservan
   const cfg = platform === "META"
-    ? { label: "Meta Ads", color: "#8b5cf6", from: "from-purple-500/10", ring: "ring-purple-100", dot: "bg-purple-500" }
-    : { label: "Google Ads", color: "#3b82f6", from: "from-blue-500/10", ring: "ring-blue-100", dot: "bg-blue-500" };
+    ? { label: "Meta Ads", color: "#8b5cf6", dot: "bg-purple-500" }
+    : { label: "Google Ads", color: "#3b82f6", dot: "bg-blue-500" };
 
   const roas = Number(data?.roas || 0);
   const spend = Number(data?.spend || 0);
@@ -1130,7 +1078,7 @@ function PlatformPremiumCard({
   const convRate = Number(data?.convRate || 0);
 
   let statusLabel = "Sin datos";
-  let statusChip = "bg-slate-100 text-slate-600";
+  let statusChip = "bg-surface-2 text-ink-60";
   let isHealthy = false;
   if (breakevenRoas > 0 && spend > 0) {
     if (roas >= breakevenRoas * 1.5) { statusLabel = "Rentable"; statusChip = "bg-emerald-100 text-emerald-800"; isHealthy = true; }
@@ -1147,29 +1095,19 @@ function PlatformPremiumCard({
   const bePct = breakevenRoas > 0 ? Math.min(100, (breakevenRoas / target) * 100) : 50;
 
   return (
-    <div
-      className="group relative bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-5 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ns-fade-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div className={`pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full bg-gradient-to-br ${cfg.from} to-transparent blur-3xl`} />
-
+    <div className="relative bg-elevated rounded-2xl shadow-ent-xs border border-hairline p-5 overflow-hidden">
       <div className="relative">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2.5">
-            <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot} ring-4 ring-offset-0 ring-current/10`} style={{ color: cfg.color }} />
+            <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
             <div>
-              <h3 className="font-bold text-slate-900 text-[15px] leading-none">{cfg.label}</h3>
-              <p className="text-[11px] text-slate-500 mt-1">{data?.campaigns || 0} campañas · {formatCompact(spend)} inv.</p>
+              <h3 className="font-bold text-ink text-[15px] leading-none">{cfg.label}</h3>
+              <p className="text-[11px] text-ink-60 mt-1">{data?.campaigns || 0} campañas · {formatCompact(spend)} inv.</p>
             </div>
           </div>
           <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusChip}`}>
-            {isHealthy && (
-              <span className="relative flex w-1.5 h-1.5">
-                <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 ns-pulse-halo" />
-                <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
-              </span>
-            )}
+            {isHealthy && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
             {statusLabel}
           </span>
         </div>
@@ -1178,55 +1116,53 @@ function PlatformPremiumCard({
         <div className="mt-5 flex items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">ROAS reportado</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-60">ROAS reportado</p>
               <Tooltip text={`ROAS reportado = Revenue atribuido / Inversión, según ${platform === "META" ? "Meta" : "Google"}. La plataforma cuenta las ventas que ELLA cree haber generado. Si está alto pero el Blended ROAS está bajo, hay sobre-atribución.`} />
             </div>
-            <p className="text-[40px] font-bold text-slate-900 tabular-nums leading-none mt-1">{roas.toFixed(2)}<span className="text-[22px] text-slate-400">x</span></p>
+            <p className="text-[40px] font-bold text-ink tabular-nums leading-none mt-1">{roas.toFixed(2)}<span className="text-[22px] text-ink-40">x</span></p>
             {breakevenRoas > 0 && (
-              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">vs BE {breakevenRoas.toFixed(2)}x · {((roas / breakevenRoas) || 0).toFixed(1)}× del punto de equilibrio</p>
+              <p className="text-[11px] text-ink-60 mt-1.5 tabular-nums">vs BE {breakevenRoas.toFixed(2)}x · {((roas / breakevenRoas) || 0).toFixed(1)}× del punto de equilibrio</p>
             )}
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Revenue atrib.</p>
-            <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(revenue)}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">{conv} conv.</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-60">Revenue atrib.</p>
+            <p className="text-lg font-bold text-ink tabular-nums mt-1">{formatCompact(revenue)}</p>
+            <p className="text-[11px] text-ink-60 mt-0.5 tabular-nums">{conv} conv.</p>
           </div>
         </div>
 
         {/* Gauge */}
         <div className="mt-5">
-          <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden ring-1 ring-slate-200">
+          <div className="relative h-2 bg-surface-2 rounded-full overflow-hidden border border-hairline">
             <div
-              className="relative h-full rounded-full transition-all duration-1000 ns-bar-fill overflow-hidden"
+              className="h-full rounded-full transition-all duration-500"
               style={{ width: `${roasPct}%`, background: cfg.color }}
-            >
-              <span className="absolute inset-0 ns-shimmer" />
-            </div>
+            />
             {breakevenRoas > 0 && (
-              <div className="absolute inset-y-0 w-0.5 bg-slate-900/70" style={{ left: `${bePct}%` }} />
+              <div className="absolute inset-y-0 w-0.5 bg-ink/70" style={{ left: `${bePct}%` }} />
             )}
           </div>
         </div>
 
         {/* Mini metrics */}
-        <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+        <div className="mt-4 pt-3 border-t border-hairline grid grid-cols-3 gap-2 text-center">
           <div>
-            <p className="inline-flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-slate-400 font-semibold">
+            <p className="inline-flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-ink-40 font-semibold">
               CTR <Tooltip text="Click-Through Rate = Clicks / Impresiones. Qué porcentaje de personas que vieron el ad lo clickearon. Benchmark sano: >1% en Meta, >2% en Google Search." />
             </p>
-            <p className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">{ctr.toFixed(2)}%</p>
+            <p className="text-sm font-bold text-ink tabular-nums mt-0.5">{ctr.toFixed(2)}%</p>
           </div>
           <div>
-            <p className="inline-flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-slate-400 font-semibold">
+            <p className="inline-flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-ink-40 font-semibold">
               CPC <Tooltip text="Cost Per Click = Cuánto pagás en promedio por cada click. Si está muy alto vs tus competidores, estás pujando de más o tu Quality Score es bajo." />
             </p>
-            <p className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">{formatARS(cpc)}</p>
+            <p className="text-sm font-bold text-ink tabular-nums mt-0.5">{formatARS(cpc)}</p>
           </div>
           <div>
-            <p className="inline-flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-slate-400 font-semibold">
+            <p className="inline-flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-ink-40 font-semibold">
               Conv. Rate <Tooltip text="Conversion Rate = Conversiones / Clicks. De los que clickean, cuántos terminan comprando. Si está muy bajo, el problema es la landing page o el producto, no el ad." />
             </p>
-            <p className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">{convRate.toFixed(2)}%</p>
+            <p className="text-sm font-bold text-ink tabular-nums mt-0.5">{convRate.toFixed(2)}%</p>
           </div>
         </div>
       </div>
@@ -1389,21 +1325,21 @@ export default function CampaignsPage() {
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
-        <span className="text-gray-500">Cargando Resumen...</span>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink mr-3" />
+        <span className="text-ink-60">Cargando Resumen...</span>
       </div>
     );
   }
 
   /* ── Render ────────────────────────────────────── */
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-6 bg-canvas min-h-screen">
       {/* Header + Date Range */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-wider text-indigo-600 font-semibold">Marketing & Adquisicion</p>
-          <h1 className="text-3xl font-bold text-gray-900">Resumen</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-xs uppercase tracking-wider text-ink-40 font-semibold">Marketing & Adquisicion</p>
+          <h1 className="text-3xl font-bold text-ink">Resumen</h1>
+          <p className="text-sm text-ink-60 mt-1">
             Cockpit cross-platform &middot; {dateFrom} a {dateTo}
           </p>
         </div>
@@ -1473,10 +1409,10 @@ export default function CampaignsPage() {
       {platformSummary.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+            <span className="text-[11px] uppercase tracking-wider text-ink-60 font-semibold">
               Plataformas
             </span>
-            <span className="text-[11px] text-slate-400">— cuál está rindiendo mejor</span>
+            <span className="text-[11px] text-ink-40">— cuál está rindiendo mejor</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <PlatformPremiumCard
@@ -1503,11 +1439,11 @@ export default function CampaignsPage() {
       />
 
       {/* Chart único — ROAS diario vs Break-even */}
-      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-6 ns-fade-up">
+      <div className="bg-elevated rounded-2xl shadow-ent-xs border border-hairline p-6">
         <div className="flex items-start justify-between mb-5">
           <div>
-            <h3 className="font-bold text-slate-900 text-[15px]">Tendencia de ROAS diario</h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <h3 className="font-bold text-ink text-[15px]">Tendencia de ROAS diario</h3>
+            <p className="text-[11px] text-ink-60 mt-0.5">
               {breakevenRoas > 0
                 ? `Línea punteada = Break-even ${breakevenRoas.toFixed(2)}x · Arriba es rentable.`
                 : "Evolución del ROAS reportado por las plataformas."}
@@ -1519,81 +1455,27 @@ export default function CampaignsPage() {
             <AreaChart data={dailyRoasSeries} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="roasGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#2F9153" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#2F9153" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-              <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}x`} width={40} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#6B685F" }} axisLine={false} tickLine={false} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B685F" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}x`} width={40} />
               <RechartsTooltip
-                contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)", fontSize: 12 }}
+                contentStyle={{ borderRadius: 12, border: "1px solid #E5E1D8", boxShadow: "0 10px 25px -5px rgba(28,27,24,0.08)", fontSize: 12 }}
                 formatter={(v: number, n: string) => [`${v}x`, n === "roas" ? "ROAS" : "Break-even"]}
               />
-              <Area type="monotone" dataKey="roas" stroke="#6366f1" strokeWidth={2.5} fill="url(#roasGradient)" dot={false} />
+              <Area type="monotone" dataKey="roas" stroke="#2F9153" strokeWidth={2.5} fill="url(#roasGradient)" dot={false} />
               {breakevenRoas > 0 && (
-                <ReferenceLine y={breakevenRoas} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `BE ${breakevenRoas.toFixed(2)}x`, fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
+                <ReferenceLine y={breakevenRoas} stroke="#b91c1c" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `BE ${breakevenRoas.toFixed(2)}x`, fill: "#b91c1c", fontSize: 11, position: "insideTopRight" }} />
               )}
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-[260px] flex items-center justify-center text-slate-400 text-sm">Sin datos de tendencia</div>
+          <div className="h-[260px] flex items-center justify-center text-ink-40 text-sm">Sin datos de tendencia</div>
         )}
       </div>
-
-      {/* Animations CSS — se inyecta una vez */}
-      <style jsx global>{`
-        @keyframes ns-fade-up {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .ns-fade-up {
-          animation: ns-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
-        }
-
-        /* Pulso verde titilando: halo que crece y se desvanece */
-        @keyframes ns-pulse-halo {
-          0%   { transform: scale(1);   opacity: 0.75; }
-          70%  { transform: scale(2.2); opacity: 0;    }
-          100% { transform: scale(2.2); opacity: 0;    }
-        }
-        .ns-pulse-halo {
-          animation: ns-pulse-halo 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        /* Variante más sutil para dots pequeños */
-        @keyframes ns-pulse-dot {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
-          50%      { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);  }
-        }
-        .ns-pulse-dot {
-          animation: ns-pulse-dot 1.8s ease-out infinite;
-        }
-
-        /* Shimmer: reflejo que pasa de izquierda a derecha sobre una barra */
-        @keyframes ns-shimmer {
-          0%   { transform: translateX(-100%); }
-          100% { transform: translateX(200%);  }
-        }
-        .ns-shimmer {
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.55) 50%,
-            transparent 100%
-          );
-          animation: ns-shimmer 2.4s ease-in-out infinite;
-        }
-
-        /* Barra que se llena al montar */
-        @keyframes ns-bar-fill {
-          from { transform: scaleX(0); transform-origin: left; }
-          to   { transform: scaleX(1); transform-origin: left; }
-        }
-        .ns-bar-fill {
-          animation: ns-bar-fill 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-        }
-      `}</style>
     </div>
   );
 }

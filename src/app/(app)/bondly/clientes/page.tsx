@@ -16,7 +16,6 @@ import { formatARS, formatCompact } from "@/lib/utils/format";
 import { SourceLogo, CHANNEL_LABEL, CHANNEL_TINT } from "@/components/bondly/SourceLogo";
 import {
   ES,
-  BONDLY_GRAD,
   TIER_CONFIG,
   QUICK_SEGMENT_CONFIG,
 } from "@/components/bondly/constants";
@@ -77,15 +76,15 @@ function initialsFrom(name: string): string {
 // Gradient colors deterministic from customer id
 function avatarGradientFor(id: string): string {
   const GRADIENTS = [
-    "linear-gradient(135deg, #06b6d4 0%, #6366f1 100%)",
+    "linear-gradient(135deg, #2F9153 0%, #6366f1 100%)",
     "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
-    "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
-    "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
-    "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)",
-    "linear-gradient(135deg, #ec4899 0%, #a855f7 100%)",
+    "linear-gradient(135deg, #10b981 0%, #2F9153 100%)",
+    "linear-gradient(135deg, #9A978D 0%, #ec4899 100%)",
+    "linear-gradient(135deg, #3b82f6 0%, #2F9153 100%)",
+    "linear-gradient(135deg, #ec4899 0%, #9A978D 100%)",
     "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
     "linear-gradient(135deg, #14b8a6 0%, #0891b2 100%)",
-    "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+    "linear-gradient(135deg, #6366f1 0%, #9A978D 100%)",
     "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
   ];
   let h = 0;
@@ -258,34 +257,9 @@ export default function ClientesPage() {
         style={{
           background: "linear-gradient(180deg, #ffffff 0%, #fafbfd 100%)",
           boxShadow:
-            "0 1px 0 rgba(15,23,42,0.06), 0 14px 38px -18px rgba(15,23,42,0.18), 0 34px 60px -40px rgba(15,23,42,0.18)",
+            "0 1px 0 rgba(245,243,238,0.06), 0 14px 38px -18px rgba(245,243,238,0.18), 0 34px 60px -40px rgba(245,243,238,0.18)",
         }}
       >
-        {/* Auroras */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div style={{
-            position: "absolute", top: "-30%", left: "-10%", width: "55%", height: "140%",
-            background: "radial-gradient(circle, rgba(16,185,129,0.18) 0%, transparent 60%)",
-            filter: "blur(50px)",
-          }} />
-          <div style={{
-            position: "absolute", top: "-20%", right: "-10%", width: "55%", height: "140%",
-            background: "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 60%)",
-            filter: "blur(60px)",
-          }} />
-          <div style={{
-            position: "absolute", bottom: "-50%", left: "30%", width: "40%", height: "100%",
-            background: "radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 60%)",
-            filter: "blur(60px)",
-          }} />
-        </div>
-
-        {/* Prism delimiter bottom */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-[2px]"
-          style={{ background: BONDLY_GRAD }}
-        />
-
         <div className="relative px-6 md:px-8 pt-7 pb-8">
           {/* Breadcrumb / badge */}
           <div className="flex items-center justify-between mb-5">
@@ -295,7 +269,7 @@ export default function ClientesPage() {
                 style={{
                   background: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(99,102,241,0.10))",
                   color: "#0f172a",
-                  border: "1px solid rgba(15,23,42,0.08)",
+                  border: "1px solid rgba(245,243,238,0.08)",
                 }}
               >
                 <Heart size={11} style={{ color: "#10b981" }} />
@@ -327,11 +301,11 @@ export default function ClientesPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             <KpiTile icon={Users}      iconBg="#eef2ff" iconColor="#6366f1"
               label="PERSONAS EN PERÍODO" value={kpis.totalCustomers} loading={loading && !data} />
-            <KpiTile icon={Sparkles}   iconBg="#ecfeff" iconColor="#06b6d4"
+            <KpiTile icon={Sparkles}   iconBg="#ecfeff" iconColor="#2F9153"
               label="NUEVOS 7 DÍAS"      value={kpis.new7d}        loading={loading && !data} />
             <KpiTile icon={Activity}   iconBg="#ecfdf5" iconColor="#10b981"
               label="NAVEGANDO AHORA"   value={kpis.activeNow}    loading={loading && !data} live={kpis.activeNow > 0} />
-            <KpiTile icon={Crown}      iconBg="#f5f3ff" iconColor="#a855f7"
+            <KpiTile icon={Crown}      iconBg="#f5f3ff" iconColor="#9A978D"
               label="VIP (DECIL TOP)"   value={kpis.vipCount}     loading={loading && !data} />
           </div>
         </div>
@@ -343,8 +317,8 @@ export default function ClientesPage() {
       <div
         className="rounded-2xl bg-white px-3 py-2.5 flex flex-col lg:flex-row lg:items-center gap-3"
         style={{
-          border: "1px solid rgba(15,23,42,0.06)",
-          boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 12px 30px -18px rgba(15,23,42,0.12)",
+          border: "1px solid rgba(245,243,238,0.06)",
+          boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 12px 30px -18px rgba(245,243,238,0.12)",
         }}
       >
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -367,7 +341,7 @@ export default function ClientesPage() {
                 style={{
                   background: active ? "#0f172a" : "#f8fafc",
                   color: active ? "#ffffff" : "#475569",
-                  border: active ? "1px solid transparent" : "1px solid rgba(15,23,42,0.06)",
+                  border: active ? "1px solid transparent" : "1px solid rgba(245,243,238,0.06)",
                   transition: `all 200ms ${ES}`,
                 }}
               >
@@ -384,7 +358,7 @@ export default function ClientesPage() {
               max={dateTo}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-lg px-2 py-1.5 text-[12px] bg-slate-50 text-slate-900 outline-none"
-              style={{ border: "1px solid rgba(15,23,42,0.08)" }}
+              style={{ border: "1px solid rgba(245,243,238,0.08)" }}
             />
             <span className="text-slate-400 text-xs">→</span>
             <input
@@ -394,7 +368,7 @@ export default function ClientesPage() {
               max={toDateInputValue(new Date())}
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-lg px-2 py-1.5 text-[12px] bg-slate-50 text-slate-900 outline-none"
-              style={{ border: "1px solid rgba(15,23,42,0.08)" }}
+              style={{ border: "1px solid rgba(245,243,238,0.08)" }}
             />
           </div>
         )}
@@ -420,10 +394,10 @@ export default function ClientesPage() {
                 style={{
                   background: active ? cfg.gradient : "#ffffff",
                   color: active ? "#ffffff" : "#0f172a",
-                  border: active ? "1px solid transparent" : "1px solid rgba(15,23,42,0.08)",
+                  border: active ? "1px solid transparent" : "1px solid rgba(245,243,238,0.08)",
                   boxShadow: active
                     ? `0 8px 24px -10px ${cfg.solid}80, 0 2px 0 rgba(255,255,255,0.2) inset`
-                    : "0 1px 0 rgba(15,23,42,0.04)",
+                    : "0 1px 0 rgba(245,243,238,0.04)",
                   transition: `all 220ms ${ES}`,
                   animation: `bondlySlideIn 420ms ${ES} ${idx * 40}ms both`,
                 }}
@@ -433,7 +407,7 @@ export default function ClientesPage() {
                 <span
                   className="text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-md"
                   style={{
-                    background: active ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.04)",
+                    background: active ? "rgba(255,255,255,0.22)" : "rgba(245,243,238,0.04)",
                     color: active ? "#ffffff" : "#475569",
                   }}
                 >
@@ -442,9 +416,9 @@ export default function ClientesPage() {
                 {seg.key === "browsing_now" && seg.count > 0 && (
                   <span className="relative flex h-2 w-2 ml-0.5">
                     <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
-                      style={{ background: active ? "#ffffff" : "#06b6d4" }} />
+                      style={{ background: active ? "#ffffff" : "#2F9153" }} />
                     <span className="relative inline-flex rounded-full h-2 w-2"
-                      style={{ background: active ? "#ffffff" : "#06b6d4" }} />
+                      style={{ background: active ? "#ffffff" : "#2F9153" }} />
                   </span>
                 )}
               </button>
@@ -459,8 +433,8 @@ export default function ClientesPage() {
       <div
         className="rounded-2xl bg-white p-3 flex flex-col md:flex-row md:items-center gap-3"
         style={{
-          border: "1px solid rgba(15,23,42,0.06)",
-          boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 12px 30px -18px rgba(15,23,42,0.12)",
+          border: "1px solid rgba(245,243,238,0.06)",
+          boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 12px 30px -18px rgba(245,243,238,0.12)",
         }}
       >
         {/* Search */}
@@ -473,17 +447,17 @@ export default function ClientesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-slate-50 text-slate-900 placeholder-slate-400 outline-none"
             style={{
-              border: "1px solid rgba(15,23,42,0.06)",
+              border: "1px solid rgba(245,243,238,0.06)",
               transition: `all 200ms ${ES}`,
             }}
             onFocus={(e) => {
               e.currentTarget.style.background = "#ffffff";
-              e.currentTarget.style.borderColor = "rgba(15,23,42,0.16)";
+              e.currentTarget.style.borderColor = "rgba(245,243,238,0.16)";
               e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99,102,241,0.10)";
             }}
             onBlur={(e) => {
               e.currentTarget.style.background = "#f8fafc";
-              e.currentTarget.style.borderColor = "rgba(15,23,42,0.06)";
+              e.currentTarget.style.borderColor = "rgba(245,243,238,0.06)";
               e.currentTarget.style.boxShadow = "none";
             }}
           />
@@ -525,7 +499,7 @@ export default function ClientesPage() {
           style={{
             background: activeFiltersCount > 0 ? "#0f172a" : "#ffffff",
             color: activeFiltersCount > 0 ? "#ffffff" : "#0f172a",
-            border: "1px solid rgba(15,23,42,0.08)",
+            border: "1px solid rgba(245,243,238,0.08)",
             transition: `all 200ms ${ES}`,
           }}
         >
@@ -544,7 +518,7 @@ export default function ClientesPage() {
           disabled={!customers.length}
           className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
           style={{
-            border: "1px solid rgba(15,23,42,0.08)",
+            border: "1px solid rgba(245,243,238,0.08)",
             transition: `all 200ms ${ES}`,
           }}
           title="Exportar CSV de la vista filtrada"
@@ -559,8 +533,8 @@ export default function ClientesPage() {
         <div
           className="rounded-2xl bg-white p-4 grid grid-cols-1 md:grid-cols-3 gap-3"
           style={{
-            border: "1px solid rgba(15,23,42,0.06)",
-            boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+            border: "1px solid rgba(245,243,238,0.06)",
+            boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
             animation: `bondlyFadeSlideIn 260ms ${ES}`,
           }}
         >
@@ -644,7 +618,7 @@ export default function ClientesPage() {
           {Array.from({ length: 6 }).map((_, i) => <CustomerSkeleton key={i} />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl bg-white p-10 text-center" style={{ border: "1px solid rgba(15,23,42,0.06)" }}>
+        <div className="rounded-2xl bg-white p-10 text-center" style={{ border: "1px solid rgba(245,243,238,0.06)" }}>
           <AlertTriangle size={32} className="text-amber-500 mx-auto mb-2" />
           <p className="text-sm font-medium text-slate-900">Error al cargar clientes</p>
           <p className="text-xs text-slate-500 mt-1">{error}</p>
@@ -677,8 +651,8 @@ export default function ClientesPage() {
         <div
           className="rounded-2xl bg-white px-4 py-3 flex items-center justify-between flex-wrap gap-3"
           style={{
-            border: "1px solid rgba(15,23,42,0.06)",
-            boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+            border: "1px solid rgba(245,243,238,0.06)",
+            boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
           }}
         >
           <p className="text-xs text-slate-500 tabular-nums">
@@ -691,7 +665,7 @@ export default function ClientesPage() {
               disabled={page === 1}
               aria-label="Página anterior"
               className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
-              style={{ border: "1px solid rgba(15,23,42,0.08)", transition: `all 200ms ${ES}` }}
+              style={{ border: "1px solid rgba(245,243,238,0.08)", transition: `all 200ms ${ES}` }}
             >
               ‹
             </button>
@@ -729,7 +703,7 @@ export default function ClientesPage() {
                     aria-current={isActive ? "page" : undefined}
                     className="h-8 min-w-[32px] px-2 flex items-center justify-center rounded-lg text-xs font-medium tabular-nums"
                     style={{
-                      border: "1px solid rgba(15,23,42,0.08)",
+                      border: "1px solid rgba(245,243,238,0.08)",
                       background: isActive ? "#0f172a" : "transparent",
                       color: isActive ? "#ffffff" : "#0f172a",
                       transition: `all 200ms ${ES}`,
@@ -747,7 +721,7 @@ export default function ClientesPage() {
               disabled={page >= pagination.totalPages}
               aria-label="Página siguiente"
               className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
-              style={{ border: "1px solid rgba(15,23,42,0.08)", transition: `all 200ms ${ES}` }}
+              style={{ border: "1px solid rgba(245,243,238,0.08)", transition: `all 200ms ${ES}` }}
             >
               ›
             </button>
@@ -789,8 +763,8 @@ function CustomerCard({ customer: c, index, onClick }: any) {
       disabled={isAnon}
       className="group relative text-left w-full rounded-2xl bg-white p-4 overflow-hidden"
       style={{
-        border: `1px solid rgba(15,23,42,0.06)`,
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 10px 30px -22px rgba(15,23,42,0.20)",
+        border: `1px solid rgba(245,243,238,0.06)`,
+        boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 10px 30px -22px rgba(245,243,238,0.20)",
         transition: `all 220ms ${ES}`,
         animation: `bondlyFadeSlideIn 420ms ${ES} ${Math.min(index * 30, 400)}ms both`,
         cursor: isAnon ? "default" : "pointer",
@@ -799,14 +773,14 @@ function CustomerCard({ customer: c, index, onClick }: any) {
       onMouseEnter={(e) => {
         if (isAnon) return;
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = `0 1px 0 rgba(15,23,42,0.06), 0 20px 40px -18px ${tier.glow}, 0 30px 60px -30px rgba(15,23,42,0.20)`;
+        e.currentTarget.style.boxShadow = `0 1px 0 rgba(245,243,238,0.06), 0 20px 40px -18px ${tier.glow}, 0 30px 60px -30px rgba(245,243,238,0.20)`;
         e.currentTarget.style.borderColor = `${tier.accent}33`;
       }}
       onMouseLeave={(e) => {
         if (isAnon) return;
         e.currentTarget.style.transform = "";
-        e.currentTarget.style.boxShadow = "0 1px 0 rgba(15,23,42,0.04), 0 10px 30px -22px rgba(15,23,42,0.20)";
-        e.currentTarget.style.borderColor = "rgba(15,23,42,0.06)";
+        e.currentTarget.style.boxShadow = "0 1px 0 rgba(245,243,238,0.04), 0 10px 30px -22px rgba(245,243,238,0.20)";
+        e.currentTarget.style.borderColor = "rgba(245,243,238,0.06)";
       }}
     >
       {/* Tier accent line */}
@@ -815,15 +789,10 @@ function CustomerCard({ customer: c, index, onClick }: any) {
       {/* Active now pulse ring (top right) */}
       {c.isActiveNow && (
         <div
-          className="absolute top-3 right-3 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-mono tracking-[0.15em] uppercase"
-          style={{
-            background: "rgba(6,182,212,0.10)",
-            color: "#0891b2",
-            border: "1px solid rgba(6,182,212,0.2)",
-            animation: `bondlyLivePulse 2.4s ${ES} infinite`,
-          }}
+          className="absolute top-3 right-3 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-geistmono tracking-[0.15em] uppercase bg-accent-soft text-accent border border-accent/20"
+          style={{ animation: `bondlyLivePulse 2.4s ${ES} infinite` }}
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+          <span className="w-1.5 h-1.5 rounded-full bg-accent" />
           ACTIVO
         </div>
       )}
@@ -898,7 +867,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
               className="rounded-lg px-2.5 py-2 mb-2.5 text-[11px] text-slate-500"
               style={{
                 background: "#f8fafc",
-                border: "1px dashed rgba(15,23,42,0.08)",
+                border: "1px dashed rgba(245,243,238,0.08)",
               }}
             >
               <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-slate-400">COMMERCE</span>
@@ -949,7 +918,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
                 <FlagChip icon={Repeat} label="Reapareció" color="#10b981" />
               )}
               {c.flags.includes("new_7d") && (
-                <FlagChip icon={Sparkles} label="Nuevo" color="#06b6d4" />
+                <FlagChip icon={Sparkles} label="Nuevo" color="#2F9153" />
               )}
               {c.flags.includes("at_risk") && (
                 <FlagChip icon={AlertTriangle} label="En riesgo" color="#f59e0b" />
@@ -994,8 +963,8 @@ function CustomerSkeleton() {
     <div
       className="rounded-2xl bg-white p-4"
       style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+        border: "1px solid rgba(245,243,238,0.06)",
+        boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
       }}
     >
       <div className="flex gap-3">
@@ -1035,13 +1004,13 @@ function EmptyState({ quickSegment, onReset }: any) {
     <div
       className="rounded-2xl bg-white p-12 text-center"
       style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+        border: "1px solid rgba(245,243,238,0.06)",
+        boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
       }}
     >
       <div
         className="w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center"
-        style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.10), rgba(6,182,212,0.10))" }}
+        style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.10), rgba(229,225,216,0.10))" }}
       >
         <Users size={22} className="text-slate-400" />
       </div>
@@ -1073,7 +1042,7 @@ function SelectDropdown({ icon: Icon, label, value, options, onChange }: any) {
         onChange={(e) => onChange(e.target.value)}
         className="appearance-none pl-7 pr-7 py-2 rounded-xl text-sm font-medium text-slate-900 bg-white min-w-[160px] cursor-pointer"
         style={{
-          border: "1px solid rgba(15,23,42,0.08)",
+          border: "1px solid rgba(245,243,238,0.08)",
           transition: `all 200ms ${ES}`,
         }}
       >
@@ -1096,7 +1065,7 @@ function FieldSelect({ label, value, onChange, options }: any) {
           onChange={(e) => onChange(e.target.value)}
           className="appearance-none w-full px-3 pr-8 py-2 rounded-xl text-sm text-slate-900 bg-slate-50 cursor-pointer"
           style={{
-            border: "1px solid rgba(15,23,42,0.06)",
+            border: "1px solid rgba(245,243,238,0.06)",
             transition: `all 200ms ${ES}`,
           }}
         >

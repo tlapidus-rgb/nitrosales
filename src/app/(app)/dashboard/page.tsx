@@ -1040,26 +1040,22 @@ export default function DashboardPage() {
               <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="dashRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.32} />
-                    <stop offset="60%" stopColor="#06b6d4" stopOpacity={0.08} />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="dashRevenueStroke" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#06b6d4" />
-                    <stop offset="100%" stopColor="#8b5cf6" />
+                    <stop offset="0%" stopColor="#2F9153" stopOpacity={0.32} />
+                    <stop offset="60%" stopColor="#2F9153" stopOpacity={0.08} />
+                    <stop offset="100%" stopColor="#2F9153" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+                <CartesianGrid stroke="rgba(28,27,24,0.06)" vertical={false} />
                 <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
-                <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(28,27,24,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="url(#dashRevenueStroke)"
+                  stroke="#2F9153"
                   strokeWidth={2.5}
                   fill="url(#dashRevenueFill)"
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#ffffff", fill: "#06b6d4" }}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#ffffff", fill: "#2F9153" }}
                   name="Revenue"
                 />
               </AreaChart>
@@ -1079,10 +1075,10 @@ export default function DashboardPage() {
                     <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.04} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+                <CartesianGrid stroke="rgba(28,27,24,0.06)" vertical={false} />
                 <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
-                <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(28,27,24,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: 8 }} />
                 <Area
                   type="monotone"
@@ -1116,7 +1112,7 @@ export default function DashboardPage() {
 
   // ── Render ──
   return (
-    <div className="light-canvas min-h-screen">
+    <div className="bg-canvas text-ink min-h-screen">
       <DashboardStyles />
 
       {/* Hero header — narrativa del día con auroras + prism delimiter */}
@@ -1138,7 +1134,7 @@ export default function DashboardPage() {
           <button
             onClick={savePreferences}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             style={{ transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
             <Check className="w-4 h-4" />
@@ -1168,7 +1164,7 @@ export default function DashboardPage() {
 
       {/* Edit mode banner */}
       {editMode && (
-        <div className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium mb-5">
+        <div className="flex items-center gap-2 bg-ink text-white px-4 py-2.5 rounded-xl text-sm font-medium mb-5">
           <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
           Modo edicion — Quita, agrega o reordena widgets a tu gusto
         </div>
@@ -1325,7 +1321,7 @@ export default function DashboardPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           style={{
-            background: "rgba(15, 23, 42, 0.42)",
+            background: "rgba(28, 27, 24, 0.42)",
             backdropFilter: "saturate(140%) blur(8px)",
             WebkitBackdropFilter: "saturate(140%) blur(8px)",
           }}
@@ -1337,7 +1333,7 @@ export default function DashboardPage() {
           >
             <div className="flex justify-between items-start mb-1">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-ink text-white flex items-center justify-center">
                   <LayoutGrid className="w-[18px] h-[18px]" />
                 </div>
                 <div>
@@ -1375,7 +1371,7 @@ export default function DashboardPage() {
                   }}
                   className="flex flex-col gap-2 p-3.5 border border-slate-200 rounded-xl bg-white text-left hover:border-slate-400 hover:bg-slate-50"
                   style={{
-                    boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+                    boxShadow: "0 1px 0 rgba(28,27,24,0.03)",
                     transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 >
@@ -1412,7 +1408,7 @@ export default function DashboardPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           style={{
-            background: "rgba(15, 23, 42, 0.42)",
+            background: "rgba(28, 27, 24, 0.42)",
             backdropFilter: "saturate(140%) blur(8px)",
             WebkitBackdropFilter: "saturate(140%) blur(8px)",
           }}
@@ -1424,7 +1420,7 @@ export default function DashboardPage() {
           >
             <div className="flex justify-between items-start mb-1">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-ink text-white flex items-center justify-center">
                   <LayoutGrid className="w-[18px] h-[18px]" />
                 </div>
                 <div>
@@ -1479,7 +1475,7 @@ export default function DashboardPage() {
                           <div
                             key={w.id}
                             className="flex flex-col gap-2 px-3.5 py-3 border border-slate-200 rounded-xl bg-white"
-                            style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.03)" }}
+                            style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.03)" }}
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-medium tracking-tight text-[13px] text-slate-800 truncate">
@@ -1505,7 +1501,7 @@ export default function DashboardPage() {
                                     title={fdef.description + (isDefault ? " (Recomendado)" : "")}
                                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${
                                       isDefault
-                                        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                                        ? "border-ink bg-ink text-white hover:bg-ink/90"
                                         : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
                                     }`}
                                     style={{
@@ -1536,7 +1532,7 @@ export default function DashboardPage() {
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
           <div className="dash-toast flex items-center gap-2">
-            <Check className="w-4 h-4 text-cyan-400" />
+            <Check className="w-4 h-4 text-accent" />
             {toast}
           </div>
         </div>

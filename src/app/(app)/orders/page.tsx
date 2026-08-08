@@ -145,7 +145,7 @@ function ProductThumb({
       className={`${rounded} flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100 ${
         onClickZoom ? "cursor-pointer" : ""
       }`}
-      style={{ width: size, height: size, boxShadow: "0 1px 4px rgba(15,23,42,0.06)" }}
+      style={{ width: size, height: size, boxShadow: "0 1px 4px rgba(28,27,24,0.06)" }}
       onClick={onClickZoom ? (e) => { e.stopPropagation(); onClickZoom(normalized); } : undefined}
     >
       <img
@@ -485,7 +485,7 @@ function OrdersPageInner() {
           <p className="text-xs text-slate-400 mb-5">Puede ser una conexion lenta o el servidor ocupado. Proba de nuevo.</p>
           <button
             onClick={() => window.location.reload()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-ink hover:bg-ink/90 text-white text-sm font-medium transition-colors"
           >
             <RefreshCw size={16} /> Recargar pagina
           </button>
@@ -675,7 +675,7 @@ function OrdersPageInner() {
         <KpiCard icon={<Clock size={16} className="text-indigo-600" />} iconBg="bg-indigo-50"
           label="Venta promedio/dia" value={formatCompact(avgRevenuePerDay)}
           subtitle={`${avgOrdersPerDay.toFixed(1)} ordenes/dia`} />
-        <KpiCard icon={<Truck size={16} className="text-cyan-600" />} iconBg="bg-cyan-50"
+        <KpiCard icon={<Truck size={16} className="text-ink" />} iconBg="bg-surface"
           label="Envio promedio" value={formatARS(Math.abs(avgShippingPerOrder))}
           subtitle={`${formatCompact(Math.abs(kpis.totalShipping))} total`} />
         <KpiCard icon={<Tag size={16} className="text-pink-600" />} iconBg="bg-pink-50"
@@ -724,7 +724,7 @@ function OrdersPageInner() {
             <div className="flex gap-1.5">
               {(["revenue", "orders"] as const).map((m) => (
                 <button key={m} onClick={() => setDailyMetric(m)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dailyMetric === m ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dailyMetric === m ? "bg-ink text-white shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}`}
                   style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                   {m === "revenue" ? "Facturacion" : "Ordenes"}
                 </button>
@@ -745,7 +745,7 @@ function OrdersPageInner() {
                   onClick={() => { setCompMode(key); setCompOffset(0); }}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-200 ${
                     compMode === key
-                      ? "bg-indigo-600 text-white shadow-sm"
+                      ? "bg-ink text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200"
                   }`}>
                   {label}
@@ -789,8 +789,7 @@ function OrdersPageInner() {
             <defs>
               <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#6366f1" stopOpacity={0.28} />
-                <stop offset="40%" stopColor="#8b5cf6" stopOpacity={0.12} />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.12} />
@@ -828,16 +827,16 @@ function OrdersPageInner() {
               }}
               labelFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" }); } catch { return d; } }}
               contentStyle={{
-                background: "rgba(15, 23, 42, 0.95)",
-                border: "1px solid rgba(99, 102, 241, 0.3)",
+                background: "rgba(245, 243, 238, 0.98)",
+                border: "1px solid #E5E1D8",
                 borderRadius: "12px",
                 fontSize: "12px",
-                color: "#ffffff",
-                boxShadow: "0 12px 32px -12px rgba(15, 23, 42, 0.5)",
+                color: "#1C1B18",
+                boxShadow: "0 12px 32px -12px rgba(28, 27, 24, 0.18)",
                 backdropFilter: "blur(10px)",
               }}
-              labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: 500, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "4px" }}
-              itemStyle={{ color: "#ffffff", fontWeight: 600, fontFeatureSettings: '"tnum"' }}
+              labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "4px" }}
+              itemStyle={{ color: "#1C1B18", fontWeight: 600, fontFeatureSettings: '"tnum"' }}
             />
             {showComparison ? (
               <>
@@ -878,9 +877,9 @@ function OrdersPageInner() {
               <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
-                contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }}
-                labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: 500 }}
-                itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
+                contentStyle={{ background: "rgba(245,243,238,0.98)", border: "1px solid #E5E1D8", borderRadius: "12px", fontSize: "12px", color: "#1C1B18", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.18)" }}
+                labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500 }}
+                itemStyle={{ color: "#1C1B18", fontWeight: 600 }} />
               <Bar dataKey="avgOrders" fill="url(#barGradientIndigo)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -901,9 +900,9 @@ function OrdersPageInner() {
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} interval={2} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
-                contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }}
-                labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: 500 }}
-                itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
+                contentStyle={{ background: "rgba(245,243,238,0.98)", border: "1px solid #E5E1D8", borderRadius: "12px", fontSize: "12px", color: "#1C1B18", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.18)" }}
+                labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500 }}
+                itemStyle={{ color: "#1C1B18", fontWeight: 600 }} />
               <Bar dataKey="avgOrders" fill="url(#barGradientEmerald)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -1435,7 +1434,7 @@ function OrdersPageInner() {
                 Anterior
               </button>
               <button onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage >= (data.pagination?.totalPages || 1)}
-                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                 Siguiente
               </button>

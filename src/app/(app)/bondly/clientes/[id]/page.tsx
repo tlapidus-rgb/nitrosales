@@ -19,20 +19,20 @@ import { SourceLogo, CHANNEL_LABEL, CHANNEL_TINT } from "@/components/bondly/Sou
 // Constantes visuales Bondly
 // ═══════════════════════════════════════════════════════════════════
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
-const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #6366f1 100%)";
-const VIP_GRAD = "linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%)";
+const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #2F9153 50%, #6366f1 100%)";
+const VIP_GRAD = "linear-gradient(135deg, #9A978D 0%, #ec4899 50%, #f97316 100%)";
 const GOLD_GRAD = "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)";
 
 const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gradient: string; label: string; bg: string }> = {
   VIP: {
-    icon: Crown, accent: "#a855f7", glow: "rgba(168,85,247,0.45)",
-    gradient: "linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%)",
+    icon: Crown, accent: "#9A978D", glow: "rgba(168,85,247,0.45)",
+    gradient: "linear-gradient(135deg, #9A978D 0%, #ec4899 50%, #f97316 100%)",
     bg: "linear-gradient(135deg, rgba(168,85,247,0.10), rgba(236,72,153,0.08))",
     label: "VIP",
   },
   Loyal: {
     icon: Heart, accent: "#ec4899", glow: "rgba(236,72,153,0.35)",
-    gradient: "linear-gradient(135deg, #ec4899 0%, #a855f7 100%)",
+    gradient: "linear-gradient(135deg, #ec4899 0%, #9A978D 100%)",
     bg: "linear-gradient(135deg, rgba(236,72,153,0.08), rgba(168,85,247,0.06))",
     label: "LEAL",
   },
@@ -43,9 +43,9 @@ const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gra
     label: "REGULAR",
   },
   New: {
-    icon: Sparkles, accent: "#06b6d4", glow: "rgba(6,182,212,0.35)",
-    gradient: "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)",
-    bg: "linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.06))",
+    icon: Sparkles, accent: "#2F9153", glow: "rgba(229,225,216,0.35)",
+    gradient: "linear-gradient(135deg, #2F9153 0%, #3b82f6 100%)",
+    bg: "linear-gradient(135deg, rgba(229,225,216,0.08), rgba(59,130,246,0.06))",
     label: "NUEVO",
   },
   "At Risk": {
@@ -67,18 +67,18 @@ const EVENT_CONFIG: Record<string, { icon: any; color: string; label: string }> 
   PAGE_VIEW:         { icon: Eye,               color: "#64748b", label: "Vio página" },
   VIEW_PRODUCT:      { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
   ADD_TO_CART:       { icon: ShoppingCart,      color: "#f97316", label: "Agregó al carrito" },
-  INITIATE_CHECKOUT: { icon: CreditCard,        color: "#a855f7", label: "Inició checkout" },
-  CHECKOUT_SHIPPING: { icon: CreditCard,        color: "#a855f7", label: "Eligió envío" },
-  CHECKOUT_PAYMENT:  { icon: CreditCard,        color: "#a855f7", label: "Eligió pago" },
+  INITIATE_CHECKOUT: { icon: CreditCard,        color: "#9A978D", label: "Inició checkout" },
+  CHECKOUT_SHIPPING: { icon: CreditCard,        color: "#9A978D", label: "Eligió envío" },
+  CHECKOUT_PAYMENT:  { icon: CreditCard,        color: "#9A978D", label: "Eligió pago" },
   PURCHASE:          { icon: Zap,               color: "#10b981", label: "Compró" },
   IDENTIFY:          { icon: Users,             color: "#14b8a6", label: "Se identificó" },
   // Variantes GA4-style (por si alguna integración las usa)
   VIEW_ITEM:         { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
   VIEW_ITEM_LIST:    { icon: Layers,            color: "#6366f1", label: "Exploró listado" },
   REMOVE_FROM_CART:  { icon: ShoppingCart,      color: "#94a3b8", label: "Quitó del carrito" },
-  BEGIN_CHECKOUT:    { icon: CreditCard,        color: "#a855f7", label: "Inició checkout" },
+  BEGIN_CHECKOUT:    { icon: CreditCard,        color: "#9A978D", label: "Inició checkout" },
   SEARCH:            { icon: Compass,           color: "#0891b2", label: "Buscó" },
-  SESSION_START:     { icon: CircleDot,         color: "#06b6d4", label: "Sesión iniciada" },
+  SESSION_START:     { icon: CircleDot,         color: "#2F9153", label: "Sesión iniciada" },
   CLICK:             { icon: MousePointerClick, color: "#6366f1", label: "Click" },
   default:           { icon: Activity,          color: "#64748b", label: "Actividad" },
 };
@@ -173,15 +173,15 @@ function initialsFrom(name: string): string {
 
 function avatarGradientFor(id: string): string {
   const GRADIENTS = [
-    "linear-gradient(135deg, #06b6d4 0%, #6366f1 100%)",
+    "linear-gradient(135deg, #2F9153 0%, #6366f1 100%)",
     "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
-    "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
-    "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
-    "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)",
-    "linear-gradient(135deg, #ec4899 0%, #a855f7 100%)",
+    "linear-gradient(135deg, #10b981 0%, #2F9153 100%)",
+    "linear-gradient(135deg, #9A978D 0%, #ec4899 100%)",
+    "linear-gradient(135deg, #3b82f6 0%, #2F9153 100%)",
+    "linear-gradient(135deg, #ec4899 0%, #9A978D 100%)",
     "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
     "linear-gradient(135deg, #14b8a6 0%, #0891b2 100%)",
-    "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+    "linear-gradient(135deg, #6366f1 0%, #9A978D 100%)",
     "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
   ];
   let h = 0;
@@ -327,22 +327,6 @@ export default function ClienteDetailPage() {
       {/* HERO                                                        */}
       {/* ═══════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden">
-        {/* Aurora background */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div
-            className="absolute -top-32 -left-24 w-[640px] h-[640px] rounded-full opacity-40 blur-3xl"
-            style={{ background: `radial-gradient(circle, ${tierCfg.accent}33 0%, transparent 70%)`, animation: `bondlyAuroraFloat 14s ${ES} infinite` }}
-          />
-          <div
-            className="absolute -bottom-40 -right-32 w-[720px] h-[720px] rounded-full opacity-35 blur-3xl"
-            style={{ background: "radial-gradient(circle, rgba(16,185,129,0.30) 0%, transparent 70%)", animation: `bondlyAuroraFloat 18s ${ES} infinite reverse` }}
-          />
-          <div
-            className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[540px] h-[540px] rounded-full opacity-20 blur-3xl"
-            style={{ background: "radial-gradient(circle, rgba(6,182,212,0.35) 0%, transparent 70%)" }}
-          />
-        </div>
-
         <div className="relative px-6 md:px-8 pt-6 pb-8 max-w-7xl mx-auto">
           {/* Back nav */}
           <button
@@ -352,7 +336,7 @@ export default function ClienteDetailPage() {
           >
             <span
               className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 group-hover:border-slate-300 group-hover:-translate-x-0.5"
-              style={{ transition: `all 200ms ${ES}`, boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}
+              style={{ transition: `all 200ms ${ES}`, boxShadow: "0 1px 2px rgba(245,243,238,0.04)" }}
             >
               <ArrowLeft className="w-4 h-4" />
             </span>
@@ -414,8 +398,6 @@ export default function ClienteDetailPage() {
                     style={{
                       background: VIP_GRAD,
                       boxShadow: "0 6px 18px rgba(236,72,153,0.30)",
-                      animation: `bondlyShimmer 3s linear infinite`,
-                      backgroundSize: "200% 100%",
                     }}
                   >
                     <Crown className="w-3 h-3" />
@@ -520,7 +502,7 @@ export default function ClienteDetailPage() {
                   href={`mailto:${customer.email}`}
                   className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200"
                   style={{
-                    boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                    boxShadow: "0 1px 2px rgba(245,243,238,0.04)",
                     transition: `all 220ms ${ES}`,
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
@@ -546,7 +528,7 @@ export default function ClienteDetailPage() {
               icon={<ShoppingCart className="w-4 h-4" />}
               label="Órdenes"
               value={<CountUpNum target={stats.totalOrders} />}
-              accent="#06b6d4"
+              accent="#2F9153"
               delay={60}
             />
             <KpiTile
@@ -571,7 +553,7 @@ export default function ClienteDetailPage() {
               icon={<Crown className="w-4 h-4" />}
               label="CLV rank"
               value={<><CountUpNum target={stats.clvRank} />%</>}
-              accent="#a855f7"
+              accent="#9A978D"
               delay={240}
             />
           </div>
@@ -649,13 +631,13 @@ export default function ClienteDetailPage() {
                     label="CLV rank"
                     value={`${stats.clvRank}%`}
                     hint={stats.clvRank >= 80 ? "top" : stats.clvRank >= 50 ? "medio" : "bajo"}
-                    accent="#a855f7"
+                    accent="#9A978D"
                   />
                   <MiniStat
                     label="Cadencia"
                     value={stats.avgGapDays != null ? `${stats.avgGapDays}d` : "—"}
                     hint="entre compras"
-                    accent="#06b6d4"
+                    accent="#2F9153"
                   />
                 </div>
 
@@ -664,11 +646,11 @@ export default function ClienteDetailPage() {
                   <div
                     className="rounded-xl px-3 py-2.5 flex items-center gap-2"
                     style={{
-                      background: "linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(99,102,241,0.06) 100%)",
-                      border: "1px solid rgba(6,182,212,0.18)",
+                      background: "linear-gradient(135deg, rgba(229,225,216,0.08) 0%, rgba(99,102,241,0.06) 100%)",
+                      border: "1px solid rgba(229,225,216,0.18)",
                     }}
                   >
-                    <Compass className="w-3.5 h-3.5 text-cyan-600" />
+                    <Compass className="w-3.5 h-3.5 text-slate-500" />
                     <div className="text-[11px] text-slate-600">
                       Próximo probable:
                       <span className="ml-1 font-semibold text-slate-900">{segmentation.nextCategory}</span>
@@ -736,7 +718,7 @@ export default function ClienteDetailPage() {
                 <MiniStat
                   label="Sesiones"
                   value={<CountUpNum target={activity.totalSessions} />}
-                  accent="#06b6d4"
+                  accent="#2F9153"
                 />
                 <MiniStat
                   label="Páginas vistas"
@@ -779,26 +761,21 @@ function KpiTile({
     <div
       className="relative rounded-2xl bg-white border border-slate-200 p-4 overflow-hidden"
       style={{
-        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -15px rgba(15,23,42,0.10)",
+        boxShadow: "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.10)",
         animation: `bondlyFadeSlideIn 500ms ${ES} ${delay}ms both`,
         transition: `all 280ms ${ES}`,
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
-        (e.currentTarget as HTMLElement).style.boxShadow = `0 1px 2px rgba(15,23,42,0.04), 0 16px 38px -18px ${accent}55`;
+        (e.currentTarget as HTMLElement).style.boxShadow = `0 1px 2px rgba(245,243,238,0.04), 0 16px 38px -18px ${accent}55`;
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -15px rgba(15,23,42,0.10)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.10)";
       }}
     >
       {/* Accent bar */}
       <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: accent }} />
-      {/* Glow */}
-      <div
-        className="absolute -top-8 -right-8 w-28 h-28 rounded-full opacity-15 blur-2xl pointer-events-none"
-        style={{ background: accent }}
-      />
       <div className="relative flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
         <span style={{ color: accent }}>{icon}</span>
         {label}
@@ -817,7 +794,7 @@ function Card({
     <div
       className="rounded-2xl bg-white border border-slate-200 overflow-hidden"
       style={{
-        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -15px rgba(15,23,42,0.08)",
+        boxShadow: "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.08)",
         animation: `bondlyFadeSlideIn 500ms ${ES} ${delay}ms both`,
       }}
     >
@@ -852,7 +829,7 @@ function ProbabilityBar({
   // Banner color: if inverted (churn), red at high values, green at low.
   const severity = inverted
     ? v >= 70 ? "#ef4444" : v >= 40 ? "#f59e0b" : "#10b981"
-    : v >= 60 ? "#10b981" : v >= 30 ? "#06b6d4" : "#94a3b8";
+    : v >= 60 ? "#10b981" : v >= 30 ? "#2F9153" : "#94a3b8";
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -964,7 +941,7 @@ function ProductRow({ product, rank }: { product: any; rank: number }) {
 }
 
 function DeviceChip({ device }: { device: string }) {
-  const cfg = device === "mobile" ? { icon: Smartphone, label: "Móvil", color: "#06b6d4" }
+  const cfg = device === "mobile" ? { icon: Smartphone, label: "Móvil", color: "#2F9153" }
             : device === "tablet" ? { icon: Tablet, label: "Tablet", color: "#6366f1" }
             : { icon: Monitor, label: "Desktop", color: "#475569" };
   const Icon = cfg.icon;
@@ -1044,7 +1021,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
     <div
       className="relative rounded-xl pl-3 pr-3 py-2.5 border"
       style={{
-        background: "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(6,182,212,0.04) 100%)",
+        background: "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(229,225,216,0.04) 100%)",
         borderColor: "rgba(16,185,129,0.22)",
         animation: `bondlyFadeSlideIn 420ms ${ES} ${delay}ms both`,
       }}

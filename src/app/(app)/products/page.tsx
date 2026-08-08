@@ -12,6 +12,7 @@ import {
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { KpiCard, DateRangeFilter } from "@/components/dashboard";
 import DashboardStyles from "@/components/dashboard/DashboardStyles";
+import { LivePulse } from "@/components/enterprise/ui";
 import { useCountUp } from "@/lib/hooks/useAnimatedValue";
 import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign,
@@ -108,7 +109,7 @@ function ProductImage({ src, name, onClick, size = 40 }: { src: string | null; n
   const clickable = onClick && src && !failed;
   if (!src || failed) {
     return (
-      <div style={style} className="rounded bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center text-slate-400 text-[10px] font-medium">
+      <div style={style} className="rounded bg-surface border border-hairline flex-shrink-0 flex items-center justify-center text-ink-40 text-[10px] font-medium">
         {name.slice(0, 2).toUpperCase()}
       </div>
     );
@@ -118,7 +119,7 @@ function ProductImage({ src, name, onClick, size = 40 }: { src: string | null; n
       src={src}
       alt={name}
       style={style}
-      className={`rounded object-cover bg-white border border-slate-200 flex-shrink-0 ${clickable ? "cursor-pointer transition-all duration-200 hover:opacity-80 hover:ring-2 hover:ring-amber-400/50" : ""}`}
+      className={`rounded object-cover bg-white border border-hairline flex-shrink-0 ${clickable ? "cursor-pointer transition-all duration-200 hover:opacity-80 hover:ring-2 hover:ring-amber-400/50" : ""}`}
       referrerPolicy="no-referrer"
       loading="lazy"
       onError={() => setFailed(true)}
@@ -174,7 +175,7 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
   return (
     <div className="relative group cursor-help">
       <span>{text}</span>
-      <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-50 w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
+      <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-50 w-48 bg-ink text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
         {tooltip}
       </div>
     </div>
@@ -251,7 +252,7 @@ function ColumnSelector({ columns, visible, onChange }: {
               <label key={col.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 rounded px-1">
                 <input type="checkbox" checked={visible[col.key] ?? col.defaultVisible}
                   onChange={(e) => onChange(col.key, e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5" />
+                  className="rounded border-gray-300 text-ink-60 focus:ring-ink/20 w-3.5 h-3.5" />
                 <span className="text-xs text-gray-700">{col.label}</span>
               </label>
             ))}
@@ -301,30 +302,24 @@ function ProductsHero({
         {/* Top row — tag + contexto */}
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-hairline/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">
               <TagIcon className={`w-3 h-3 ${tagColor}`} />
               {title}
             </span>
-            <span className="text-xs text-slate-500">{subtitle}</span>
+            <span className="text-xs text-ink-60">{subtitle}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium tabular-nums">
-              {dateFrom} · {dateTo}
-            </span>
+            <LivePulse status="LIVE" label={`${dateFrom} · ${dateTo}`} />
           </div>
         </div>
 
         {/* Main row — número hero con count-up + secundarios + slot derecho */}
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-60 mb-2">
               {mainLabel}
             </p>
-            <p className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tabular-nums tracking-tight text-slate-900 leading-none">
+            <p className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tabular-nums tracking-tight text-ink leading-none">
               {mainFormatted}
             </p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-4">
@@ -344,7 +339,7 @@ function ProductsHero({
             </div>
           </div>
           {rightSlot && (
-            <div className="lg:border-l lg:border-slate-200/60 lg:pl-8">{rightSlot}</div>
+            <div className="lg:border-l lg:border-hairline/60 lg:pl-8">{rightSlot}</div>
           )}
         </div>
       </div>
@@ -355,13 +350,13 @@ function ProductsHero({
 function HeroStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-0.5 text-slate-500">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-0.5 text-ink-60">
         {label}
       </span>
-      <span className="text-lg font-bold tabular-nums tracking-tight text-slate-900">
+      <span className="text-lg font-bold tabular-nums tracking-tight text-ink">
         {value}
       </span>
-      {hint && <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">{hint}</span>}
+      {hint && <span className="text-[10px] text-ink-40 mt-0.5 leading-tight">{hint}</span>}
     </div>
   );
 }
@@ -385,7 +380,7 @@ export default function ProductsPage() {
       ? "Salud de inventario y márgenes por producto"
       : "Catálogo y performance";
   const pageTagIcon = mode === "rentabilidad" ? PiggyBank : ShoppingBag;
-  const pageTagColor = mode === "rentabilidad" ? "text-emerald-600" : "text-indigo-600";
+  const pageTagColor = "text-ink-60";
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
@@ -1134,7 +1129,7 @@ export default function ProductsPage() {
   /* ── Loading state ─────────────────────────────────── */
   if (loading && products.length === 0) {
     return (
-      <div className="p-6 space-y-6 bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] min-h-screen">
+      <div className="p-6 space-y-6 bg-canvas min-h-screen">
         <DashboardStyles />
         {/* Hero skeleton */}
         <section className="dash-hero dash-fade-up mb-5">
@@ -1159,7 +1154,7 @@ export default function ProductsPage() {
 
   /* ── Render ────────────────────────────────────────── */
   return (
-    <div className="p-6 space-y-6 bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] min-h-screen">
+    <div className="p-6 space-y-6 bg-canvas min-h-screen">
       <DashboardStyles />
 
       {/* Image modal */}
@@ -1202,47 +1197,47 @@ export default function ProductsPage() {
 
       {/* KPI Row — stagger entrance */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 dash-stagger">
-        <KpiCard icon={<DollarSign size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Facturación Total" value={formatCompact(kpiStats.totalRevenue)} />
-        <KpiCard icon={<Package size={16} className="text-green-600" />} iconBg="bg-green-50" label="Unidades Vendidas" value={kpiStats.totalUnits.toLocaleString("es-AR")} />
-        <KpiCard icon={<DollarSign size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="Ticket Promedio" value={formatARS(kpiStats.ticketPromedio)} />
-        <KpiCard icon={<Zap size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="Productos Activos" value={kpiStats.productosActivos.toLocaleString("es-AR")} />
-        <KpiCard icon={<Package size={16} className="text-purple-600" />} iconBg="bg-purple-50" label="Stock Total (uds)" value={kpiStats.totalStock.toLocaleString("es-AR")} />
-        <KpiCard icon={<Layers size={16} className="text-orange-600" />} iconBg="bg-orange-50" label="Valor de Stock" value={formatCompact(kpiStats.valorStock)} />
+        <KpiCard icon={<DollarSign size={16} className="text-ink-60" />} iconBg="bg-surface" label="Facturación Total" value={formatCompact(kpiStats.totalRevenue)} />
+        <KpiCard icon={<Package size={16} className="text-ink-60" />} iconBg="bg-surface" label="Unidades Vendidas" value={kpiStats.totalUnits.toLocaleString("es-AR")} />
+        <KpiCard icon={<DollarSign size={16} className="text-ink-60" />} iconBg="bg-surface" label="Ticket Promedio" value={formatARS(kpiStats.ticketPromedio)} />
+        <KpiCard icon={<Zap size={16} className="text-ink-60" />} iconBg="bg-surface" label="Productos Activos" value={kpiStats.productosActivos.toLocaleString("es-AR")} />
+        <KpiCard icon={<Package size={16} className="text-ink-60" />} iconBg="bg-surface" label="Stock Total (uds)" value={kpiStats.totalStock.toLocaleString("es-AR")} />
+        <KpiCard icon={<Layers size={16} className="text-ink-60" />} iconBg="bg-surface" label="Valor de Stock" value={formatCompact(kpiStats.valorStock)} />
       </div>
 
       {/* Stock Health Alerts Row — stagger entrance */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 dash-stagger">
-        <div className="bg-white rounded-2xl border border-red-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(239,68,68,0.14), 0 22px 40px -28px rgba(239,68,68,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
+        <div className="bg-white rounded-2xl border border-red-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(239,68,68,0.14), 0 22px 40px -28px rgba(239,68,68,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
           <div className="flex items-center gap-2 mb-1">
             <X className="w-4 h-4 text-red-500" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sin Stock</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Sin Stock</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-slate-900"}`}>{stockHealthAlerts.sinStock}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">productos con stock = 0</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-ink"}`}>{stockHealthAlerts.sinStock}</p>
+          <p className="text-[10px] text-ink-40 mt-0.5">productos con stock = 0</p>
         </div>
-        <div className="bg-white rounded-2xl border border-amber-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(245,158,11,0.14), 0 22px 40px -28px rgba(245,158,11,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
+        <div className="bg-white rounded-2xl border border-amber-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(245,158,11,0.14), 0 22px 40px -28px rgba(245,158,11,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Stock Crítico</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Stock Crítico</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-slate-900"}`}>{stockHealthAlerts.critico}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">menos de 7 días de stock</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-ink"}`}>{stockHealthAlerts.critico}</p>
+          <p className="text-[10px] text-ink-40 mt-0.5">menos de 7 días de stock</p>
         </div>
-        <div className="bg-white rounded-2xl border border-blue-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(59,130,246,0.14), 0 22px 40px -28px rgba(59,130,246,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
+        <div className="bg-white rounded-2xl border border-blue-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(59,130,246,0.14), 0 22px 40px -28px rgba(59,130,246,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
           <div className="flex items-center gap-2 mb-1">
             <Package className="w-4 h-4 text-blue-500" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sobrestock</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Sobrestock</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-slate-900"}`}>{stockHealthAlerts.sobrestock}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">más de 90 días de stock</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-ink"}`}>{stockHealthAlerts.sobrestock}</p>
+          <p className="text-[10px] text-ink-40 mt-0.5">más de 90 días de stock</p>
         </div>
         <div className="dash-card p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-slate-500" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Días Stock Promedio</span>
+            <Clock className="w-4 h-4 text-ink-60" />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Días Stock Promedio</span>
           </div>
-          <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">promedio ponderado</p>
+          <p className="text-2xl font-bold tabular-nums tracking-tight text-ink">{Math.round(stockHealthAlerts.diasPromedio)}</p>
+          <p className="text-[10px] text-ink-40 mt-0.5">promedio ponderado</p>
         </div>
       </div>
 
@@ -1252,7 +1247,7 @@ export default function ProductsPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             placeholder="Buscar producto o SKU..."
-            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-ink/20" />
           {searchTerm && (
             <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
               <X className="w-4 h-4" />
@@ -1260,17 +1255,17 @@ export default function ProductsPage() {
           )}
         </div>
         <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
-          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${brandFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${brandFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
           <option value="">Todas las marcas ({brands.length})</option>
           {brands.map((b) => <option key={b} value={b}>{b}</option>)}
         </select>
         <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${categoryFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${categoryFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
           <option value="">Todas las categorias ({categories.length})</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <span className="text-sm text-gray-600">{filtered.length} producto{filtered.length !== 1 ? "s" : ""}</span>
-        <button onClick={exportCSV} className="ml-auto flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+        <button onClick={exportCSV} className="ml-auto flex items-center gap-2 px-4 py-2 bg-ink text-white text-sm font-medium rounded-lg hover:bg-ink/90 transition-colors">
           <Download className="w-4 h-4" />Exportar CSV
         </button>
       </div>
@@ -1309,7 +1304,7 @@ export default function ProductsPage() {
             <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
               {(["revenue", "units"] as const).map((m) => (
                 <button key={m} onClick={() => setChartMetric(m)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${chartMetric === m ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${chartMetric === m ? "bg-white shadow-sm text-ink-60" : "text-gray-600"}`}>
                   {m === "revenue" ? "Facturacion" : "Unidades"}
                 </button>
               ))}
@@ -1450,7 +1445,7 @@ export default function ProductsPage() {
                                 <div className="font-medium text-gray-900">{p.name}</div>
                                 <div className="text-xs text-gray-500 mb-1">{p.sku || "--"}</div>
                                 <div className="flex gap-1.5">
-                                  {p.brand && <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">{p.brand}</span>}
+                                  {p.brand && <span className="px-1.5 py-0.5 bg-surface-2 text-ink rounded text-[10px] font-medium">{p.brand}</span>}
                                   {p.category && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded text-[10px] font-medium">{p.category}</span>}
                                 </div>
                               </div>
@@ -1738,7 +1733,6 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2.5 text-lg tracking-tight">
                 <span className="relative inline-flex w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 items-center justify-center shadow-sm">
-                  <span className="absolute inline-flex w-full h-full rounded-lg bg-amber-400/30 animate-ping" />
                   <AlertTriangle className="relative w-[18px] h-[18px] text-amber-600" />
                 </span>
                 Alerta de Quiebre de Stock
@@ -1845,7 +1839,6 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2.5 text-lg tracking-tight">
                 <span className="relative inline-flex w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 items-center justify-center shadow-sm">
-                  <span className="absolute inline-flex w-full h-full rounded-lg bg-rose-400/25 animate-ping" />
                   <AlertTriangle className="relative w-[18px] h-[18px] text-rose-600" />
                 </span>
                 Stock Muerto
@@ -1979,7 +1972,7 @@ export default function ProductsPage() {
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-indigo-600" />
+                <DollarSign className="w-4 h-4 text-ink-60" />
                 <p className="text-xs text-gray-500 font-medium">Revenue Neto (sin IVA)</p>
               </div>
               <p className="text-2xl font-bold text-gray-900">{formatARS(marginAnalysis.totalRevenueWithCost)}</p>
@@ -2027,7 +2020,7 @@ export default function ProductsPage() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Margen por Marca (Top 10)</h3>
-                {categoryFilter && <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">Filtro: {categoryFilter}</span>}
+                {categoryFilter && <span className="text-xs text-ink-60 bg-surface px-2 py-1 rounded-md">Filtro: {categoryFilter}</span>}
               </div>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={computedByBrand.slice(0, 10)} layout="vertical">
@@ -2050,16 +2043,16 @@ export default function ProductsPage() {
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-gray-900">Margen por Categoria</h3>
-                {brandFilter && <p className="text-xs text-indigo-600 mt-1">Filtrado por marca: {brandFilter}</p>}
+                {brandFilter && <p className="text-xs text-ink-60 mt-1">Filtrado por marca: {brandFilter}</p>}
               </div>
               <div className="flex items-center gap-2">
                 <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); }}
-                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
                   <option value="">Todas las marcas</option>
                   {brands.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
                 <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); }}
-                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
                   <option value="">Todas las categorias</option>
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -2173,7 +2166,7 @@ export default function ProductsPage() {
                   <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold text-gray-900">Margen por Marca</h3>
-                      {categoryFilter && <p className="text-xs text-indigo-600 mt-1">Filtrado por categoria: {categoryFilter}</p>}
+                      {categoryFilter && <p className="text-xs text-ink-60 mt-1">Filtrado por categoria: {categoryFilter}</p>}
                     </div>
                     <span className="text-xs text-gray-500">{computedByBrand.length} marcas</span>
                   </div>
@@ -2309,7 +2302,7 @@ export default function ProductsPage() {
               <div className="flex items-center gap-2">
                 <ColumnSelector columns={MARGIN_COLUMNS} visible={marginCols}
                   onChange={(k, v) => setMarginCols(prev => ({ ...prev, [k]: v }))} />
-                <button onClick={exportMarginCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                <button onClick={exportMarginCSV} className="flex items-center gap-2 px-4 py-2 bg-ink text-white text-sm font-medium rounded-lg hover:bg-ink/90 transition-colors">
                   <Download className="w-4 h-4" />Exportar CSV
                 </button>
               </div>
@@ -2321,21 +2314,21 @@ export default function ProductsPage() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setMarginPage(1); }}
                   placeholder="SKU o producto..."
-                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-ink/20" />
               </div>
               <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setMarginPage(1); }}
-                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
                 <option value="">Todas las marcas</option>
                 {brands.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
               <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setMarginPage(1); }}
-                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
                 <option value="">Todas las categorias</option>
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               {(searchTerm || brandFilter || categoryFilter) && (
                 <button onClick={() => { setSearchTerm(""); setBrandFilter(""); setCategoryFilter(""); setMarginPage(1); }}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 underline">Limpiar filtros</button>
+                  className="text-xs text-ink-60 hover:text-ink underline">Limpiar filtros</button>
               )}
             </div>
 
@@ -2414,7 +2407,7 @@ export default function ProductsPage() {
                               {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-7 h-7 rounded object-cover flex-shrink-0" />}
                               <div className="min-w-0">
                                 <div className="font-medium text-gray-900 text-xs truncate max-w-[220px]" title={p.name}>{p.name}</div>
-                                <div className="text-[10px] text-gray-500">{p.sku || "--"} {p.brand && <span className="ml-1 text-indigo-600">{p.brand}</span>}</div>
+                                <div className="text-[10px] text-gray-500">{p.sku || "--"} {p.brand && <span className="ml-1 text-ink-60">{p.brand}</span>}</div>
                               </div>
                             </div>
                           </td>

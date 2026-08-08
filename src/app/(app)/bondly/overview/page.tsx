@@ -26,11 +26,9 @@ import {
   Globe, Smartphone, Laptop, Activity, Waves,
 } from "lucide-react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
+import { LivePulse } from "@/components/enterprise/ui";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
-const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #6366f1 100%)";
-const COMMERCE_GRAD = "linear-gradient(90deg, #10b981 0%, #059669 100%)";
-const PIXEL_GRAD = "linear-gradient(90deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%)";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -136,7 +134,7 @@ const SEGMENTS: Array<{
   { key: "Champions", label: "Champions", icon: Star, desc: "Gastan mucho, compran siempre", color: "#10b981" },
   { key: "Leales", label: "Leales", icon: Heart, desc: "Clientes recurrentes fieles", color: "#6366f1" },
   { key: "Potenciales", label: "Potenciales", icon: TrendingUp, desc: "Segunda compra reciente", color: "#f59e0b" },
-  { key: "Nuevos", label: "Nuevos", icon: UserPlus, desc: "Primera compra este mes", color: "#06b6d4" },
+  { key: "Nuevos", label: "Nuevos", icon: UserPlus, desc: "Primera compra este mes", color: "#2F9153" },
   { key: "En riesgo", label: "En riesgo", icon: AlertTriangle, desc: "No compran hace 90+ días", color: "#ef4444" },
   { key: "Ocasionales", label: "Ocasionales", icon: Users, desc: "Compran esporádicamente", color: "#94a3b8" },
   { key: "Perdidos", label: "Perdidos", icon: XCircle, desc: "Sin actividad hace 180+ días", color: "#6b7280" },
@@ -148,8 +146,8 @@ function eventMeta(type: string): { label: string; icon: any; color: string } {
   switch (type) {
     case "PURCHASE": return { label: "Compró", icon: ShoppingCart, color: "#10b981" };
     case "ADD_TO_CART": return { label: "Agregó al carrito", icon: ShoppingCart, color: "#f59e0b" };
-    case "VIEW_PRODUCT": return { label: "Vio producto", icon: Eye, color: "#06b6d4" };
-    case "IDENTIFY": return { label: "Se identificó", icon: UserCheck, color: "#8b5cf6" };
+    case "VIEW_PRODUCT": return { label: "Vio producto", icon: Eye, color: "#2F9153" };
+    case "IDENTIFY": return { label: "Se identificó", icon: UserCheck, color: "#9A978D" };
     case "PAGE_VIEW": return { label: "Navega", icon: Eye, color: "#64748b" };
     default: return { label: type, icon: Activity, color: "#64748b" };
   }
@@ -279,57 +277,42 @@ export default function BondlyOverviewPage() {
   const liveSecondsAgo = useLiveSecondsAgo(pulse?.pixel?.lastEventAt ?? null);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8]">
+    <main className="min-h-screen bg-canvas">
       {/* ═════════ Zona 1: HERO ═════════ */}
-      <section className="relative overflow-hidden border-b border-slate-900/[0.06]">
-        {/* Aurora gradients */}
-        <div aria-hidden className="absolute inset-0 pointer-events-none">
-          <div style={{ position: "absolute", top: "-30%", left: "-10%", width: "55%", height: "120%", background: "radial-gradient(circle, rgba(16,185,129,0.22) 0%, transparent 60%)", filter: "blur(50px)" }} />
-          <div style={{ position: "absolute", top: "-20%", left: "25%", width: "45%", height: "110%", background: "radial-gradient(circle, rgba(6,182,212,0.22) 0%, transparent 60%)", filter: "blur(55px)" }} />
-          <div style={{ position: "absolute", top: "-15%", right: "-10%", width: "50%", height: "110%", background: "radial-gradient(circle, rgba(99,102,241,0.22) 0%, transparent 60%)", filter: "blur(60px)" }} />
-        </div>
-        {/* Prism delimiter bottom */}
-        <div aria-hidden className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: BONDLY_GRAD }} />
-
+      <section className="relative border-b border-hairline">
         <div className="relative max-w-7xl mx-auto px-6 lg:px-10 py-10 lg:py-14">
           <div className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-6">
             <div className="flex items-start gap-4">
               {/* Logo badge */}
-              <div className="relative flex-shrink-0" style={{ animation: "bondlyBreathe 3.5s ease-in-out infinite" }}>
-                <div className="absolute inset-[-8px] rounded-[22px] blur-2xl opacity-70" style={{ background: BONDLY_GRAD }} />
-                <div className="relative w-14 h-14 rounded-[18px] flex items-center justify-center shadow-lg" style={{ background: BONDLY_GRAD, boxShadow: "0 10px 30px -8px rgba(16,185,129,0.35), 0 0 0 1px rgba(255,255,255,0.55) inset" }}>
-                  <Heart className="w-7 h-7 text-white" strokeWidth={2.2} />
-                </div>
+              <div className="relative flex-shrink-0 w-14 h-14 rounded-nitro flex items-center justify-center bg-ink shadow-ent-xs">
+                <Heart className="w-7 h-7 text-white" strokeWidth={2.2} />
               </div>
 
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Módulo</span>
-                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15), rgba(99,102,241,0.15))", color: "#0f766e", letterSpacing: "0.05em" }}>
+                  <span className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40">Módulo</span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-surface-2 text-ink-60">
                     <Sparkles className="w-3 h-3" /> LOYALTY · CDP
                   </span>
                 </div>
-                <h1 className="text-[44px] leading-[1.05] font-semibold tracking-tight text-slate-900">
-                  <span style={{ background: BONDLY_GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Bondly</span>
+                <h1 className="text-[44px] leading-[1.05] font-semibold tracking-tight text-ink">
+                  Bondly
                 </h1>
-                <p className="mt-2 max-w-xl text-[15px] text-slate-600 leading-relaxed">
+                <p className="mt-2 max-w-xl text-[15px] text-ink-60 leading-relaxed">
                   El único lugar donde tus ventas y el comportamiento real de cada cliente viven juntos. Entendé quién compra, qué mira, cuándo vuelve y activalo todo.
                 </p>
               </div>
             </div>
 
             {/* Period selector */}
-            <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-[0_1px_0_rgba(15,23,42,0.06),0_8px_24px_-12px_rgba(15,23,42,0.18)] border border-slate-900/[0.06]">
+            <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-ent-xs border border-hairline">
               {(["ultimos_30","ultimos_90","ultimos_365","todo"] as RangeKey[]).map((k) => (
                 <button
                   key={k}
                   onClick={() => setRangeKey(k)}
-                  className="relative px-3 py-1.5 text-xs font-medium rounded-lg transition-[color,background] duration-200"
-                  style={{
-                    color: rangeKey === k ? "#fff" : "#475569",
-                    background: rangeKey === k ? BONDLY_GRAD : "transparent",
-                    transitionTimingFunction: ES,
-                  }}
+                  className={`relative px-3 py-1.5 text-xs font-medium rounded-lg transition-colors duration-200 ${
+                    rangeKey === k ? "bg-ink text-white" : "text-ink-60 hover:text-ink"
+                  }`}
                 >
                   {k === "ultimos_30" ? "30 días" : k === "ultimos_90" ? "90 días" : k === "ultimos_365" ? "1 año" : "Todo"}
                 </button>
@@ -351,7 +334,7 @@ export default function BondlyOverviewPage() {
             label="Clientes totales"
             value={formatCompact(Math.round(totalCustomersCount))}
             subvalue={pulse && pulse.pixel.activeVisitors5min > 0 ? `${pulse.pixel.activeVisitors5min} activos ahora` : undefined}
-            accent="#10b981"
+            accent="#1C1B18"
             icon={Users}
             delayMs={0}
             loading={loading}
@@ -360,7 +343,7 @@ export default function BondlyOverviewPage() {
             label="LTV promedio"
             value={formatARS(Math.round(ltvCount))}
             subvalue={pulse && pulse.commerce.ordersLast24h > 0 ? `${pulse.commerce.ordersLast24h} órdenes 24h` : undefined}
-            accent="#06b6d4"
+            accent="#1C1B18"
             icon={DollarSign}
             delayMs={60}
             loading={loading}
@@ -368,7 +351,7 @@ export default function BondlyOverviewPage() {
           <BondlyKpi
             label="Tasa de recompra"
             value={`${repeatCount.toFixed(1)}%`}
-            accent="#6366f1"
+            accent="#1C1B18"
             icon={RefreshCw}
             delayMs={120}
             loading={loading}
@@ -377,7 +360,7 @@ export default function BondlyOverviewPage() {
             label="Audiencias creadas"
             value={Math.round(audienceCount).toString()}
             subvalue={activeAudiences ? `${activeAudiences} activas` : undefined}
-            accent="#8b5cf6"
+            accent="#1C1B18"
             icon={Radio}
             delayMs={180}
             loading={loading}
@@ -394,17 +377,17 @@ export default function BondlyOverviewPage() {
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-10">
         <div className="flex items-end justify-between mb-4">
           <div>
-            <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Segmentación RFM</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+            <p className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40">Segmentación RFM</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
               Mapa de clientes por comportamiento
             </h2>
-            <p className="mt-0.5 text-sm text-slate-500">Clickeá cualquier segmento para ver esos clientes en detalle.</p>
+            <p className="mt-0.5 text-sm text-ink-60">Clickeá cualquier segmento para ver esos clientes en detalle.</p>
           </div>
           {topSegment && (
-            <div className="hidden md:flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-900/[0.06] rounded-xl px-3 py-1.5 shadow-[0_1px_0_rgba(15,23,42,0.05)]">
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-slate-500">Segmento estrella:</span>
-              <span className="font-semibold text-slate-900">{topSegment.key}</span>
+            <div className="hidden md:flex items-center gap-2 text-xs text-ink-60 bg-white border border-hairline rounded-xl px-3 py-1.5 shadow-ent-xs">
+              <Zap className="w-3.5 h-3.5 text-ink-40" />
+              <span className="text-ink-40">Segmento estrella:</span>
+              <span className="font-semibold text-ink">{topSegment.key}</span>
             </div>
           )}
         </div>
@@ -418,32 +401,30 @@ export default function BondlyOverviewPage() {
               <Link
                 key={seg.key}
                 href={`/bondly/clientes?segment=${encodeURIComponent(seg.key)}`}
-                className="group relative rounded-2xl bg-white border border-slate-900/[0.06] p-4 overflow-hidden transition-[transform,box-shadow,border-color] duration-[260ms] hover:-translate-y-0.5 hover:border-slate-900/10"
+                className="group relative rounded-2xl bg-white border border-hairline p-4 overflow-hidden transition-[transform,box-shadow,border-color] duration-[260ms] hover:-translate-y-0.5 hover:border-hairline-2 shadow-ent-xs"
                 style={{
                   transitionTimingFunction: ES,
                   animation: `bondlyStagger 520ms ${ES} ${idx * 55}ms both`,
-                  boxShadow: "0 1px 0 rgba(15,23,42,0.05), 0 8px 24px -16px rgba(15,23,42,0.18)",
                 }}
               >
-                <div aria-hidden className="absolute -top-8 -right-8 w-20 h-20 rounded-full opacity-30 group-hover:opacity-60 transition-opacity duration-[260ms]" style={{ background: `radial-gradient(circle, ${seg.color}55 0%, transparent 60%)`, transitionTimingFunction: ES }} />
                 <div className="relative flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${seg.color}14`, color: seg.color }}>
                     <seg.icon className="w-4 h-4" strokeWidth={2.2} />
                   </div>
-                  <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-900 transition-colors duration-200" style={{ transitionTimingFunction: ES }} />
+                  <ArrowRight className="w-4 h-4 text-ink-40 group-hover:text-ink transition-colors duration-200" style={{ transitionTimingFunction: ES }} />
                 </div>
                 <div className="mt-3">
-                  <p className="text-[11px] font-mono tracking-[0.22em] uppercase text-slate-500">{seg.label}</p>
-                  <p className="mt-1 text-[22px] font-semibold tabular-nums tracking-tight text-slate-900">
+                  <p className="text-[11px] font-geistmono tracking-[0.22em] uppercase text-ink-40">{seg.label}</p>
+                  <p className="mt-1 text-[22px] font-semibold tabular-nums tracking-tight text-ink">
                     {customers > 0 ? formatCompact(customers) : "—"}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">clientes</p>
+                  <p className="mt-0.5 text-[11px] text-ink-40">clientes</p>
                   {revenue > 0 && (
-                    <p className="mt-1.5 text-[11px] text-slate-400 tabular-nums">
+                    <p className="mt-1.5 text-[11px] text-ink-40 tabular-nums">
                       {formatARS(revenue)} ingresos
                     </p>
                   )}
-                  <p className="mt-2 text-[11px] text-slate-500 leading-snug">{seg.desc}</p>
+                  <p className="mt-2 text-[11px] text-ink-40 leading-snug">{seg.desc}</p>
                 </div>
               </Link>
             );
@@ -454,8 +435,8 @@ export default function BondlyOverviewPage() {
       {/* ═════════ Zona 6: QUICK ACCESS ═════════ */}
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-10">
         <div>
-          <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Explorar</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+          <p className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40">Explorar</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
             Entrá al detalle
           </h2>
         </div>
@@ -465,7 +446,7 @@ export default function BondlyOverviewPage() {
             badge="CLIENTES"
             title="Base de clientes"
             desc="Tabla completa con filtros, búsqueda y drill-down por cliente."
-            accent="#10b981"
+            accent="#1C1B18"
             icon={Users}
             stat={totalCustomers > 0 ? `${formatCompact(totalCustomers)} clientes` : undefined}
           />
@@ -474,7 +455,7 @@ export default function BondlyOverviewPage() {
             badge="LIFETIME VALUE"
             title="LTV y churn"
             desc="Predicción de valor futuro y riesgo de pérdida por cohorte."
-            accent="#06b6d4"
+            accent="#1C1B18"
             icon={Target}
             stat={avgLtv > 0 ? `${formatARS(avgLtv)} LTV prom.` : undefined}
           />
@@ -483,7 +464,7 @@ export default function BondlyOverviewPage() {
             badge="AUDIENCIAS"
             title="Audience Sync"
             desc="Creá segmentos y sincronizalos a Meta, Google o exportá a CRM."
-            accent="#6366f1"
+            accent="#1C1B18"
             icon={Layers}
             stat={totalAudiences > 0 ? `${totalAudiences} audiencias` : "Crear primera"}
           />
@@ -492,7 +473,7 @@ export default function BondlyOverviewPage() {
             badge="SEÑALES"
             title="Señales en vivo"
             desc="Feed real-time de momentos de oportunidad por cliente."
-            accent="#8b5cf6"
+            accent="#1C1B18"
             icon={Waves}
             stat={pulse ? `${pulse.pixel.eventsLast5min} eventos / 5min` : undefined}
           />
@@ -501,30 +482,16 @@ export default function BondlyOverviewPage() {
 
       {/* ═════════ Zona 7: VALUE STATEMENT (footer emocional) ═════════ */}
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-14 pb-16">
-        <div
-          className="relative overflow-hidden rounded-3xl border border-slate-900/[0.06] p-8 lg:p-12"
-          style={{
-            background: "linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f172a 100%)",
-            boxShadow: "0 1px 0 rgba(15,23,42,0.08), 0 20px 60px -24px rgba(15,23,42,0.45)",
-          }}
-        >
-          {/* Aurora en el footer */}
-          <div aria-hidden className="absolute inset-0 pointer-events-none">
-            <div style={{ position: "absolute", top: "-40%", left: "-10%", width: "60%", height: "180%", background: "radial-gradient(circle, rgba(16,185,129,0.22) 0%, transparent 60%)", filter: "blur(60px)" }} />
-            <div style={{ position: "absolute", top: "-30%", right: "-10%", width: "55%", height: "160%", background: "radial-gradient(circle, rgba(99,102,241,0.28) 0%, transparent 60%)", filter: "blur(70px)" }} />
-          </div>
-          {/* Prism top */}
-          <div aria-hidden className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: BONDLY_GRAD }} />
-
+        <div className="relative overflow-hidden rounded-3xl bg-ink p-8 lg:p-12">
           <div className="relative grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-8 items-center">
             <div>
-              <span className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.28em] uppercase text-emerald-300/80">
+              <span className="inline-flex items-center gap-2 text-[10px] font-geistmono tracking-[0.28em] uppercase text-white/50">
                 <Sparkles className="w-3 h-3" /> Qué hace único a Bondly
               </span>
               <h3 className="mt-3 text-[28px] lg:text-[32px] font-semibold tracking-tight text-white leading-[1.15]">
-                Commerce <span style={{ background: "linear-gradient(90deg,#34d399,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>+</span> comportamiento,<br/>por primera vez en un mismo lugar.
+                Commerce + comportamiento,<br/>por primera vez en un mismo lugar.
               </h3>
-              <p className="mt-3 text-[15px] text-slate-300 leading-relaxed max-w-2xl">
+              <p className="mt-3 text-[15px] text-white/60 leading-relaxed max-w-2xl">
                 Los CDPs muestran eventos. Los CRMs muestran compras. Bondly muestra <span className="text-white font-medium">la historia completa</span>: cómo llegó cada cliente, qué lo enamoró, cuándo va a volver, y cómo activarlo hoy —en tiempo real.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
@@ -534,8 +501,8 @@ export default function BondlyOverviewPage() {
                   "Audiencias por comportamiento",
                   "Señales live accionables",
                 ].map((chip) => (
-                  <span key={chip} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-slate-200 bg-white/5 border border-white/10 backdrop-blur-sm">
-                    <span className="w-1 h-1 rounded-full" style={{ background: "#34d399" }} />
+                  <span key={chip} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-white/70 bg-white/5 border border-white/10">
+                    <span className="w-1 h-1 rounded-full bg-accent" />
                     {chip}
                   </span>
                 ))}
@@ -544,16 +511,16 @@ export default function BondlyOverviewPage() {
 
             {/* Stat proof grid */}
             <div className="grid grid-cols-2 gap-3">
-              <StatProof label="Días de datos" value={pulse?.commerce.daysCovered ?? 0} suffix="d" accent="#34d399" />
-              <StatProof label="Eventos trackeados" value={pulse?.pixel.totalEvents ?? 0} accent="#22d3ee" />
-              <StatProof label="Órdenes procesadas" value={pulse?.commerce.totalOrders ?? 0} accent="#a78bfa" />
-              <StatProof label="Clientes únicos" value={totalCustomers} accent="#f472b6" />
+              <StatProof label="Días de datos" value={pulse?.commerce.daysCovered ?? 0} suffix="d" />
+              <StatProof label="Eventos trackeados" value={pulse?.pixel.totalEvents ?? 0} />
+              <StatProof label="Órdenes procesadas" value={pulse?.commerce.totalOrders ?? 0} />
+              <StatProof label="Clientes únicos" value={totalCustomers} />
             </div>
           </div>
         </div>
 
         {error && (
-          <p className="mt-6 text-xs text-rose-500 font-mono">Error: {error}</p>
+          <p className="mt-6 text-xs text-red-600 font-geistmono">Error: {error}</p>
         )}
       </section>
 
@@ -562,22 +529,6 @@ export default function BondlyOverviewPage() {
         @keyframes bondlyStagger {
           0% { opacity: 0; transform: translateY(8px); }
           100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bondlyBreathe {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.04); }
-        }
-        @keyframes bondlyPulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.4; transform: scale(1.35); }
-        }
-        @keyframes bondlyShimmer {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(120%); }
-        }
-        @keyframes bondlyLiveDot {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
-          50% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
         }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
@@ -604,24 +555,18 @@ function PulseBanner({ pulse, loading, liveSecondsAgo }: { pulse: PulseResp | nu
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl bg-white border border-slate-900/[0.06] p-6"
-      style={{
-        boxShadow: "0 1px 0 rgba(15,23,42,0.06), 0 10px 28px -16px rgba(15,23,42,0.2), 0 28px 48px -32px rgba(15,23,42,0.16)",
-        animation: `bondlyStagger 560ms ${ES} both`,
-      }}
+      className="relative overflow-hidden rounded-2xl bg-white border border-hairline p-6 shadow-ent-xs"
+      style={{ animation: `bondlyStagger 560ms ${ES} both` }}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Pulso de Bondly</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80">
-            <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "bondlyLiveDot 2s infinite" }} />
-            LIVE
-          </span>
+          <span className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40">Pulso de Bondly</span>
+          <LivePulse status="LIVE" />
         </div>
         {pulse && liveSecondsAgo !== null && (
-          <p className="text-[11px] text-slate-500 tabular-nums">
-            Último evento <span className="text-slate-900 font-medium">{formatAgoSeconds(liveSecondsAgo)}</span>
+          <p className="text-[11px] text-ink-40 tabular-nums">
+            Último evento <span className="text-ink font-medium">{formatAgoSeconds(liveSecondsAgo)}</span>
           </p>
         )}
       </div>
@@ -638,7 +583,6 @@ function PulseBanner({ pulse, loading, liveSecondsAgo }: { pulse: PulseResp | nu
           total={pulse?.commerce.totalOrders ?? 0}
           totalLabel="órdenes"
           last24hLabel={`${pulse?.commerce.ordersLast24h ?? 0} en 24h`}
-          accent={COMMERCE_GRAD}
           accentSolid="#10b981"
           timeline={pulse?.commerce.timeline30d ?? []}
           loading={loading}
@@ -654,8 +598,7 @@ function PulseBanner({ pulse, loading, liveSecondsAgo }: { pulse: PulseResp | nu
           total={pulse?.pixel.totalEvents ?? 0}
           totalLabel="eventos"
           last24hLabel={`${formatCompact(pulse?.pixel.eventsLast24h ?? 0)} en 24h`}
-          accent={PIXEL_GRAD}
-          accentSolid="#06b6d4"
+          accentSolid="#2F9153"
           timeline={pulse?.pixel.timeline30d ?? []}
           loading={loading}
           exists={hasPixel}
@@ -670,7 +613,7 @@ function PulseBanner({ pulse, loading, liveSecondsAgo }: { pulse: PulseResp | nu
 
 function TimelineBar({
   kind, label, helper, startIso, endLabel, daysCovered, total, totalLabel, last24hLabel,
-  accent, accentSolid, timeline, loading, exists, liveActive,
+  accentSolid, timeline, loading, exists, liveActive,
 }: {
   kind: "commerce" | "pixel";
   label: string;
@@ -681,7 +624,6 @@ function TimelineBar({
   total: number;
   totalLabel: string;
   last24hLabel: string;
-  accent: string;
   accentSolid: string;
   timeline: Array<{ day: string; count: number }>;
   loading: boolean;
@@ -691,44 +633,32 @@ function TimelineBar({
   const maxCount = useMemo(() => Math.max(1, ...timeline.map((t) => t.count)), [timeline]);
 
   return (
-    <div
-      className="relative rounded-xl border border-slate-900/[0.06] p-5 overflow-hidden"
-      style={{
-        background: kind === "pixel" ? "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)" : "linear-gradient(180deg, #ffffff 0%, #fbfefb 100%)",
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 6px 18px -14px rgba(15,23,42,0.18)",
-      }}
-    >
-      {/* Subtle decorative corner */}
-      <div aria-hidden className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-30" style={{ background: `radial-gradient(circle, ${accentSolid}33 0%, transparent 60%)` }} />
-
+    <div className="relative rounded-xl border border-hairline bg-white p-5 overflow-hidden">
       {/* Top row: label + LIVE indicator */}
       <div className="relative flex items-start justify-between gap-2">
         <div>
-          <p className="text-[10px] font-mono tracking-[0.26em] uppercase text-slate-500">{label}</p>
-          <p className="mt-0.5 text-xs text-slate-400">{helper}</p>
+          <p className="text-[10px] font-geistmono tracking-[0.26em] uppercase text-ink-40">{label}</p>
+          <p className="mt-0.5 text-xs text-ink-40">{helper}</p>
         </div>
         {kind === "pixel" && exists && (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-cyan-700 bg-cyan-50 border border-cyan-200/80">
-            <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-cyan-500" style={{ animation: liveActive ? "bondlyLiveDot 2s infinite" : undefined }} />
-            {liveActive ? "LIVE" : "pausado"}
-          </span>
+          liveActive ? <LivePulse status="LIVE" /> : <LivePulse status="INACTIVE" label="pausado" />
         )}
       </div>
 
       {/* Sparkline */}
       <div className="relative mt-4 h-12">
         {loading ? (
-          <div className="absolute inset-0 rounded-md bg-slate-100 animate-pulse" />
+          <div className="absolute inset-0 rounded-md bg-surface-2 animate-pulse" />
         ) : exists ? (
           <svg width="100%" height="100%" viewBox="0 0 300 48" preserveAspectRatio="none" className="absolute inset-0">
             <defs>
               <linearGradient id={`spark-${kind}`} x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0%" stopColor={kind === "pixel" ? "#06b6d4" : "#10b981"} stopOpacity="0.9" />
-                <stop offset="100%" stopColor={kind === "pixel" ? "#8b5cf6" : "#059669"} stopOpacity="0.9" />
+                <stop offset="0%" stopColor={kind === "pixel" ? "#2F9153" : "#10b981"} stopOpacity="0.9" />
+                <stop offset="100%" stopColor={kind === "pixel" ? "#9A978D" : "#059669"} stopOpacity="0.9" />
               </linearGradient>
               <linearGradient id={`spark-fill-${kind}`} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={kind === "pixel" ? "#06b6d4" : "#10b981"} stopOpacity="0.25" />
-                <stop offset="100%" stopColor={kind === "pixel" ? "#06b6d4" : "#10b981"} stopOpacity="0" />
+                <stop offset="0%" stopColor={kind === "pixel" ? "#2F9153" : "#10b981"} stopOpacity="0.25" />
+                <stop offset="100%" stopColor={kind === "pixel" ? "#2F9153" : "#10b981"} stopOpacity="0" />
               </linearGradient>
             </defs>
             {(() => {
@@ -752,39 +682,17 @@ function TimelineBar({
             })()}
           </svg>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50/50">
-            <span className="text-[11px] text-slate-400">Sin datos todavía</span>
-          </div>
-        )}
-        {/* Shimmer overlay en pixel (real-time feel) */}
-        {kind === "pixel" && exists && liveActive && (
-          <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div
-              className="absolute top-0 bottom-0 w-1/3"
-              style={{
-                background: "linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.18) 50%, transparent 100%)",
-                animation: "bondlyShimmer 2.4s linear infinite",
-              }}
-            />
+          <div className="absolute inset-0 flex items-center justify-center rounded-md border border-dashed border-hairline-2 bg-surface/50">
+            <span className="text-[11px] text-ink-40">Sin datos todavía</span>
           </div>
         )}
       </div>
 
       {/* Timeline bar ("Desde X ———— Hasta ahora") */}
-      <div className="relative mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+      <div className="relative mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
         {exists && (
           <>
-            <div className="absolute inset-0 rounded-full" style={{ background: accent, opacity: 0.9 }} />
-            {kind === "pixel" && liveActive && (
-              <div
-                aria-hidden
-                className="absolute top-0 bottom-0 w-20 rounded-full"
-                style={{
-                  background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%)",
-                  animation: "bondlyShimmer 3.2s linear infinite",
-                }}
-              />
-            )}
+            <div className="absolute inset-0 rounded-full" style={{ background: accentSolid, opacity: 0.9 }} />
             {/* End dot live */}
             <div
               aria-hidden
@@ -792,7 +700,6 @@ function TimelineBar({
               style={{
                 right: "-3px",
                 background: accentSolid,
-                animation: liveActive ? "bondlyLiveDot 2s infinite" : undefined,
                 boxShadow: `0 0 0 2px ${accentSolid}22`,
               }}
             />
@@ -801,23 +708,23 @@ function TimelineBar({
       </div>
 
       {/* Endpoints labels */}
-      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 tabular-nums">
+      <div className="mt-2 flex items-center justify-between text-[10px] text-ink-40 tabular-nums">
         <span>{exists ? `Desde ${formatShortDate(startIso)}` : "—"}</span>
-        <span className="text-slate-900 font-medium">{exists ? (endLabel ?? "Ahora") : "—"}</span>
+        <span className="text-ink font-medium">{exists ? (endLabel ?? "Ahora") : "—"}</span>
       </div>
 
       {/* Stats row */}
       <div className="mt-4 flex items-baseline gap-4 flex-wrap">
         <div>
-          <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-slate-400">{daysCovered} días</p>
-          <p className="mt-0.5 text-[20px] font-semibold tabular-nums tracking-tight text-slate-900">
-            {exists ? formatCompact(total) : "—"} <span className="text-xs font-normal text-slate-500">{totalLabel}</span>
+          <p className="text-[10px] font-geistmono tracking-[0.22em] uppercase text-ink-40">{daysCovered} días</p>
+          <p className="mt-0.5 text-[20px] font-semibold tabular-nums tracking-tight text-ink">
+            {exists ? formatCompact(total) : "—"} <span className="text-xs font-normal text-ink-40">{totalLabel}</span>
           </p>
         </div>
         <div className="flex-1" />
         <div className="text-right">
-          <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-slate-400">24h</p>
-          <p className="mt-0.5 text-xs font-medium text-slate-700 tabular-nums">{last24hLabel}</p>
+          <p className="text-[10px] font-geistmono tracking-[0.22em] uppercase text-ink-40">24h</p>
+          <p className="mt-0.5 text-xs font-medium text-ink-60 tabular-nums">{last24hLabel}</p>
         </div>
       </div>
     </div>
@@ -834,32 +741,29 @@ function SignalsPreview({ pulse }: { pulse: PulseResp | null }) {
     <div>
       <div className="flex items-end justify-between mb-4">
         <div>
-          <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500 flex items-center gap-2">
-            <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-cyan-500" style={{ animation: hasSignals ? "bondlyLiveDot 2s infinite" : undefined }} />
+          <p className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40 flex items-center gap-2">
+            {hasSignals && <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />}
             Señales en tiempo real
           </p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
             Lo que está pasando ahora mismo
           </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-ink-60">
             Eventos capturados por NitroPixel en la última hora.
           </p>
         </div>
         <Link
           href="/bondly/senales"
-          className="hidden md:inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 transition-colors"
+          className="hidden md:inline-flex items-center gap-1 text-xs font-medium text-ink-60 hover:text-ink transition-colors"
           style={{ transitionTimingFunction: ES }}
         >
           Ver todas <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
 
-      <div
-        className="relative overflow-hidden rounded-2xl bg-white border border-slate-900/[0.06]"
-        style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.05), 0 10px 24px -18px rgba(15,23,42,0.18)" }}
-      >
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
         {hasSignals ? (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-hairline">
             {signals.slice(0, 5).map((s, i) => {
               const meta = eventMeta(s.type);
               const Icon = meta.icon;
@@ -868,7 +772,7 @@ function SignalsPreview({ pulse }: { pulse: PulseResp | null }) {
               return (
                 <li
                   key={s.id}
-                  className="relative flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors"
+                  className="relative flex items-center gap-4 px-5 py-3.5 hover:bg-surface/60 transition-colors"
                   style={{
                     transitionTimingFunction: ES,
                     animation: `bondlyStagger 420ms ${ES} ${i * 45}ms both`,
@@ -879,15 +783,15 @@ function SignalsPreview({ pulse }: { pulse: PulseResp | null }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-slate-900 truncate">{s.visitorLabel}</span>
+                      <span className="text-sm font-semibold text-ink truncate">{s.visitorLabel}</span>
                       {s.identified && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/80">
+                        <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-geistmono uppercase tracking-wider text-accent bg-accent-soft border border-accent/20">
                           <UserCheck className="w-2.5 h-2.5" /> identificado
                         </span>
                       )}
-                      <span className="text-sm text-slate-600">{meta.label.toLowerCase()}</span>
+                      <span className="text-sm text-ink-60">{meta.label.toLowerCase()}</span>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-40 flex-wrap">
                       {s.country && (
                         <span className="inline-flex items-center gap-1"><Globe className="w-3 h-3" /> {s.country}</span>
                       )}
@@ -900,7 +804,7 @@ function SignalsPreview({ pulse }: { pulse: PulseResp | null }) {
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <p className="text-[11px] text-slate-500 tabular-nums">{formatAgoSeconds(ageSecs)}</p>
+                    <p className="text-[11px] text-ink-40 tabular-nums">{formatAgoSeconds(ageSecs)}</p>
                   </div>
                 </li>
               );
@@ -909,11 +813,11 @@ function SignalsPreview({ pulse }: { pulse: PulseResp | null }) {
         ) : (
           <div className="flex items-center justify-center py-10 px-6">
             <div className="text-center max-w-md">
-              <div className="mx-auto w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400">
+              <div className="mx-auto w-10 h-10 rounded-xl flex items-center justify-center bg-surface-2 text-ink-40">
                 <Activity className="w-5 h-5" />
               </div>
-              <p className="mt-3 text-sm font-medium text-slate-700">Esperando la próxima señal</p>
-              <p className="mt-1 text-xs text-slate-500">Cuando un visitante interactúe con tu tienda, vas a verlo acá en tiempo real.</p>
+              <p className="mt-3 text-sm font-medium text-ink-60">Esperando la próxima señal</p>
+              <p className="mt-1 text-xs text-ink-40">Cuando un visitante interactúe con tu tienda, vas a verlo acá en tiempo real.</p>
             </div>
           </div>
         )}
@@ -937,26 +841,24 @@ function BondlyKpi({
 }) {
   return (
     <div
-      className="relative rounded-2xl bg-white border border-slate-900/[0.06] p-5 overflow-hidden transition-[transform,box-shadow] duration-[260ms] hover:-translate-y-0.5"
+      className="relative rounded-2xl bg-white border border-hairline p-5 overflow-hidden transition-[transform,box-shadow] duration-[260ms] hover:-translate-y-0.5 shadow-ent-xs"
       style={{
-        boxShadow: "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.18), 0 22px 40px -28px rgba(15,23,42,0.16)",
         transitionTimingFunction: ES,
         animation: `bondlyStagger 560ms ${ES} ${delayMs}ms both`,
       }}
     >
-      <div aria-hidden className="absolute -top-10 -right-10 w-28 h-28 rounded-full opacity-50" style={{ background: `radial-gradient(circle, ${accent}22 0%, transparent 60%)` }} />
       <div className="relative flex items-start justify-between">
-        <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">{label}</p>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${accent}14`, color: accent }}>
+        <p className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40">{label}</p>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${accent}0D`, color: accent }}>
           <Icon className="w-4 h-4" strokeWidth={2.2} />
         </div>
       </div>
-      <p className="relative mt-3 text-[32px] font-semibold tabular-nums tracking-tight text-slate-900">
+      <p className="relative mt-3 text-[32px] font-semibold tabular-nums tracking-tight text-ink">
         {loading ? (
-          <span className="inline-block w-24 h-8 rounded bg-slate-100 animate-pulse align-middle" />
+          <span className="inline-block w-24 h-8 rounded bg-surface-2 animate-pulse align-middle" />
         ) : value}
       </p>
-      {subvalue && <p className="relative mt-0.5 text-xs text-slate-500 tabular-nums">{subvalue}</p>}
+      {subvalue && <p className="relative mt-0.5 text-xs text-ink-40 tabular-nums">{subvalue}</p>}
     </div>
   );
 }
@@ -977,31 +879,27 @@ function QuickAccessCard({
 }) {
   const content = (
     <div
-      className="group relative rounded-2xl bg-white border border-slate-900/[0.06] p-6 overflow-hidden transition-[transform,box-shadow,border-color] duration-[320ms] hover:-translate-y-1 hover:border-slate-900/10 h-full"
-      style={{
-        transitionTimingFunction: ES,
-        boxShadow: "0 1px 0 rgba(15,23,42,0.05), 0 10px 28px -18px rgba(15,23,42,0.2)",
-      }}
+      className="group relative rounded-2xl bg-white border border-hairline p-6 overflow-hidden transition-[transform,box-shadow,border-color] duration-[320ms] hover:-translate-y-1 hover:border-hairline-2 h-full shadow-ent-xs"
+      style={{ transitionTimingFunction: ES }}
     >
-      <div aria-hidden className="absolute -top-16 -right-16 w-44 h-44 rounded-full opacity-40 group-hover:opacity-80 transition-opacity duration-[320ms]" style={{ background: `radial-gradient(circle, ${accent}33 0%, transparent 60%)`, transitionTimingFunction: ES }} />
       <div className="relative flex items-start justify-between">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${accent}14`, color: accent }}>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${accent}0D`, color: accent }}>
           <Icon className="w-5 h-5" strokeWidth={2.2} />
         </div>
         <div className="flex items-center gap-1.5">
           {comingSoon && (
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200">
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-geistmono uppercase tracking-wider text-[#8a5e12] bg-[#f6edd8]">
               pronto
             </span>
           )}
-          <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-400">{badge}</span>
+          <span className="text-[10px] font-geistmono tracking-[0.28em] uppercase text-ink-40">{badge}</span>
         </div>
       </div>
-      <h3 className="relative mt-4 text-lg font-semibold tracking-tight text-slate-900">{title}</h3>
-      <p className="relative mt-1 text-sm text-slate-600 leading-relaxed">{desc}</p>
+      <h3 className="relative mt-4 text-lg font-semibold tracking-tight text-ink">{title}</h3>
+      <p className="relative mt-1 text-sm text-ink-60 leading-relaxed">{desc}</p>
       <div className="relative mt-5 flex items-center justify-between">
-        <span className="text-xs text-slate-500 tabular-nums">{stat ?? " "}</span>
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 group-hover:gap-2 transition-all duration-200" style={{ transitionTimingFunction: ES }}>
+        <span className="text-xs text-ink-40 tabular-nums">{stat ?? " "}</span>
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-ink group-hover:gap-2 transition-all duration-200" style={{ transitionTimingFunction: ES }}>
           {comingSoon ? "Próximamente" : "Ver"} <ArrowRight className="w-3.5 h-3.5" />
         </span>
       </div>
@@ -1016,17 +914,13 @@ function QuickAccessCard({
 
 // ─── StatProof (footer grid) ─────────────────────────────────────────
 
-function StatProof({ label, value, accent, suffix }: { label: string; value: number; accent: string; suffix?: string }) {
+function StatProof({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
   const animated = useCountUp(value, 1100);
   return (
-    <div
-      className="relative overflow-hidden rounded-xl border border-white/10 p-4"
-      style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(12px)" }}
-    >
-      <div aria-hidden className="absolute -top-8 -right-8 w-20 h-20 rounded-full opacity-30" style={{ background: `radial-gradient(circle, ${accent}66 0%, transparent 60%)` }} />
-      <p className="relative text-[10px] font-mono tracking-[0.24em] uppercase text-slate-400">{label}</p>
+    <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4">
+      <p className="relative text-[10px] font-geistmono tracking-[0.24em] uppercase text-white/40">{label}</p>
       <p className="relative mt-1 text-[22px] font-semibold tabular-nums tracking-tight text-white">
-        {formatCompact(Math.round(animated))}{suffix ? <span className="text-sm text-slate-400 font-normal">{suffix}</span> : null}
+        {formatCompact(Math.round(animated))}{suffix ? <span className="text-sm text-white/40 font-normal">{suffix}</span> : null}
       </p>
     </div>
   );

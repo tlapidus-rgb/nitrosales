@@ -13,48 +13,17 @@ export default function BovedaPage() {
   }, [status, router]);
 
   return (
-    <div
-      className="min-h-screen -m-4 lg:-m-6 p-4 lg:p-8 relative overflow-hidden"
-      style={{
-        background:
-          "radial-gradient(ellipse at 30% 10%, rgba(251,191,36,0.06) 0%, transparent 50%), radial-gradient(ellipse at 70% 90%, rgba(245,158,11,0.04) 0%, transparent 50%), linear-gradient(180deg, #0a0a0f 0%, #050508 100%)",
-      }}
-    >
-      <div
-        className="absolute inset-0 pointer-events-none opacity-30"
-        style={{
-          background:
-            "radial-gradient(2px 2px at 12% 30%, rgba(251,191,36,0.4), transparent), radial-gradient(1px 1px at 80% 20%, rgba(253,224,71,0.3), transparent), radial-gradient(1px 1px at 40% 70%, rgba(251,191,36,0.25), transparent), radial-gradient(2px 2px at 90% 60%, rgba(245,158,11,0.3), transparent)",
-        }}
-      />
-
+    <div className="min-h-screen -m-4 lg:-m-6 p-4 lg:p-8 relative overflow-hidden bg-canvas">
       <header className="relative z-10 max-w-[1400px] mx-auto mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <div
-            className="px-2.5 py-1 rounded-md text-[9px] font-bold font-mono uppercase tracking-[0.25em]"
-            style={{
-              background: "rgba(251,191,36,0.12)",
-              color: "#fbbf24",
-              border: "1px solid rgba(251,191,36,0.3)",
-              textShadow: "0 0 10px rgba(251,191,36,0.5)",
-            }}
-          >
+          <div className="px-2.5 py-1 rounded-md text-[9px] font-bold font-mono uppercase tracking-[0.25em] text-ink-60 bg-surface border border-hairline">
             Aurum · Artefactos
           </div>
         </div>
-        <h1
-          className="text-4xl lg:text-5xl font-bold tracking-tight"
-          style={{
-            background:
-              "linear-gradient(135deg, #fef3c7 0%, #fbbf24 40%, #f59e0b 70%, #d97706 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            letterSpacing: "-0.02em",
-          }}
-        >
+        <h1 className="text-4xl lg:text-5xl font-medium tracking-tight text-ink" style={{ letterSpacing: "-0.02em" }}>
           Bóveda
         </h1>
-        <p className="text-[#fde68a]/60 text-sm mt-2 max-w-xl leading-relaxed">
+        <p className="text-ink-60 text-sm mt-2 max-w-xl leading-relaxed">
           Todo lo que Aurum genera para vos — reportes, análisis y visualizaciones — queda
           guardado acá. Tu archivo de inteligencia, siempre disponible.
         </p>
@@ -62,31 +31,14 @@ export default function BovedaPage() {
 
       <div className="relative z-10 max-w-[1400px] mx-auto">
         <div
-          className="rounded-2xl p-12 flex flex-col items-center justify-center text-center"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(251,191,36,0.04), rgba(10,10,15,0.6))",
-            border: "1px solid rgba(251,191,36,0.18)",
-            backdropFilter: "blur(8px)",
-            minHeight: 480,
-          }}
+          className="rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-elevated border border-hairline shadow-ent-xs"
+          style={{ minHeight: 480 }}
         >
           <div className="relative w-28 h-28 mb-6">
-            <div
-              className="absolute inset-0 rounded-2xl"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(251,191,36,0.3), rgba(245,158,11,0.1))",
-                border: "1px solid rgba(251,191,36,0.5)",
-                boxShadow:
-                  "0 0 50px rgba(251,191,36,0.3), inset 0 1px 0 rgba(253,224,71,0.3)",
-                animation: "aurumBreath 3s ease-in-out infinite",
-              }}
-            />
+            <div className="absolute inset-0 rounded-2xl bg-surface-2 border border-hairline" />
             <div className="absolute inset-0 flex items-center justify-center">
               <svg
-                className="w-12 h-12"
-                style={{ color: "#fef3c7", filter: "drop-shadow(0 0 8px rgba(251,191,36,0.6))" }}
+                className="w-12 h-12 text-ink-60"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -100,29 +52,15 @@ export default function BovedaPage() {
               </svg>
             </div>
           </div>
-          <h2
-            className="text-2xl font-bold mb-3"
-            style={{
-              background: "linear-gradient(135deg, #fef3c7, #fbbf24 50%, #d97706)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
+          <h2 className="text-2xl font-medium mb-3 text-ink">
             La Bóveda está por abrirse
           </h2>
-          <p className="text-[#fde68a]/60 text-sm max-w-lg leading-relaxed mb-6">
+          <p className="text-ink-60 text-sm max-w-lg leading-relaxed mb-6">
             Cuando Aurum empiece a generar reportes en Excel, gráficos en vivo y análisis
             exportables, los vas a encontrar todos acá.{" "}
-            <span className="text-[#fbbf24]/80">Tu activo digital, resguardado.</span>
+            <span className="text-ink font-medium">Tu activo digital, resguardado.</span>
           </p>
-          <div
-            className="px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-[0.3em]"
-            style={{
-              background: "rgba(251,191,36,0.08)",
-              border: "1px solid rgba(251,191,36,0.25)",
-              color: "#fbbf24",
-            }}
-          >
+          <div className="px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-[0.3em] text-ink-60 bg-surface border border-hairline">
             Próximamente
           </div>
         </div>

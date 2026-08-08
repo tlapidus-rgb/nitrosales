@@ -262,8 +262,8 @@ export default function PermisosPage() {
   if (loading || !matrix) {
     return (
       <div className="space-y-4">
-        <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
-        <div className="h-96 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
+        <div className="h-24 animate-pulse rounded-2xl border border-hairline bg-surface" />
+        <div className="h-96 animate-pulse rounded-2xl border border-hairline bg-surface" />
       </div>
     );
   }
@@ -271,36 +271,36 @@ export default function PermisosPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <Link
           href="/settings/team"
-          className="mb-2 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-700"
+          className="mb-2 inline-flex items-center gap-1 text-[11px] font-medium text-ink-60 hover:text-ink"
         >
           <ArrowLeft className="h-3 w-3" />
           Volver a Miembros
         </Link>
         <div className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-violet-600" />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          <Shield className="h-4 w-4 text-ink-60" />
+          <h2 className="text-sm font-semibold tracking-tight text-ink">
             Permisos por rol
           </h2>
         </div>
-        <p className="mt-1 text-[12px] text-slate-500">
+        <p className="mt-1 text-[12px] text-ink-60">
           Configurá qué puede ver y modificar cada rol. El Owner siempre tiene acceso total.
         </p>
 
         {/* Tabs switcher */}
-        <div className="mt-4 inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
+        <div className="mt-4 inline-flex items-center rounded-xl border border-hairline bg-surface p-1">
           <button
             type="button"
             onClick={() => setTab("system")}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
             style={{
               background: tab === "system" ? "white" : "transparent",
-              color: tab === "system" ? "#0f172a" : "#64748b",
+              color: tab === "system" ? "#1C1B18" : "#6B685F",
               boxShadow:
                 tab === "system"
-                  ? "0 1px 2px rgba(15,23,42,0.05), 0 0 0 1px rgba(15,23,42,0.04)"
+                  ? "0 1px 2px rgba(28,27,24,0.05), 0 0 0 1px rgba(28,27,24,0.04)"
                   : "none",
               transition: `all 160ms ${ES}`,
             }}
@@ -314,10 +314,10 @@ export default function PermisosPage() {
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
             style={{
               background: tab === "custom" ? "white" : "transparent",
-              color: tab === "custom" ? "#0f172a" : "#64748b",
+              color: tab === "custom" ? "#1C1B18" : "#6B685F",
               boxShadow:
                 tab === "custom"
-                  ? "0 1px 2px rgba(15,23,42,0.05), 0 0 0 1px rgba(15,23,42,0.04)"
+                  ? "0 1px 2px rgba(28,27,24,0.05), 0 0 0 1px rgba(28,27,24,0.04)"
                   : "none",
               transition: `all 160ms ${ES}`,
             }}
@@ -329,8 +329,8 @@ export default function PermisosPage() {
                 className="ml-1 rounded-full px-1.5 text-[9px] font-bold"
                 style={{
                   background:
-                    tab === "custom" ? "rgba(139,92,246,0.12)" : "rgba(148,163,184,0.15)",
-                  color: tab === "custom" ? "#8b5cf6" : "#64748b",
+                    tab === "custom" ? "rgba(28,27,24,0.08)" : "rgba(148,163,184,0.15)",
+                  color: tab === "custom" ? "#1C1B18" : "#64748b",
                 }}
               >
                 {customRoles.length}
@@ -344,14 +344,14 @@ export default function PermisosPage() {
           {LEVELS.map((l) => (
             <div
               key={l.value}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+              className="flex items-center gap-2 rounded-lg border border-hairline bg-elevated px-2.5 py-1.5"
             >
               <div className="h-3 w-3 rounded" style={{ background: l.color }} />
               <div>
                 <div className="text-[11px] font-semibold" style={{ color: l.color }}>
                   {l.label}
                 </div>
-                <div className="text-[9px] text-slate-500">{l.hint}</div>
+                <div className="text-[9px] text-ink-60">{l.hint}</div>
               </div>
             </div>
           ))}
@@ -365,7 +365,7 @@ export default function PermisosPage() {
             <button
               type="button"
               onClick={resetSystem}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink shadow-sm transition hover:border-hairline-2 hover:bg-surface"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Restablecer defaults
@@ -374,7 +374,7 @@ export default function PermisosPage() {
               type="button"
               disabled={!systemDirty || saving}
               onClick={saveSystem}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Save className="h-3.5 w-3.5" />
               {saving ? "Guardando…" : "Guardar cambios"}
@@ -386,19 +386,19 @@ export default function PermisosPage() {
             return (
               <div
                 key={cat}
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                className="overflow-hidden rounded-2xl border border-hairline bg-elevated"
               >
-                <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
+                <div className="flex items-center gap-2 border-b border-hairline bg-surface px-6 py-3">
                   <div className="h-1.5 w-1.5 rounded-full" style={{ background: catMeta.color }} />
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-60">
                     {catMeta.label}
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[13px]">
-                    <thead className="border-b border-slate-100 bg-slate-50/30">
+                    <thead className="border-b border-hairline bg-surface">
                       <tr>
-                        <th className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        <th className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-40">
                           Sección
                         </th>
                         {(["OWNER", "ADMIN", "MEMBER"] as Role[]).map((role) => {
@@ -418,10 +418,10 @@ export default function PermisosPage() {
                         })}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-hairline">
                       {catSections.map((s) => (
                         <tr key={s.key}>
-                          <td className="px-6 py-2.5 font-medium text-slate-700">{s.label}</td>
+                          <td className="px-6 py-2.5 font-medium text-ink">{s.label}</td>
                           {(["OWNER", "ADMIN", "MEMBER"] as Role[]).map((role) => {
                             const currentLevel = matrix[role][s.key];
                             const isOwner = role === "OWNER";
@@ -431,7 +431,7 @@ export default function PermisosPage() {
                                   disabled={isOwner}
                                   value={currentLevel}
                                   onChange={(e) => handleSystemChange(role, s.key, e.target.value as AccessLevel)}
-                                  className="w-full max-w-[120px] rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="w-full max-w-[120px] rounded-md border border-hairline bg-elevated px-2 py-1 text-[11px] font-semibold outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10 disabled:cursor-not-allowed disabled:opacity-60"
                                   style={{
                                     color: LEVELS.find((l) => l.value === currentLevel)?.color ?? "#64748b",
                                   }}
@@ -460,14 +460,14 @@ export default function PermisosPage() {
       {tab === "custom" && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <div className="text-[12px] text-slate-500">
+            <div className="text-[12px] text-ink-60">
               {customRoles.length} rol{customRoles.length !== 1 ? "es" : ""} custom activo
               {customRoles.length !== 1 ? "s" : ""}
             </div>
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               <Plus className="h-3.5 w-3.5" />
               Crear rol custom
@@ -475,19 +475,19 @@ export default function PermisosPage() {
           </div>
 
           {customRoles.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/30 p-10 text-center">
-              <UsersRound className="mx-auto h-10 w-10 text-slate-300" />
-              <h3 className="mt-4 text-sm font-semibold text-slate-700">
+            <div className="rounded-2xl border border-dashed border-hairline-2 bg-surface p-10 text-center">
+              <UsersRound className="mx-auto h-10 w-10 text-ink-40" />
+              <h3 className="mt-4 text-sm font-semibold text-ink">
                 Sin roles custom todavía
               </h3>
-              <p className="mt-1 max-w-md mx-auto text-[12px] text-slate-500">
+              <p className="mt-1 max-w-md mx-auto text-[12px] text-ink-60">
                 Creá roles como "Contador", "Marketing Manager" u "Operaciones" con
                 permisos específicos. Se asignan desde la pestaña Miembros.
               </p>
               <button
                 type="button"
                 onClick={() => setCreateOpen(true)}
-                className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-violet-700"
+                className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-ink/90"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Crear primer rol
@@ -505,13 +505,13 @@ export default function PermisosPage() {
                       key={r.id}
                       type="button"
                       onClick={() => selectCustom(r.id)}
-                      className="w-full text-left rounded-xl border bg-white p-3 transition"
+                      className="w-full text-left rounded-xl border bg-elevated p-3 transition"
                       style={{
                         borderColor: active ? `${color}55` : "rgba(226,232,240,1)",
                         background: active ? `${color}08` : "white",
                         boxShadow: active
                           ? `0 1px 2px ${color}14, 0 4px 12px ${color}0a`
-                          : "0 1px 2px rgba(15,23,42,0.03)",
+                          : "0 1px 2px rgba(28,27,24,0.03)",
                       }}
                     >
                       <div className="flex items-start gap-2">
@@ -526,16 +526,16 @@ export default function PermisosPage() {
                           <Briefcase className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-slate-900">
+                          <div className="truncate text-[13px] font-semibold text-ink">
                             {r.name}
                           </div>
                           {r.description && (
-                            <div className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
+                            <div className="mt-0.5 line-clamp-2 text-[10px] text-ink-60">
                               {r.description}
                             </div>
                           )}
                           {r._count && (
-                            <div className="mt-1 text-[10px] text-slate-400">
+                            <div className="mt-1 text-[10px] text-ink-40">
                               {r._count.users} miembro{r._count.users !== 1 ? "s" : ""}
                             </div>
                           )}
@@ -549,16 +549,16 @@ export default function PermisosPage() {
               {/* Editor */}
               <section>
                 {!editedCustom ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/30 p-10 text-center">
-                    <Info className="mx-auto h-8 w-8 text-slate-300" />
-                    <p className="mt-3 text-sm text-slate-500">
+                  <div className="rounded-2xl border border-dashed border-hairline-2 bg-surface p-10 text-center">
+                    <Info className="mx-auto h-8 w-8 text-ink-40" />
+                    <p className="mt-3 text-sm text-ink-60">
                       Seleccioná un rol de la izquierda para editarlo.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {/* Metadata */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="rounded-2xl border border-hairline bg-elevated p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -569,7 +569,7 @@ export default function PermisosPage() {
                               onChange={(e) =>
                                 setEditedCustom({ ...editedCustom, name: e.target.value })
                               }
-                              className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                              className="w-full max-w-xs rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-sm font-semibold text-ink placeholder:text-ink-40 outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
                             />
                             <div className="flex items-center gap-1">
                               {COLOR_PALETTE.map((c) => (
@@ -606,13 +606,13 @@ export default function PermisosPage() {
                                 description: e.target.value,
                               })
                             }
-                            className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                            className="mt-2 w-full rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs text-ink outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={() => deleteCustom(editedCustom)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+                          className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-elevated px-2.5 py-1.5 text-[11px] font-medium text-ink-60 transition hover:border-rose-200 hover:text-rose-600"
                         >
                           <Trash2 className="h-3 w-3" />
                           Eliminar
@@ -626,18 +626,18 @@ export default function PermisosPage() {
                       return (
                         <div
                           key={cat}
-                          className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                          className="overflow-hidden rounded-2xl border border-hairline bg-elevated"
                         >
-                          <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
+                          <div className="flex items-center gap-2 border-b border-hairline bg-surface px-6 py-3">
                             <div
                               className="h-1.5 w-1.5 rounded-full"
                               style={{ background: catMeta.color }}
                             />
-                            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-60">
                               {catMeta.label}
                             </div>
                           </div>
-                          <div className="divide-y divide-slate-100">
+                          <div className="divide-y divide-hairline">
                             {catSections.map((s) => {
                               const v = editedCustom.permissions[s.key] ?? "none";
                               return (
@@ -645,7 +645,7 @@ export default function PermisosPage() {
                                   key={s.key}
                                   className="flex items-center justify-between gap-4 px-6 py-2.5"
                                 >
-                                  <span className="text-[13px] font-medium text-slate-700">
+                                  <span className="text-[13px] font-medium text-ink">
                                     {s.label}
                                   </span>
                                   <select
@@ -653,7 +653,7 @@ export default function PermisosPage() {
                                     onChange={(e) =>
                                       handleCustomChange(s.key, e.target.value as AccessLevel)
                                     }
-                                    className="w-full max-w-[140px] rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                                    className="w-full max-w-[140px] rounded-md border border-hairline bg-elevated px-2 py-1 text-[11px] font-semibold outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
                                     style={{
                                       color:
                                         LEVELS.find((l) => l.value === v)?.color ?? "#64748b",
@@ -674,12 +674,12 @@ export default function PermisosPage() {
                     })}
 
                     {/* Save bar */}
-                    <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                    <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-xl border border-hairline bg-elevated p-3 shadow-lg">
                       <button
                         type="button"
                         onClick={() => selectCustom(editedCustom.id)}
                         disabled={!customDirty}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Descartar
@@ -688,7 +688,7 @@ export default function PermisosPage() {
                         type="button"
                         disabled={!customDirty || saving}
                         onClick={saveCustom}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Save className="h-3.5 w-3.5" />
                         {saving ? "Guardando…" : "Guardar rol"}
@@ -722,7 +722,7 @@ export default function PermisosPage() {
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-medium text-white shadow-lg"
           role="status"
           aria-live="polite"
         >
@@ -837,19 +837,19 @@ function CreateRoleModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-hairline bg-elevated shadow-2xl">
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-violet-600" />
-              <h3 className="text-sm font-semibold tracking-tight text-slate-900">
+              <Briefcase className="h-4 w-4 text-ink-60" />
+              <h3 className="text-sm font-semibold tracking-tight text-ink">
                 Crear rol custom
               </h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-lg p-1 text-ink-40 hover:bg-surface hover:text-ink-60"
             >
               <X className="h-4 w-4" />
             </button>
@@ -857,7 +857,7 @@ function CreateRoleModal({
 
           <div className="mt-5 space-y-4">
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink">
                 Nombre del rol
               </label>
               <input
@@ -865,29 +865,29 @@ function CreateRoleModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={60}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
                 placeholder="Ej: Contador, Marketing Manager, Operaciones"
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink">
                 Descripción{" "}
-                <span className="text-[10px] font-normal text-slate-400">(opcional)</span>
+                <span className="text-[10px] font-normal text-ink-40">(opcional)</span>
               </label>
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={280}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
                 placeholder="Qué tipo de usuario usa este rol"
               />
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink">
                 <span className="inline-flex items-center gap-1.5">
-                  <Palette className="h-3.5 w-3.5 text-slate-400" />
+                  <Palette className="h-3.5 w-3.5 text-ink-40" />
                   Color
                 </span>
               </label>
@@ -909,20 +909,20 @@ function CreateRoleModal({
               </div>
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink">
                 Permisos iniciales
               </label>
               <select
                 value={copyFrom}
                 onChange={(e) => setCopyFrom(e.target.value as any)}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
               >
                 <option value="blank">Empezar en blanco (Sin acceso en todo)</option>
                 <option value="MEMBER">Copiar de Editor (default Member)</option>
                 <option value="ADMIN">Copiar de Admin</option>
                 <option value="OWNER">Copiar de Owner (admin en todo)</option>
               </select>
-              <p className="mt-1.5 text-[10px] text-slate-500">
+              <p className="mt-1.5 text-[10px] text-ink-60">
                 Después podés ajustar sección por sección desde el editor.
               </p>
             </div>
@@ -934,11 +934,11 @@ function CreateRoleModal({
             )}
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="mt-6 flex items-center justify-end gap-2 border-t border-hairline pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-semibold text-ink hover:bg-surface"
             >
               Cancelar
             </button>
@@ -946,7 +946,7 @@ function CreateRoleModal({
               type="button"
               disabled={!name || submitting}
               onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="h-3.5 w-3.5" />
               {submitting ? "Creando…" : "Crear rol"}

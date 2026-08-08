@@ -39,11 +39,11 @@ type AssetStats = {
 };
 
 const STAGES = [
-  { key: "GENESIS", name: "Génesis", color: "#06b6d4", min: 0 },
-  { key: "AWAKENING", name: "Awakening", color: "#22d3ee", min: 20 },
+  { key: "GENESIS", name: "Génesis", color: "#2F9153", min: 0 },
+  { key: "AWAKENING", name: "Awakening", color: "#2F9153", min: 20 },
   { key: "SENTIENT", name: "Sentient", color: "#0ea5e9", min: 40 },
-  { key: "EVOLVED", name: "Evolved", color: "#8b5cf6", min: 60 },
-  { key: "SINGULARITY", name: "Singularity", color: "#a855f7", min: 80 },
+  { key: "EVOLVED", name: "Evolved", color: "#9A978D", min: 60 },
+  { key: "SINGULARITY", name: "Singularity", color: "#9A978D", min: 80 },
 ];
 
 function formatNumber(n: number): string {
@@ -154,8 +154,8 @@ export default function NitroPixelPage() {
   const animLevel = useAnimatedCounter(level, 1800);
 
   const stageColor = useMemo(() => {
-    if (!stage) return "#06b6d4";
-    return STAGES[stage.index]?.color ?? "#06b6d4";
+    if (!stage) return "#2F9153";
+    return STAGES[stage.index]?.color ?? "#2F9153";
   }, [stage]);
 
   // Mini sparkline path
@@ -177,32 +177,8 @@ export default function NitroPixelPage() {
   return (
     <div
       className="relative w-full h-full overflow-y-auto"
-      style={{
-        background:
-          "radial-gradient(ellipse at top, #0c1424 0%, #05060a 60%, #02030a 100%)",
-      }}
+      style={{ background: "#FBFAF7" }}
     >
-      {/* ── Animated grid backdrop ── */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.18]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(6,182,212,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.25) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-          animation: "pixelGridShift 8s linear infinite",
-          maskImage: "radial-gradient(ellipse at center, black 30%, transparent 80%)",
-          WebkitMaskImage: "radial-gradient(ellipse at center, black 30%, transparent 80%)",
-        }}
-      />
-
-      {/* ── Vignette glow ── */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, rgba(6,182,212,0.10) 0%, transparent 60%)",
-        }}
-      />
 
       <div className="relative max-w-6xl mx-auto px-6 lg:px-10 py-10">
         {/* ═══ HEADER ═══ */}
@@ -214,20 +190,19 @@ export default function NitroPixelPage() {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                background: "#06b6d4",
-                boxShadow: "0 0 12px rgba(6,182,212,0.9)",
+                background: "#2F9153",
                 animation: "pixelHeartbeat 1.6s ease-in-out infinite",
               }}
             />
-            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-300/80">
+            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-ink">
               NitroPixel · Activo Vivo
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Link
               href="/pixel/journeys"
-              className="text-[10px] font-mono uppercase tracking-[0.2em] text-violet-300/70 hover:text-violet-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-violet-500/30 hover:border-violet-400/60"
-              style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.10), rgba(6,182,212,0.04))" }}
+              className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-60 hover:text-ink transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-hairline hover:border-hairline"
+              style={{ background: "linear-gradient(135deg, rgba(154,151,141,0.10), rgba(229,225,216,0.04))" }}
             >
               <span>◇</span>
               Customer Journeys
@@ -235,7 +210,7 @@ export default function NitroPixelPage() {
             </Link>
             <Link
               href="/pixel/analytics"
-              className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300/60 hover:text-cyan-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyan-500/20 hover:border-cyan-400/40"
+              className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-60 hover:text-ink transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-hairline hover:border-hairline"
             >
               Analytics detallado
               <span>→</span>
@@ -263,7 +238,7 @@ export default function NitroPixelPage() {
             >
               <span
                 className="w-1 h-1 rounded-full"
-                style={{ background: stageColor, boxShadow: `0 0 6px ${stageColor}`, animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
+                style={{ background: stageColor, animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
               />
               <span>STAGE</span>
               <span className="opacity-30">·</span>
@@ -272,15 +247,15 @@ export default function NitroPixelPage() {
               <span style={{ animation: "pixelBreath 2.8s ease-in-out infinite" }}>EVOLVING</span>
             </div>
             <div
-              className="text-base lg:text-lg font-medium mt-2 tracking-wide text-cyan-50/80"
+              className="text-base lg:text-lg font-medium mt-2 tracking-wide text-ink"
             >
               {stage?.tagline ?? "El núcleo despierta"}
             </div>
             <div className="flex items-center justify-center gap-2 mt-3">
-              <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/40">
+              <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-40">
                 Próxima evolución
               </span>
-              <span className="text-[9px] font-mono text-cyan-300/60">
+              <span className="text-[9px] font-mono text-ink-60">
                 {stage?.key === "SINGULARITY" ? "∞ infinita" : "en proceso →"}
               </span>
             </div>
@@ -297,25 +272,18 @@ export default function NitroPixelPage() {
             className="relative p-6 rounded-2xl overflow-hidden"
             style={{
               background:
-                "linear-gradient(135deg, rgba(6,182,212,0.10), rgba(139,92,246,0.04))",
-              border: "1px solid rgba(6,182,212,0.30)",
+                "linear-gradient(135deg, rgba(229,225,216,0.10), rgba(154,151,141,0.04))",
+              border: "1px solid rgba(229,225,216,0.30)",
               animation: "pixelGlow 4s ease-in-out infinite",
             }}
           >
-            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/70 mb-2">
+            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60 mb-2">
               VALORACIÓN ESTIMADA
             </div>
-            <div
-              className="text-4xl lg:text-5xl font-bold"
-              style={{
-                background: "linear-gradient(135deg, #06b6d4, #a855f7)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
+            <div className="text-4xl lg:text-5xl font-semibold tracking-tight text-ink tabular-nums">
               {formatUSD(animValue)}
             </div>
-            <div className="text-xs text-cyan-100/40 font-mono mt-2">
+            <div className="text-xs text-ink-40 font-mono mt-2">
               First-party data + revenue atribuido + comportamiento
             </div>
           </div>
@@ -325,30 +293,30 @@ export default function NitroPixelPage() {
             className="relative p-6 rounded-2xl overflow-hidden"
             style={{
               background:
-                "linear-gradient(135deg, rgba(139,92,246,0.10), rgba(6,182,212,0.04))",
-              border: "1px solid rgba(139,92,246,0.30)",
+                "linear-gradient(135deg, rgba(154,151,141,0.10), rgba(229,225,216,0.04))",
+              border: "1px solid rgba(154,151,141,0.30)",
             }}
           >
             <div className="flex items-center justify-between mb-2">
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-violet-300/70">
+              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60">
                 NIVEL DEL ACTIVO
               </div>
               <div
-                className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.25em] text-violet-300/60"
+                className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.25em] text-ink-40"
               >
                 <span
                   className="w-1 h-1 rounded-full bg-violet-300"
-                  style={{ boxShadow: "0 0 6px rgba(167,139,250,0.9)", animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
+                  style={{ animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
                 />
                 <span style={{ animation: "pixelBreath 2.6s ease-in-out infinite" }}>EVOLVING</span>
                 <span className="text-base leading-none -mt-0.5">∞</span>
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl lg:text-5xl font-bold text-white tabular-nums">
+              <span className="text-4xl lg:text-5xl font-bold text-ink tabular-nums">
                 {animLevel}
               </span>
-              <span className="text-xs font-mono text-violet-300/50 mb-1">XP</span>
+              <span className="text-xs font-mono text-ink-40 mb-1">XP</span>
             </div>
             {/* Level bar — siempre activa con shimmer continuo, nunca "tope" visual */}
             <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-white/5 relative">
@@ -356,21 +324,20 @@ export default function NitroPixelPage() {
                 className="h-full rounded-full transition-all duration-1000 ease-out relative"
                 style={{
                   width: `${Math.max(8, level)}%`,
-                  background: `linear-gradient(90deg, #06b6d4, #8b5cf6, #a855f7)`,
-                  boxShadow: "0 0 12px rgba(139,92,246,0.6)",
+                  background: `linear-gradient(90deg, #2F9153, #9A978D, #9A978D)`,
                 }}
               >
                 {/* shimmer perpetuo: hace ver que sigue creciendo aunque visualmente este al tope */}
                 <div
                   className="absolute inset-0 rounded-full"
                   style={{
-                    background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%)",
+                    background: "linear-gradient(90deg, transparent 0%, rgba(28,27,24,0.06) 50%, transparent 100%)",
                     animation: "pixelShimmer 2.4s linear infinite",
                   }}
                 />
               </div>
             </div>
-            <div className="text-xs text-violet-100/40 font-mono mt-2">
+            <div className="text-xs text-ink-40 font-mono mt-2">
               Cada evento, cada identificación, cada conversión lo hace más inteligente.
             </div>
           </div>
@@ -381,31 +348,31 @@ export default function NitroPixelPage() {
           className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-10"
           style={{ animation: "pixelFadeUp 1000ms ease-out both" }}
         >
-          <Counter label="Eventos totales" value={formatNumber(animEvents)} accent="#06b6d4" sub={`+${formatNumber(data?.asset.eventsLast24h ?? 0)} en 24h`} />
-          <Counter label="Visitantes" value={formatNumber(animVisitors)} accent="#22d3ee" sub={`${formatNumber(data?.asset.eventsLast7d ?? 0)} eventos · 7d`} />
-          <Counter label="Identificados" value={formatNumber(animIdentified)} accent="#8b5cf6" sub={`${visitors > 0 ? Math.round((identified / visitors) * 100) : 0}% del total`} />
-          <Counter label="Días vivo" value={String(daysAlive)} accent="#a855f7" sub={`Revenue: ${formatARS(revenue)}`} />
+          <Counter label="Eventos totales" value={formatNumber(animEvents)} accent="#2F9153" sub={`+${formatNumber(data?.asset.eventsLast24h ?? 0)} en 24h`} />
+          <Counter label="Visitantes" value={formatNumber(animVisitors)} accent="#2F9153" sub={`${formatNumber(data?.asset.eventsLast7d ?? 0)} eventos · 7d`} />
+          <Counter label="Identificados" value={formatNumber(animIdentified)} accent="#9A978D" sub={`${visitors > 0 ? Math.round((identified / visitors) * 100) : 0}% del total`} />
+          <Counter label="Días vivo" value={String(daysAlive)} accent="#9A978D" sub={`Revenue: ${formatARS(revenue)}`} />
         </div>
 
         {/* ═══ TIMELINE SPARKLINE ═══ */}
         <div
           className="rounded-2xl p-6 mb-10"
           style={{
-            background: "rgba(6,182,212,0.04)",
-            border: "1px solid rgba(6,182,212,0.18)",
+            background: "rgba(229,225,216,0.04)",
+            border: "1px solid rgba(229,225,216,0.18)",
             animation: "pixelFadeUp 1100ms ease-out both",
           }}
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/70">
+              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60">
                 CRECIMIENTO · 30 DÍAS
               </div>
-              <div className="text-lg font-semibold text-white mt-1">
+              <div className="text-lg font-semibold text-ink mt-1">
                 Eventos capturados día a día
               </div>
             </div>
-            <div className="text-[10px] font-mono text-cyan-300/50">
+            <div className="text-[10px] font-mono text-ink-40">
               Auto-refresh 20s
             </div>
           </div>
@@ -413,15 +380,15 @@ export default function NitroPixelPage() {
             <svg viewBox="0 0 600 60" className="w-full h-16">
               <defs>
                 <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#2F9153" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#2F9153" stopOpacity="0" />
                 </linearGradient>
               </defs>
               <path d={`${sparkline} L 600 60 L 0 60 Z`} fill="url(#sparkGrad)" />
-              <path d={sparkline} fill="none" stroke="#06b6d4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(6,182,212,0.7))" }} />
+              <path d={sparkline} fill="none" stroke="#2F9153" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           ) : (
-            <div className="text-cyan-300/40 text-sm font-mono">Esperando datos…</div>
+            <div className="text-ink-40 text-sm font-mono">Esperando datos…</div>
           )}
         </div>
 
@@ -434,20 +401,19 @@ export default function NitroPixelPage() {
           <div
             className="lg:col-span-2 rounded-2xl p-5"
             style={{
-              background: "rgba(6,182,212,0.04)",
-              border: "1px solid rgba(6,182,212,0.18)",
+              background: "rgba(229,225,216,0.04)",
+              border: "1px solid rgba(229,225,216,0.18)",
             }}
           >
             <div className="flex items-center gap-2 mb-4">
               <span
                 className="w-1.5 h-1.5 rounded-full"
                 style={{
-                  background: "#22c55e",
-                  boxShadow: "0 0 8px #22c55e",
+                  background: "#22c55e",
                   animation: "pixelHeartbeat 1.6s ease-in-out infinite",
                 }}
               />
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/70">
+              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60">
                 STREAM EN VIVO
               </div>
             </div>
@@ -458,31 +424,31 @@ export default function NitroPixelPage() {
                     key={e.id}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
                     style={{
-                      background: "rgba(6,182,212,0.04)",
-                      border: "1px solid rgba(6,182,212,0.10)",
+                      background: "rgba(229,225,216,0.04)",
+                      border: "1px solid rgba(229,225,216,0.10)",
                       animation: `pixelFadeUp 500ms ease-out ${i * 50}ms both`,
                     }}
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ background: "#06b6d4", boxShadow: "0 0 6px #06b6d4" }}
+                      style={{ background: "#2F9153" }}
                     />
-                    <span className="font-mono text-cyan-300 font-semibold uppercase text-[10px] tracking-wider w-24 truncate">
+                    <span className="font-mono text-ink font-semibold uppercase text-[10px] tracking-wider w-24 truncate">
                       {e.type}
                     </span>
-                    <span className="text-cyan-100/50 font-mono text-[10px] flex-1 truncate">
+                    <span className="text-ink-40 font-mono text-[10px] flex-1 truncate">
                       {e.pageUrl ?? "—"}
                     </span>
-                    <span className="text-cyan-100/30 font-mono text-[10px]">
+                    <span className="text-ink-40 font-mono text-[10px]">
                       {e.country ?? "··"}
                     </span>
-                    <span className="text-cyan-200/40 font-mono text-[10px] w-10 text-right">
+                    <span className="text-ink-40 font-mono text-[10px] w-10 text-right">
                       {timeAgo(e.receivedAt)}
                     </span>
                   </div>
                 ))
               ) : (
-                <div className="text-cyan-300/40 text-xs font-mono py-6 text-center">
+                <div className="text-ink-40 text-xs font-mono py-6 text-center">
                   Esperando primer evento…
                 </div>
               )}
@@ -493,11 +459,11 @@ export default function NitroPixelPage() {
           <div
             className="rounded-2xl p-5"
             style={{
-              background: "rgba(139,92,246,0.04)",
-              border: "1px solid rgba(139,92,246,0.18)",
+              background: "rgba(154,151,141,0.04)",
+              border: "1px solid rgba(154,151,141,0.18)",
             }}
           >
-            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-violet-300/70 mb-4">
+            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60 mb-4">
               FUENTES · 7 DÍAS
             </div>
             <div className="space-y-2">
@@ -509,10 +475,10 @@ export default function NitroPixelPage() {
                     return (
                       <div key={s.source + i}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-violet-100/80 font-mono truncate max-w-[140px]">
+                          <span className="text-xs text-ink-60 font-mono truncate max-w-[140px]">
                             {s.source}
                           </span>
-                          <span className="text-[10px] text-violet-100/40 font-mono">
+                          <span className="text-[10px] text-ink-40 font-mono">
                             {formatNumber(s.count)}
                           </span>
                         </div>
@@ -521,8 +487,7 @@ export default function NitroPixelPage() {
                             className="h-full rounded-full"
                             style={{
                               width: `${pct}%`,
-                              background: `linear-gradient(90deg, #06b6d4, #8b5cf6)`,
-                              boxShadow: "0 0 6px rgba(139,92,246,0.5)",
+                              background: `linear-gradient(90deg, #2F9153, #9A978D)`,
                             }}
                           />
                         </div>
@@ -531,7 +496,7 @@ export default function NitroPixelPage() {
                   });
                 })()
               ) : (
-                <div className="text-violet-300/40 text-xs font-mono">Sin datos aún</div>
+                <div className="text-ink-40 text-xs font-mono">Sin datos aún</div>
               )}
             </div>
           </div>
@@ -545,17 +510,17 @@ export default function NitroPixelPage() {
           <div
             className="inline-block px-5 py-3 rounded-xl"
             style={{
-              background: "rgba(6,182,212,0.06)",
-              border: "1px solid rgba(6,182,212,0.20)",
+              background: "rgba(229,225,216,0.06)",
+              border: "1px solid rgba(229,225,216,0.20)",
             }}
           >
-            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-300/60 mb-1">
+            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-ink-60 mb-1">
               Tu pixel lleva
             </div>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-ink">
               {daysAlive} {daysAlive === 1 ? "día" : "días"} vivo
             </div>
-            <div className="text-xs text-cyan-100/50 font-mono mt-1">
+            <div className="text-xs text-ink-40 font-mono mt-1">
               Cada evento lo hace más fuerte. Cada conversión, más valioso.
             </div>
           </div>
@@ -567,7 +532,7 @@ export default function NitroPixelPage() {
           </div>
         )}
         {loading && !data && (
-          <div className="text-center text-xs text-cyan-300/40 font-mono mt-4">
+          <div className="text-center text-xs text-ink-40 font-mono mt-4">
             Cargando activo…
           </div>
         )}
@@ -582,128 +547,18 @@ export default function NitroPixelPage() {
 // Núcleo con orbits SVG, neuronas pulsantes, sinapsis animadas.
 // Crece visualmente con el nivel.
 // ══════════════════════════════════════════════════════════════
-function PixelBrain({
-  level,
-  color,
-  heartbeat,
-}: {
-  level: number;
-  stage: string;
-  color: string;
-  heartbeat: number;
-}) {
-  // Neuronas distribuidas en círculo
-  const neurons = useMemo(() => {
-    const count = 8 + Math.floor(level / 10); // 8 a 18 neuronas
-    const arr = [];
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const radius = 90 + (i % 3) * 10;
-      arr.push({
-        id: i,
-        x: 150 + Math.cos(angle) * radius,
-        y: 150 + Math.sin(angle) * radius,
-        delay: (i * 120) % 2000,
-      });
-    }
-    return arr;
-  }, [level]);
-
-  // Sinapsis: líneas entre neurona i y la siguiente
-  const synapses = useMemo(() => {
-    const arr: Array<{ x1: number; y1: number; x2: number; y2: number; delay: number }> = [];
-    for (let i = 0; i < neurons.length; i++) {
-      const a = neurons[i];
-      const b = neurons[(i + 2) % neurons.length];
-      arr.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: i * 200 });
-    }
-    return arr;
-  }, [neurons]);
-
-  const coreScale = 1 + (level / 100) * 0.4;
-  const pulse = heartbeat % 2 === 0 ? 1 : 1.04;
-
+function PixelBrain({ level }: { level: number; stage: string; color: string; heartbeat: number }) {
+  // Marca sobria estática: rings hairline + disco accent que crece con el nivel
+  // (el activo que crece). Sin glow/órbitas/neuronas — el "live" lo da el LivePulse.
+  const coreR = 24 + (level / 100) * 22; // 24..46
   return (
     <div className="relative" style={{ width: 320, height: 320 }}>
       <svg viewBox="0 0 300 300" className="absolute inset-0 w-full h-full">
-        <defs>
-          <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#a5f3fc" stopOpacity="1" />
-            <stop offset="35%" stopColor={color} stopOpacity="0.95" />
-            <stop offset="70%" stopColor="#0891b2" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#0c1424" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={color} stopOpacity="0" />
-            <stop offset="60%" stopColor={color} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </radialGradient>
-          <filter id="blur1">
-            <feGaussianBlur stdDeviation="2" />
-          </filter>
-        </defs>
-
-        {/* Halo glow */}
-        <circle cx="150" cy="150" r="140" fill="url(#haloGrad)" />
-
-        {/* Outer orbit (counter-clockwise) */}
-        <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbitReverse 28s linear infinite" }}>
-          <circle cx="150" cy="150" r="120" fill="none" stroke={color} strokeOpacity="0.18" strokeWidth="0.8" strokeDasharray="3 6" />
-          <circle cx="270" cy="150" r="2" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
-        </g>
-
-        {/* Mid orbit (clockwise) */}
-        <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbit 18s linear infinite" }}>
-          <circle cx="150" cy="150" r="100" fill="none" stroke="#8b5cf6" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="2 5" />
-          <circle cx="50" cy="150" r="2" fill="#a855f7" style={{ filter: `drop-shadow(0 0 4px #a855f7)` }} />
-        </g>
-
-        {/* Sinapsis lines */}
-        {synapses.map((s, i) => (
-          <line
-            key={i}
-            x1={s.x1}
-            y1={s.y1}
-            x2={s.x2}
-            y2={s.y2}
-            stroke={color}
-            strokeOpacity="0.35"
-            strokeWidth="0.6"
-            strokeDasharray="100"
-            style={{
-              animation: `pixelSynapseFlow 3s ease-in-out infinite ${s.delay}ms`,
-            }}
-          />
-        ))}
-
-        {/* Neurons */}
-        {neurons.map((n) => (
-          <circle
-            key={n.id}
-            cx={n.x}
-            cy={n.y}
-            r="2.5"
-            fill={color}
-            style={{
-              transformOrigin: `${n.x}px ${n.y}px`,
-              animation: `pixelNeuronPulse 2.4s ease-in-out infinite ${n.delay}ms`,
-              filter: `drop-shadow(0 0 4px ${color})`,
-            }}
-          />
-        ))}
-
-        {/* Core */}
-        <g
-          style={{
-            transformOrigin: "150px 150px",
-            transform: `scale(${(coreScale * pulse).toFixed(3)})`,
-            transition: "transform 400ms ease-out",
-          }}
-        >
-          <circle cx="150" cy="150" r="55" fill="url(#coreGrad)" filter="url(#blur1)" />
-          <circle cx="150" cy="150" r="32" fill="#a5f3fc" opacity="0.85" />
-          <circle cx="150" cy="150" r="20" fill="#ffffff" opacity="0.9" />
-        </g>
+        <circle cx="150" cy="150" r="120" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="1.5" />
+        <circle cx="150" cy="150" r="90" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="1.5" />
+        <circle cx="150" cy="150" r="58" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="1.5" />
+        <circle cx="150" cy="150" r={coreR + 12} fill="rgb(var(--ent-accent))" fillOpacity="0.08" />
+        <circle cx="150" cy="150" r={coreR} fill="rgb(var(--ent-accent))" />
       </svg>
     </div>
   );
@@ -727,7 +582,7 @@ function Counter({
     <div
       className="relative rounded-xl p-4 overflow-hidden"
       style={{
-        background: `linear-gradient(135deg, ${accent}10, rgba(255,255,255,0.01))`,
+        background: `linear-gradient(135deg, ${accent}10, rgba(28,27,24,0.02))`,
         border: `1px solid ${accent}30`,
       }}
     >
@@ -738,7 +593,7 @@ function Counter({
       <div className="text-[9px] font-mono uppercase tracking-[0.25em]" style={{ color: `${accent}cc` }}>
         {label}
       </div>
-      <div className="text-2xl lg:text-3xl font-bold text-white tabular-nums mt-1">
+      <div className="text-2xl lg:text-3xl font-bold text-ink tabular-nums mt-1">
         {value}
       </div>
       <div className="text-[10px] font-mono mt-1" style={{ color: `${accent}80` }}>

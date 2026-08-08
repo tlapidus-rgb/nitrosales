@@ -33,14 +33,14 @@ type PlatformView = "META" | "GOOGLE" | "ALL";
 const PLATFORM_META = {
   META:   { label: "Meta Ads",   short: "Meta",   color: "#8b5cf6", bg: "bg-purple-500", text: "text-purple-600", soft: "bg-purple-50", ring: "ring-purple-200" },
   GOOGLE: { label: "Google Ads", short: "Google", color: "#3b82f6", bg: "bg-blue-500",   text: "text-blue-600",   soft: "bg-blue-50",   ring: "ring-blue-200" },
-  ALL:    { label: "Todos",      short: "Todos",  color: "#475569", bg: "bg-slate-500",  text: "text-slate-600",  soft: "bg-slate-50",  ring: "ring-slate-200" },
+  ALL:    { label: "Todos",      short: "Todos",  color: "#475569", bg: "bg-slate-500",  text: "text-ink-60",  soft: "bg-surface",  ring: "ring-hairline" },
 } as const;
 
 const FUNNEL_META: Record<string, { color: string; bg: string; ring: string; icon: any; label: string }> = {
   TOF:     { color: "text-purple-700",  bg: "bg-purple-50",  ring: "ring-purple-200",  icon: Eye,          label: "TOF · Awareness" },
   MOF:     { color: "text-blue-700",    bg: "bg-blue-50",    ring: "ring-blue-200",    icon: MousePointer, label: "MOF · Consideration" },
   BOF:     { color: "text-emerald-700", bg: "bg-emerald-50", ring: "ring-emerald-200", icon: ShoppingCart, label: "BOF · Conversion" },
-  UNKNOWN: { color: "text-slate-600",   bg: "bg-slate-50",   ring: "ring-slate-200",   icon: Layers,       label: "Sin clasificar" },
+  UNKNOWN: { color: "text-ink-60",   bg: "bg-surface",   ring: "ring-hairline",   icon: Layers,       label: "Sin clasificar" },
 };
 
 function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
@@ -141,7 +141,7 @@ const FATIGUE_META: Record<FatigueLevel, { label: string; color: string; bg: str
   fatigued: { label: "Fatiga",        color: "#f59e0b", bg: "bg-amber-50",   text: "text-amber-700",   ring: "ring-amber-200",   icon: AlertTriangle },
   burned:   { label: "Quemado",       color: "#ef4444", bg: "bg-red-50",     text: "text-red-700",     ring: "ring-red-200",     icon: Flame },
   new:      { label: "Nuevo",         color: "#8b5cf6", bg: "bg-purple-50",  text: "text-purple-700",  ring: "ring-purple-200",  icon: Star },
-  lowdata:  { label: "Poca data",     color: "#94a3b8", bg: "bg-slate-50",   text: "text-slate-600",   ring: "ring-slate-200",   icon: Snowflake },
+  lowdata:  { label: "Poca data",     color: "#94a3b8", bg: "bg-surface",   text: "text-ink-60",   ring: "ring-hairline",   icon: Snowflake },
 };
 
 /* ── Helper Components ─────────────────────────────── */
@@ -180,7 +180,7 @@ function FatigueChip({ fatigue, compact = false }: { fatigue: FatigueResult; com
 function ScoreBadge({ score, size = "md" }: { score: number | null; size?: "sm" | "md" | "lg" }) {
   if (score == null) {
     const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-xs" : "text-base";
-    return <span className={`${cls} text-slate-300 font-bold tabular-nums`}>—</span>;
+    return <span className={`${cls} text-ink-40 font-bold tabular-nums`}>—</span>;
   }
   const color =
     score >= 75 ? "text-emerald-600 bg-emerald-50 ring-emerald-200" :
@@ -200,7 +200,7 @@ function RoasPill({ value, breakeven }: { value: number; breakeven: number }) {
     cls === "text-green-600" ? "bg-emerald-50 ring-emerald-200" :
     cls === "text-amber-600" ? "bg-amber-50 ring-amber-200" :
     cls === "text-red-600" ? "bg-red-50 ring-red-200" :
-    "bg-slate-50 ring-slate-200";
+    "bg-surface ring-hairline";
   return (
     <span className={`inline-flex items-center font-extrabold tabular-nums text-sm px-2 py-0.5 rounded-md ring-1 ${cls} ${bgCls}`}>
       {value.toFixed(2)}x
@@ -209,7 +209,7 @@ function RoasPill({ value, breakeven }: { value: number; breakeven: number }) {
 }
 
 function MiniSparkline({ data, color = "#3b82f6" }: { data: any[]; color?: string }) {
-  if (!data || data.length < 2) return <div className="h-8 w-full bg-slate-50 rounded" />;
+  if (!data || data.length < 2) return <div className="h-8 w-full bg-surface rounded" />;
   return (
     <ResponsiveContainer width="100%" height={32}>
       <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
@@ -235,7 +235,7 @@ function MediaThumb({ creative, onClick }: { creative: any; onClick?: () => void
   return (
     <div
       onClick={onClick}
-      className="relative w-full aspect-square bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden cursor-pointer group"
+      className="relative w-full aspect-square bg-surface-2 overflow-hidden cursor-pointer group"
     >
       {url && !errored ? (
         <>
@@ -248,17 +248,17 @@ function MediaThumb({ creative, onClick }: { creative: any; onClick?: () => void
             onError={() => setErrored(true)}
           />
           <div className={`absolute inset-0 ${isVideo ? "bg-black/10" : "bg-black/0"} group-hover:bg-black/30 transition-colors flex items-center justify-center`}>
-            <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]">
+            <div className="w-14 h-14 rounded-full bg-elevated/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]">
               {isVideo ? (
-                <Play size={24} className="text-slate-900 ml-0.5" fill="currentColor" />
+                <Play size={24} className="text-ink ml-0.5" fill="currentColor" />
               ) : (
-                <Maximize2 size={18} className="text-slate-900" />
+                <Maximize2 size={18} className="text-ink" />
               )}
             </div>
           </div>
         </>
       ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-2">
+        <div className="w-full h-full flex flex-col items-center justify-center text-ink-40 gap-2">
           {isVideo ? <Film size={40} /> : <ImageIcon size={40} />}
           <span className="text-[10px] uppercase tracking-wider font-medium">Sin preview</span>
         </div>
@@ -277,9 +277,9 @@ function MediaThumb({ creative, onClick }: { creative: any; onClick?: () => void
           <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm font-medium uppercase tracking-wider ${
             creative.status === "ACTIVE" ? "bg-emerald-500/90 text-white" :
             creative.status === "PAUSED" ? "bg-slate-500/90 text-white" :
-            "bg-slate-400/90 text-white"
+            "bg-ink-40/90 text-white"
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${creative.status === "ACTIVE" ? "bg-white animate-pulse" : "bg-white/70"}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${creative.status === "ACTIVE" ? "bg-elevated animate-pulse" : "bg-white/70"}`} />
             {creative.status}
           </span>
         </div>
@@ -297,7 +297,7 @@ function CreativeCard({ creative, breakeven, onClick }: { creative: any; breakev
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all cursor-pointer overflow-hidden flex flex-col"
+      className="bg-elevated rounded-2xl border border-hairline hover:border-hairline-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden flex flex-col"
     >
       <MediaThumb creative={creative} onClick={onClick} />
 
@@ -313,22 +313,22 @@ function CreativeCard({ creative, breakeven, onClick }: { creative: any; breakev
 
         {/* Name */}
         <div className="min-h-[2.5rem]">
-          <div className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug">
+          <div className="text-sm font-bold text-ink line-clamp-2 leading-snug">
             {creative.name || creative.headline || "Sin nombre"}
           </div>
           {creative.campaignName && (
-            <div className="text-[11px] text-slate-500 truncate mt-0.5">{creative.campaignName}</div>
+            <div className="text-[11px] text-ink-60 truncate mt-0.5">{creative.campaignName}</div>
           )}
         </div>
 
         {/* Key metrics grid */}
         <div className="grid grid-cols-2 gap-2 text-center">
-          <div className="rounded-lg bg-slate-50 px-2 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Inversión</div>
-            <div className="text-sm font-extrabold text-slate-900 tabular-nums mt-0.5">{formatCompact(creative.spend)}</div>
+          <div className="rounded-lg bg-surface px-2 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-ink-60 font-semibold">Inversión</div>
+            <div className="text-sm font-extrabold text-ink tabular-nums mt-0.5">{formatCompact(creative.spend)}</div>
           </div>
-          <div className="rounded-lg bg-slate-50 px-2 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">ROAS</div>
+          <div className="rounded-lg bg-surface px-2 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-ink-60 font-semibold">ROAS</div>
             <div className="mt-0.5 flex justify-center"><RoasPill value={creative.roas} breakeven={breakeven} /></div>
           </div>
         </div>
@@ -336,23 +336,23 @@ function CreativeCard({ creative, breakeven, onClick }: { creative: any; breakev
         {/* Secondary metrics */}
         <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
           <div>
-            <div className="text-slate-500">CTR</div>
-            <div className="font-bold text-slate-800 tabular-nums">{creative.ctr.toFixed(2)}%</div>
+            <div className="text-ink-60">CTR</div>
+            <div className="font-bold text-ink tabular-nums">{creative.ctr.toFixed(2)}%</div>
           </div>
           <div>
-            <div className="text-slate-500">CPC</div>
-            <div className="font-bold text-slate-800 tabular-nums">{formatARS(creative.cpc)}</div>
+            <div className="text-ink-60">CPC</div>
+            <div className="font-bold text-ink tabular-nums">{formatARS(creative.cpc)}</div>
           </div>
           <div>
-            <div className="text-slate-500">Conv.</div>
-            <div className="font-bold text-slate-800 tabular-nums">{num(creative.conversions)}</div>
+            <div className="text-ink-60">Conv.</div>
+            <div className="font-bold text-ink tabular-nums">{num(creative.conversions)}</div>
           </div>
         </div>
 
         {/* Footer: fatigue + sparkline */}
-        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+        <div className="mt-auto pt-3 border-t border-hairline flex items-center justify-between gap-2">
           <FatigueChip fatigue={fatigue} compact />
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
+          <div className="text-[10px] text-ink-40 flex items-center gap-1">
             <Clock size={10} /> {creative.daysWithData}d
           </div>
         </div>
@@ -504,11 +504,11 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full my-8 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
+        className="bg-elevated rounded-3xl shadow-2xl max-w-6xl w-full my-8 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* LEFT: media (o panel de texto rico para Google Search/PMax) */}
-        <div className={`${isTextOnlyAd ? "bg-gradient-to-br from-slate-50 to-white border-r border-slate-200" : "bg-gradient-to-br from-slate-900 to-slate-700"} relative flex flex-col`}>
+        <div className={`${isTextOnlyAd ? "bg-surface border-r border-hairline" : "bg-gradient-to-br from-slate-900 to-slate-700"} relative flex flex-col`}>
           {isTextOnlyAd ? (
             // ══════════════════════════════════════════════════════
             // GOOGLE TEXT-ONLY (Search / PMax):
@@ -521,7 +521,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                   {isGooglePMax ? "Performance Max" : "Google Search"}
                 </span>
                 {keywords.length > 0 && (
-                  <span className="text-[10px] text-slate-400 uppercase tracking-[0.12em]">
+                  <span className="text-[10px] text-ink-40 uppercase tracking-[0.12em]">
                     {keywords.length} keyword{keywords.length === 1 ? "" : "s"}
                   </span>
                 )}
@@ -529,8 +529,8 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
 
               {/* SERP preview card (estilo Google real) */}
               {!isGooglePMax && (
-                <div className="rounded-2xl bg-white border border-slate-200 px-5 py-4 shadow-[0_1px_0_rgba(15,23,42,0.04),_0_8px_24px_-12px_rgba(15,23,42,0.12)]">
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-1">
+                <div className="rounded-2xl bg-elevated border border-hairline px-5 py-4 shadow-[0_1px_0_rgba(28,27,24,0.04),_0_8px_24px_-12px_rgba(28,27,24,0.12)]">
+                  <div className="flex items-center gap-2 text-[11px] text-ink-60 mb-1">
                     <span className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-500 via-red-500 to-yellow-500" />
                     {serpHost || "tusitio.com"}
                   </div>
@@ -539,7 +539,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                     {serpTitle}
                   </div>
                   {serpDesc && (
-                    <div className="text-[13px] text-slate-700 leading-relaxed mt-1.5 line-clamp-3">
+                    <div className="text-[13px] text-ink-60 leading-relaxed mt-1.5 line-clamp-3">
                       {serpDesc}
                     </div>
                   )}
@@ -547,7 +547,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
               )}
 
               {isGooglePMax && (
-                <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-white border border-amber-200 px-5 py-4">
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4">
                   <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm mb-1.5">
                     <Sparkles size={15} /> Campaña basada en assets
                   </div>
@@ -560,13 +560,13 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
               {/* Headlines */}
               {headlines.length > 0 && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mb-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-ink-60 font-semibold mb-2">
                     Headlines ({headlines.length})
                   </div>
                   <div className="space-y-1.5">
                     {headlines.map((h, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm text-slate-800">
-                        <span className="text-[10px] text-slate-400 mt-1 tabular-nums w-5 text-right">{i + 1}</span>
+                      <div key={i} className="flex items-start gap-2 text-sm text-ink">
+                        <span className="text-[10px] text-ink-40 mt-1 tabular-nums w-5 text-right">{i + 1}</span>
                         <span className="flex-1 leading-snug">{h}</span>
                       </div>
                     ))}
@@ -577,12 +577,12 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
               {/* Descriptions */}
               {descriptions.length > 0 && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mb-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-ink-60 font-semibold mb-2">
                     Descripciones ({descriptions.length})
                   </div>
                   <div className="space-y-2">
                     {descriptions.map((d, i) => (
-                      <div key={i} className="rounded-lg bg-white border border-slate-100 px-3 py-2 text-[13px] text-slate-700 leading-relaxed">
+                      <div key={i} className="rounded-lg bg-elevated border border-hairline px-3 py-2 text-[13px] text-ink-60 leading-relaxed">
                         {d}
                       </div>
                     ))}
@@ -594,27 +594,27 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
               {keywords.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold">
+                    <div className="text-[10px] uppercase tracking-[0.15em] text-ink-60 font-semibold">
                       Keywords
                     </div>
-                    <div className="text-[10px] text-slate-400 uppercase tracking-[0.1em]">top por impresiones</div>
+                    <div className="text-[10px] text-ink-40 uppercase tracking-[0.1em]">top por impresiones</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                    <div className="grid grid-cols-[1fr_56px_56px] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-400 font-semibold bg-slate-50 border-b border-slate-100">
+                  <div className="rounded-2xl border border-hairline bg-elevated overflow-hidden">
+                    <div className="grid grid-cols-[1fr_56px_56px] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-ink-40 font-semibold bg-surface border-b border-hairline">
                       <div>Keyword</div>
                       <div className="text-right">Impr.</div>
                       <div className="text-right">Conv.</div>
                     </div>
                     <div className="max-h-[240px] overflow-y-auto">
                       {keywords.slice(0, 15).map((k, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_56px_56px] px-3 py-2 text-[12px] border-b border-slate-50 last:border-b-0 items-center hover:bg-slate-50/50 transition-colors">
+                        <div key={i} className="grid grid-cols-[1fr_56px_56px] px-3 py-2 text-[12px] border-b border-hairline last:border-b-0 items-center hover:bg-surface/50 transition-colors">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {k.matchType && (
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-ink-40 shrink-0">
                                 {k.matchType === "EXACT" ? "[E]" : k.matchType === "PHRASE" ? '"P"' : "±B"}
                               </span>
                             )}
-                            <span className="truncate text-slate-800">{k.text}</span>
+                            <span className="truncate text-ink">{k.text}</span>
                             {typeof k.qs === "number" && k.qs > 0 && (
                               <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
                                 k.qs >= 7 ? "bg-emerald-50 text-emerald-700" :
@@ -623,8 +623,8 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                               }`}>QS {k.qs}</span>
                             )}
                           </div>
-                          <div className="text-right tabular-nums text-slate-600">{(k.impressions || 0).toLocaleString("es-AR")}</div>
-                          <div className="text-right tabular-nums text-slate-600">{k.conversions || 0}</div>
+                          <div className="text-right tabular-nums text-ink-60">{(k.impressions || 0).toLocaleString("es-AR")}</div>
+                          <div className="text-right tabular-nums text-ink-60">{k.conversions || 0}</div>
                         </div>
                       ))}
                     </div>
@@ -634,9 +634,9 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
 
               {/* Empty state: no metadata aun (pre-sync) */}
               {headlines.length === 0 && descriptions.length === 0 && keywords.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-8 text-center">
-                  <div className="text-sm font-semibold text-slate-600 mb-1">Sin datos enriquecidos todavía</div>
-                  <div className="text-xs text-slate-500 leading-relaxed">
+                <div className="rounded-2xl border border-dashed border-hairline bg-elevated px-5 py-8 text-center">
+                  <div className="text-sm font-semibold text-ink-60 mb-1">Sin datos enriquecidos todavía</div>
+                  <div className="text-xs text-ink-60 leading-relaxed">
                     Este anuncio aún no se sincronizó con headlines, descripciones ni keywords. Correr el sync de Google Ads para ver el detalle completo.
                   </div>
                 </div>
@@ -648,7 +648,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                   href={serpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 transition-colors"
+                  className="inline-flex items-center gap-2 text-xs text-ink-60 hover:text-ink transition-colors"
                 >
                   <ExternalLink size={12} /> <span className="truncate max-w-[300px]">{serpUrl}</span>
                 </a>
@@ -698,7 +698,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                           href={videoPermalink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-slate-900 text-xs font-semibold uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-elevated text-ink text-xs font-semibold uppercase tracking-[0.15em] hover:bg-elevated/90 transition"
                         >
                           <Film size={14} /> Ver en Facebook
                         </a>
@@ -741,7 +741,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                 {/* Catalogo Dinamico: no hay imagen unica */}
                 {imageIsDynamic && (
                   <div className="relative z-10 flex flex-col items-center gap-4 text-white px-8 text-center max-w-[420px]">
-                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 backdrop-blur-md border border-white/15 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center">
                       <Package size={40} className="text-white" />
                     </div>
                     <div className="space-y-2">
@@ -755,7 +755,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                         href={imagePermalink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-slate-900 text-xs font-semibold uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                        className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-elevated text-ink text-xs font-semibold uppercase tracking-[0.15em] hover:bg-elevated/90 transition"
                       >
                         <ExternalLink size={14} /> Ver previews en Facebook
                       </a>
@@ -773,7 +773,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                         href={imagePermalink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 text-xs font-medium uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                        className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-elevated text-ink text-xs font-medium uppercase tracking-[0.15em] hover:bg-elevated/90 transition"
                       >
                         <ExternalLink size={14} /> Ver en Facebook
                       </a>
@@ -831,40 +831,40 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                 <FunnelChip stage={creative.funnelStage} />
                 <FatigueChip fatigue={fatigue} compact />
               </div>
-              <h2 className="text-xl font-extrabold text-slate-900 leading-tight">{creative.name || "Sin nombre"}</h2>
+              <h2 className="text-xl font-extrabold text-ink leading-tight">{creative.name || "Sin nombre"}</h2>
               {creative.campaignName && (
-                <div className="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
+                <div className="text-sm text-ink-60 mt-1 flex items-center gap-1.5">
                   <Layers size={12} /> {creative.campaignName}
                 </div>
               )}
             </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition">
+            <button onClick={onClose} className="w-9 h-9 rounded-full bg-surface-2 hover:bg-hairline-2 flex items-center justify-center text-ink-60 transition">
               <X size={18} />
             </button>
           </div>
 
           {/* Hero ROAS + Score */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4">
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">ROAS</div>
+            <div className="rounded-2xl bg-surface border border-hairline p-4">
+              <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-1">ROAS</div>
               <div className={`text-3xl font-extrabold tabular-nums ${roasColorClass(creative.roas, breakeven)}`}>
                 {creative.roas.toFixed(2)}<span className="text-lg">x</span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">BE: <span className="font-bold tabular-nums">{breakeven.toFixed(2)}x</span></div>
+              <div className="text-[11px] text-ink-60 mt-1">BE: <span className="font-bold tabular-nums">{breakeven.toFixed(2)}x</span></div>
             </div>
-            <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4">
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Score</div>
+            <div className="rounded-2xl bg-surface border border-hairline p-4">
+              <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-1">Score</div>
               <div className="flex items-baseline gap-2">
                 <ScoreBadge score={score} size="lg" />
-                <span className="text-xs text-slate-500">/ 100</span>
+                <span className="text-xs text-ink-60">/ 100</span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">{score == null ? "Sin video metrics" : "Funnel-aware"}</div>
+              <div className="text-[11px] text-ink-60 mt-1">{score == null ? "Sin video metrics" : "Funnel-aware"}</div>
             </div>
           </div>
 
           {/* Performance grid */}
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Performance</div>
+            <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-2">Performance</div>
             <div className="grid grid-cols-3 gap-2">
               <MetricBox label="Inversión" value={formatARS(creative.spend)} />
               <MetricBox label="Revenue" value={formatARS(creative.conversionValue)} />
@@ -881,10 +881,10 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
           {/* Video retention */}
           {creative.isVideo && creative.videoMetrics && (
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2 flex items-center gap-1.5">
+              <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-2 flex items-center gap-1.5">
                 <Video size={12} /> Curva de retención
               </div>
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <div className="rounded-xl bg-surface border border-hairline p-3">
                 <ResponsiveContainer width="100%" height={140}>
                   <AreaChart data={retentionData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                     <defs>
@@ -910,7 +910,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                   <RetentionBox label="Complete" value={creative.videoMetrics.completionRate} />
                 </div>
                 {creative.videoMetrics.dropOffAnalysis?.diagnosisLabel && (
-                  <div className="mt-3 text-xs text-slate-700 bg-white rounded-lg p-2.5 border border-slate-200">
+                  <div className="mt-3 text-xs text-ink-60 bg-elevated rounded-lg p-2.5 border border-hairline">
                     <span className="font-bold">Diagnóstico:</span> {creative.videoMetrics.dropOffAnalysis.diagnosisLabel}
                   </div>
                 )}
@@ -921,15 +921,15 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
           {/* Score breakdown */}
           {scoreBreakdown.length > 0 && (
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Score breakdown</div>
+              <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-2">Score breakdown</div>
               <div className="space-y-1.5">
                 {scoreBreakdown.map((s) => (
                   <div key={s.metric} className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-slate-600 font-medium capitalize">{s.metric}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" style={{ width: `${Math.min(100, s.value)}%` }} />
+                    <span className="w-20 text-ink-60 font-medium capitalize">{s.metric}</span>
+                    <div className="flex-1 h-2 bg-surface-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-ink-40 rounded-full" style={{ width: `${Math.min(100, s.value)}%` }} />
                     </div>
-                    <span className="w-10 text-right font-bold tabular-nums text-slate-800">{s.value.toFixed(0)}</span>
+                    <span className="w-10 text-right font-bold tabular-nums text-ink">{s.value.toFixed(0)}</span>
                   </div>
                 ))}
               </div>
@@ -939,17 +939,17 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
           {/* Fatigue panel */}
           <div className={`rounded-2xl p-4 ring-1 ${FATIGUE_META[fatigue.level].bg} ${FATIGUE_META[fatigue.level].ring}`}>
             <div className="flex items-start gap-3">
-              <div className={`w-10 h-10 rounded-full ${FATIGUE_META[fatigue.level].text} bg-white flex items-center justify-center shrink-0 ring-1 ${FATIGUE_META[fatigue.level].ring}`}>
+              <div className={`w-10 h-10 rounded-full ${FATIGUE_META[fatigue.level].text} bg-elevated flex items-center justify-center shrink-0 ring-1 ${FATIGUE_META[fatigue.level].ring}`}>
                 {React.createElement(FATIGUE_META[fatigue.level].icon, { size: 18 })}
               </div>
               <div className="flex-1 min-w-0">
                 <div className={`text-sm font-extrabold ${FATIGUE_META[fatigue.level].text} mb-1`}>
                   {FATIGUE_META[fatigue.level].label} · score {fatigue.score}/100
                 </div>
-                <div className="text-xs text-slate-700 mb-2">{fatigue.recommendation}</div>
+                <div className="text-xs text-ink-60 mb-2">{fatigue.recommendation}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {fatigue.reasons.map((r, i) => (
-                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-white/80 text-slate-700 ring-1 ring-slate-200 font-medium">
+                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-elevated/80 text-ink-60 ring-1 ring-hairline font-medium">
                       {r}
                     </span>
                   ))}
@@ -961,8 +961,8 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
           {/* Daily trend */}
           {creative.dailySpend?.length > 1 && (
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Tendencia diaria · Inversión</div>
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-2">Tendencia diaria · Inversión</div>
+              <div className="rounded-xl bg-surface border border-hairline p-3">
                 <ResponsiveContainer width="100%" height={100}>
                   <AreaChart data={creative.dailySpend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <defs>
@@ -991,9 +991,9 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
 
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{label}</div>
-      <div className="text-sm font-extrabold text-slate-900 tabular-nums mt-0.5">{value}</div>
+    <div className="rounded-xl bg-surface border border-hairline px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-ink-60 font-semibold">{label}</div>
+      <div className="text-sm font-extrabold text-ink tabular-nums mt-0.5">{value}</div>
     </div>
   );
 }
@@ -1003,7 +1003,7 @@ function RetentionBox({ label, value }: { label: string; value: number }) {
   const color = v >= 50 ? "text-emerald-700" : v >= 25 ? "text-amber-700" : "text-red-700";
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-ink-60 font-semibold">{label}</div>
       <div className={`text-sm font-extrabold tabular-nums ${color}`}>{v.toFixed(1)}%</div>
     </div>
   );
@@ -1026,10 +1026,10 @@ const GOOGLE_TYPE_META: Record<string, { label: string; icon: any; color: string
 function StatusDot({ status }: { status: string }) {
   const isActive = status === "ACTIVE";
   const isPaused = status === "PAUSED";
-  const c = isActive ? "bg-emerald-500" : isPaused ? "bg-slate-400" : "bg-slate-300";
+  const c = isActive ? "bg-emerald-500" : isPaused ? "bg-ink-40" : "bg-ink-40";
   const l = isActive ? "Activa" : isPaused ? "Pausada" : (status || "—");
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-ink-60">
       <span className={`w-1.5 h-1.5 rounded-full ${c} ${isActive ? "animate-pulse" : ""}`} />
       {l}
     </span>
@@ -1039,8 +1039,8 @@ function StatusDot({ status }: { status: string }) {
 function MiniMetric({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="text-right">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
-      <div className={`text-sm font-extrabold tabular-nums mt-0.5 ${accent || "text-slate-900"}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">{label}</div>
+      <div className={`text-sm font-extrabold tabular-nums mt-0.5 ${accent || "text-ink"}`}>{value}</div>
     </div>
   );
 }
@@ -1051,7 +1051,7 @@ function CampaignRow({ campaign, breakeven, onClick }: any) {
   return (
     <button
       onClick={onClick}
-      className="group w-full bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] p-4 text-left"
+      className="group w-full bg-elevated rounded-2xl border border-hairline hover:border-hairline-2 hover:shadow-[0_8px_24px_-12px_rgba(28,27,24,0.18)] transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] p-4 text-left"
     >
       <div className="flex items-center gap-4">
         <div
@@ -1066,8 +1066,8 @@ function CampaignRow({ campaign, breakeven, onClick }: any) {
             <FunnelChip stage={campaign.funnelStage} />
             <StatusDot status={campaign.status} />
           </div>
-          <div className="text-sm font-bold text-slate-900 truncate">{campaign.name || "Sin nombre"}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+          <div className="text-sm font-bold text-ink truncate">{campaign.name || "Sin nombre"}</div>
+          <div className="text-[11px] text-ink-60 mt-0.5 tabular-nums">
             {campaign.adSetsCount} ad set{campaign.adSetsCount === 1 ? "" : "s"} · {campaign.adsCount} creativo{campaign.adsCount === 1 ? "" : "s"}
           </div>
         </div>
@@ -1075,12 +1075,12 @@ function CampaignRow({ campaign, breakeven, onClick }: any) {
           <MiniMetric label="Inv." value={formatCompact(campaign.spend)} />
           <MiniMetric label="Conv." value={num(campaign.conversions)} />
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">ROAS</div>
+            <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">ROAS</div>
             <div className="mt-0.5 flex justify-end"><RoasPill value={campaign.roas} breakeven={breakeven} /></div>
           </div>
           <MiniMetric label="CTR" value={`${campaign.ctr.toFixed(2)}%`} />
         </div>
-        <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-transform duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] shrink-0" />
+        <ChevronRight size={18} className="text-ink-40 group-hover:text-ink-60 group-hover:translate-x-0.5 transition-transform duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] shrink-0" />
       </div>
     </button>
   );
@@ -1091,10 +1091,10 @@ function AdSetRow({ adSet, breakeven, onClick }: any) {
   return (
     <button
       onClick={onClick}
-      className="group w-full bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] p-4 text-left"
+      className="group w-full bg-elevated rounded-2xl border border-hairline hover:border-hairline-2 hover:shadow-[0_8px_24px_-12px_rgba(28,27,24,0.18)] transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] p-4 text-left"
     >
       <div className="flex items-center gap-4">
-        <div className="relative w-14 h-14 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden shrink-0 ring-1 ring-slate-200/60">
+        <div className="relative w-14 h-14 rounded-xl bg-surface-2 overflow-hidden shrink-0 ring-1 ring-hairline/60">
           {topAd?.mediaUrl ? (
             <img
               src={proxied(topAd.mediaUrl)}
@@ -1103,7 +1103,7 @@ function AdSetRow({ adSet, breakeven, onClick }: any) {
               loading="lazy"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400">
+            <div className="w-full h-full flex items-center justify-center text-ink-40">
               {topAd?.type === "VIDEO" ? <Film size={20} /> : <ImageIcon size={20} />}
             </div>
           )}
@@ -1117,13 +1117,13 @@ function AdSetRow({ adSet, breakeven, onClick }: any) {
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <StatusDot status={adSet.status} />
             {adSet.optimizationGoal && (
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold truncate max-w-[180px]">
+              <span className="text-[10px] uppercase tracking-wider text-ink-60 font-bold truncate max-w-[180px]">
                 {adSet.optimizationGoal}
               </span>
             )}
           </div>
-          <div className="text-sm font-bold text-slate-900 truncate">{adSet.name || "Sin nombre"}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+          <div className="text-sm font-bold text-ink truncate">{adSet.name || "Sin nombre"}</div>
+          <div className="text-[11px] text-ink-60 mt-0.5 tabular-nums">
             {adSet.adsCount} creativo{adSet.adsCount === 1 ? "" : "s"}
             {adSet.isVideoCount > 0 && <> · {adSet.isVideoCount} video{adSet.isVideoCount === 1 ? "" : "s"}</>}
             {adSet.frequency && <> · Freq {adSet.frequency.toFixed(2)}</>}
@@ -1133,12 +1133,12 @@ function AdSetRow({ adSet, breakeven, onClick }: any) {
           <MiniMetric label="Inv." value={formatCompact(adSet.spend)} />
           <MiniMetric label="Conv." value={num(adSet.conversions)} />
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">ROAS</div>
+            <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">ROAS</div>
             <div className="mt-0.5 flex justify-end"><RoasPill value={adSet.roas} breakeven={breakeven} /></div>
           </div>
           <MiniMetric label="CTR" value={`${adSet.ctr.toFixed(2)}%`} />
         </div>
-        <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-transform duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] shrink-0" />
+        <ChevronRight size={18} className="text-ink-40 group-hover:text-ink-60 group-hover:translate-x-0.5 transition-transform duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] shrink-0" />
       </div>
     </button>
   );
@@ -1146,15 +1146,15 @@ function AdSetRow({ adSet, breakeven, onClick }: any) {
 
 function DrilldownHero({ title, subtitle, chips, metrics }: any) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-[0_1px_0_rgba(15,23,42,0.04),0_8px_24px_-16px_rgba(15,23,42,0.12)]">
+    <div className="bg-elevated rounded-2xl border border-hairline p-5 shadow-[0_1px_0_rgba(28,27,24,0.04),0_8px_24px_-16px_rgba(28,27,24,0.12)]">
       <div className="flex items-center gap-2 flex-wrap mb-2">{chips}</div>
-      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight leading-tight">{title}</h2>
-      <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t border-slate-100">
+      <h2 className="text-lg font-extrabold text-ink tracking-tight leading-tight">{title}</h2>
+      <p className="text-xs text-ink-60 mt-0.5">{subtitle}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t border-hairline">
         {metrics.map((m: any) => (
           <div key={m.label}>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{m.label}</div>
-            <div className={`text-base font-extrabold tabular-nums mt-0.5 ${m.accent || "text-slate-900"}`}>{m.value}</div>
+            <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">{m.label}</div>
+            <div className={`text-base font-extrabold tabular-nums mt-0.5 ${m.accent || "text-ink"}`}>{m.value}</div>
           </div>
         ))}
       </div>
@@ -1164,11 +1164,11 @@ function DrilldownHero({ title, subtitle, chips, metrics }: any) {
 
 function DrilldownEmpty({ message }: { message: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-      <div className="w-12 h-12 rounded-full bg-slate-100 mx-auto mb-3 flex items-center justify-center text-slate-400">
+    <div className="bg-elevated rounded-2xl border border-hairline p-10 text-center">
+      <div className="w-12 h-12 rounded-full bg-surface-2 mx-auto mb-3 flex items-center justify-center text-ink-40">
         <Layers size={20} />
       </div>
-      <p className="text-sm text-slate-500">{message}</p>
+      <p className="text-sm text-ink-60">{message}</p>
     </div>
   );
 }
@@ -1177,7 +1177,7 @@ function DrilldownSkeleton() {
   return (
     <div className="space-y-2">
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 h-20 animate-pulse" />
+        <div key={i} className="bg-elevated rounded-2xl border border-hairline p-4 h-20 animate-pulse" />
       ))}
     </div>
   );
@@ -1268,21 +1268,21 @@ function DrilldownView({
           onClick={() => { setSelectedCampaignId(null); setSelectedAdSetId(null); }}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] ${
             selectedCampaignId
-              ? "text-slate-600 hover:bg-slate-100"
-              : "bg-slate-900 text-white shadow-sm"
+              ? "text-ink-60 hover:bg-surface-2"
+              : "bg-ink text-white shadow-sm"
           }`}
         >
           <Layers size={14} /> Campañas
         </button>
         {selectedCampaign && (
           <>
-            <ChevronRight size={14} className="text-slate-300" />
+            <ChevronRight size={14} className="text-ink-40" />
             <button
               onClick={() => setSelectedAdSetId(null)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] max-w-[280px] ${
                 selectedAdSetId
-                  ? "text-slate-600 hover:bg-slate-100"
-                  : "bg-slate-900 text-white shadow-sm"
+                  ? "text-ink-60 hover:bg-surface-2"
+                  : "bg-ink text-white shadow-sm"
               }`}
             >
               <span className="truncate">{selectedCampaign.name}</span>
@@ -1291,8 +1291,8 @@ function DrilldownView({
         )}
         {selectedAdSet && (
           <>
-            <ChevronRight size={14} className="text-slate-300" />
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold max-w-[280px] shadow-sm">
+            <ChevronRight size={14} className="text-ink-40" />
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink text-white font-semibold max-w-[280px] shadow-sm">
               <span className="truncate">{selectedAdSet.name}</span>
             </span>
           </>
@@ -1304,7 +1304,7 @@ function DrilldownView({
         <div className="space-y-4">
           {/* Google split tabs */}
           {platformView === "GOOGLE" && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex gap-1 overflow-x-auto">
+            <div className="bg-elevated rounded-2xl border border-hairline p-1.5 flex gap-1 overflow-x-auto">
               {(["ALL","SEARCH","SHOPPING","PERFORMANCE_MAX","DISPLAY","VIDEO","DEMAND_GEN","LOCAL"] as const).map((t) => {
                 const meta = t === "ALL" ? null : GOOGLE_TYPE_META[t];
                 const count = googleTypeCounts[t] || 0;
@@ -1316,13 +1316,13 @@ function DrilldownView({
                     key={t}
                     onClick={() => setGoogleType(t)}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] flex items-center gap-2 whitespace-nowrap ${
-                      active ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+                      active ? "bg-ink text-white shadow-sm" : "text-ink-60 hover:bg-surface-2"
                     }`}
                   >
                     <Icon size={14} style={{ color: active ? "#fff" : meta?.color || "#64748b" }} />
                     {t === "ALL" ? "Todas" : meta?.label}
                     <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-md ${
-                      active ? "bg-white/15 text-white/90" : "bg-slate-100 text-slate-500"
+                      active ? "bg-white/15 text-white/90" : "bg-surface-2 text-ink-60"
                     }`}>{count}</span>
                   </button>
                 );
@@ -1370,7 +1370,7 @@ function DrilldownView({
             ]}
           />
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">
+            <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold mb-2">
               Ad Sets · {selectedCampaign.adSets?.length || 0}
             </div>
             {(!selectedCampaign.adSets || selectedCampaign.adSets.length === 0) ? (
@@ -1401,7 +1401,7 @@ function DrilldownView({
               <>
                 <StatusDot status={selectedAdSet.status} />
                 {selectedAdSet.frequency && (
-                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                  <span className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">
                     Freq {selectedAdSet.frequency.toFixed(2)}
                   </span>
                 )}
@@ -1418,7 +1418,7 @@ function DrilldownView({
           />
           <div>
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+              <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold">
                 Creativos · {sortedAdSetCreatives.length}
               </div>
               {usingCampaignFallback && (
@@ -1430,11 +1430,11 @@ function DrilldownView({
             {adSetCreativesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="w-full aspect-square bg-slate-100 animate-pulse" />
+                  <div key={i} className="bg-elevated rounded-2xl border border-hairline overflow-hidden">
+                    <div className="w-full aspect-square bg-surface-2 animate-pulse" />
                     <div className="p-4 space-y-2">
-                      <div className="h-4 bg-slate-100 rounded w-2/3 animate-pulse" />
-                      <div className="h-3 bg-slate-100 rounded w-full animate-pulse" />
+                      <div className="h-4 bg-surface-2 rounded w-2/3 animate-pulse" />
+                      <div className="h-3 bg-surface-2 rounded w-full animate-pulse" />
                     </div>
                   </div>
                 ))}
@@ -1464,30 +1464,28 @@ function DrilldownView({
 
 function KpiHero({ label, value, sub, icon: Icon, accent = "slate", trend }: any) {
   const accents: Record<string, { bg: string; text: string; ring: string }> = {
-    slate:    { bg: "bg-slate-50",    text: "text-slate-700",    ring: "ring-slate-200" },
-    blue:     { bg: "bg-blue-50",     text: "text-blue-700",     ring: "ring-blue-200" },
-    purple:   { bg: "bg-purple-50",   text: "text-purple-700",   ring: "ring-purple-200" },
+    slate:    { bg: "bg-surface",     text: "text-ink-60",       ring: "ring-hairline" },
     emerald:  { bg: "bg-emerald-50",  text: "text-emerald-700",  ring: "ring-emerald-200" },
     amber:    { bg: "bg-amber-50",    text: "text-amber-700",    ring: "ring-amber-200" },
     red:      { bg: "bg-red-50",      text: "text-red-700",      ring: "ring-red-200" },
   };
   const a = accents[accent] || accents.slate;
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 hover:shadow-sm transition">
+    <div className="bg-elevated rounded-2xl border border-hairline p-4 hover:shadow-sm transition">
       <div className="flex items-center justify-between mb-3">
         <div className={`w-9 h-9 rounded-xl ${a.bg} ${a.text} ring-1 ${a.ring} flex items-center justify-center`}>
           <Icon size={16} />
         </div>
         {trend && (
-          <span className={`text-[11px] font-bold tabular-nums flex items-center gap-0.5 ${trend > 0 ? "text-emerald-600" : trend < 0 ? "text-red-600" : "text-slate-400"}`}>
+          <span className={`text-[11px] font-bold tabular-nums flex items-center gap-0.5 ${trend > 0 ? "text-emerald-600" : trend < 0 ? "text-red-600" : "text-ink-40"}`}>
             {trend > 0 ? <ArrowUpRight size={12} /> : trend < 0 ? <ArrowDownRight size={12} /> : null}
             {Math.abs(trend).toFixed(1)}%
           </span>
         )}
       </div>
-      <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
-      <div className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight mt-1">{value}</div>
-      {sub && <div className="text-[11px] text-slate-500 mt-1">{sub}</div>}
+      <div className="text-[11px] uppercase tracking-wider text-ink-60 font-bold">{label}</div>
+      <div className="text-2xl font-extrabold text-ink tabular-nums leading-tight mt-1">{value}</div>
+      {sub && <div className="text-[11px] text-ink-60 mt-1">{sub}</div>}
     </div>
   );
 }
@@ -1646,24 +1644,24 @@ export default function CreativosLabPage() {
   const blendedRoas = totals?.spend > 0 ? totals.conversionValue / totals.spend : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-canvas">
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white sticky top-0 z-30 backdrop-blur-sm bg-white/95">
+      <div className="border-b border-hairline bg-elevated sticky top-0 z-30 backdrop-blur-sm bg-elevated/95">
         <div className="px-6 py-4">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+              <div className="flex items-center gap-2 text-xs text-ink-60 mb-1">
                 <span>Marketing & Adquisición</span>
                 <ArrowRight size={12} />
                 <span>Campaigns</span>
                 <ArrowRight size={12} />
-                <span className="font-semibold text-slate-700">Creativos Lab</span>
+                <span className="font-semibold text-ink-60">Creativos Lab</span>
               </div>
-              <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
-                <Sparkles className="text-purple-500" size={22} />
+              <h1 className="text-2xl font-extrabold text-ink flex items-center gap-2">
+                <Sparkles className="text-ink-40" size={22} />
                 Creativos Lab
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">Galería visual con preview, scoring y detección de fatiga.</p>
+              <p className="text-sm text-ink-60 mt-0.5">Galería visual con preview, scoring y detección de fatiga.</p>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
@@ -1678,7 +1676,7 @@ export default function CreativosLabPage() {
               />
               <button
                 onClick={fetchData}
-                className="w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition"
+                className="w-9 h-9 rounded-lg bg-surface-2 hover:bg-hairline-2 text-ink-60 flex items-center justify-center transition"
                 title="Refrescar"
               >
                 <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
@@ -1687,7 +1685,7 @@ export default function CreativosLabPage() {
           </div>
 
           {/* Platform segmented control */}
-          <div className="mt-4 inline-flex p-1 bg-slate-100 rounded-xl">
+          <div className="mt-4 inline-flex p-1 bg-surface-2 rounded-xl">
             {(["META", "GOOGLE", "ALL"] as PlatformView[]).map((p) => {
               const m = PLATFORM_META[p];
               const active = platformView === p;
@@ -1696,7 +1694,7 @@ export default function CreativosLabPage() {
                   key={p}
                   onClick={() => setPlatformView(p)}
                   className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
-                    active ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"
+                    active ? "bg-elevated text-ink shadow-sm ring-1 ring-hairline" : "text-ink-60 hover:text-ink-60"
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full`} style={{ background: m.color }} />
@@ -1716,7 +1714,7 @@ export default function CreativosLabPage() {
             value={formatCompact(totals?.spend || 0)}
             sub={`${data?.creatives?.length || 0} creativos`}
             icon={Zap}
-            accent={platformView === "META" ? "purple" : platformView === "GOOGLE" ? "blue" : "slate"}
+            accent="slate"
             trend={data?.changes?.spend}
           />
           <KpiHero
@@ -1739,7 +1737,7 @@ export default function CreativosLabPage() {
             value={`${activeCount}`}
             sub={`${videoCount} videos · ${(data?.creatives?.length || 0) - videoCount} imagenes`}
             icon={Activity}
-            accent="blue"
+            accent="slate"
           />
           <KpiHero
             label="Necesitan refresh"
@@ -1759,25 +1757,25 @@ export default function CreativosLabPage() {
 
         {/* Fatigue alert panel */}
         {fatigueAlerts.length > 0 && (
-          <div className="bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 rounded-2xl border border-red-200 p-5">
+          <div className="bg-red-50 rounded-2xl border border-red-200 p-5">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-red-500/30">
+              <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0 shadow-ent-xs">
                 <Flame size={22} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-base font-extrabold text-slate-900">{fatigueAlerts.length} creativo{fatigueAlerts.length === 1 ? "" : "s"} necesita{fatigueAlerts.length === 1 ? "" : "n"} acción</h3>
+                  <h3 className="text-base font-extrabold text-ink">{fatigueAlerts.length} creativo{fatigueAlerts.length === 1 ? "" : "s"} necesita{fatigueAlerts.length === 1 ? "" : "n"} acción</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-bold uppercase tracking-wider">Urgente</span>
                 </div>
-                <p className="text-sm text-slate-700 mb-3">CPM en alza o CTR cayendo · pausá o creá variantes nuevas para no quemar presupuesto.</p>
+                <p className="text-sm text-ink-60 mb-3">CPM en alza o CTR cayendo · pausá o creá variantes nuevas para no quemar presupuesto.</p>
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                   {fatigueAlerts.slice(0, 8).map(({ creative, fatigue }: any) => (
                     <button
                       key={creative.id}
                       onClick={() => setSelectedCreative(creative)}
-                      className="shrink-0 flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-red-200 hover:border-red-400 hover:shadow-sm transition text-left max-w-[260px]"
+                      className="shrink-0 flex items-center gap-2 px-3 py-2 bg-elevated rounded-xl border border-red-200 hover:border-red-400 hover:shadow-sm transition text-left max-w-[260px]"
                     >
-                      <div className="relative w-10 h-10 rounded-lg bg-slate-200 overflow-hidden shrink-0">
+                      <div className="relative w-10 h-10 rounded-lg bg-surface-2 overflow-hidden shrink-0">
                         {creative.mediaUrls?.[0] ? (
                           <>
                             <img
@@ -1793,14 +1791,14 @@ export default function CreativosLabPage() {
                             )}
                           </>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400">
+                          <div className="w-full h-full flex items-center justify-center text-ink-40">
                             {creative.isVideo ? <Film size={14} /> : <ImageIcon size={14} />}
                           </div>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-slate-900 truncate">{creative.name || "Sin nombre"}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <div className="text-xs font-bold text-ink truncate">{creative.name || "Sin nombre"}</div>
+                        <div className="text-[11px] text-ink-60 flex items-center gap-1.5">
                           <FatigueChip fatigue={fatigue} compact />
                           <span className="tabular-nums">{formatCompact(creative.spend)}</span>
                         </div>
@@ -1815,22 +1813,22 @@ export default function CreativosLabPage() {
 
         {/* Top performer showcase */}
         {topPerformer && topPerformer.spend > 0 && (
-          <div className="bg-gradient-to-br from-emerald-50 via-white to-blue-50 rounded-2xl border border-emerald-200 p-5">
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-5">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-ent-xs">
                 <Award size={16} />
               </div>
-              <h3 className="text-base font-extrabold text-slate-900">Top performer del periodo</h3>
+              <h3 className="text-base font-extrabold text-ink">Top performer del periodo</h3>
               <PlatformChip platform={topPerformer.platform} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-5 items-center">
-              <div className="w-full md:w-[200px] aspect-square rounded-xl overflow-hidden bg-slate-100 cursor-pointer" onClick={() => setSelectedCreative(topPerformer)}>
+              <div className="w-full md:w-[200px] aspect-square rounded-xl overflow-hidden bg-surface-2 cursor-pointer" onClick={() => setSelectedCreative(topPerformer)}>
                 <MediaThumb creative={topPerformer} onClick={() => setSelectedCreative(topPerformer)} />
               </div>
               <div className="space-y-2 min-w-0">
-                <div className="text-lg font-extrabold text-slate-900 line-clamp-2">{topPerformer.name || "Sin nombre"}</div>
+                <div className="text-lg font-extrabold text-ink line-clamp-2">{topPerformer.name || "Sin nombre"}</div>
                 {topPerformer.campaignName && (
-                  <div className="text-sm text-slate-500 flex items-center gap-1.5">
+                  <div className="text-sm text-ink-60 flex items-center gap-1.5">
                     <Layers size={12} /> {topPerformer.campaignName}
                   </div>
                 )}
@@ -1838,7 +1836,7 @@ export default function CreativosLabPage() {
                   <FunnelChip stage={topPerformer.funnelStage} />
                   <FatigueChip fatigue={analyzeFatigue(topPerformer)} compact />
                   {topPerformer.videoMetrics?.videoEfficiencyScore != null && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-slate-700 ring-1 ring-slate-200 font-bold">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-elevated text-ink-60 ring-1 ring-hairline font-bold">
                       Score {Math.round(topPerformer.videoMetrics.videoEfficiencyScore)}/100
                     </span>
                   )}
@@ -1846,18 +1844,18 @@ export default function CreativosLabPage() {
               </div>
               <div className="grid grid-cols-3 md:grid-cols-1 gap-3 md:gap-2 min-w-[180px]">
                 <div className="text-center md:text-left">
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">ROAS</div>
+                  <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">ROAS</div>
                   <div className={`text-3xl font-extrabold tabular-nums ${roasColorClass(topPerformer.roas, breakevenRoas)}`}>
                     {topPerformer.roas.toFixed(2)}<span className="text-base">x</span>
                   </div>
                 </div>
                 <div className="text-center md:text-left">
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Inversión</div>
-                  <div className="text-base font-bold text-slate-900 tabular-nums">{formatARS(topPerformer.spend)}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">Inversión</div>
+                  <div className="text-base font-bold text-ink tabular-nums">{formatARS(topPerformer.spend)}</div>
                 </div>
                 <div className="text-center md:text-left">
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Revenue</div>
-                  <div className="text-base font-bold text-slate-900 tabular-nums">{formatARS(topPerformer.conversionValue)}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-ink-60 font-bold">Revenue</div>
+                  <div className="text-base font-bold text-ink tabular-nums">{formatARS(topPerformer.conversionValue)}</div>
                 </div>
               </div>
             </div>
@@ -1865,15 +1863,15 @@ export default function CreativosLabPage() {
         )}
 
         {/* Filter bar */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3 flex-wrap">
+        <div className="bg-elevated rounded-2xl border border-hairline p-4 flex items-center gap-3 flex-wrap">
           {/* View mode toggle (Galería ↔ Drilldown) */}
-          <div className="inline-flex p-0.5 bg-slate-100 rounded-xl">
+          <div className="inline-flex p-0.5 bg-surface-2 rounded-xl">
             <button
               onClick={() => setViewMode("gallery")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] flex items-center gap-1.5 ${
                 viewMode === "gallery"
-                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-elevated text-ink shadow-sm ring-1 ring-hairline"
+                  : "text-ink-60 hover:text-ink-60"
               }`}
             >
               <Grid3X3 size={13} /> Galería
@@ -1882,8 +1880,8 @@ export default function CreativosLabPage() {
               onClick={() => setViewMode("drilldown")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] flex items-center gap-1.5 ${
                 viewMode === "drilldown"
-                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-elevated text-ink shadow-sm ring-1 ring-hairline"
+                  : "text-ink-60 hover:text-ink-60"
               }`}
             >
               <List size={13} /> Drilldown
@@ -1892,13 +1890,13 @@ export default function CreativosLabPage() {
 
           {viewMode === "gallery" && (
             <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <Search size={16} className="text-slate-400" />
+              <Search size={16} className="text-ink-40" />
               <input
                 type="text"
                 placeholder="Buscar creativo, headline o campaña..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
+                className="flex-1 bg-transparent outline-none text-sm placeholder:text-ink-40"
               />
             </div>
           )}
@@ -1907,14 +1905,14 @@ export default function CreativosLabPage() {
           {viewMode === "gallery" && (
             <>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Funnel</span>
-                <div className="flex p-0.5 bg-slate-100 rounded-lg">
+                <span className="text-[11px] uppercase tracking-wider text-ink-60 font-bold">Funnel</span>
+                <div className="flex p-0.5 bg-surface-2 rounded-lg">
                   {["ALL", "TOF", "MOF", "BOF"].map((f) => (
                     <button
                       key={f}
                       onClick={() => setFunnelFilter(f)}
                       className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
-                        funnelFilter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        funnelFilter === f ? "bg-elevated text-ink shadow-sm" : "text-ink-60 hover:text-ink-60"
                       }`}
                     >
                       {f === "ALL" ? "Todos" : f}
@@ -1924,11 +1922,11 @@ export default function CreativosLabPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Ordenar</span>
+                <span className="text-[11px] uppercase tracking-wider text-ink-60 font-bold">Ordenar</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-lg border-none outline-none cursor-pointer"
+                  className="text-xs font-bold bg-surface-2 px-2.5 py-1 rounded-lg border-none outline-none cursor-pointer"
                 >
                   <option value="spend">Inversión</option>
                   <option value="roas">ROAS</option>
@@ -1959,29 +1957,29 @@ export default function CreativosLabPage() {
         ) : loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="w-full aspect-square bg-slate-100 animate-pulse" />
+              <div key={i} className="bg-elevated rounded-2xl border border-hairline overflow-hidden">
+                <div className="w-full aspect-square bg-surface-2 animate-pulse" />
                 <div className="p-4 space-y-2">
-                  <div className="h-4 bg-slate-100 rounded w-2/3 animate-pulse" />
-                  <div className="h-3 bg-slate-100 rounded w-full animate-pulse" />
-                  <div className="h-3 bg-slate-100 rounded w-1/2 animate-pulse" />
+                  <div className="h-4 bg-surface-2 rounded w-2/3 animate-pulse" />
+                  <div className="h-3 bg-surface-2 rounded w-full animate-pulse" />
+                  <div className="h-3 bg-surface-2 rounded w-1/2 animate-pulse" />
                 </div>
               </div>
             ))}
           </div>
         ) : filteredCreatives.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto mb-4 flex items-center justify-center text-slate-400">
+          <div className="bg-elevated rounded-2xl border border-hairline p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-surface-2 mx-auto mb-4 flex items-center justify-center text-ink-40">
               <Film size={28} />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">No hay creativos para mostrar</h3>
-            <p className="text-sm text-slate-500">Probá ampliar el rango de fechas, cambiar plataforma o ajustar los filtros.</p>
+            <h3 className="text-lg font-bold text-ink mb-1">No hay creativos para mostrar</h3>
+            <p className="text-sm text-ink-60">Probá ampliar el rango de fechas, cambiar plataforma o ajustar los filtros.</p>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Mostrando <span className="font-bold text-slate-900">{filteredCreatives.length}</span> creativo{filteredCreatives.length === 1 ? "" : "s"}
+              <div className="text-sm text-ink-60">
+                Mostrando <span className="font-bold text-ink">{filteredCreatives.length}</span> creativo{filteredCreatives.length === 1 ? "" : "s"}
                 {platformView !== "ALL" && <> de <span className="font-bold">{PLATFORM_META[platformView].label}</span></>}
               </div>
             </div>

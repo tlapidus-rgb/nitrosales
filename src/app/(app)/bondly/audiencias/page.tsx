@@ -78,7 +78,7 @@ const RFM_SEGMENTS = [
   {
     id: "Potenciales",
     label: "Potenciales",
-    color: "#a855f7",
+    color: "#9A978D",
     icon: "🚀",
     desc: "2+ compras recientes, en crecimiento",
     detail: "Compraron 2+ veces en los ultimos 60 dias. Estan en camino a ser Champions si los nutris bien.",
@@ -87,7 +87,7 @@ const RFM_SEGMENTS = [
   {
     id: "Nuevos",
     label: "Nuevos",
-    color: "#06b6d4",
+    color: "#2F9153",
     icon: "✨",
     desc: "Primera compra reciente",
     detail: "Hicieron su primera (y unica) compra en los ultimos 30 dias. Primer contacto con tu marca.",
@@ -325,15 +325,15 @@ export default function AudienceSyncPage() {
           ═══════════════════════════════════════════ */}
       <div className="relative rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(99,102,241,0.05) 50%, rgba(59,130,246,0.04) 100%)", border: "1px solid rgba(139,92,246,0.2)" }}>
         {/* Animated grid pattern */}
-        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle, #8b5cf6 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle, #9A978D 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
         {/* Glow orb */}
-        <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #8b5cf6 0%, transparent 70%)" }} />
+        <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #9A978D 0%, transparent 70%)" }} />
 
         <div className="relative px-8 py-8">
           <div className="flex items-start justify-between">
             <div className="max-w-2xl">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", boxShadow: "0 0 20px rgba(139,92,246,0.3)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #9A978D, #6366f1)", boxShadow: "0 0 20px rgba(139,92,246,0.3)" }}>
                   <svg className="w-5 h-5" style={{ color: "#fff" }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                 </div>
                 <div>
@@ -351,11 +351,11 @@ export default function AudienceSyncPage() {
                 <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(139,92,246,0.12)", color: "#6d28d9", border: "1px solid rgba(139,92,246,0.25)" }}>
                   Tus clientes en NitroSales
                 </span>
-                <svg className="w-4 h-4" style={{ color: "#8b5cf6" }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                <svg className="w-4 h-4" style={{ color: "#9A978D" }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                 <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(139,92,246,0.1)", color: "#7c3aed", border: "1px solid rgba(139,92,246,0.2)" }}>
                   Seleccionas un segmento
                 </span>
-                <svg className="w-4 h-4" style={{ color: "#8b5cf6" }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                <svg className="w-4 h-4" style={{ color: "#9A978D" }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                 <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(37,99,235,0.1)", color: "#1d4ed8", border: "1px solid rgba(37,99,235,0.2)" }}>
                   Se sube a Meta / Google
                 </span>
@@ -369,7 +369,7 @@ export default function AudienceSyncPage() {
             <button
               onClick={() => setBuilderStep(builderStep > 0 ? 0 : 1)}
               className="flex-shrink-0 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: builderStep > 0 ? "rgba(107,114,128,0.1)" : "linear-gradient(135deg, #8b5cf6, #6366f1)", color: builderStep > 0 ? "#374151" : "#fff", boxShadow: builderStep > 0 ? "none" : "0 4px 20px rgba(139,92,246,0.35)" }}
+              style={{ background: builderStep > 0 ? "rgba(107,114,128,0.1)" : "linear-gradient(135deg, #9A978D, #6366f1)", color: builderStep > 0 ? "#374151" : "#fff", boxShadow: builderStep > 0 ? "none" : "0 4px 20px rgba(139,92,246,0.35)" }}
             >
               {builderStep > 0 ? "Cerrar" : "+ Nueva Audiencia"}
             </button>
@@ -389,7 +389,7 @@ export default function AudienceSyncPage() {
                 num: "1",
                 title: "Elegis un segmento de clientes",
                 desc: "NitroSales ya clasifica a tus clientes en segmentos automaticamente segun su comportamiento de compra. Vos elegis cual querés enviar.",
-                color: "#8b5cf6",
+                color: "#9A978D",
                 example: "Ej: 'Champions' = los que mas compran y mas reciente compraron",
               },
               {
@@ -428,7 +428,7 @@ export default function AudienceSyncPage() {
             <button
               onClick={() => setBuilderStep(1)}
               className="px-8 py-3 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", boxShadow: "0 4px 20px rgba(139,92,246,0.35)" }}
+              style={{ background: "linear-gradient(135deg, #9A978D, #6366f1)", color: "#fff", boxShadow: "0 4px 20px rgba(139,92,246,0.35)" }}
             >
               Crear mi primera audiencia
             </button>
@@ -443,7 +443,7 @@ export default function AudienceSyncPage() {
       {summary && audiences.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Audiencias creadas", value: summary.totalAudiences, sub: `${summary.activeAudiences} activas`, color: "#8b5cf6" },
+            { label: "Audiencias creadas", value: summary.totalAudiences, sub: `${summary.activeAudiences} activas`, color: "#9A978D" },
             { label: "Clientes sincronizados", value: summary.totalCustomersSynced.toLocaleString(), sub: "total enviados", color: "#3b82f6" },
             { label: "En Meta Ads", value: summary.platformBreakdown.meta, sub: "audiencias", color: "#1877f2" },
             { label: "En Google Ads", value: summary.platformBreakdown.google, sub: "audiencias", color: "#4285f4" },
@@ -475,7 +475,7 @@ export default function AudienceSyncPage() {
                 <div
                   className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
                   style={{
-                    background: builderStep >= s.n ? "linear-gradient(135deg, #8b5cf6, #6366f1)" : "rgba(107,114,128,0.1)",
+                    background: builderStep >= s.n ? "linear-gradient(135deg, #9A978D, #6366f1)" : "rgba(107,114,128,0.1)",
                     color: builderStep >= s.n ? "#fff" : "#6b7280",
                     boxShadow: builderStep === s.n ? "0 0 12px rgba(139,92,246,0.4)" : "none",
                   }}
@@ -483,7 +483,7 @@ export default function AudienceSyncPage() {
                   {builderStep > s.n ? "✓" : s.n}
                 </div>
                 <span className="text-xs font-medium transition-colors" style={{ color: builderStep >= s.n ? "#111827" : "#9ca3af" }}>{s.label}</span>
-                {s.n < 3 && <div className="w-12 h-[1px] ml-2" style={{ background: builderStep > s.n ? "#8b5cf6" : "rgba(0,0,0,0.1)" }} />}
+                {s.n < 3 && <div className="w-12 h-[1px] ml-2" style={{ background: builderStep > s.n ? "#9A978D" : "rgba(0,0,0,0.1)" }} />}
               </button>
             ))}
           </div>
@@ -689,7 +689,7 @@ export default function AudienceSyncPage() {
                 )}
 
                 <div className="flex justify-end">
-                  <button onClick={() => setBuilderStep(2)} className="px-5 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff" }}>
+                  <button onClick={() => setBuilderStep(2)} className="px-5 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #9A978D, #6366f1)", color: "#fff" }}>
                     Siguiente: Elegir destino →
                   </button>
                 </div>
@@ -723,7 +723,7 @@ export default function AudienceSyncPage() {
                     {
                       id: "BOTH",
                       name: "Ambas plataformas",
-                      color: "#8b5cf6",
+                      color: "#9A978D",
                       desc: "Se sincroniza en Meta y Google al mismo tiempo. Ideal para tener audiencias consistentes en todos tus canales.",
                       features: ["Misma audiencia en Facebook, Instagram, Google y YouTube", "Un solo click para sincronizar todo", "Recomendado para la mayoria de los casos"],
                     },
@@ -759,7 +759,7 @@ export default function AudienceSyncPage() {
 
                 <div className="flex justify-between">
                   <button onClick={() => setBuilderStep(1)} className="text-sm transition-colors" style={{ color: "#6b7280" }}>← Volver</button>
-                  <button onClick={() => setBuilderStep(3)} className="px-5 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff" }}>
+                  <button onClick={() => setBuilderStep(3)} className="px-5 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #9A978D, #6366f1)", color: "#fff" }}>
                     Siguiente: Configurar →
                   </button>
                 </div>
@@ -793,7 +793,7 @@ export default function AudienceSyncPage() {
                       <p className="text-sm font-medium" style={{ color: "#111827" }}>Sincronizacion automatica</p>
                       <p className="text-[10px] mt-0.5" style={{ color: "#6b7280" }}>Si lo activas, NitroSales actualiza la audiencia automaticamente segun la frecuencia que elijas. Los clientes nuevos se agregan y los que ya no cumplen los criterios se quitan.</p>
                     </div>
-                    <button onClick={() => setBuilderAutoSync(!builderAutoSync)} className="w-11 h-6 rounded-full transition-all relative flex-shrink-0" style={{ background: builderAutoSync ? "linear-gradient(135deg, #8b5cf6, #6366f1)" : "rgba(0,0,0,0.1)" }}>
+                    <button onClick={() => setBuilderAutoSync(!builderAutoSync)} className="w-11 h-6 rounded-full transition-all relative flex-shrink-0" style={{ background: builderAutoSync ? "linear-gradient(135deg, #9A978D, #6366f1)" : "rgba(0,0,0,0.1)" }}>
                       <div className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all shadow-sm" style={{ left: builderAutoSync ? "22px" : "2px" }} />
                     </button>
                   </div>
@@ -828,7 +828,7 @@ export default function AudienceSyncPage() {
                   <button onClick={() => setBuilderStep(2)} className="text-sm transition-colors" style={{ color: "#6b7280" }}>← Volver</button>
                   <div className="flex gap-3">
                     <button onClick={() => { setBuilderStep(0); resetBuilder(); }} className="px-4 py-2 rounded-xl text-sm transition-colors" style={{ color: "#6b7280" }}>Cancelar</button>
-                    <button onClick={saveAudience} disabled={!builderName.trim() || saving} className="px-6 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:hover:scale-100" style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", boxShadow: "0 4px 20px rgba(139,92,246,0.3)" }}>
+                    <button onClick={saveAudience} disabled={!builderName.trim() || saving} className="px-6 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:hover:scale-100" style={{ background: "linear-gradient(135deg, #9A978D, #6366f1)", color: "#fff", boxShadow: "0 4px 20px rgba(139,92,246,0.3)" }}>
                       {saving ? (
                         <span className="flex items-center gap-2">
                           <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
@@ -875,7 +875,7 @@ export default function AudienceSyncPage() {
                       {/* Metrics */}
                       <div className="flex items-center gap-5 mt-3 flex-wrap">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#8b5cf6" }} />
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#9A978D" }} />
                           <span className="text-xs font-medium" style={{ color: "#1f2937" }}>{a.customerCount.toLocaleString()}</span>
                           <span className="text-[10px]" style={{ color: "#6b7280" }}>clientes</span>
                         </div>
@@ -915,7 +915,7 @@ export default function AudienceSyncPage() {
                         onClick={() => syncAudience(a.id)}
                         disabled={isSyncing}
                         className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                        style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", boxShadow: "0 2px 12px rgba(139,92,246,0.25)" }}
+                        style={{ background: "linear-gradient(135deg, #9A978D, #6366f1)", color: "#fff", boxShadow: "0 2px 12px rgba(139,92,246,0.25)" }}
                       >
                         {isSyncing ? (
                           <span className="flex items-center gap-1.5">

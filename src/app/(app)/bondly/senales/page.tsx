@@ -21,11 +21,10 @@ import {
   Eye, CreditCard, MousePointerClick, ArrowRight, Zap,
   Filter, Radio, Sparkles, User as UserIcon,
 } from "lucide-react";
+import { LivePulse } from "@/components/enterprise/ui";
 
 // ─── Constants ─────────────────────────────────────────────────────
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
-const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #6366f1 100%)";
-const SIGNAL_GRAD = "linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%)";
 
 // ─── Types ─────────────────────────────────────────────────────────
 type MomentType =
@@ -81,12 +80,12 @@ interface SignalsResponse {
 
 // ─── Moment visual config ──────────────────────────────────────────
 const MOMENT_CONFIG: Record<MomentType, { icon: any; accent: string; label: string }> = {
-  VIP_ACTIVE:         { icon: Crown,            accent: "#a855f7", label: "VIP ACTIVO" },
+  VIP_ACTIVE:         { icon: Crown,            accent: "#9A978D", label: "VIP ACTIVO" },
   REAPPEARANCE:       { icon: Repeat,           accent: "#10b981", label: "REAPARICIÓN" },
   HIGH_VALUE_ABANDON: { icon: ShoppingCart,     accent: "#f97316", label: "CARRITO ABANDONADO" },
   INTENSE_INTEREST:   { icon: Flame,            accent: "#ef4444", label: "INTERÉS ALTO" },
   CHECKOUT_STARTED:   { icon: CreditCard,       accent: "#0891b2", label: "CHECKOUT" },
-  NEW_IDENTIFIED:     { icon: UserCheck,        accent: "#06b6d4", label: "NUEVO CONTACTO" },
+  NEW_IDENTIFIED:     { icon: UserCheck,        accent: "#2F9153", label: "NUEVO CONTACTO" },
 };
 
 const EVENT_ICONS: Record<string, { icon: any; color: string }> = {
@@ -94,7 +93,7 @@ const EVENT_ICONS: Record<string, { icon: any; color: string }> = {
   VIEW_PRODUCT:  { icon: Eye,                color: "#6366f1" },
   ADD_TO_CART:   { icon: ShoppingCart,       color: "#f97316" },
   PURCHASE:      { icon: Check,              color: "#10b981" },
-  IDENTIFY:      { icon: UserCheck,          color: "#06b6d4" },
+  IDENTIFY:      { icon: UserCheck,          color: "#2F9153" },
   CHECKOUT:      { icon: CreditCard,         color: "#0891b2" },
   CUSTOM:        { icon: MousePointerClick,  color: "#94a3b8" },
 };
@@ -212,8 +211,8 @@ export default function SenalesPage() {
     <div className="space-y-10 pb-16 -mx-6 lg:-mx-10 -mt-6 lg:-mt-8">
       <style jsx global>{`
         @keyframes senalesLive {
-          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(6,182,212,0.6); }
-          50%      { opacity: 0.6; box-shadow: 0 0 0 6px rgba(6,182,212,0); }
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(229,225,216,0.6); }
+          50%      { opacity: 0.6; box-shadow: 0 0 0 6px rgba(229,225,216,0); }
         }
         @keyframes senalesShimmer {
           0%   { background-position: -200% 0; }
@@ -232,28 +231,16 @@ export default function SenalesPage() {
 
       {/* ═════════ Zona 1: HERO + KPIs ═════════ */}
       <section className="relative overflow-hidden">
-        {/* Aurora background */}
-        <div className="absolute inset-0 pointer-events-none" aria-hidden>
-          <div className="absolute -top-32 -left-40 w-[640px] h-[640px] rounded-full blur-3xl opacity-30" style={{ background: "radial-gradient(closest-side, rgba(6,182,212,0.55), transparent 70%)" }} />
-          <div className="absolute -top-24 right-[-160px] w-[560px] h-[560px] rounded-full blur-3xl opacity-25" style={{ background: "radial-gradient(closest-side, rgba(139,92,246,0.55), transparent 70%)" }} />
-          <div className="absolute bottom-[-160px] left-1/3 w-[520px] h-[520px] rounded-full blur-3xl opacity-20" style={{ background: "radial-gradient(closest-side, rgba(99,102,241,0.5), transparent 70%)" }} />
-        </div>
-
         <div className="relative max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-6">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="flex-1 min-w-0">
               {/* Eyebrow + live dot */}
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 backdrop-blur-sm px-3 py-1 text-[11px] font-mono tracking-[0.28em] uppercase text-cyan-700 shadow-sm">
-                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-cyan-500" style={{ animation: "senalesLive 2s infinite" }} />
-                Señales · Live
-              </div>
+              <LivePulse status="LIVE" label="Señales · Live" />
 
               <h1 className="mt-4 text-[34px] lg:text-[42px] font-semibold tracking-tight text-slate-900 leading-[1.08]">
                 Lo que está pasando
                 <br/>
-                <span style={{ backgroundImage: SIGNAL_GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                  ahora mismo
-                </span>
+                ahora mismo
               </h1>
 
               <p className="mt-3 text-[15px] text-slate-600 leading-relaxed max-w-2xl">
@@ -265,7 +252,7 @@ export default function SenalesPage() {
             {/* Quick-glance aside */}
             <div className="shrink-0 flex items-center gap-2">
               <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 backdrop-blur-sm px-3 py-2 shadow-sm">
-                <Radio size={14} className="text-cyan-600" />
+                <Radio size={14} className="text-slate-500" />
                 <span className="text-[11px] font-medium text-slate-600">
                   Actualización cada 7s
                 </span>
@@ -281,7 +268,7 @@ export default function SenalesPage() {
               value={data?.kpis.activeVisitors5min ?? 0}
               helper="últimos 5 min"
               icon={Zap}
-              color="#06b6d4"
+              color="#2F9153"
               live
             />
             <KpiTile
@@ -297,7 +284,7 @@ export default function SenalesPage() {
               value={data?.kpis.signalsLast24h ?? 0}
               helper="eventos capturados"
               icon={Sparkles}
-              color="#8b5cf6"
+              color="#9A978D"
             />
             <KpiTile
               label="Carritos abandonados"
@@ -309,9 +296,9 @@ export default function SenalesPage() {
           </div>
         </div>
 
-        {/* Prism delimiter */}
+        {/* Delimiter */}
         <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
-          <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.6) 20%, rgba(139,92,246,0.6) 50%, rgba(16,185,129,0.6) 80%, transparent 100%)" }} />
+          <div className="h-px w-full bg-hairline" />
         </div>
       </section>
 
@@ -354,7 +341,7 @@ export default function SenalesPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500 flex items-center gap-2">
-              <Radio size={12} className="text-cyan-500" />
+              <Radio size={12} className="text-slate-400" />
               Live Feed · Todos los eventos
             </p>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
@@ -408,11 +395,6 @@ function KpiTile({
   const animatedValue = useCountUp(value);
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-4 shadow-sm">
-      {/* Inner glow */}
-      <div
-        className="absolute -top-16 -right-16 w-40 h-40 rounded-full blur-3xl opacity-25 pointer-events-none"
-        style={{ background: `radial-gradient(closest-side, ${color}66, transparent 70%)` }}
-      />
       <div className="relative flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -472,12 +454,6 @@ function MomentCard({ moment }: { moment: Moment }) {
         className="absolute left-0 top-0 bottom-0 w-1"
         style={{ background: config.accent }}
       />
-      {/* Glow in top-right */}
-      <div
-        className="absolute -top-20 -right-20 w-48 h-48 rounded-full blur-3xl opacity-20 pointer-events-none"
-        style={{ background: `radial-gradient(closest-side, ${config.accent}, transparent 70%)` }}
-      />
-
       <div className="relative p-5 pl-6">
         {/* Header row */}
         <div className="flex items-start justify-between gap-3">

@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
+const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
+
 type Memory = {
   id: string;
   category: "BUSINESS_RULE" | "CORRECTION" | "PREFERENCE" | "CONTEXT";
@@ -19,6 +21,8 @@ type Memory = {
   updatedAt: string;
 };
 
+// Colores de categoría: escala monocromo-ink (data-viz categórico sobrio,
+// no rainbow). Distingue los 4 tipos de memoria por luminosidad, no por hue.
 const CATEGORY_INFO: Record<
   Memory["category"],
   { label: string; short: string; color: string; description: string; angle: number }
@@ -26,28 +30,28 @@ const CATEGORY_INFO: Record<
   BUSINESS_RULE: {
     label: "Regla de Negocio",
     short: "Regla",
-    color: "#fbbf24",
+    color: "#1C1B18",
     description: "Directiva estratégica permanente",
     angle: -90,
   },
   CONTEXT: {
     label: "Contexto",
     short: "Contexto",
-    color: "#fde68a",
+    color: "#4A4740",
     description: "Información sobre el negocio",
     angle: 0,
   },
   PREFERENCE: {
     label: "Preferencia",
     short: "Preferencia",
-    color: "#f59e0b",
+    color: "#6B685F",
     description: "Cómo mostrar los datos",
     angle: 90,
   },
   CORRECTION: {
     label: "Corrección",
     short: "Corrección",
-    color: "#d97706",
+    color: "#9A978D",
     description: "Hecho que Aurum debe recordar",
     angle: 180,
   },
@@ -272,7 +276,7 @@ export default function SinapsisPage() {
         y1: cy,
         x2: n.x,
         y2: n.y,
-        opacity: n.memory.isActive ? 0.22 : 0.08,
+        opacity: n.memory.isActive ? 0.3 : 0.1,
         active: n.memory.isActive,
       });
     });
@@ -287,7 +291,7 @@ export default function SinapsisPage() {
           y1: a.y,
           x2: b.x,
           y2: b.y,
-          opacity: 0.12,
+          opacity: 0.16,
           active: a.memory.isActive && b.memory.isActive,
         });
       }
@@ -298,22 +302,10 @@ export default function SinapsisPage() {
   // ═══ Loading ═══
   if (status === "loading" || loading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "radial-gradient(ellipse at center, #0a0a0f 0%, #050508 100%)" }}
-      >
+      <div className="min-h-screen flex items-center justify-center bg-canvas">
         <div className="flex flex-col items-center gap-4">
-          <div className="relative w-12 h-12">
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                background: "radial-gradient(circle, rgba(251,191,36,0.6), rgba(245,158,11,0.2) 60%, transparent 80%)",
-                animation: "aurumBreath 2s ease-in-out infinite",
-                boxShadow: "0 0 40px rgba(251,191,36,0.4)",
-              }}
-            />
-          </div>
-          <p className="text-[#fde68a]/70 text-xs font-mono tracking-[0.3em] uppercase">
+          <span className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
+          <p className="text-ink-60 text-xs font-geistmono tracking-[0.3em] uppercase">
             Despertando Sinapsis
           </p>
         </div>
@@ -325,54 +317,25 @@ export default function SinapsisPage() {
   const hasMemories = memories.length > 0;
 
   return (
-    <div
-      className="min-h-screen -m-4 lg:-m-6 p-4 lg:p-8 relative overflow-hidden"
-      style={{
-        background:
-          "radial-gradient(ellipse at 30% 10%, rgba(251,191,36,0.06) 0%, transparent 50%), radial-gradient(ellipse at 70% 90%, rgba(245,158,11,0.04) 0%, transparent 50%), linear-gradient(180deg, #0a0a0f 0%, #050508 100%)",
-      }}
-    >
-      {/* Ambient dust */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-30"
-        style={{
-          background:
-            "radial-gradient(2px 2px at 12% 30%, rgba(251,191,36,0.4), transparent), radial-gradient(1px 1px at 80% 20%, rgba(253,224,71,0.3), transparent), radial-gradient(1px 1px at 40% 70%, rgba(251,191,36,0.25), transparent), radial-gradient(2px 2px at 90% 60%, rgba(245,158,11,0.3), transparent)",
-        }}
-      />
-
+    <div className="min-h-screen -m-4 lg:-m-6 p-4 lg:p-8 relative overflow-hidden bg-canvas">
       {/* Header */}
       <header className="relative z-10 max-w-[1400px] mx-auto mb-8">
         <div className="flex items-start justify-between gap-6 flex-wrap">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div
-                className="px-2.5 py-1 rounded-md text-[9px] font-bold font-mono uppercase tracking-[0.25em]"
-                style={{
-                  background: "rgba(251,191,36,0.12)",
-                  color: "#fbbf24",
-                  border: "1px solid rgba(251,191,36,0.3)",
-                  textShadow: "0 0 10px rgba(251,191,36,0.5)",
-                }}
-              >
+              <div className="px-2.5 py-1 rounded-md text-[9px] font-bold font-geistmono uppercase tracking-[0.25em] text-ink-60 bg-surface border border-hairline">
                 Aurum · Memoria Viva
               </div>
             </div>
             <h1
-              className="text-4xl lg:text-5xl font-bold tracking-tight"
-              style={{
-                background:
-                  "linear-gradient(135deg, #fef3c7 0%, #fbbf24 40%, #f59e0b 70%, #d97706 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "-0.02em",
-              }}
+              className="text-4xl lg:text-5xl font-medium tracking-tight text-ink"
+              style={{ letterSpacing: "-0.02em" }}
             >
               Sinapsis
             </h1>
-            <p className="text-[#fde68a]/60 text-sm mt-2 max-w-xl leading-relaxed">
+            <p className="text-ink-60 text-sm mt-2 max-w-xl leading-relaxed">
               Cada conversación refuerza una conexión. Cuanto más la usás, más te conoce.{" "}
-              <span className="text-[#fbbf24]/80">Este cerebro es irreemplazable — es tuyo.</span>
+              <span className="text-ink font-medium">Este cerebro es irreemplazable — es tuyo.</span>
             </p>
           </div>
           <button
@@ -380,24 +343,9 @@ export default function SinapsisPage() {
               if (showForm) resetForm();
               else setShowForm(true);
             }}
-            className="group relative px-5 py-2.5 rounded-xl text-sm font-semibold overflow-hidden transition-all duration-300 hover:scale-[1.02]"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(251,191,36,0.2), rgba(245,158,11,0.1))",
-              border: "1px solid rgba(251,191,36,0.4)",
-              color: "#fde68a",
-              boxShadow: "0 0 24px rgba(251,191,36,0.15), inset 0 1px 0 rgba(253,224,71,0.2)",
-            }}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150 ease-ent bg-ink text-white hover:bg-ink/90"
           >
-            <span
-              className="absolute inset-0 pointer-events-none aurum-shimmer opacity-60"
-              style={{
-                background:
-                  "linear-gradient(110deg, transparent 30%, rgba(253,224,71,0.15) 50%, transparent 70%)",
-                backgroundSize: "200% 100%",
-              }}
-            />
-            <span className="relative">{showForm ? "Cancelar" : "+ Formar conexión"}</span>
+            {showForm ? "Cancelar" : "+ Formar conexión"}
           </button>
         </div>
 
@@ -407,19 +355,16 @@ export default function SinapsisPage() {
             label="Conexiones formadas"
             value={metrics.connections.toString()}
             sublabel={`${metrics.totalConnections} totales`}
-            accent="#fbbf24"
           />
           <MetricCard
             label="Días aprendiendo"
             value={metrics.daysLearning.toString()}
             sublabel="sin interrupción"
-            accent="#fde68a"
           />
           <MetricCard
             label="Densidad cognitiva"
             value={`${metrics.density}`}
             sublabel="de 100"
-            accent="#f59e0b"
             showBar
             barValue={metrics.density}
           />
@@ -427,7 +372,6 @@ export default function SinapsisPage() {
             label="Activaciones"
             value={metrics.totalUsage.toString()}
             sublabel="usos acumulados"
-            accent="#d97706"
           />
         </div>
       </header>
@@ -435,35 +379,22 @@ export default function SinapsisPage() {
       {/* Perfil del negocio */}
       {businessContext && (
         <div className="relative z-10 max-w-[1400px] mx-auto mb-8">
-          <div
-            className="rounded-2xl p-5"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(251,191,36,0.04), rgba(15,15,20,0.5))",
-              border: "1px solid rgba(251,191,36,0.18)",
-              backdropFilter: "blur(10px)",
-            }}
-          >
+          <div className="rounded-2xl p-5 bg-elevated border border-hairline shadow-ent-xs">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <div className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#fbbf24]/70 mb-1">
+                <div className="text-[10px] font-geistmono uppercase tracking-[0.25em] text-ink-40 mb-1">
                   Perfil del negocio
                 </div>
-                <h3 className="text-[#fde68a] text-lg font-semibold">
+                <h3 className="text-ink text-lg font-semibold">
                   {orgName || "Tu negocio"}
                 </h3>
-                <p className="text-[#fde68a]/50 text-xs mt-1">
+                <p className="text-ink-60 text-xs mt-1">
                   Este es el contexto que Aurum usa para pensar como vos.
                 </p>
               </div>
               <button
                 onClick={() => router.push("/chat")}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-[1.02]"
-                style={{
-                  background: "rgba(251,191,36,0.08)",
-                  border: "1px solid rgba(251,191,36,0.25)",
-                  color: "#fde68a",
-                }}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors duration-150 ease-ent bg-surface border border-hairline text-ink-60 hover:text-ink"
               >
                 Rehacer onboarding
               </button>
@@ -495,22 +426,13 @@ export default function SinapsisPage() {
       {/* Form panel */}
       {showForm && (
         <div className="relative z-10 max-w-[1400px] mx-auto mb-8">
-          <div
-            className="rounded-2xl p-6"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(251,191,36,0.06), rgba(15,15,20,0.6))",
-              border: "1px solid rgba(251,191,36,0.25)",
-              backdropFilter: "blur(12px)",
-              boxShadow: "0 0 40px rgba(251,191,36,0.08), inset 0 1px 0 rgba(253,224,71,0.1)",
-            }}
-          >
-            <h3 className="text-[#fde68a] font-semibold text-lg mb-4">
+          <div className="rounded-2xl p-6 bg-elevated border border-hairline shadow-ent-xs">
+            <h3 className="text-ink font-semibold text-lg mb-4">
               {editingId ? "Editar conexión" : "Formar nueva conexión"}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-[#fde68a]/60 mb-2">
+                <label className="block text-xs font-geistmono uppercase tracking-wider text-ink-40 mb-2">
                   Tipo de conexión
                 </label>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -522,24 +444,19 @@ export default function SinapsisPage() {
                         key={cat}
                         type="button"
                         onClick={() => setFormData({ ...formData, category: cat })}
-                        className="p-3 rounded-xl text-left transition-all duration-300"
-                        style={{
-                          background: active
-                            ? `linear-gradient(135deg, ${info.color}20, ${info.color}05)`
-                            : "rgba(255,255,255,0.02)",
-                          border: active
-                            ? `1px solid ${info.color}60`
-                            : "1px solid rgba(255,255,255,0.06)",
-                          boxShadow: active ? `0 0 18px ${info.color}25` : "none",
-                        }}
+                        className={cx(
+                          "p-3 rounded-xl text-left border transition-colors duration-150 ease-ent",
+                          active ? "bg-surface-2" : "bg-white border-hairline-2 hover:border-hairline"
+                        )}
+                        style={active ? { borderColor: info.color } : undefined}
                       >
                         <div
-                          className="text-xs font-bold font-mono uppercase tracking-wider mb-1"
-                          style={{ color: active ? info.color : "rgba(253,230,138,0.6)" }}
+                          className="text-xs font-bold font-geistmono uppercase tracking-wider mb-1"
+                          style={{ color: active ? info.color : "rgb(var(--ent-ink-40))" }}
                         >
                           {info.short}
                         </div>
-                        <div className="text-[10px] text-[#fde68a]/50 leading-snug">
+                        <div className="text-[10px] text-ink-40 leading-snug">
                           {info.description}
                         </div>
                       </button>
@@ -549,7 +466,7 @@ export default function SinapsisPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-[#fde68a]/60 mb-2">
+                <label className="block text-xs font-geistmono uppercase tracking-wider text-ink-40 mb-2">
                   Nombre de la conexión
                 </label>
                 <input
@@ -557,16 +474,12 @@ export default function SinapsisPage() {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Ej: Comparar ventas interanualmente"
-                  className="w-full rounded-xl px-4 py-3 text-sm text-[#fde68a] outline-none transition-all"
-                  style={{
-                    background: "rgba(0,0,0,0.4)",
-                    border: "1px solid rgba(251,191,36,0.25)",
-                  }}
+                  className="w-full rounded-xl px-4 py-3 text-sm text-ink outline-none transition-colors duration-150 ease-ent bg-surface border border-hairline-2 placeholder:text-ink-40 focus:border-hairline"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-[#fde68a]/60 mb-2">
+                <label className="block text-xs font-geistmono uppercase tracking-wider text-ink-40 mb-2">
                   Qué debe recordar Aurum
                 </label>
                 <textarea
@@ -574,19 +487,15 @@ export default function SinapsisPage() {
                   onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                   placeholder="Describí el aprendizaje, regla o contexto que Aurum debe tener en cuenta..."
                   rows={4}
-                  className="w-full rounded-xl px-4 py-3 text-sm text-[#fde68a] outline-none resize-none transition-all"
-                  style={{
-                    background: "rgba(0,0,0,0.4)",
-                    border: "1px solid rgba(251,191,36,0.25)",
-                  }}
+                  className="w-full rounded-xl px-4 py-3 text-sm text-ink outline-none resize-none transition-colors duration-150 ease-ent bg-surface border border-hairline-2 placeholder:text-ink-40 focus:border-hairline"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-[#fde68a]/60 mb-2">
+                <label className="block text-xs font-geistmono uppercase tracking-wider text-ink-40 mb-2">
                   Intensidad:{" "}
-                  <span className="text-[#fbbf24] font-bold">{formData.priority}/10</span>
-                  <span className="text-[#fde68a]/40 ml-2 normal-case tracking-normal">
+                  <span className="text-ink font-bold">{formData.priority}/10</span>
+                  <span className="text-ink-40 ml-2 normal-case tracking-normal">
                     {formData.priority >= 8
                       ? "· crítica, siempre activa"
                       : formData.priority >= 5
@@ -602,19 +511,12 @@ export default function SinapsisPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, priority: parseInt(e.target.value) })
                   }
-                  className="w-full aurum-range"
+                  className="w-full ent-range"
                 />
               </div>
 
               {saveError && (
-                <div
-                  className="p-3 rounded-xl text-sm"
-                  style={{
-                    background: "rgba(239,68,68,0.1)",
-                    border: "1px solid rgba(239,68,68,0.3)",
-                    color: "#fca5a5",
-                  }}
-                >
+                <div className="p-3 rounded-xl text-sm bg-red-50 border border-red-200 text-red-700">
                   {saveError}
                 </div>
               )}
@@ -623,25 +525,14 @@ export default function SinapsisPage() {
                 <button
                   type="submit"
                   disabled={saving || !formData.title.trim() || !formData.content.trim()}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(251,191,36,0.3), rgba(245,158,11,0.2))",
-                    border: "1px solid rgba(251,191,36,0.5)",
-                    color: "#fef3c7",
-                    boxShadow: "0 0 24px rgba(251,191,36,0.15)",
-                  }}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150 ease-ent disabled:opacity-40 bg-ink text-white hover:bg-ink/90"
                 >
                   {saving ? "Formando..." : editingId ? "Actualizar conexión" : "Formar conexión"}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-5 py-2.5 rounded-xl text-sm font-medium transition-all text-[#fde68a]/70 hover:text-[#fde68a]"
-                  style={{
-                    background: "rgba(255,255,255,0.02)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
+                  className="px-5 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 ease-ent text-ink-60 hover:text-ink bg-white border border-hairline-2"
                 >
                   Cancelar
                 </button>
@@ -655,20 +546,14 @@ export default function SinapsisPage() {
       <div className="relative z-10 max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
         {/* Left: Neural network */}
         <div
-          className="rounded-2xl p-6 relative overflow-hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(251,191,36,0.04), rgba(10,10,15,0.6))",
-            border: "1px solid rgba(251,191,36,0.18)",
-            backdropFilter: "blur(8px)",
-            minHeight: 560,
-          }}
+          className="rounded-2xl p-6 relative overflow-hidden bg-elevated border border-hairline shadow-ent-xs"
+          style={{ minHeight: 560 }}
         >
           <div className="absolute top-4 left-6 right-6 flex items-center justify-between pointer-events-none">
-            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#fde68a]/50">
+            <div className="text-[10px] font-geistmono uppercase tracking-[0.3em] text-ink-40">
               Red neuronal · Aurum
             </div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#fde68a]/50">
+            <div className="text-[10px] font-geistmono uppercase tracking-[0.3em] text-ink-40">
               {metrics.coveredCategories}/{CATEGORIES.length} dominios
             </div>
           </div>
@@ -677,11 +562,7 @@ export default function SinapsisPage() {
             <EmptyNetwork onCreate={() => setShowForm(true)} />
           ) : (
             <div className="w-full h-full flex items-center justify-center pt-8">
-              <svg
-                viewBox="0 0 520 520"
-                className="w-full max-w-[520px] h-auto"
-                style={{ filter: "drop-shadow(0 0 40px rgba(251,191,36,0.08))" }}
-              >
+              <svg viewBox="0 0 520 520" className="w-full max-w-[520px] h-auto">
                 {/* Orbit rings */}
                 {[100, 160, 220].map((r) => (
                   <circle
@@ -690,8 +571,8 @@ export default function SinapsisPage() {
                     cy={260}
                     r={r}
                     fill="none"
-                    stroke="rgba(251,191,36,0.06)"
-                    strokeWidth={0.5}
+                    stroke="rgb(var(--ent-hairline))"
+                    strokeWidth={0.75}
                     strokeDasharray="2,4"
                   />
                 ))}
@@ -704,8 +585,8 @@ export default function SinapsisPage() {
                     y1={c.y1}
                     x2={c.x2}
                     y2={c.y2}
-                    stroke={c.active ? "#fbbf24" : "#fde68a"}
-                    strokeWidth={0.6}
+                    stroke={c.active ? "rgb(var(--ent-ink-40))" : "rgb(var(--ent-hairline-2))"}
+                    strokeWidth={0.7}
                     opacity={c.opacity}
                   />
                 ))}
@@ -726,9 +607,9 @@ export default function SinapsisPage() {
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fontSize={9}
-                      fontFamily="monospace"
+                      fontFamily="var(--font-geist-mono), monospace"
                       fill={info.color}
-                      opacity={0.55}
+                      opacity={0.75}
                       style={{ textTransform: "uppercase", letterSpacing: "0.2em" }}
                     >
                       {info.short} · {count}
@@ -764,12 +645,7 @@ export default function SinapsisPage() {
                         r={n.r}
                         fill={n.color}
                         opacity={n.memory.isActive ? (highlight ? 1 : 0.85) : 0.3}
-                        style={{
-                          filter: highlight
-                            ? `drop-shadow(0 0 8px ${n.color})`
-                            : `drop-shadow(0 0 3px ${n.color}80)`,
-                          transition: "all 300ms ease",
-                        }}
+                        style={{ transition: "all 200ms ease" }}
                       />
                     </g>
                   );
@@ -777,43 +653,20 @@ export default function SinapsisPage() {
 
                 {/* Core: Aurum */}
                 <g>
-                  <circle
-                    cx={260}
-                    cy={260}
-                    r={28}
-                    fill="url(#aurumCoreGradient)"
-                    style={{
-                      filter: "drop-shadow(0 0 24px rgba(251,191,36,0.6))",
-                    }}
-                  />
-                  <circle
-                    cx={260}
-                    cy={260}
-                    r={16}
-                    fill="#fef3c7"
-                    opacity={0.9}
-                  />
+                  <circle cx={260} cy={260} r={28} fill="rgb(var(--ent-ink))" />
                   <text
                     x={260}
-                    y={265}
+                    y={264}
                     textAnchor="middle"
                     fontSize={10}
-                    fontFamily="monospace"
-                    fill="#78350f"
+                    fontFamily="var(--font-geist-mono), monospace"
+                    fill="#FBFAF7"
                     fontWeight={700}
                     style={{ textTransform: "uppercase", letterSpacing: "0.15em" }}
                   >
                     AURUM
                   </text>
                 </g>
-
-                <defs>
-                  <radialGradient id="aurumCoreGradient" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#fef3c7" stopOpacity="1" />
-                    <stop offset="40%" stopColor="#fbbf24" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#d97706" stopOpacity="0.3" />
-                  </radialGradient>
-                </defs>
               </svg>
             </div>
           )}
@@ -823,24 +676,15 @@ export default function SinapsisPage() {
             const m = memories.find((mm) => mm.id === hoveredId);
             if (!m) return null;
             return (
-              <div
-                className="absolute bottom-4 left-4 right-4 rounded-xl p-3 pointer-events-none"
-                style={{
-                  background: "rgba(10,10,15,0.85)",
-                  border: `1px solid ${CATEGORY_INFO[m.category].color}50`,
-                  backdropFilter: "blur(12px)",
-                  boxShadow: `0 0 20px ${CATEGORY_INFO[m.category].color}20`,
-                  animation: "aurumFadeUp 200ms ease",
-                }}
-              >
+              <div className="absolute bottom-4 left-4 right-4 rounded-xl p-3 pointer-events-none bg-elevated border border-hairline shadow-ent-soft">
                 <div
-                  className="text-[9px] font-mono uppercase tracking-widest mb-1"
+                  className="text-[9px] font-geistmono uppercase tracking-widest mb-1"
                   style={{ color: CATEGORY_INFO[m.category].color }}
                 >
                   {CATEGORY_INFO[m.category].short} · prioridad {m.priority}
                 </div>
-                <div className="text-[#fde68a] text-sm font-semibold">{m.title}</div>
-                <div className="text-[#fde68a]/60 text-xs mt-0.5 line-clamp-2">
+                <div className="text-ink text-sm font-semibold">{m.title}</div>
+                <div className="text-ink-60 text-xs mt-0.5 line-clamp-2">
                   {m.content}
                 </div>
               </div>
@@ -856,7 +700,6 @@ export default function SinapsisPage() {
               label={`Todas (${memories.length})`}
               active={filterCategory === "ALL"}
               onClick={() => setFilterCategory("ALL")}
-              color="#fbbf24"
             />
             {CATEGORIES.map((cat) => {
               const count = memories.filter((m) => m.category === cat).length;
@@ -875,16 +718,11 @@ export default function SinapsisPage() {
 
           {/* Memory cards */}
           <div
-            className="rounded-2xl p-3 flex-1 overflow-y-auto"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(251,191,36,0.03), rgba(10,10,15,0.4))",
-              border: "1px solid rgba(251,191,36,0.12)",
-              maxHeight: 560,
-            }}
+            className="rounded-2xl p-3 flex-1 overflow-y-auto bg-elevated border border-hairline"
+            style={{ maxHeight: 560 }}
           >
             {filtered.length === 0 ? (
-              <div className="text-center py-12 text-[#fde68a]/40 text-sm">
+              <div className="text-center py-12 text-ink-40 text-sm">
                 {hasMemories
                   ? "No hay conexiones en este filtro"
                   : "Tu primera conexión está por formarse"}
@@ -911,37 +749,37 @@ export default function SinapsisPage() {
       </div>
 
       <style jsx>{`
-        .aurum-range {
+        .ent-range {
           -webkit-appearance: none;
           height: 4px;
           background: linear-gradient(
             90deg,
-            #fbbf24 0%,
-            #fbbf24 ${formData.priority * 10}%,
-            rgba(251, 191, 36, 0.15) ${formData.priority * 10}%,
-            rgba(251, 191, 36, 0.15) 100%
+            rgb(var(--ent-ink)) 0%,
+            rgb(var(--ent-ink)) ${formData.priority * 10}%,
+            rgb(var(--ent-hairline-2)) ${formData.priority * 10}%,
+            rgb(var(--ent-hairline-2)) 100%
           );
           border-radius: 9999px;
           outline: none;
         }
-        .aurum-range::-webkit-slider-thumb {
+        .ent-range::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: radial-gradient(circle, #fef3c7 30%, #fbbf24 100%);
+          background: #ffffff;
           cursor: pointer;
-          box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
-          border: 1px solid rgba(251, 191, 36, 0.8);
+          box-shadow: 0 1px 2px rgba(28, 27, 24, 0.2);
+          border: 1px solid rgb(var(--ent-ink));
         }
-        .aurum-range::-moz-range-thumb {
+        .ent-range::-moz-range-thumb {
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: radial-gradient(circle, #fef3c7 30%, #fbbf24 100%);
+          background: #ffffff;
           cursor: pointer;
-          box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
-          border: 1px solid rgba(251, 191, 36, 0.8);
+          box-shadow: 0 1px 2px rgba(28, 27, 24, 0.2);
+          border: 1px solid rgb(var(--ent-ink));
         }
       `}</style>
     </div>
@@ -954,54 +792,31 @@ function MetricCard({
   label,
   value,
   sublabel,
-  accent,
   showBar,
   barValue,
 }: {
   label: string;
   value: string;
   sublabel: string;
-  accent: string;
   showBar?: boolean;
   barValue?: number;
 }) {
   return (
-    <div
-      className="rounded-xl p-4 relative overflow-hidden"
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(251,191,36,0.06), rgba(10,10,15,0.4))",
-        border: "1px solid rgba(251,191,36,0.15)",
-        backdropFilter: "blur(8px)",
-      }}
-    >
-      <div
-        className="text-[9px] font-mono uppercase tracking-[0.2em] mb-2"
-        style={{ color: `${accent}aa` }}
-      >
+    <div className="rounded-xl p-4 bg-elevated border border-hairline shadow-ent-xs">
+      <div className="text-[9px] font-geistmono uppercase tracking-[0.2em] mb-2 text-ink-40">
         {label}
       </div>
-      <div
-        className="text-3xl font-bold tracking-tight"
-        style={{
-          color: accent,
-          textShadow: `0 0 20px ${accent}50`,
-        }}
-      >
+      <div className="text-3xl font-medium tracking-tight text-ink tabular-nums">
         {value}
       </div>
-      <div className="text-[10px] text-[#fde68a]/40 mt-1 font-mono">
+      <div className="text-[10px] text-ink-40 mt-1 font-geistmono">
         {sublabel}
       </div>
       {showBar && typeof barValue === "number" && (
-        <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ background: "rgba(251,191,36,0.1)" }}>
+        <div className="mt-3 h-1 rounded-full overflow-hidden bg-surface-2">
           <div
-            className="h-full rounded-full transition-all duration-1000 ease-out"
-            style={{
-              width: `${Math.min(100, barValue)}%`,
-              background: `linear-gradient(90deg, ${accent}, #fde68a)`,
-              boxShadow: `0 0 8px ${accent}`,
-            }}
+            className="h-full rounded-full bg-accent transition-all duration-1000 ease-out"
+            style={{ width: `${Math.min(100, barValue)}%` }}
           />
         </div>
       )}
@@ -1021,16 +836,15 @@ function ProfileChip({
   if (!value) return null;
   return (
     <div
-      className={`rounded-xl px-3 py-2 ${wide ? "col-span-2 lg:col-span-4" : ""}`}
-      style={{
-        background: "rgba(251,191,36,0.04)",
-        border: "1px solid rgba(251,191,36,0.12)",
-      }}
+      className={cx(
+        "rounded-xl px-3 py-2 bg-surface border border-hairline",
+        wide && "col-span-2 lg:col-span-4"
+      )}
     >
-      <div className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#fbbf24]/60 mb-1">
+      <div className="text-[9px] font-geistmono uppercase tracking-[0.25em] text-ink-40 mb-1">
         {label}
       </div>
-      <div className="text-[#fde68a] text-sm font-medium capitalize truncate">
+      <div className="text-ink text-sm font-medium capitalize truncate">
         {value}
       </div>
     </div>
@@ -1046,18 +860,16 @@ function FilterChip({
   label: string;
   active: boolean;
   onClick: () => void;
-  color: string;
+  color?: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all"
-      style={{
-        background: active ? `${color}20` : "rgba(255,255,255,0.02)",
-        border: active ? `1px solid ${color}50` : "1px solid rgba(255,255,255,0.06)",
-        color: active ? color : "rgba(253,230,138,0.5)",
-        boxShadow: active ? `0 0 12px ${color}30` : "none",
-      }}
+      className={cx(
+        "px-2.5 py-1 rounded-md text-[10px] font-geistmono uppercase tracking-wider border transition-colors duration-150 ease-ent",
+        active && !color ? "bg-ink border-ink text-white" : !active ? "bg-white border-hairline-2 text-ink-40 hover:border-hairline" : ""
+      )}
+      style={active && color ? { background: `${color}14`, borderColor: `${color}55`, color } : undefined}
     >
       {label}
     </button>
@@ -1089,55 +901,41 @@ function MemoryCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={onSelect}
-      className="rounded-xl p-3 cursor-pointer transition-all duration-300"
+      className={cx(
+        "rounded-xl p-3 cursor-pointer border transition-colors duration-150 ease-ent",
+        selected ? "bg-surface" : "bg-white border-hairline hover:border-hairline-2"
+      )}
       style={{
-        background: selected
-          ? `linear-gradient(135deg, ${info.color}12, rgba(10,10,15,0.6))`
-          : "rgba(255,255,255,0.02)",
-        border: selected
-          ? `1px solid ${info.color}60`
-          : "1px solid rgba(255,255,255,0.05)",
-        boxShadow: selected ? `0 0 18px ${info.color}20` : "none",
-        opacity: memory.isActive ? 1 : 0.5,
+        borderColor: selected ? info.color : undefined,
+        opacity: memory.isActive ? 1 : 0.55,
       }}
     >
       <div className="flex items-start gap-2 mb-1">
         <div
           className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-          style={{
-            background: info.color,
-            boxShadow: `0 0 6px ${info.color}`,
-          }}
+          style={{ background: info.color }}
         />
         <div className="flex-1 min-w-0">
-          <div
-            className="text-[9px] font-mono uppercase tracking-wider mb-0.5"
-            style={{ color: `${info.color}cc` }}
-          >
+          <div className="text-[9px] font-geistmono uppercase tracking-wider mb-0.5" style={{ color: info.color }}>
             {info.short} · P{memory.priority}
             {!memory.isActive && " · dormida"}
           </div>
-          <div className="text-[#fde68a] text-xs font-semibold leading-tight">
+          <div className="text-ink text-xs font-semibold leading-tight">
             {memory.title}
           </div>
-          <div className="text-[#fde68a]/50 text-[11px] mt-1 line-clamp-2 leading-relaxed">
+          <div className="text-ink-60 text-[11px] mt-1 line-clamp-2 leading-relaxed">
             {memory.content}
           </div>
         </div>
       </div>
       {selected && (
-        <div className="flex gap-1.5 mt-2 pt-2 border-t border-white/5">
+        <div className="flex gap-1.5 mt-2 pt-2 border-t border-hairline">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onEdit();
             }}
-            className="flex-1 px-2 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider transition-colors"
-            style={{
-              background: "rgba(251,191,36,0.1)",
-              border: "1px solid rgba(251,191,36,0.25)",
-              color: "#fbbf24",
-            }}
+            className="flex-1 px-2 py-1 rounded-md text-[10px] font-geistmono uppercase tracking-wider transition-colors bg-surface border border-hairline-2 text-ink-60 hover:text-ink"
           >
             Editar
           </button>
@@ -1146,14 +944,12 @@ function MemoryCard({
               e.stopPropagation();
               onToggle();
             }}
-            className="flex-1 px-2 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider transition-colors"
-            style={{
-              background: memory.isActive ? "rgba(34,197,94,0.1)" : "rgba(156,163,175,0.1)",
-              border: memory.isActive
-                ? "1px solid rgba(34,197,94,0.25)"
-                : "1px solid rgba(156,163,175,0.25)",
-              color: memory.isActive ? "#22c55e" : "#9ca3af",
-            }}
+            className={cx(
+              "flex-1 px-2 py-1 rounded-md text-[10px] font-geistmono uppercase tracking-wider transition-colors border",
+              memory.isActive
+                ? "bg-accent-soft border-accent/20 text-accent"
+                : "bg-surface-2 border-hairline-2 text-ink-40"
+            )}
           >
             {memory.isActive ? "Activa" : "Dormida"}
           </button>
@@ -1162,12 +958,7 @@ function MemoryCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="flex-1 px-2 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider transition-colors"
-            style={{
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.2)",
-              color: "#fca5a5",
-            }}
+            className="flex-1 px-2 py-1 rounded-md text-[10px] font-geistmono uppercase tracking-wider transition-colors bg-red-50 border border-red-200 text-red-700"
           >
             Borrar
           </button>
@@ -1180,47 +971,29 @@ function MemoryCard({
 function EmptyNetwork({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center text-center px-6" style={{ minHeight: 480 }}>
-      <div className="relative w-32 h-32 mb-6">
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(251,191,36,0.5) 0%, rgba(245,158,11,0.2) 40%, transparent 70%)",
-            animation: "aurumBreath 3s ease-in-out infinite",
-            boxShadow: "0 0 80px rgba(251,191,36,0.3)",
-          }}
-        />
-        <div
-          className="absolute inset-8 rounded-full"
-          style={{
-            background: "radial-gradient(circle, #fef3c7 30%, #fbbf24 100%)",
-            boxShadow: "0 0 30px rgba(251,191,36,0.8)",
-          }}
-        />
+      <div className="relative w-28 h-28 mb-6">
+        <div className="absolute inset-0 rounded-2xl bg-surface-2 border border-hairline" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <svg className="w-12 h-12 text-ink-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="5" cy="6" r="1.6" />
+            <circle cx="19" cy="6" r="1.6" />
+            <circle cx="5" cy="18" r="1.6" />
+            <circle cx="19" cy="18" r="1.6" />
+            <path strokeLinecap="round" d="M9.8 10.2 6.2 7M14.2 10.2 17.8 7M9.8 13.8 6.2 17M14.2 13.8 17.8 17" />
+          </svg>
+        </div>
       </div>
-      <h2
-        className="text-2xl font-bold mb-2"
-        style={{
-          background: "linear-gradient(135deg, #fef3c7, #fbbf24 50%, #d97706)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-        }}
-      >
+      <h2 className="text-2xl font-medium mb-2 text-ink">
         Sinapsis está por despertar
       </h2>
-      <p className="text-[#fde68a]/60 text-sm max-w-md leading-relaxed mb-6">
+      <p className="text-ink-60 text-sm max-w-md leading-relaxed mb-6">
         Cada interacción con Aurum empieza a construir un cerebro personalizado de tu negocio.
         Formá tu primera conexión y mirá cómo empieza a crecer.
       </p>
       <button
         onClick={onCreate}
-        className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105"
-        style={{
-          background: "linear-gradient(135deg, rgba(251,191,36,0.25), rgba(245,158,11,0.15))",
-          border: "1px solid rgba(251,191,36,0.5)",
-          color: "#fef3c7",
-          boxShadow: "0 0 30px rgba(251,191,36,0.25)",
-        }}
+        className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150 ease-ent bg-ink text-white hover:bg-ink/90"
       >
         + Formar primera conexión
       </button>

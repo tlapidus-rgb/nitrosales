@@ -67,7 +67,7 @@ const CATEGORY_ACCENTS: Record<string, { icon: string; bg: string; bar: string }
   INFRAESTRUCTURA: { icon: "text-slate-600",  bg: "bg-slate-50",  bar: "#64748b" },
   MARKETING:       { icon: "text-pink-600",   bg: "bg-pink-50",   bar: "#ec4899" },
   MERMA:           { icon: "text-amber-600",  bg: "bg-amber-50",  bar: "#f59e0b" },
-  OTROS:           { icon: "text-gray-600",   bg: "bg-gray-50",   bar: "#6b7280" },
+  OTROS:           { icon: "text-ink-60",   bg: "bg-surface",   bar: "#6b7280" },
 };
 
 /* ── Category config ──────────────────────────── */
@@ -928,34 +928,32 @@ export default function CostosPage() {
   }
 
   if (loading && !data) {
-    // Fase 4d — Skeleton shimmer que refleja la estructura final
-    // (hero + KPIs + 3 category cards). Evita el flash de "nada" durante
-    // la carga inicial y mantiene la sensacion de velocidad.
-    const shimmer =
-      "relative overflow-hidden bg-gray-100 before:absolute before:inset-0 before:-translate-x-full before:bg-[linear-gradient(90deg,transparent_0,rgba(255,255,255,0.6)_50%,transparent_100%)] before:animate-[shimmer_1.5s_infinite]";
+    // Skeleton: los datos se escanean, no se animan — bloques estáticos con
+    // pulse suave (Tailwind animate-pulse), sin shimmer sweep.
+    const skel = "animate-pulse bg-surface-2";
     return (
-      <div className="light-canvas min-h-screen">
+      <div className="bg-canvas min-h-screen">
         {/* Hero skeleton */}
-        <div className="relative overflow-hidden rounded-3xl mb-6 bg-gradient-to-b from-white to-gray-50 p-6">
+        <div className="relative overflow-hidden rounded-3xl mb-6 bg-elevated border border-hairline p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="space-y-2">
-              <div className={`${shimmer} h-7 w-56 rounded-lg`} />
-              <div className={`${shimmer} h-4 w-80 rounded-md`} />
+              <div className={`${skel} h-7 w-56 rounded-lg`} />
+              <div className={`${skel} h-4 w-80 rounded-md`} />
             </div>
             <div className="flex items-center gap-2">
-              <div className={`${shimmer} h-9 w-52 rounded-xl`} />
-              <div className={`${shimmer} h-9 w-32 rounded-xl`} />
-              <div className={`${shimmer} h-9 w-40 rounded-xl`} />
+              <div className={`${skel} h-9 w-52 rounded-xl`} />
+              <div className={`${skel} h-9 w-32 rounded-xl`} />
+              <div className={`${skel} h-9 w-40 rounded-xl`} />
             </div>
           </div>
         </div>
         {/* KPI strip skeleton */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-              <div className={`${shimmer} h-3 w-20 rounded-md mb-3`} />
-              <div className={`${shimmer} h-7 w-28 rounded-lg`} />
-              <div className={`${shimmer} h-3 w-16 rounded-md mt-2`} />
+            <div key={i} className="bg-elevated rounded-2xl p-5 border border-hairline/80 shadow-ent-xs">
+              <div className={`${skel} h-3 w-20 rounded-md mb-3`} />
+              <div className={`${skel} h-7 w-28 rounded-lg`} />
+              <div className={`${skel} h-3 w-16 rounded-md mt-2`} />
             </div>
           ))}
         </div>
@@ -964,16 +962,16 @@ export default function CostosPage() {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl p-5 border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex items-center justify-between"
+              className="bg-elevated rounded-2xl p-5 border border-hairline/80 shadow-ent-xs flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <div className={`${shimmer} w-9 h-9 rounded-xl`} />
+                <div className={`${skel} w-9 h-9 rounded-xl`} />
                 <div>
-                  <div className={`${shimmer} h-4 w-40 rounded-md mb-1.5`} />
-                  <div className={`${shimmer} h-3 w-56 rounded-md`} />
+                  <div className={`${skel} h-4 w-40 rounded-md mb-1.5`} />
+                  <div className={`${skel} h-3 w-56 rounded-md`} />
                 </div>
               </div>
-              <div className={`${shimmer} h-5 w-20 rounded-md`} />
+              <div className={`${skel} h-5 w-20 rounded-md`} />
             </div>
           ))}
         </div>
@@ -982,50 +980,32 @@ export default function CostosPage() {
   }
 
   return (
-    <div className="light-canvas min-h-screen">
-      {/* Fase 4a — Premium hero con aurora radial + prism delimiter */}
-      <div className="relative overflow-hidden rounded-3xl mb-6">
-        {/* Aurora radial background — sutil, no estridente */}
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(1200px circle at 10% -10%, rgba(20,184,166,0.10), transparent 40%), radial-gradient(900px circle at 90% 110%, rgba(168,85,247,0.08), transparent 45%), linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
-          }}
-        />
-        {/* Prism delimiter — fina linea con gradient bajo */}
-        <div
-          aria-hidden
-          className="absolute bottom-0 left-6 right-6 h-px pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(20,184,166,0.35) 18%, rgba(99,102,241,0.45) 50%, rgba(168,85,247,0.35) 82%, transparent 100%)",
-          }}
-        />
+    <div className="bg-canvas min-h-screen">
+      {/* Hero — flat, sin aurora/glow */}
+      <div className="relative overflow-hidden rounded-3xl mb-6 bg-elevated border border-hairline">
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6">
           <div>
-            <h2 className="text-[28px] font-semibold tracking-tight text-gray-900 leading-tight">
+            <h2 className="text-[28px] font-semibold tracking-tight text-ink leading-tight">
               Costos Operativos
             </h2>
-            <p className="text-sm text-gray-500 mt-1 max-w-xl">
+            <p className="text-sm text-ink-60 mt-1 max-w-xl">
               Costos que no vienen del ecommerce — mensajerias, sueldos, herramientas, impuestos.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Fase 4c — Custom month selector (chevron prev · label · chevron next · hidden native) */}
-            <div className="flex items-center bg-white/80 backdrop-blur border border-gray-200 rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)] transition-all overflow-hidden">
+            <div className="flex items-center bg-surface border border-hairline rounded-xl shadow-ent-xs transition-all overflow-hidden">
               <button
                 type="button"
                 onClick={() => setCostMonth(addMonthsToStr(costMonth, -1))}
-                className="px-2 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors"
+                className="px-2 py-2 text-ink-60 hover:text-ink hover:bg-surface transition-colors"
                 aria-label="Mes anterior"
                 title="Mes anterior"
               >
                 <ChevronLeft className="w-4 h-4" strokeWidth={2.2} />
               </button>
               {/* Label clickable que dispara el native picker */}
-              <label className="relative text-sm font-medium tabular-nums text-gray-700 px-3 py-2 cursor-pointer select-none min-w-[148px] text-center hover:text-gray-900 transition-colors">
+              <label className="relative text-sm font-medium tabular-nums text-ink px-3 py-2 cursor-pointer select-none min-w-[148px] text-center hover:text-ink transition-colors">
                 {formatMonthLabel(costMonth)}
                 <input
                   type="month"
@@ -1039,7 +1019,7 @@ export default function CostosPage() {
                 type="button"
                 onClick={() => setCostMonth(addMonthsToStr(costMonth, 1))}
                 disabled={costMonth >= nowMonth}
-                className="px-2 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="px-2 py-2 text-ink-60 hover:text-ink hover:bg-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 aria-label="Mes siguiente"
                 title={costMonth >= nowMonth ? "Ya estas en el mes actual" : "Mes siguiente"}
               >
@@ -1054,19 +1034,19 @@ export default function CostosPage() {
               aria-checked={adjustByInflation}
               onClick={() => setAdjustByInflation((v) => !v)}
               title="Si esta activo, los items con auto-ajuste IPC se copian con factor de inflacion aplicado"
-              className={`group inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-xl border backdrop-blur transition-all ${
+              className={`group inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-xl border transition-all ${
                 adjustByInflation
-                  ? "bg-teal-50/80 border-teal-200 text-teal-700 shadow-[0_1px_2px_rgba(20,184,166,0.12),0_1px_1px_rgba(20,184,166,0.08)]"
-                  : "bg-white/80 border-gray-200 text-gray-500 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:text-gray-700"
+                  ? "bg-ink text-white border-ink shadow-ent-xs"
+                  : "bg-surface border-hairline text-ink-60 shadow-ent-xs hover:text-ink"
               }`}
             >
               <span
                 className={`relative inline-flex w-8 h-4 rounded-full transition-colors ${
-                  adjustByInflation ? "bg-teal-500" : "bg-gray-300"
+                  adjustByInflation ? "bg-white/30" : "bg-surface-2"
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                  className={`absolute top-0.5 left-0.5 w-3 h-3 bg-elevated rounded-full shadow-sm transition-transform duration-200 ${
                     adjustByInflation ? "translate-x-4" : "translate-x-0"
                   }`}
                 />
@@ -1074,10 +1054,10 @@ export default function CostosPage() {
               Ajustar por IPC
             </button>
 
-            {/* Fase 4c — Copiar mes anterior con icono lucide */}
+            {/* Copiar mes anterior */}
             <button
               onClick={copyPreviousMonth}
-              className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 bg-white/80 backdrop-blur border border-gray-200 rounded-xl text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08),0_2px_4px_rgba(15,23,42,0.04)] hover:-translate-y-[1px] active:translate-y-0 transition-all"
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 bg-surface border border-hairline rounded-xl text-ink shadow-ent-xs hover:-translate-y-[1px] active:translate-y-0 transition-all"
             >
               <Copy className="w-3.5 h-3.5" strokeWidth={2.2} />
               Copiar mes anterior
@@ -1127,105 +1107,61 @@ export default function CostosPage() {
         );
 
         const kpiCardBase =
-          "relative overflow-hidden bg-white rounded-2xl p-5 border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.06),0_2px_4px_rgba(15,23,42,0.04)] hover:-translate-y-[1px] transition-all";
+          "relative overflow-hidden bg-elevated rounded-2xl p-5 border border-hairline/80 shadow-ent-xs hover:shadow-ent-soft hover:-translate-y-[1px] transition-all";
 
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            {/* KPI 1 — Total Mensual (accent teal) */}
+            {/* KPI 1 — Total Mensual */}
             <div className={kpiCardBase}>
-              <div
-                aria-hidden
-                className="absolute inset-x-0 top-0 h-[2px]"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent 0%, #14b8a6 35%, #14b8a6 65%, transparent 100%)",
-                }}
-              />
-              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+              <span className="text-[11px] font-medium text-ink-40 uppercase tracking-wide">
                 Total Mensual
               </span>
-              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
-                <CountUp
-                  value={Number(data.grandTotal) || 0}
-                  format={(n) => formatARS(Math.round(n))}
-                />
+              <p className="text-2xl font-semibold tracking-tight text-ink mt-1.5 tabular-nums">
+                {formatARS(Math.round(Number(data.grandTotal) || 0))}
               </p>
-              <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+              <p className="text-[11px] text-ink-40 mt-1 tabular-nums">
                 {costMonth} · {totalItems} items
               </p>
             </div>
 
-            {/* KPI 2 — % Fijo (accent teal) */}
+            {/* KPI 2 — % Fijo */}
             <div className={kpiCardBase}>
-              <div
-                aria-hidden
-                className="absolute inset-x-0 top-0 h-[2px]"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent 0%, #14b8a6 35%, #14b8a6 65%, transparent 100%)",
-                }}
-              />
-              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+              <span className="text-[11px] font-medium text-ink-40 uppercase tracking-wide">
                 % Fijo
               </span>
-              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
-                <CountUp
-                  value={fixedPct}
-                  format={(n) => `${Math.round(n)}%`}
-                />
+              <p className="text-2xl font-semibold tracking-tight text-ink mt-1.5 tabular-nums">
+                {Math.round(fixedPct)}%
               </p>
-              <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+              <p className="text-[11px] text-ink-40 mt-1 tabular-nums">
                 {formatARS(sFixed)}
               </p>
             </div>
 
-            {/* KPI 3 — % Variable (accent amber) */}
+            {/* KPI 3 — % Variable */}
             <div className={kpiCardBase}>
-              <div
-                aria-hidden
-                className="absolute inset-x-0 top-0 h-[2px]"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent 0%, #f59e0b 35%, #f59e0b 65%, transparent 100%)",
-                }}
-              />
-              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+              <span className="text-[11px] font-medium text-ink-40 uppercase tracking-wide">
                 % Variable
               </span>
-              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
-                <CountUp
-                  value={variablePct}
-                  format={(n) => `${Math.round(n)}%`}
-                />
+              <p className="text-2xl font-semibold tracking-tight text-ink mt-1.5 tabular-nums">
+                {Math.round(variablePct)}%
               </p>
-              <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+              <p className="text-[11px] text-ink-40 mt-1 tabular-nums">
                 {formatARS(sVar)}
               </p>
             </div>
 
-            {/* KPI 4 — Items con IPC (accent violet) */}
+            {/* KPI 4 — Items con IPC */}
             <div className={kpiCardBase}>
-              <div
-                aria-hidden
-                className="absolute inset-x-0 top-0 h-[2px]"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent 0%, #a855f7 35%, #a855f7 65%, transparent 100%)",
-                }}
-              />
-              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+              <span className="text-[11px] font-medium text-ink-40 uppercase tracking-wide">
                 Con ajuste IPC
               </span>
-              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
-                <CountUp
-                  value={ipcItems}
-                  format={(n) => `${Math.round(n)}`}
-                />
-                <span className="text-sm font-normal text-gray-400 ml-1">
+              <p className="text-2xl font-semibold tracking-tight text-ink mt-1.5 tabular-nums">
+                {Math.round(ipcItems)}
+                <span className="text-sm font-normal text-ink-40 ml-1">
                   / {totalItems}
                 </span>
               </p>
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[11px] text-ink-40 mt-1">
                 {ipcItems === 0 ? "Ningun item auto-ajusta" : "Copiar aplica IPC"}
               </p>
             </div>
@@ -1246,7 +1182,7 @@ export default function CostosPage() {
         //   fixedPct <= 40  -> estructura flexible (buena palanca operativa)
         //   mid             -> mix saludable
         let verdict = "Mix saludable";
-        let verdictColor = "text-gray-500";
+        let verdictColor = "text-ink-60";
         if (fixedPct >= 70) {
           verdict = "Demasiado fijo — poca flexibilidad ante bajas de venta";
           verdictColor = "text-amber-600";
@@ -1255,16 +1191,16 @@ export default function CostosPage() {
           verdictColor = "text-teal-600";
         }
         return (
-          <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
+          <div className="bg-elevated rounded-xl p-4 shadow-ent-xs mb-6">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <span className="text-xs font-medium text-gray-500 uppercase">Composicion Fijo vs Variable</span>
-                <p className="text-xs text-gray-400 mt-0.5">Taxonomia — como se comportan tus costos cuando suben o bajan las ventas</p>
+                <span className="text-xs font-medium text-ink-60 uppercase">Composicion Fijo vs Variable</span>
+                <p className="text-xs text-ink-40 mt-0.5">Taxonomia — como se comportan tus costos cuando suben o bajan las ventas</p>
               </div>
               <span className={`text-xs font-medium ${verdictColor}`}>{verdict}</span>
             </div>
             {/* Barra de composicion */}
-            <div className="w-full h-3 rounded-full overflow-hidden flex bg-gray-100">
+            <div className="w-full h-3 rounded-full overflow-hidden flex bg-surface-2">
               {fixedPct > 0 && (
                 <div
                   className="bg-teal-500"
@@ -1292,26 +1228,26 @@ export default function CostosPage() {
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-teal-500" />
-                  <span className="text-xs font-medium text-gray-600">Fijos</span>
-                  <span className="text-xs text-gray-400">{fixedPct}%</span>
+                  <span className="text-xs font-medium text-ink-60">Fijos</span>
+                  <span className="text-xs text-ink-40">{fixedPct}%</span>
                 </div>
-                <p className="text-sm font-mono font-semibold text-gray-800 mt-0.5">{formatARS(fixed)}</p>
+                <p className="text-sm font-mono font-semibold text-ink mt-0.5">{formatARS(fixed)}</p>
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-violet-400" />
-                  <span className="text-xs font-medium text-gray-600">Semi-fijos</span>
-                  <span className="text-xs text-gray-400">{semiPct}%</span>
+                  <span className="text-xs font-medium text-ink-60">Semi-fijos</span>
+                  <span className="text-xs text-ink-40">{semiPct}%</span>
                 </div>
-                <p className="text-sm font-mono font-semibold text-gray-800 mt-0.5">{formatARS(semiFixed)}</p>
+                <p className="text-sm font-mono font-semibold text-ink mt-0.5">{formatARS(semiFixed)}</p>
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span className="text-xs font-medium text-gray-600">Variables</span>
-                  <span className="text-xs text-gray-400">{variablePct}%</span>
+                  <span className="text-xs font-medium text-ink-60">Variables</span>
+                  <span className="text-xs text-ink-40">{variablePct}%</span>
                 </div>
-                <p className="text-sm font-mono font-semibold text-gray-800 mt-0.5">{formatARS(variable)}</p>
+                <p className="text-sm font-mono font-semibold text-ink mt-0.5">{formatARS(variable)}</p>
               </div>
             </div>
           </div>
@@ -1343,8 +1279,7 @@ export default function CostosPage() {
           return (
             <div
               key={cat.key}
-              className="group relative overflow-hidden bg-white rounded-2xl border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.06),0_2px_4px_rgba(15,23,42,0.04)] transition-all animate-fade-in-up"
-              style={{ animationDelay: `${idx * 45}ms`, animationDuration: "450ms" }}
+              className="group relative overflow-hidden bg-elevated rounded-2xl border border-hairline/80 shadow-ent-xs hover:shadow-ent-soft transition-all"
             >
               {/* Prism delimiter arriba con color de categoria */}
               <div
@@ -1357,18 +1292,18 @@ export default function CostosPage() {
               {/* Category header */}
               <button
                 onClick={() => setExpandedCat(isExpanded ? null : cat.key)}
-                className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50/60 transition-colors"
+                className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface/60 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-9 h-9 rounded-xl ${accent.bg} flex items-center justify-center shrink-0`}>
                     <Icon className={`w-4.5 h-4.5 ${accent.icon}`} strokeWidth={2} />
                   </div>
                   <div className="text-left min-w-0">
-                    <span className="text-sm font-semibold text-gray-900 tracking-tight">{cat.label}</span>
-                    <p className="text-xs text-gray-400 mt-0.5 truncate">{cat.description}</p>
+                    <span className="text-sm font-semibold text-ink tracking-tight">{cat.label}</span>
+                    <p className="text-xs text-ink-40 mt-0.5 truncate">{cat.description}</p>
                   </div>
                   {items.length > 0 && (
-                    <span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full tabular-nums shrink-0">
+                    <span className="text-[11px] bg-surface-2 text-ink-60 px-2 py-0.5 rounded-full tabular-nums shrink-0">
                       {items.length}
                     </span>
                   )}
@@ -1394,18 +1329,18 @@ export default function CostosPage() {
                 <div className="flex items-center gap-3 shrink-0">
                   {displayTotal > 0 && (
                     <div className="flex flex-col items-end">
-                      <span className="text-sm font-semibold text-gray-900 tabular-nums tracking-tight">
+                      <span className="text-sm font-semibold text-ink tabular-nums tracking-tight">
                         {formatARS(displayTotal)}
                       </span>
                       {!isExpanded && grandTotal > 0 && (
-                        <span className="text-[10px] text-gray-400 tabular-nums">
+                        <span className="text-[10px] text-ink-40 tabular-nums">
                           {catPctOfTotal}% del total
                         </span>
                       )}
                     </div>
                   )}
                   <ChevronDown
-                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    className={`w-4 h-4 text-ink-40 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                     strokeWidth={2.2}
                   />
                 </div>
@@ -1413,14 +1348,14 @@ export default function CostosPage() {
 
               {/* Expanded content */}
               {isExpanded && (
-                <div className="border-t border-gray-100">
+                <div className="border-t border-hairline">
                   {/* Fiscal profile wizard — only for FISCAL category */}
                   {cat.key === "FISCAL" && (
-                    <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-transparent">
+                    <div className="px-5 py-4 border-b border-hairline bg-surface">
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700">Perfil Fiscal</h4>
-                          <p className="text-xs text-gray-400">
+                          <h4 className="text-sm font-semibold text-ink">Perfil Fiscal</h4>
+                          <p className="text-xs text-ink-40">
                             {fiscalProfile?.completedAt
                               ? "Configurado — los impuestos se generan automaticamente"
                               : "Subi tu constancia de AFIP y la IA detecta tus impuestos al instante"}
@@ -1429,8 +1364,8 @@ export default function CostosPage() {
                         <div className="flex items-center gap-2">
                           <label className={`text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
                             constanciaParsing
-                              ? "bg-gray-100 text-gray-400"
-                              : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-sm"
+                              ? "bg-surface-2 text-ink-40"
+                              : "bg-ink text-white hover:bg-ink/90 shadow-sm"
                           }`}>
                             {constanciaParsing ? "Analizando con IA..." : "Importar constancia AFIP"}
                             <input
@@ -1455,11 +1390,11 @@ export default function CostosPage() {
 
                       {/* AI info banner — only when no profile yet and no parse result */}
                       {!fiscalProfile?.completedAt && !constanciaResult && (
-                        <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100">
-                          <p className="text-xs text-indigo-700">
-                            <span className="font-semibold">Importa tu constancia de AFIP</span> y nuestra IA extrae automaticamente tu regimen, provincia, categoria e impuestos inscriptos. Sin completar formularios.
+                        <div className="mb-3 p-3 rounded-lg bg-surface border border-hairline">
+                          <p className="text-xs text-ink-60">
+                            <span className="font-semibold text-ink">Importa tu constancia de AFIP</span> y nuestra IA extrae automaticamente tu regimen, provincia, categoria e impuestos inscriptos. Sin completar formularios.
                           </p>
-                          <p className="text-xs text-indigo-400 mt-1">
+                          <p className="text-xs text-ink-40 mt-1">
                             Descargala desde <span className="font-medium">afip.gob.ar → Mis Servicios → Constancia de Inscripcion</span>
                           </p>
                         </div>
@@ -1467,7 +1402,7 @@ export default function CostosPage() {
 
                       {/* Constancia parse result */}
                       {constanciaResult && !constanciaResult.error && (
-                        <div className="mb-3 p-3 bg-white rounded-lg border border-indigo-200">
+                        <div className="mb-3 p-3 bg-elevated rounded-lg border border-indigo-200">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-semibold text-indigo-700">IA: Constancia analizada</span>
@@ -1475,34 +1410,34 @@ export default function CostosPage() {
                                 {constanciaResult.confidence}% confianza
                               </span>
                             </div>
-                            <button onClick={() => setConstanciaResult(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            <button onClick={() => setConstanciaResult(null)} className="text-xs text-ink-40 hover:text-ink-60">✕</button>
                           </div>
                           {constanciaResult.cuit && (
-                            <p className="text-xs text-gray-600 mb-1">
+                            <p className="text-xs text-ink-60 mb-1">
                               <span className="font-medium">CUIT:</span> {constanciaResult.cuit}
-                              {constanciaResult.name && <span className="ml-2 text-gray-400">({constanciaResult.name})</span>}
+                              {constanciaResult.name && <span className="ml-2 text-ink-40">({constanciaResult.name})</span>}
                             </p>
                           )}
                           {constanciaResult.taxRegime && (
-                            <p className="text-xs text-gray-600 mb-1">
+                            <p className="text-xs text-ink-60 mb-1">
                               <span className="font-medium">Regimen:</span>{" "}
                               {constanciaResult.taxRegime === "MONOTRIBUTO" ? "Monotributo" : "Responsable Inscripto"}
                               {constanciaResult.monotributoCategory && ` Cat. ${constanciaResult.monotributoCategory}`}
                             </p>
                           )}
                           {constanciaResult.provinceCode && (
-                            <p className="text-xs text-gray-600 mb-1">
+                            <p className="text-xs text-ink-60 mb-1">
                               <span className="font-medium">Provincia:</span>{" "}
                               {fiscalProvinces.find(p => p.code === constanciaResult.provinceCode)?.name || constanciaResult.province}
                             </p>
                           )}
                           {constanciaResult.impuestos?.length > 0 && (
                             <div className="mt-1.5">
-                              <span className="text-xs font-medium text-gray-500">Impuestos detectados:</span>
+                              <span className="text-xs font-medium text-ink-60">Impuestos detectados:</span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {constanciaResult.impuestos.map((imp, i) => (
                                   <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${
-                                    imp.estado === "ACTIVO" ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-500"
+                                    imp.estado === "ACTIVO" ? "bg-green-50 text-green-600" : "bg-surface-2 text-ink-60"
                                   }`}>
                                     {imp.description?.substring(0, 40)}{imp.description?.length > 40 ? "..." : ""}
                                   </span>
@@ -1517,7 +1452,7 @@ export default function CostosPage() {
                               ))}
                             </div>
                           )}
-                          <p className="text-xs text-gray-400 mt-2">
+                          <p className="text-xs text-ink-40 mt-2">
                             Datos extraidos y cargados automaticamente. Verifica, ajusta si es necesario, y dale a guardar.
                           </p>
                         </div>
@@ -1533,25 +1468,25 @@ export default function CostosPage() {
                       {/* Divider between auto and manual */}
                       {!constanciaResult && !fiscalProfile?.completedAt && (
                         <div className="flex items-center gap-3 my-3">
-                          <div className="flex-1 border-t border-gray-200" />
-                          <span className="text-xs text-gray-400 whitespace-nowrap">o completa manualmente</span>
-                          <div className="flex-1 border-t border-gray-200" />
+                          <div className="flex-1 border-t border-hairline" />
+                          <span className="text-xs text-ink-40 whitespace-nowrap">o completa manualmente</span>
+                          <div className="flex-1 border-t border-hairline" />
                         </div>
                       )}
 
                       {/* Label when constancia was parsed */}
                       {constanciaResult && !constanciaResult.error && (
-                        <p className="text-xs text-gray-400 mb-2">Verifica que los datos sean correctos antes de guardar:</p>
+                        <p className="text-xs text-ink-40 mb-2">Verifica que los datos sean correctos antes de guardar:</p>
                       )}
 
                       {/* Fiscal form */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">Regimen impositivo</label>
+                          <label className="text-xs text-ink-60 block mb-1">Regimen impositivo</label>
                           <select
                             value={fiscalForm.taxRegime}
                             onChange={e => setFiscalForm({ ...fiscalForm, taxRegime: e.target.value })}
-                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full text-gray-600 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-blue-400 focus:outline-none"
                           >
                             <option value="">Seleccionar...</option>
                             <option value="MONOTRIBUTO">Monotributo</option>
@@ -1561,11 +1496,11 @@ export default function CostosPage() {
 
                         {fiscalForm.taxRegime === "MONOTRIBUTO" && (
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">Categoria</label>
+                            <label className="text-xs text-ink-60 block mb-1">Categoria</label>
                             <select
                               value={fiscalForm.monotributoCategory}
                               onChange={e => setFiscalForm({ ...fiscalForm, monotributoCategory: e.target.value })}
-                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full text-gray-600 focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-blue-400 focus:outline-none"
                             >
                               {monotributoCategories.map(c => (
                                 <option key={c.category} value={c.category}>
@@ -1577,11 +1512,11 @@ export default function CostosPage() {
                         )}
 
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">Provincia (domicilio fiscal)</label>
+                          <label className="text-xs text-ink-60 block mb-1">Provincia (domicilio fiscal)</label>
                           <select
                             value={fiscalForm.province}
                             onChange={e => setFiscalForm({ ...fiscalForm, province: e.target.value })}
-                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full text-gray-600 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-blue-400 focus:outline-none"
                           >
                             <option value="">Seleccionar...</option>
                             {fiscalProvinces.map(p => (
@@ -1598,9 +1533,9 @@ export default function CostosPage() {
                               type="checkbox"
                               checked={fiscalForm.sellsOnMarketplace}
                               onChange={e => setFiscalForm({ ...fiscalForm, sellsOnMarketplace: e.target.checked })}
-                              className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                              className="rounded border-hairline-2 text-blue-500 focus:ring-blue-400"
                             />
-                            <span className="text-xs text-gray-600">Vende en MercadoLibre</span>
+                            <span className="text-xs text-ink-60">Vende en MercadoLibre</span>
                           </label>
                           {fiscalForm.taxRegime === "RESPONSABLE_INSCRIPTO" && (
                             <label className="flex items-center gap-2 cursor-pointer">
@@ -1608,9 +1543,9 @@ export default function CostosPage() {
                                 type="checkbox"
                                 checked={fiscalForm.hasConvenioMultilateral}
                                 onChange={e => setFiscalForm({ ...fiscalForm, hasConvenioMultilateral: e.target.checked })}
-                                className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                                className="rounded border-hairline-2 text-blue-500 focus:ring-blue-400"
                               />
-                              <span className="text-xs text-gray-600">Convenio Multilateral</span>
+                              <span className="text-xs text-ink-60">Convenio Multilateral</span>
                             </label>
                           )}
                         </div>
@@ -1619,7 +1554,7 @@ export default function CostosPage() {
                       {/* Convenio Multilateral provinces */}
                       {fiscalForm.hasConvenioMultilateral && fiscalForm.taxRegime === "RESPONSABLE_INSCRIPTO" && (
                         <div className="mt-3">
-                          <label className="text-xs text-gray-500 block mb-1.5">Provincias con nexo (ademas de {fiscalProvinces.find(p => p.code === fiscalForm.province)?.name || "la principal"})</label>
+                          <label className="text-xs text-ink-60 block mb-1.5">Provincias con nexo (ademas de {fiscalProvinces.find(p => p.code === fiscalForm.province)?.name || "la principal"})</label>
                           <div className="flex flex-wrap gap-1.5">
                             {fiscalProvinces.filter(p => p.code !== fiscalForm.province).map(p => (
                               <button
@@ -1634,7 +1569,7 @@ export default function CostosPage() {
                                 className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
                                   (fiscalForm.additionalProvinces || []).includes(p.code)
                                     ? "bg-blue-100 text-blue-700"
-                                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                    : "bg-surface-2 text-ink-60 hover:bg-surface-2"
                                 }`}
                               >
                                 {p.name} ({p.rate}%)
@@ -1650,8 +1585,7 @@ export default function CostosPage() {
                           <button
                             onClick={saveFiscalProfile}
                             disabled={fiscalLoading}
-                            className="text-sm px-5 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
-                            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+                            className="text-sm px-5 py-2 rounded-lg font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-50 transition-opacity"
                           >
                             {fiscalLoading ? "Guardando..." : fiscalProfile ? "Actualizar y recalcular" : "Generar impuestos"}
                           </button>
@@ -1660,7 +1594,7 @@ export default function CostosPage() {
 
                       {/* Generated taxes preview */}
                       {generatedTaxes.length > 0 && (
-                        <div className="mt-4 bg-white rounded-lg border border-blue-200 p-3">
+                        <div className="mt-4 bg-elevated rounded-lg border border-blue-200 p-3">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-blue-700">
                               Impuestos generados ({generatedTaxes.length})
@@ -1675,20 +1609,20 @@ export default function CostosPage() {
                           </div>
                           <div className="space-y-1.5">
                             {generatedTaxes.map((tax, i) => (
-                              <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 last:border-0">
+                              <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-hairline last:border-0">
                                 <div>
-                                  <span className="font-medium text-gray-700">{tax.name}</span>
+                                  <span className="font-medium text-ink">{tax.name}</span>
                                   <span className={`ml-2 px-1.5 py-0.5 rounded-full ${
-                                    tax.rateType === "PERCENTAGE" ? "bg-purple-50 text-purple-600" : "bg-gray-100 text-gray-600"
+                                    tax.rateType === "PERCENTAGE" ? "bg-purple-50 text-purple-600" : "bg-surface-2 text-ink-60"
                                   }`}>
                                     {tax.rateType === "PERCENTAGE" ? `${tax.amount}%` : formatARS(tax.amount)}
                                   </span>
                                 </div>
-                                <span className="text-gray-400 max-w-xs truncate">{tax.notes.replace(" [auto-fiscal]", "")}</span>
+                                <span className="text-ink-40 max-w-xs truncate">{tax.notes.replace(" [auto-fiscal]", "")}</span>
                               </div>
                             ))}
                           </div>
-                          <p className="text-xs text-gray-400 mt-2">
+                          <p className="text-xs text-ink-40 mt-2">
                             Podes modificar estos valores despues desde la tabla de abajo
                           </p>
                         </div>
@@ -1698,11 +1632,11 @@ export default function CostosPage() {
 
                   {/* Shipping rates panel — inside LOGISTICA */}
                   {cat.key === "LOGISTICA" && (
-                    <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-transparent">
+                    <div className="px-5 py-4 border-b border-hairline bg-surface">
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700">Tarifas de Envio por Codigo Postal</h4>
-                          <p className="text-xs text-gray-400">
+                          <h4 className="text-sm font-semibold text-ink">Tarifas de Envio por Codigo Postal</h4>
+                          <p className="text-xs text-ink-40">
                             Carga tarifas por mensajeria y CP para calcular el costo real de cada envio
                           </p>
                         </div>
@@ -1713,7 +1647,7 @@ export default function CostosPage() {
                         <select
                           value={selectedCarrier}
                           onChange={e => setSelectedCarrier(e.target.value)}
-                          className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none min-w-[220px]"
+                          className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none min-w-[220px]"
                         >
                           <option value="">Seleccionar tipo de envio...</option>
                           {availableCarriers.map(c => (
@@ -1725,14 +1659,13 @@ export default function CostosPage() {
                         <button
                           onClick={downloadTemplate}
                           disabled={!selectedCarrier}
-                          className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-600 transition-colors flex items-center gap-1.5"
+                          className="text-sm px-4 py-2 bg-surface-2 hover:bg-surface-2 disabled:opacity-50 rounded-lg text-ink-60 transition-colors flex items-center gap-1.5"
                         >
                           <span>⬇</span> Plantilla
                         </button>
-                        <label className={`text-sm px-4 py-2 rounded-lg font-medium text-white transition-opacity ${
-                          !selectedCarrier || importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:opacity-90"
+                        <label className={`text-sm px-4 py-2 rounded-lg font-medium bg-ink text-white transition-opacity ${
+                          !selectedCarrier || importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-ink/90"
                         }`}
-                          style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
                         >
                           <span>{importing ? "Importando..." : "⬆ Importar"}</span>
                           <input
@@ -1746,7 +1679,7 @@ export default function CostosPage() {
                         <button
                           onClick={calculateRealCosts}
                           disabled={calculating || shippingTotal === 0}
-                          className="text-sm px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 rounded-lg text-white font-medium transition-colors"
+                          className="text-sm px-4 py-2 bg-ink hover:bg-ink/90 disabled:opacity-50 rounded-lg text-white font-medium transition-colors"
                         >
                           {calculating ? "Calculando..." : "Calcular costos"}
                         </button>
@@ -1756,10 +1689,10 @@ export default function CostosPage() {
                       {importResult && (
                         <div className={`p-3 rounded-lg mb-3 ${importResult.errors?.length > 0 ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"}`}>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">
+                            <span className="text-sm font-medium text-ink">
                               {importResult.imported} tarifas importadas de {importResult.totalRows} filas
                             </span>
-                            <button onClick={() => setImportResult(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            <button onClick={() => setImportResult(null)} className="text-xs text-ink-40 hover:text-ink-60">✕</button>
                           </div>
                           {importResult.errors?.length > 0 && (
                             <div className="mt-2 space-y-1">
@@ -1780,7 +1713,7 @@ export default function CostosPage() {
                           <button
                             onClick={() => setShippingFilter("")}
                             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                              !shippingFilter ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                              !shippingFilter ? "bg-blue-100 text-blue-700" : "bg-surface-2 text-ink-60 hover:bg-surface-2"
                             }`}
                           >
                             Todas ({shippingTotal})
@@ -1790,7 +1723,7 @@ export default function CostosPage() {
                               key={c.carrier}
                               onClick={() => setShippingFilter(c.carrier === shippingFilter ? "" : c.carrier)}
                               className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                                shippingFilter === c.carrier ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                shippingFilter === c.carrier ? "bg-blue-100 text-blue-700" : "bg-surface-2 text-ink-60 hover:bg-surface-2"
                               }`}
                             >
                               {c.carrier} ({c.totalRates})
@@ -1801,43 +1734,43 @@ export default function CostosPage() {
 
                       {/* Rates table */}
                       {shippingLoading ? (
-                        <div className="py-6 text-center text-gray-400 text-sm">Cargando tarifas...</div>
+                        <div className="py-6 text-center text-ink-40 text-sm">Cargando tarifas...</div>
                       ) : filteredRates.length === 0 ? (
                         <div className="py-6 text-center">
-                          <p className="text-gray-400 text-sm">No hay tarifas cargadas</p>
-                          <p className="text-xs text-gray-300 mt-1">Selecciona un tipo de envio, descarga la plantilla, completala y subila</p>
+                          <p className="text-ink-40 text-sm">No hay tarifas cargadas</p>
+                          <p className="text-xs text-ink-40 mt-1">Selecciona un tipo de envio, descarga la plantilla, completala y subila</p>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto rounded-lg border border-gray-200">
+                        <div className="overflow-x-auto rounded-lg border border-hairline">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Mensajeria</th>
-                                <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Servicio</th>
-                                <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">CP Desde</th>
-                                <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">CP Hasta</th>
-                                <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Costo</th>
-                                <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Estado</th>
+                              <tr className="bg-surface border-b border-hairline">
+                                <th className="text-left px-4 py-2 text-xs font-medium text-ink-60">Mensajeria</th>
+                                <th className="text-left px-4 py-2 text-xs font-medium text-ink-60">Servicio</th>
+                                <th className="text-center px-4 py-2 text-xs font-medium text-ink-60">CP Desde</th>
+                                <th className="text-center px-4 py-2 text-xs font-medium text-ink-60">CP Hasta</th>
+                                <th className="text-right px-4 py-2 text-xs font-medium text-ink-60">Costo</th>
+                                <th className="text-center px-4 py-2 text-xs font-medium text-ink-60">Estado</th>
                                 <th className="w-10"></th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                               {filteredRates.map(rate => (
-                                <tr key={rate.id} className="group hover:bg-gray-50/50">
-                                  <td className="px-4 py-2.5 font-medium text-gray-800">{rate.carrier}</td>
-                                  <td className="px-4 py-2.5 text-gray-600">{rate.serviceType}</td>
-                                  <td className="px-4 py-2.5 text-center font-mono text-gray-600">{rate.postalCodeFrom}</td>
-                                  <td className="px-4 py-2.5 text-center font-mono text-gray-600">
-                                    {rate.postalCodeTo || <span className="text-gray-300">—</span>}
+                                <tr key={rate.id} className="group hover:bg-surface/50">
+                                  <td className="px-4 py-2.5 font-medium text-ink">{rate.carrier}</td>
+                                  <td className="px-4 py-2.5 text-ink-60">{rate.serviceType}</td>
+                                  <td className="px-4 py-2.5 text-center font-mono text-ink-60">{rate.postalCodeFrom}</td>
+                                  <td className="px-4 py-2.5 text-center font-mono text-ink-60">
+                                    {rate.postalCodeTo || <span className="text-ink-40">—</span>}
                                   </td>
-                                  <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-800">
+                                  <td className="px-4 py-2.5 text-right font-mono font-medium text-ink">
                                     {formatARS(Number(rate.cost))}
                                   </td>
                                   <td className="px-4 py-2.5 text-center">
                                     <button
                                       onClick={() => toggleShippingRate(rate.id, rate.isActive)}
                                       className={`text-xs px-2 py-1 rounded-full ${
-                                        rate.isActive ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"
+                                        rate.isActive ? "bg-green-50 text-green-600" : "bg-surface-2 text-ink-40"
                                       }`}
                                     >
                                       {rate.isActive ? "Activa" : "Inactiva"}
@@ -1846,7 +1779,7 @@ export default function CostosPage() {
                                   <td className="px-4 py-2.5">
                                     <button
                                       onClick={() => deleteShippingRate(rate.id)}
-                                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                      className="text-ink-40 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                                     >
                                       ✕
                                     </button>
@@ -1862,7 +1795,7 @@ export default function CostosPage() {
 
                   {/* VTEX Config + Payment Fees — only for PLATAFORMAS */}
                   {cat.key === "PLATAFORMAS" && (
-                    <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50/30 to-transparent">
+                    <div className="px-5 py-4 border-b border-hairline bg-surface">
                       {/* VTEX Commission */}
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-xs font-semibold text-indigo-700">Comisiones de plataforma VTEX</span>
@@ -1870,32 +1803,32 @@ export default function CostosPage() {
                       </div>
                       <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
-                          <label className="text-xs text-gray-500">Comision variable</label>
+                          <label className="text-xs text-ink-60">Comision variable</label>
                           <div className="flex items-center gap-1">
                             <input
                               type="number"
                               step="0.1"
                               min="0"
                               max="20"
-                              className="w-16 text-sm border border-gray-200 rounded px-2 py-1 text-right font-mono"
+                              className="w-16 text-sm border border-hairline rounded px-2 py-1 text-right font-mono"
                               value={platformConfig.vtexConfig?.variableRate ?? 2.5}
                               onChange={(e) => setPlatformConfig((prev) => ({
                                 ...prev,
                                 vtexConfig: { ...prev.vtexConfig, variableRate: parseFloat(e.target.value) || 0 },
                               }))}
                             />
-                            <span className="text-xs text-gray-400">%</span>
+                            <span className="text-xs text-ink-40">%</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <label className="text-xs text-gray-500">Costo fijo mensual</label>
+                          <label className="text-xs text-ink-60">Costo fijo mensual</label>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-gray-400">$</span>
+                            <span className="text-xs text-ink-40">$</span>
                             <input
                               type="number"
                               step="100"
                               min="0"
-                              className="w-24 text-sm border border-gray-200 rounded px-2 py-1 text-right font-mono"
+                              className="w-24 text-sm border border-hairline rounded px-2 py-1 text-right font-mono"
                               value={platformConfig.vtexConfig?.fixedMonthlyCost ?? 0}
                               onChange={(e) => setPlatformConfig((prev) => ({
                                 ...prev,
@@ -1912,7 +1845,7 @@ export default function CostosPage() {
                           <span className="text-xs font-semibold text-indigo-700">Comisiones de medios de pago</span>
                           <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-200">valores estimados — ajustalos a tu acuerdo</span>
                         </div>
-                        <p className="text-xs text-gray-400 mb-3">
+                        <p className="text-xs text-ink-40 mb-3">
                           Estos porcentajes son estimaciones de mercado. Si tenes un acuerdo especifico con tu procesador de pagos, modifica los valores para que el P&L refleje tu costo real.
                         </p>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1923,13 +1856,13 @@ export default function CostosPage() {
                             { key: "CASH", label: "Efectivo", defaultRate: 0 },
                           ].map((pm) => (
                             <div key={pm.key} className="flex items-center gap-1.5">
-                              <label className="text-xs text-gray-500 w-24 truncate" title={pm.label}>{pm.label}</label>
+                              <label className="text-xs text-ink-60 w-24 truncate" title={pm.label}>{pm.label}</label>
                               <input
                                 type="number"
                                 step="0.1"
                                 min="0"
                                 max="20"
-                                className="w-14 text-sm border border-gray-200 rounded px-1.5 py-1 text-right font-mono"
+                                className="w-14 text-sm border border-hairline rounded px-1.5 py-1 text-right font-mono"
                                 value={platformConfig.paymentFeesConfig?.[pm.key] ?? pm.defaultRate}
                                 onChange={(e) => setPlatformConfig((prev) => ({
                                   ...prev,
@@ -1939,23 +1872,23 @@ export default function CostosPage() {
                                   },
                                 }))}
                               />
-                              <span className="text-xs text-gray-400">%</span>
+                              <span className="text-xs text-ink-40">%</span>
                             </div>
                           ))}
                         </div>
-                        <p className="text-xs text-gray-300 mt-2">Las comisiones de MercadoLibre ya incluyen el costo de Mercado Pago, por lo que solo se aplican a ventas VTEX.</p>
+                        <p className="text-xs text-ink-40 mt-2">Las comisiones de MercadoLibre ya incluyen el costo de Mercado Pago, por lo que solo se aplican a ventas VTEX.</p>
                       </div>
 
                       {/* Single save button for all platform config */}
                       <div className="mt-4 flex items-center justify-between">
-                        <p className="text-xs text-gray-300">Estos valores se usan en el P&L para calcular costos de plataforma y procesamiento de pagos.</p>
+                        <p className="text-xs text-ink-40">Estos valores se usan en el P&L para calcular costos de plataforma y procesamiento de pagos.</p>
                         <button
                           onClick={() => savePlatformConfig({
                             vtexConfig: platformConfig.vtexConfig,
                             paymentFeesConfig: platformConfig.paymentFeesConfig,
                           })}
                           disabled={platformConfigLoading}
-                          className="text-xs bg-indigo-600 text-white px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                          className="text-xs bg-ink text-white px-4 py-1.5 rounded-lg hover:bg-ink/90 transition-colors disabled:opacity-50"
                         >
                           {platformConfigLoading ? "Guardando..." : "Guardar configuracion"}
                         </button>
@@ -1973,21 +1906,21 @@ export default function CostosPage() {
 
                       if (autoItems.length === 0) {
                         return (
-                          <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-transparent">
+                          <div className="px-5 py-3 border-b border-hairline bg-surface">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-semibold text-gray-500">
+                              <span className="text-xs font-semibold text-ink-60">
                                 {cat.key === "PLATAFORMAS" ? "Comisiones MercadoLibre" : "Cancelaciones y devoluciones"}
                               </span>
-                              <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-surface-2 text-ink-40 px-2 py-0.5 rounded-full">
                                 calculo automatico
                               </span>
                             </div>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-ink-40">
                               {cat.key === "PLATAFORMAS"
                                 ? "Se calculan automaticamente las comisiones, costos de envio y retenciones impositivas que MercadoLibre cobra por cada venta. Los demas costos de esta categoria (SaaS, ERP, etc.) se cargan manualmente abajo."
                                 : "Se detectan automaticamente las ordenes canceladas y devueltas, sumando el valor perdido. Las demas perdidas (roturas, extravios, etc.) se cargan manualmente abajo."}
                             </p>
-                            <p className="text-xs text-gray-300 mt-1">
+                            <p className="text-xs text-ink-40 mt-1">
                               {cat.key === "PLATAFORMAS"
                                 ? "Sin datos para este mes — sincroniza ordenes de ML o selecciona un mes con ventas."
                                 : "Sin datos para este mes — puede que no haya ordenes canceladas o devueltas en este periodo."}
@@ -1997,7 +1930,7 @@ export default function CostosPage() {
                       }
 
                       return (
-                        <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-transparent">
+                        <div className="px-5 py-3 border-b border-hairline bg-surface">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-semibold text-emerald-700">
                               {cat.key === "PLATAFORMAS" ? "Comisiones MercadoLibre" : "Cancelaciones y devoluciones"}
@@ -2006,7 +1939,7 @@ export default function CostosPage() {
                               calculo automatico — {costMonth}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 mb-2">
+                          <p className="text-xs text-ink-40 mb-2">
                             {cat.key === "PLATAFORMAS"
                               ? "Comisiones, costos de envio y retenciones que ML cobra por venta. Los demas costos de esta categoria se cargan manualmente."
                               : "Valor de ordenes canceladas y devueltas detectadas automaticamente. Las demas perdidas se cargan manualmente."}
@@ -2015,9 +1948,9 @@ export default function CostosPage() {
                             {autoItems.map((item, i) => (
                               <div key={i} className="flex items-center justify-between text-sm py-1.5">
                                 <div>
-                                  <span className="font-medium text-gray-700">{item.name}</span>
+                                  <span className="font-medium text-ink">{item.name}</span>
                                   {item.count !== undefined && (
-                                    <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                    <span className="ml-2 text-xs bg-surface-2 text-ink-60 px-1.5 py-0.5 rounded-full">
                                       {item.count} ordenes
                                     </span>
                                   )}
@@ -2033,14 +1966,14 @@ export default function CostosPage() {
                                   )}
                                 </div>
                                 <div className="text-right">
-                                  <span className={`font-mono font-bold ${item.impactType === "low" ? "text-gray-400 line-through" : "text-gray-800"}`}>{formatARS(item.amount)}</span>
-                                  <p className="text-xs text-gray-400">{item.detail}</p>
+                                  <span className={`font-mono font-bold ${item.impactType === "low" ? "text-ink-40 line-through" : "text-ink"}`}>{formatARS(item.amount)}</span>
+                                  <p className="text-xs text-ink-40">{item.detail}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-emerald-200/50">
-                            <span className="text-xs text-gray-500">Total automatico</span>
+                            <span className="text-xs text-ink-60">Total automatico</span>
                             <span className="text-sm font-bold font-mono text-emerald-700">{formatARS(autoTotal)}</span>
                           </div>
                         </div>
@@ -2053,33 +1986,33 @@ export default function CostosPage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-gray-50 border-b border-gray-100">
+                          <tr className="bg-surface border-b border-hairline">
                             {/* Fase 3d — checkbox "seleccionar todos" */}
                             <th className="px-3 py-2 w-8">
                               <input
                                 type="checkbox"
-                                className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                className="rounded border-hairline-2 text-teal-600 focus:ring-teal-500"
                                 checked={items.length > 0 && items.every((i) => selectedIds.has(i.id))}
                                 onChange={() => selectAllInCategory(items)}
                                 title="Seleccionar todos de esta categoria"
                               />
                             </th>
                             {cat.hasSubcategory && (
-                              <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">{cat.subcategoryLabel}</th>
+                              <th className="text-left px-4 py-2 text-xs font-medium text-ink-60">{cat.subcategoryLabel}</th>
                             )}
                             {cat.hasServiceCode && (
-                              <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Codigo</th>
+                              <th className="text-left px-4 py-2 text-xs font-medium text-ink-60">Codigo</th>
                             )}
-                            <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Nombre</th>
-                            <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Tipo</th>
+                            <th className="text-left px-4 py-2 text-xs font-medium text-ink-60">Nombre</th>
+                            <th className="text-left px-4 py-2 text-xs font-medium text-ink-60">Tipo</th>
                             {cat.hasSocialCharges && (
-                              <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Cargas %</th>
+                              <th className="text-right px-4 py-2 text-xs font-medium text-ink-60">Cargas %</th>
                             )}
-                            <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">
+                            <th className="text-right px-4 py-2 text-xs font-medium text-ink-60">
                               {cat.key === "LOGISTICA" ? "Tarifa" : "Monto"}
                             </th>
                             {cat.hasSocialCharges && (
-                              <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Costo total</th>
+                              <th className="text-right px-4 py-2 text-xs font-medium text-ink-60">Costo total</th>
                             )}
                             <th className="w-10"></th>
                           </tr>
@@ -2088,7 +2021,7 @@ export default function CostosPage() {
                           {items.map(item => (
                             <tr
                               key={item.id}
-                              className={`group hover:bg-gray-50/50 ${
+                              className={`group hover:bg-surface/50 ${
                                 selectedIds.has(item.id) ? "bg-teal-50/40" : ""
                               }`}
                             >
@@ -2096,22 +2029,22 @@ export default function CostosPage() {
                               <td className="px-3 py-2.5">
                                 <input
                                   type="checkbox"
-                                  className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                  className="rounded border-hairline-2 text-teal-600 focus:ring-teal-500"
                                   checked={selectedIds.has(item.id)}
                                   onChange={() => toggleSelection(item.id)}
                                 />
                               </td>
                               {cat.hasSubcategory && (
-                                <td className="px-4 py-2.5 text-gray-600">{item.subcategory || "—"}</td>
+                                <td className="px-4 py-2.5 text-ink-60">{item.subcategory || "—"}</td>
                               )}
                               {cat.hasServiceCode && (
                                 <td className="px-4 py-2.5">
-                                  <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                                  <code className="text-xs bg-surface-2 px-1.5 py-0.5 rounded text-ink-60">
                                     {item.serviceCode || "—"}
                                   </code>
                                 </td>
                               )}
-                              <td className="px-4 py-2.5 text-gray-800 font-medium">{item.name}</td>
+                              <td className="px-4 py-2.5 text-ink font-medium">{item.name}</td>
                               <td className="px-4 py-2.5">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -2121,11 +2054,11 @@ export default function CostosPage() {
                                       ? "bg-purple-50 text-purple-600"
                                       : item.rateType === "DRIVER_BASED"
                                       ? "bg-indigo-50 text-indigo-600"
-                                      : "bg-gray-100 text-gray-600"
+                                      : "bg-surface-2 text-ink-60"
                                   }`}>
                                     {RATE_TYPE_LABELS[item.rateType] || item.rateType}
                                     {item.rateType === "PERCENTAGE" && item.rateBase && (
-                                      <span className="ml-1 text-gray-400">
+                                      <span className="ml-1 text-ink-40">
                                         ({RATE_BASE_OPTIONS.find(o => o.value === item.rateBase)?.label || item.rateBase})
                                       </span>
                                     )}
@@ -2164,9 +2097,9 @@ export default function CostosPage() {
                                       const val = e.target.value ? parseFloat(e.target.value) : null;
                                       if (val !== item.socialCharges) updateField(item.id, "socialCharges", val);
                                     }}
-                                    className="w-16 text-right text-sm font-mono border border-gray-200 rounded px-1.5 py-1 focus:border-blue-400 focus:outline-none"
+                                    className="w-16 text-right text-sm font-mono border border-hairline rounded px-1.5 py-1 focus:border-blue-400 focus:outline-none"
                                   />
-                                  <span className="text-xs text-gray-400 ml-1">%</span>
+                                  <span className="text-xs text-ink-40 ml-1">%</span>
                                 </td>
                               )}
                               <td className="px-4 py-2.5 text-right">
@@ -2178,12 +2111,12 @@ export default function CostosPage() {
                                       updateField(item.id, "amount", e.target.value);
                                     }
                                   }}
-                                  className="w-28 text-right text-sm font-mono border border-gray-200 rounded px-2 py-1 focus:border-blue-400 focus:outline-none"
+                                  className="w-28 text-right text-sm font-mono border border-hairline rounded px-2 py-1 focus:border-blue-400 focus:outline-none"
                                 />
-                                {item.rateType === "PERCENTAGE" && <span className="text-xs text-gray-400 ml-1">%</span>}
+                                {item.rateType === "PERCENTAGE" && <span className="text-xs text-ink-40 ml-1">%</span>}
                               </td>
                               {cat.hasSocialCharges && (
-                                <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-700">
+                                <td className="px-4 py-2.5 text-right font-mono font-medium text-ink">
                                   {formatARS(effectiveCost(item))}
                                 </td>
                               )}
@@ -2201,7 +2134,7 @@ export default function CostosPage() {
                                   )}
                                   <button
                                     onClick={() => deleteCost(item.id)}
-                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    className="text-ink-40 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                                     title="Eliminar"
                                   >
                                     ✕
@@ -2226,10 +2159,10 @@ export default function CostosPage() {
                       >
                         <Icon className={`w-5 h-5 ${accent.icon}`} strokeWidth={1.8} />
                       </div>
-                      <p className="text-sm font-medium text-gray-700">
+                      <p className="text-sm font-medium text-ink">
                         Sin costos en {cat.label.toLowerCase()}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1 max-w-xs">
+                      <p className="text-xs text-ink-40 mt-1 max-w-xs">
                         Agrega tu primer costo o copia del mes anterior para arrancar.
                       </p>
                       <button
@@ -2243,49 +2176,49 @@ export default function CostosPage() {
 
                   {/* Add form */}
                   {addingTo === cat.key ? (
-                    <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+                    <div className="px-5 py-4 border-t border-hairline bg-surface/50">
                       <div className="flex flex-wrap items-end gap-3">
                         {cat.hasSubcategory && (
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">{cat.subcategoryLabel}</label>
+                            <label className="text-xs text-ink-60 block mb-1">{cat.subcategoryLabel}</label>
                             <input
                               type="text"
                               placeholder={cat.key === "LOGISTICA" ? "Ej: Andreani" : "Ej: Operaciones"}
                               value={form.subcategory}
                               onChange={e => setForm({ ...form, subcategory: e.target.value })}
-                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-36 focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-36 focus:border-blue-400 focus:outline-none"
                             />
                           </div>
                         )}
                         {cat.hasServiceCode && (
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">Codigo</label>
+                            <label className="text-xs text-ink-60 block mb-1">Codigo</label>
                             <input
                               type="text"
                               placeholder="AND-STD-AMBA"
                               value={form.serviceCode}
                               onChange={e => setForm({ ...form, serviceCode: e.target.value.toUpperCase() })}
-                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-36 font-mono focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-36 font-mono focus:border-blue-400 focus:outline-none"
                             />
                           </div>
                         )}
                         <div className="flex-1 min-w-[150px]">
-                          <label className="text-xs text-gray-500 block mb-1">Nombre</label>
+                          <label className="text-xs text-ink-60 block mb-1">Nombre</label>
                           <input
                             type="text"
                             placeholder={cat.key === "LOGISTICA" ? "Estandar AMBA" : cat.key === "EQUIPO" ? "Juan Perez" : "Nombre del costo"}
                             value={form.name}
                             onChange={e => setForm({ ...form, name: e.target.value })}
-                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full focus:border-blue-400 focus:outline-none"
                             autoFocus
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">Tipo</label>
+                          <label className="text-xs text-ink-60 block mb-1">Tipo</label>
                           <select
                             value={form.rateType}
                             onChange={e => setForm({ ...form, rateType: e.target.value })}
-                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none"
                           >
                             {cat.rateTypes.map(rt => (
                               <option key={rt} value={rt}>{RATE_TYPE_LABELS[rt]}</option>
@@ -2296,11 +2229,11 @@ export default function CostosPage() {
                             Fijo (no varia con ventas), Variable (escala con
                             ventas) o Semi-fijo (fijo hasta cierto volumen). */}
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">Comportamiento</label>
+                          <label className="text-xs text-ink-60 block mb-1">Comportamiento</label>
                           <select
                             value={form.behavior}
                             onChange={e => setForm({ ...form, behavior: e.target.value })}
-                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none"
                           >
                             <option value="FIXED">{BEHAVIOR_LABELS.FIXED}</option>
                             <option value="VARIABLE">{BEHAVIOR_LABELS.VARIABLE}</option>
@@ -2309,24 +2242,24 @@ export default function CostosPage() {
                         </div>
                         {/* Fase 3e — marca el costo como auto-ajustable por IPC */}
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">IPC auto</label>
-                          <label className="flex items-center h-[38px] gap-1.5 text-sm text-gray-600 cursor-pointer">
+                          <label className="text-xs text-ink-60 block mb-1">IPC auto</label>
+                          <label className="flex items-center h-[38px] gap-1.5 text-sm text-ink-60 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={form.autoInflationAdjust}
                               onChange={(e) => setForm({ ...form, autoInflationAdjust: e.target.checked })}
-                              className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                              className="rounded border-hairline-2 text-rose-600 focus:ring-rose-500"
                             />
                             <span className="text-xs">Ajusta por IPC</span>
                           </label>
                         </div>
                         {form.rateType === "PERCENTAGE" && (
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">Base</label>
+                            <label className="text-xs text-ink-60 block mb-1">Base</label>
                             <select
                               value={form.rateBase}
                               onChange={e => setForm({ ...form, rateBase: e.target.value })}
-                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none"
                             >
                               <option value="">Seleccionar...</option>
                               {RATE_BASE_OPTIONS.map(o => (
@@ -2337,13 +2270,13 @@ export default function CostosPage() {
                         )}
                         {cat.hasSocialCharges && (
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">Cargas %</label>
+                            <label className="text-xs text-ink-60 block mb-1">Cargas %</label>
                             <input
                               type="number"
                               placeholder="35"
                               value={form.socialCharges}
                               onChange={e => setForm({ ...form, socialCharges: e.target.value })}
-                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-20 text-right font-mono focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-20 text-right font-mono focus:border-blue-400 focus:outline-none"
                             />
                           </div>
                         )}
@@ -2351,7 +2284,7 @@ export default function CostosPage() {
                             se calcula con la formula (no se ingresa aca). */}
                         {form.rateType !== "DRIVER_BASED" && (
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">
+                            <label className="text-xs text-ink-60 block mb-1">
                               {form.rateType === "PERCENTAGE" ? "%" : form.rateType === "PER_SHIPMENT" ? "$/envio" : "$/mes"}
                             </label>
                             <input
@@ -2359,7 +2292,7 @@ export default function CostosPage() {
                               placeholder="0"
                               value={form.amount}
                               onChange={e => setForm({ ...form, amount: e.target.value })}
-                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-28 text-right font-mono focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-28 text-right font-mono focus:border-blue-400 focus:outline-none"
                             />
                           </div>
                         )}
@@ -2368,8 +2301,7 @@ export default function CostosPage() {
                             <button
                               onClick={() => openFormulaCreator(cat.key)}
                               disabled={!form.name.trim()}
-                              className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
-                              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                              className="text-sm px-4 py-2 rounded-lg font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-50 transition-opacity"
                             >
                               Siguiente: configurar formula
                             </button>
@@ -2377,15 +2309,14 @@ export default function CostosPage() {
                             <button
                               onClick={() => addCost(cat.key)}
                               disabled={!form.name.trim() || !form.amount}
-                              className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
-                              style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+                              className="text-sm px-4 py-2 rounded-lg font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-50 transition-opacity"
                             >
                               Guardar
                             </button>
                           )}
                           <button
                             onClick={resetForm}
-                            className="text-sm text-gray-400 hover:text-gray-600 px-2 py-2"
+                            className="text-sm text-ink-40 hover:text-ink-60 px-2 py-2"
                           >
                             Cancelar
                           </button>
@@ -2393,7 +2324,7 @@ export default function CostosPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="px-5 py-3 border-t border-gray-100">
+                    <div className="px-5 py-3 border-t border-hairline">
                       <button
                         onClick={() => {
                           setAddingTo(cat.key);
@@ -2428,20 +2359,20 @@ export default function CostosPage() {
 
       {/* Fase 3d — Bulk action bar (sticky flotante) */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-white border border-gray-200 shadow-xl rounded-2xl px-5 py-3 z-40 flex items-center gap-3 flex-wrap max-w-[95vw]">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-elevated border border-hairline shadow-xl rounded-2xl px-5 py-3 z-40 flex items-center gap-3 flex-wrap max-w-[95vw]">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
               {selectedIds.size} seleccionado{selectedIds.size === 1 ? "" : "s"}
             </span>
             <button
               onClick={clearSelection}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-ink-40 hover:text-ink-60"
               title="Limpiar seleccion"
             >
               Limpiar
             </button>
           </div>
-          <div className="h-5 w-px bg-gray-200" />
+          <div className="h-5 w-px bg-surface-2" />
           {/* Operacion */}
           <select
             value={bulkOp}
@@ -2449,7 +2380,7 @@ export default function CostosPage() {
               setBulkOp(e.target.value);
               setBulkValue("");
             }}
-            className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:border-teal-400 focus:outline-none"
+            className="text-sm border border-hairline rounded-lg px-2.5 py-1.5 text-ink focus:border-teal-400 focus:outline-none"
           >
             <option value="">Elegir accion...</option>
             <option value="pct">Aumentar %</option>
@@ -2465,16 +2396,16 @@ export default function CostosPage() {
                 placeholder="Ej: 30"
                 value={bulkValue}
                 onChange={(e) => setBulkValue(e.target.value)}
-                className="w-20 text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-right font-mono focus:border-teal-400 focus:outline-none"
+                className="w-20 text-sm border border-hairline rounded-lg px-2 py-1.5 text-right font-mono focus:border-teal-400 focus:outline-none"
               />
-              <span className="text-xs text-gray-400">%</span>
+              <span className="text-xs text-ink-40">%</span>
             </div>
           )}
           {bulkOp === "behavior" && (
             <select
               value={bulkValue}
               onChange={(e) => setBulkValue(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:border-teal-400 focus:outline-none"
+              className="text-sm border border-hairline rounded-lg px-2.5 py-1.5 text-ink focus:border-teal-400 focus:outline-none"
             >
               <option value="">Elegir...</option>
               <option value="FIXED">Fijo</option>
@@ -2486,7 +2417,7 @@ export default function CostosPage() {
             <select
               value={bulkValue}
               onChange={(e) => setBulkValue(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:border-teal-400 focus:outline-none"
+              className="text-sm border border-hairline rounded-lg px-2.5 py-1.5 text-ink focus:border-teal-400 focus:outline-none"
             >
               <option value="">Elegir...</option>
               <option value="DEDUCTIBLE_WITH_IVA">Deducible con IVA</option>
@@ -2497,8 +2428,7 @@ export default function CostosPage() {
           <button
             onClick={runBulkOperation}
             disabled={!bulkOp || !bulkValue || bulkRunning}
-            className="text-sm px-4 py-1.5 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
-            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+            className="text-sm px-4 py-1.5 rounded-lg font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-50 transition-opacity"
           >
             {bulkRunning ? "Aplicando..." : "Aplicar"}
           </button>
@@ -2518,55 +2448,31 @@ export default function CostosPage() {
           aria-labelledby="formula-modal-title"
         >
           <div
-            className="relative overflow-hidden bg-white rounded-3xl shadow-[0_32px_80px_rgba(15,23,42,0.25),0_12px_32px_rgba(15,23,42,0.15)] w-[760px] max-w-[95vw] max-h-[92vh] flex flex-col animate-fade-in-up"
+            className="relative overflow-hidden bg-elevated rounded-3xl shadow-ent-soft w-[760px] max-w-[95vw] max-h-[92vh] flex flex-col animate-fade-in-up"
             style={{ animationDuration: "340ms" }}
           >
-            {/* Fase 4e — Aurora interno sutil */}
-            <div
-              aria-hidden
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(800px circle at 15% -10%, rgba(99,102,241,0.10), transparent 40%), radial-gradient(600px circle at 100% 110%, rgba(168,85,247,0.08), transparent 45%)",
-              }}
-            />
-
-            {/* Header premium con icon + prism delimiter */}
-            <div className="relative px-6 pt-5 pb-4 border-b border-gray-100/80">
-              <div
-                aria-hidden
-                className="absolute bottom-0 left-6 right-6 h-px pointer-events-none"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.45) 30%, rgba(168,85,247,0.45) 70%, transparent 100%)",
-                }}
-              />
+            {/* Header con icon */}
+            <div className="relative px-6 pt-5 pb-4 border-b border-hairline/80">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15))",
-                    }}
-                  >
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-50">
                     <Calculator className="w-5 h-5 text-indigo-600" strokeWidth={2} />
                   </div>
                   <div>
                     <h3
                       id="formula-modal-title"
-                      className="text-lg font-semibold text-gray-900 tracking-tight"
+                      className="text-lg font-semibold text-ink tracking-tight"
                     >
                       {formulaModal.mode === "edit" ? "Editar formula" : "Nueva formula"}
                     </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-ink-60 mt-0.5">
                       Defini variables (drivers) y una expresion matematica para calcular el monto.
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={closeFormulaEditor}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-40 hover:text-ink hover:bg-surface-2 transition-colors shrink-0"
                   title="Cerrar (Esc)"
                   aria-label="Cerrar modal"
                 >
@@ -2580,8 +2486,8 @@ export default function CostosPage() {
               {/* Drivers — Notion-style table */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-800 tracking-tight">
-                    Drivers <span className="text-gray-400 font-normal">(variables nombradas)</span>
+                  <label className="text-sm font-medium text-ink tracking-tight">
+                    Drivers <span className="text-ink-40 font-normal">(variables nombradas)</span>
                   </label>
                   <button
                     onClick={addFormulaDriver}
@@ -2592,18 +2498,18 @@ export default function CostosPage() {
                   </button>
                 </div>
                 {/* Column labels */}
-                <div className="hidden md:flex items-center gap-2 px-2 mb-1 text-[10px] uppercase tracking-wide text-gray-400 font-medium">
+                <div className="hidden md:flex items-center gap-2 px-2 mb-1 text-[10px] uppercase tracking-wide text-ink-40 font-medium">
                   <span className="w-36">Clave</span>
                   <span className="flex-1">Etiqueta</span>
                   <span className="w-28 text-right">Valor</span>
                   <span className="w-24">Unidad</span>
                   <span className="w-6" />
                 </div>
-                <div className="space-y-1.5 bg-gray-50/50 rounded-xl p-2 border border-gray-100">
+                <div className="space-y-1.5 bg-surface/50 rounded-xl p-2 border border-hairline">
                   {formulaModal.drivers.map((d: Driver, idx: number) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 bg-white rounded-lg border border-gray-100 px-1.5 py-1 hover:border-indigo-200 transition-colors"
+                      className="flex items-center gap-2 bg-elevated rounded-lg border border-hairline px-1.5 py-1 hover:border-indigo-200 transition-colors"
                     >
                       <input
                         type="text"
@@ -2621,7 +2527,7 @@ export default function CostosPage() {
                         placeholder="Headcount"
                         value={d.label || ""}
                         onChange={(e) => updateFormulaDriver(idx, { label: e.target.value })}
-                        className="flex-1 text-sm bg-transparent px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="flex-1 text-sm bg-transparent px-2 py-1.5 text-ink focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <input
                         type="number"
@@ -2630,19 +2536,19 @@ export default function CostosPage() {
                         onChange={(e) =>
                           updateFormulaDriver(idx, { value: parseFloat(e.target.value) || 0 })
                         }
-                        className="text-sm bg-transparent px-2 py-1.5 w-28 text-right font-mono tabular-nums text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="text-sm bg-transparent px-2 py-1.5 w-28 text-right font-mono tabular-nums text-ink focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <input
                         type="text"
                         placeholder="ARS"
                         value={d.unit || ""}
                         onChange={(e) => updateFormulaDriver(idx, { unit: e.target.value })}
-                        className="text-sm bg-transparent px-2 py-1.5 w-24 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="text-sm bg-transparent px-2 py-1.5 w-24 text-ink-60 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <button
                         onClick={() => removeFormulaDriver(idx)}
                         disabled={formulaModal.drivers.length <= 1}
-                        className="w-6 h-6 rounded-md flex items-center justify-center text-gray-300 hover:text-rose-500 hover:bg-rose-50 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-300 transition-colors"
+                        className="w-6 h-6 rounded-md flex items-center justify-center text-ink-40 hover:text-rose-500 hover:bg-rose-50 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-40 transition-colors"
                         title="Eliminar driver"
                         aria-label="Eliminar driver"
                       >
@@ -2655,7 +2561,7 @@ export default function CostosPage() {
 
               {/* Formula textarea */}
               <div>
-                <label className="text-sm font-medium text-gray-800 tracking-tight block mb-2">
+                <label className="text-sm font-medium text-ink tracking-tight block mb-2">
                   Formula
                 </label>
                 <textarea
@@ -2666,81 +2572,71 @@ export default function CostosPage() {
                   }
                   rows={3}
                   spellCheck={false}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-gray-900 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none transition-all resize-none"
+                  className="w-full text-sm border border-hairline rounded-xl px-3 py-2.5 font-mono text-ink bg-elevated shadow-ent-xs focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none transition-all resize-none"
                 />
-                <p className="text-[11px] text-gray-500 mt-1.5">
-                  Operadores: <span className="font-mono text-gray-700">+ - * / ( )</span>
+                <p className="text-[11px] text-ink-60 mt-1.5">
+                  Operadores: <span className="font-mono text-ink">+ - * / ( )</span>
                   {" · "}
-                  Funciones: <span className="font-mono text-gray-700">min, max, abs, round, ceil, floor, sqrt, pow</span>
+                  Funciones: <span className="font-mono text-ink">min, max, abs, round, ceil, floor, sqrt, pow</span>
                 </p>
               </div>
 
-              {/* Preview destacada con count-up */}
-              <div className="relative overflow-hidden rounded-2xl border border-gray-100">
-                <div
-                  aria-hidden
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background: formulaPreview?.ok
-                      ? "linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(20,184,166,0.04) 100%)"
-                      : "linear-gradient(135deg, rgba(244,63,94,0.06) 0%, rgba(239,68,68,0.03) 100%)",
-                  }}
-                />
-                <div className="relative p-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                      Preview
+              {/* Preview destacada */}
+              <div
+                className={`relative overflow-hidden rounded-2xl border p-5 ${
+                  formulaPreview?.ok
+                    ? "border-emerald-200 bg-emerald-50/40"
+                    : "border-rose-200 bg-rose-50/40"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-medium text-ink-60 uppercase tracking-wide">
+                    Preview
+                  </span>
+                  <span
+                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                      formulaPreview?.ok
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200"
+                    }`}
+                  >
+                    {formulaPreview?.ok ? "Formula valida" : "Sin resultado"}
+                  </span>
+                </div>
+                {formulaPreview?.ok ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-semibold tracking-tight text-emerald-700 tabular-nums">
+                      {formatARS(Math.round(Number(formulaPreview.value) || 0))}
                     </span>
-                    <span
-                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                        formulaPreview?.ok
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
-                      }`}
-                    >
-                      {formulaPreview?.ok ? "Formula valida" : "Sin resultado"}
+                    <span className="text-xs text-ink-60">
+                      (se recalcula al tipear)
                     </span>
                   </div>
-                  {formulaPreview?.ok ? (
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-semibold tracking-tight text-emerald-700 tabular-nums">
-                        <CountUp
-                          value={Number(formulaPreview.value) || 0}
-                          duration={420}
-                          format={(n) => formatARS(Math.round(n))}
-                        />
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        (se recalcula al tipear)
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-rose-700">
-                      {formulaPreview?.error || "Completa drivers y formula"}
-                    </div>
-                  )}
-                </div>
+                ) : (
+                  <div className="text-sm text-rose-700">
+                    {formulaPreview?.error || "Completa drivers y formula"}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Footer */}
-            <div className="relative px-6 py-4 border-t border-gray-100/80 bg-white/60 backdrop-blur-sm flex items-center justify-between gap-2">
-              <span className="text-[11px] text-gray-400">
-                Atajos: <kbd className="px-1 py-0.5 text-[10px] bg-gray-100 border border-gray-200 rounded">Esc</kbd> para cerrar
+            <div className="relative px-6 py-4 border-t border-hairline/80 bg-surface/60 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-ink-40">
+                Atajos: <kbd className="px-1 py-0.5 text-[10px] bg-surface-2 border border-hairline rounded">Esc</kbd> para cerrar
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={closeFormulaEditor}
                   disabled={formulaSaving}
-                  className="text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors"
+                  className="text-sm font-medium text-ink-60 hover:text-ink hover:bg-surface-2 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={saveFormulaEditor}
                   disabled={!formulaPreview?.ok || formulaSaving}
-                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium text-white shadow-[0_2px_8px_rgba(99,102,241,0.25)] disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-[0_4px_14px_rgba(99,102,241,0.35)] hover:-translate-y-[1px] active:translate-y-0 transition-all"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium bg-ink text-white hover:bg-ink/90 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[.98] transition-all"
                 >
                   {formulaSaving ? (
                     <>
@@ -2759,7 +2655,7 @@ export default function CostosPage() {
         </div>
       )}
 
-      {/* Fase 4d — Toast premium: bottom-right, slide-in, multi-layer shadow */}
+      {/* Toast: bottom-right, slide-in */}
       {toast && (
         <div
           className="fixed bottom-6 right-6 z-50 max-w-sm animate-fade-in-up"
@@ -2767,8 +2663,8 @@ export default function CostosPage() {
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center gap-2.5 bg-gray-900 text-white pl-3 pr-4 py-2.5 rounded-xl text-sm font-medium shadow-[0_12px_40px_rgba(15,23,42,0.18),0_4px_12px_rgba(15,23,42,0.12)]">
-            <div className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse-live shrink-0" />
+          <div className="flex items-center gap-2.5 bg-ink text-white pl-3 pr-4 py-2.5 rounded-xl text-sm font-medium shadow-ent-soft">
+            <div className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
             <span className="flex-1">{toast}</span>
           </div>
         </div>

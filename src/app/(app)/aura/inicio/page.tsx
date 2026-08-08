@@ -115,39 +115,20 @@ function fmtRangeLabel(key: RangeKey, from: Date, to: Date): string {
 }
 
 // ─── AurumOrb mini reutilizable ───────────────────────────────────────
+// Marca sobria estática: ring hairline + disco accent. Sin glow/breath/blur —
+// el "vivo" lo da únicamente el punto accent con animate-live-pulse cuando pulse=true.
 function AurumOrbMini({ size = 22, pulse = false }: { size?: number; pulse?: boolean }) {
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-      {pulse && (
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: "radial-gradient(circle, rgba(255, 0, 128,0.45) 0%, transparent 70%)",
-            animation: "auraPulseRing 2.2s ease-in-out infinite",
-          }}
-        />
-      )}
       <div
-        className="absolute inset-[14%] rounded-full"
-        style={{
-          background:
-            "radial-gradient(circle at 32% 28%, #fff0f7 0%, #ffb8d4 22%, #ff80b8 50%, #c70068 100%)",
-          boxShadow:
-            "0 0 14px rgba(255, 0, 128,0.55), 0 0 26px rgba(255, 0, 128,0.25), inset -2px -3px 6px rgba(80,45,0,0.35), inset 1.5px 2px 5px rgba(255,250,230,0.6)",
-          animation: "auraBreath 3.6s ease-in-out infinite",
-        }}
+        className="absolute inset-0 rounded-full border border-hairline-2"
+        style={{ background: "rgb(var(--ent-elevated))" }}
       />
-      <div
-        className="absolute rounded-full"
-        style={{
-          top: "22%",
-          left: "24%",
-          width: "22%",
-          height: "18%",
-          background: "radial-gradient(circle, rgba(255,255,255,0.85) 0%, transparent 70%)",
-          filter: "blur(0.4px)",
-        }}
-      />
+      <div className="absolute inset-[26%] rounded-full bg-accent">
+        {pulse && (
+          <span className="absolute inset-0 rounded-full bg-accent animate-live-pulse motion-reduce:hidden" />
+        )}
+      </div>
     </div>
   );
 }
@@ -185,34 +166,23 @@ function PeriodSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12.5px] font-medium tracking-tight"
-        style={{
-          background: "rgba(255,255,255,0.035)",
-          border: "1px solid rgba(255, 0, 128,0.18)",
-          color: "rgba(255,255,255,0.92)",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3)",
-          transition: `all 220ms ${ES}`,
-        }}
+        className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12.5px] font-medium tracking-tight bg-elevated border border-hairline text-ink shadow-ent-xs"
+        style={{ transition: `all 220ms ${ES}` }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "rgba(255,255,255,0.06)";
           (e.currentTarget as HTMLButtonElement).style.borderColor =
-            "rgba(255, 0, 128,0.32)";
+            "rgb(var(--ent-hairline-2))";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "rgba(255,255,255,0.035)";
           (e.currentTarget as HTMLButtonElement).style.borderColor =
-            "rgba(255, 0, 128,0.18)";
+            "rgb(var(--ent-hairline))";
         }}
       >
-        <Calendar size={13} strokeWidth={2} className="text-[#ff80b8]" />
+        <Calendar size={13} strokeWidth={2} className="text-ink-40" />
         <span className="tabular-nums">{fmtRangeLabel(value, from, to)}</span>
         <ChevronDown
           size={13}
           strokeWidth={2.2}
-          className="text-white/50"
+          className="text-ink-40"
           style={{
             transition: `transform 200ms ${ES}`,
             transform: open ? "rotate(180deg)" : "rotate(0deg)",
@@ -222,15 +192,8 @@ function PeriodSelector({
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-56 rounded-2xl p-1.5 z-40"
-          style={{
-            background: "rgba(12,14,22,0.96)",
-            backdropFilter: "blur(14px)",
-            border: "1px solid rgba(255, 0, 128,0.16)",
-            boxShadow:
-              "0 20px 60px -20px rgba(0,0,0,0.7), 0 8px 24px -12px rgba(255, 0, 128,0.08)",
-            animation: `fadeInDown 180ms ${ES}`,
-          }}
+          className="absolute right-0 mt-2 w-56 rounded-2xl p-1.5 z-40 bg-elevated border border-hairline shadow-ent-soft"
+          style={{ animation: `fadeInDown 180ms ${ES}` }}
         >
           {options.map((o) => {
             const active = o.key === value;
@@ -244,14 +207,14 @@ function PeriodSelector({
                 }}
                 className="w-full text-left px-3 py-2 rounded-xl text-[12.5px] font-medium tracking-tight flex items-center justify-between"
                 style={{
-                  color: active ? "#ffb8d4" : "rgba(255,255,255,0.82)",
-                  background: active ? "rgba(255, 0, 128,0.08)" : "transparent",
+                  color: active ? "rgb(var(--ent-ink))" : "rgb(var(--ent-ink-60))",
+                  background: active ? "rgb(var(--ent-surface-2))" : "transparent",
                   transition: `all 160ms ${ES}`,
                 }}
                 onMouseEnter={(e) => {
                   if (!active)
                     (e.currentTarget as HTMLButtonElement).style.background =
-                      "rgba(255,255,255,0.04)";
+                      "rgb(var(--ent-surface))";
                 }}
                 onMouseLeave={(e) => {
                   if (!active)
@@ -260,15 +223,7 @@ function PeriodSelector({
                 }}
               >
                 <span>{o.label}</span>
-                {active && (
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{
-                      background: "#ff99c7",
-                      boxShadow: "0 0 8px rgba(255, 0, 128,0.65)",
-                    }}
-                  />
-                )}
+                {active && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
               </button>
             );
           })}
@@ -284,28 +239,28 @@ const TONE_STYLE: Record<
   { dot: string; ring: string; label: string; labelBg: string }
 > = {
   good: {
-    dot: "#86efac",
-    ring: "rgba(134,239,172,0.25)",
+    dot: "rgb(var(--ent-accent))",
+    ring: "rgba(47,145,83,0.25)",
     label: "Verde",
-    labelBg: "rgba(134,239,172,0.10)",
+    labelBg: "rgba(47,145,83,0.10)",
   },
   attention: {
-    dot: "#ff99c7",
-    ring: "rgba(255, 0, 128,0.28)",
+    dot: "rgb(var(--ent-amber))",
+    ring: "rgba(201,138,26,0.28)",
     label: "Atención",
-    labelBg: "rgba(255, 0, 128,0.10)",
+    labelBg: "rgba(201,138,26,0.10)",
   },
   celebration: {
-    dot: "#ff80b8",
-    ring: "rgba(255, 128, 184,0.28)",
+    dot: "rgb(var(--ent-accent))",
+    ring: "rgba(47,145,83,0.28)",
     label: "Celebrar",
-    labelBg: "rgba(255, 128, 184,0.10)",
+    labelBg: "rgba(47,145,83,0.10)",
   },
   neutral: {
-    dot: "rgba(255,255,255,0.55)",
-    ring: "rgba(255,255,255,0.14)",
+    dot: "rgb(var(--ent-ink-40))",
+    ring: "rgba(154,151,141,0.20)",
     label: "Calma",
-    labelBg: "rgba(255,255,255,0.05)",
+    labelBg: "rgba(154,151,141,0.08)",
   },
 };
 
@@ -336,91 +291,48 @@ function PulseCard({
       : null;
 
   return (
-    <div
-      className="relative rounded-3xl px-6 py-5 overflow-hidden"
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(255, 0, 128,0.055) 0%, rgba(255, 0, 128,0.02) 40%, rgba(255,255,255,0.02) 100%)",
-        border: "1px solid rgba(255, 0, 128,0.16)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3), 0 20px 60px -30px rgba(255, 0, 128,0.15)",
-      }}
-    >
-      {/* aurora sutil */}
-      <div
-        aria-hidden
-        className="absolute -top-24 -left-24 w-80 h-80 rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(255, 0, 128,0.14) 0%, transparent 70%)",
-          filter: "blur(28px)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute -bottom-32 -right-16 w-80 h-80 rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(134,239,172,0.06) 0%, transparent 70%)",
-          filter: "blur(36px)",
-        }}
-      />
-
+    <div className="relative rounded-3xl px-6 py-5 overflow-hidden bg-elevated border border-hairline shadow-ent-xs">
       <div className="relative flex items-start gap-4">
         <div className="mt-0.5">
           <AurumOrbMini size={32} pulse={state.status === "loading"} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span
-              className="text-[9.5px] font-bold uppercase tracking-[0.22em]"
-              style={{ color: "#ff80b8" }}
-            >
+            <span className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Pulso Aurum
             </span>
             {state.status === "ready" && (
               <span
-                className="inline-flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[0.18em] px-2 py-0.5 rounded-full"
+                className="inline-flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[0.18em] px-2 py-0.5 rounded-full text-ink-60"
                 style={{
                   background: tone.labelBg,
-                  color: "rgba(255,255,255,0.78)",
                   border: `1px solid ${tone.ring}`,
                 }}
               >
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{
-                    background: tone.dot,
-                    boxShadow: `0 0 8px ${tone.ring}`,
-                  }}
-                />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
                 {tone.label}
               </span>
             )}
           </div>
 
           <p
-            className="mt-2 text-[15.5px] md:text-[16.5px] leading-relaxed tracking-tight"
-            style={{
-              color: "rgba(255,255,255,0.94)",
-              fontWeight: 500,
-              textWrap: "balance" as any,
-            }}
+            className="mt-2 text-[15.5px] md:text-[16.5px] leading-relaxed tracking-tight text-ink"
+            style={{ fontWeight: 500, textWrap: "balance" as any }}
           >
             {state.status === "loading" && (
-              <span className="inline-flex items-center gap-2 text-white/60">
+              <span className="inline-flex items-center gap-2 text-ink-60">
                 <Sparkles
                   size={14}
                   strokeWidth={2}
-                  className="text-[#ff99c7]"
+                  className="text-ink-40"
                   style={{ animation: "spin 2.4s linear infinite" }}
                 />
                 Aurum está leyendo tu programa…
               </span>
             )}
             {state.status === "error" && (
-              <span className="inline-flex items-center gap-2 text-white/70">
-                <AlertCircle size={15} className="text-rose-300" strokeWidth={2} />
+              <span className="inline-flex items-center gap-2 text-ink-60">
+                <AlertCircle size={15} className="text-[#b91c1c]" strokeWidth={2} />
                 No pude leer el pulso ahora. {state.message}
               </span>
             )}
@@ -429,13 +341,13 @@ function PulseCard({
 
           {state.status === "ready" && (
             <div className="mt-3 flex items-center gap-3">
-              <span className="text-[11px] text-white/35 tabular-nums">
+              <span className="text-[11px] text-ink-40 tabular-nums">
                 Actualizado {generatedAgo}
               </span>
               <button
                 type="button"
                 onClick={onRefresh}
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-white/55 hover:text-[#ff99c7]"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-60 hover:text-ink"
                 style={{ transition: `color 160ms ${ES}` }}
               >
                 <RefreshCw size={11} strokeWidth={2} />
@@ -501,17 +413,17 @@ function DeltaPill({
   inverse?: boolean;
 }) {
   if (value === null || !isFinite(value)) {
-    return <span className="text-[11px] text-white/35 tabular-nums">sin datos previos</span>;
+    return <span className="text-[11px] text-ink-40 tabular-nums">sin datos previos</span>;
   }
   if (value === 0) {
-    return <span className="text-[11px] text-white/45 tabular-nums">= estable</span>;
+    return <span className="text-[11px] text-ink-40 tabular-nums">= estable</span>;
   }
   const good = inverse ? value < 0 : value > 0;
   const Icon = value > 0 ? ArrowUpRight : ArrowDownRight;
   return (
     <span
       className="inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums"
-      style={{ color: good ? "#86efac" : "#fda4af" }}
+      style={{ color: good ? "rgb(var(--ent-accent))" : "#b91c1c" }}
     >
       <Icon size={11} strokeWidth={2.5} />
       {Math.abs(value).toFixed(1)}%
@@ -548,7 +460,7 @@ function InfoTip({ text }: { text: string }) {
       <HelpCircle
         size={12}
         strokeWidth={2}
-        className="text-white/30 hover:text-white/60 cursor-help"
+        className="text-ink-40 hover:text-ink-60 cursor-help"
         style={{ transition: `color 160ms ${ES}` }}
       />
       {open && (
@@ -557,13 +469,8 @@ function InfoTip({ text }: { text: string }) {
           style={{ minWidth: 220 }}
         >
           <span
-            className="block text-[11px] leading-relaxed text-white/90 rounded-lg px-3 py-2 text-left font-normal normal-case tracking-normal"
-            style={{
-              background: "rgba(10,12,20,0.96)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              boxShadow: "0 12px 30px -8px rgba(0,0,0,0.6)",
-              animation: `fadeInUp 160ms ${ES}`,
-            }}
+            className="block text-[11px] leading-relaxed text-ink rounded-lg px-3 py-2 text-left font-normal normal-case tracking-normal bg-ink"
+            style={{ animation: `fadeInUp 160ms ${ES}` }}
           >
             {text}
           </span>
@@ -576,37 +483,35 @@ function InfoTip({ text }: { text: string }) {
 // ─── KPI Card base ────────────────────────────────────────────────────
 type KpiAccent = "green" | "pink" | "violet" | "gold";
 
+// Un solo tratamiento sobrio para las 4 variantes (ya no hay 4 acentos de color,
+// hay 1 acento verde reservado a status). El prop se mantiene por compat de API.
 const ACCENT: Record<
   KpiAccent,
-  { text: string; glow: string; border: string; iconBg: string; ring: string }
+  { text: string; border: string; iconBg: string; ring: string }
 > = {
   green: {
-    text: "#86efac",
-    glow: "rgba(134,239,172,0.28)",
-    border: "rgba(134,239,172,0.18)",
-    iconBg: "rgba(134,239,172,0.10)",
-    ring: "rgba(134,239,172,0.25)",
+    text: "rgb(var(--ent-ink-60))",
+    border: "rgb(var(--ent-hairline))",
+    iconBg: "rgb(var(--ent-surface-2))",
+    ring: "rgb(var(--ent-hairline-2))",
   },
   pink: {
-    text: "#ff80b8",
-    glow: "rgba(255, 0, 128,0.28)",
-    border: "rgba(255, 0, 128,0.20)",
-    iconBg: "rgba(255, 0, 128,0.12)",
-    ring: "rgba(255, 0, 128,0.28)",
+    text: "rgb(var(--ent-ink-60))",
+    border: "rgb(var(--ent-hairline))",
+    iconBg: "rgb(var(--ent-surface-2))",
+    ring: "rgb(var(--ent-hairline-2))",
   },
   violet: {
-    text: "#c4b5fd",
-    glow: "rgba(168, 85, 247,0.28)",
-    border: "rgba(168, 85, 247,0.18)",
-    iconBg: "rgba(168, 85, 247,0.10)",
-    ring: "rgba(168, 85, 247,0.24)",
+    text: "rgb(var(--ent-ink-60))",
+    border: "rgb(var(--ent-hairline))",
+    iconBg: "rgb(var(--ent-surface-2))",
+    ring: "rgb(var(--ent-hairline-2))",
   },
   gold: {
-    text: "#ffb8d4",
-    glow: "rgba(255, 0, 128,0.25)",
-    border: "rgba(255, 0, 128,0.18)",
-    iconBg: "rgba(255, 0, 128,0.10)",
-    ring: "rgba(255, 0, 128,0.22)",
+    text: "rgb(var(--ent-ink-60))",
+    border: "rgb(var(--ent-hairline))",
+    iconBg: "rgb(var(--ent-surface-2))",
+    ring: "rgb(var(--ent-hairline-2))",
   },
 };
 
@@ -628,33 +533,19 @@ function KpiShell({
   const c = ACCENT[accent];
   return (
     <div
-      className="relative rounded-2xl p-5 overflow-hidden group"
+      className="relative rounded-2xl p-5 overflow-hidden group bg-elevated shadow-ent-xs"
       style={{
-        background:
-          "linear-gradient(160deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.01) 60%)",
         border: `1px solid ${c.border}`,
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3), 0 14px 40px -20px rgba(0,0,0,0.5)",
         animation: `fadeInUp 420ms ${ES} ${delay}ms both`,
         transition: `border-color 240ms ${ES}, transform 240ms ${ES}`,
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = c.glow;
+        (e.currentTarget as HTMLDivElement).style.borderColor = "rgb(var(--ent-hairline-2))";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLDivElement).style.borderColor = c.border;
       }}
     >
-      {/* aurora accent */}
-      <div
-        aria-hidden
-        className="absolute -top-24 -right-20 w-64 h-64 rounded-full pointer-events-none opacity-60 group-hover:opacity-100"
-        style={{
-          background: `radial-gradient(circle, ${c.glow} 0%, transparent 70%)`,
-          filter: "blur(32px)",
-          transition: `opacity 320ms ${ES}`,
-        }}
-      />
       {decoration}
 
       <div className="relative flex items-start justify-between gap-2">
@@ -668,7 +559,7 @@ function KpiShell({
           >
             {icon}
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/50">
+          <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
             {label}
           </span>
         </div>
@@ -700,13 +591,13 @@ function RevenueKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
         >
           <defs>
             <linearGradient id="revGrad" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#ff99c7" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#ff99c7" stopOpacity="0" />
+              <stop offset="0%" stopColor="rgb(var(--ent-accent))" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="rgb(var(--ent-accent))" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path
             d="M0 22 L10 20 L20 21 L30 16 L40 17 L50 11 L60 12 L72 4"
-            stroke="#ff99c7"
+            stroke="rgb(var(--ent-accent))"
             strokeWidth="1.6"
             fill="none"
             strokeLinecap="round"
@@ -728,12 +619,12 @@ function RevenueKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
         </svg>
       }
     >
-      <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
+      <div className="text-[28px] font-semibold text-ink tabular-nums tracking-tight leading-none">
         {fmtARSCompact(v)}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35">vs. período previo</span>
+        <span className="text-[10.5px] text-ink-40">vs. período previo</span>
       </div>
     </KpiShell>
   );
@@ -759,7 +650,7 @@ function CreatorsKpi({
       delay={delay}
     >
       <div className="flex items-end justify-between gap-2">
-        <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
+        <div className="text-[28px] font-semibold text-ink tabular-nums tracking-tight leading-none">
           {fmtNum(v)}
         </div>
         {shown.length > 0 && (
@@ -767,28 +658,14 @@ function CreatorsKpi({
             {shown.map((a, i) => (
               <div
                 key={a.id}
-                className="relative w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                className="relative w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-ink bg-surface-2 border-2 border-elevated"
                 style={{
-                  background:
-                    "linear-gradient(135deg, #ff99c7 0%, #ff4da3 55%, #c70068 100%)",
-                  border: "1.5px solid #05070d",
-                  boxShadow: "0 2px 6px rgba(255, 0, 128,0.35)",
                   zIndex: 10 - i,
                   animation: `avatarIn 500ms ${ES} ${delay + 300 + i * 90}ms both`,
                 }}
                 title={a.name}
               >
                 {a.name?.[0]?.toUpperCase() ?? "?"}
-                {i === 0 && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-[-3px] rounded-full pointer-events-none"
-                    style={{
-                      border: "1.5px solid rgba(255, 0, 128,0.55)",
-                      animation: "avatarHalo 2.4s ease-in-out infinite",
-                    }}
-                  />
-                )}
               </div>
             ))}
           </div>
@@ -796,7 +673,7 @@ function CreatorsKpi({
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35">
+        <span className="text-[10.5px] text-ink-40">
           {shown.length > 0 ? `Top: ${shown[0].name}` : "Ningún creator vendió"}
         </span>
       </div>
@@ -814,12 +691,12 @@ function CommissionsKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
       icon={<DollarSign size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
       delay={delay}
     >
-      <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
+      <div className="text-[28px] font-semibold text-ink tabular-nums tracking-tight leading-none">
         {fmtARSCompact(v)}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35">en comisiones</span>
+        <span className="text-[10.5px] text-ink-40">en comisiones</span>
       </div>
     </KpiShell>
   );
@@ -835,12 +712,12 @@ function OrdersKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
       icon={<ShoppingBag size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
       delay={delay}
     >
-      <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
+      <div className="text-[28px] font-semibold text-ink tabular-nums tracking-tight leading-none">
         {fmtNum(v)}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35">ventas atribuidas</span>
+        <span className="text-[10.5px] text-ink-40">ventas atribuidas</span>
       </div>
     </KpiShell>
   );
@@ -869,33 +746,13 @@ function SessionsKpi({
       }
       icon={<Eye size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
       delay={delay}
-      decoration={
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl"
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              width: "40%",
-              left: "-40%",
-              background:
-                "linear-gradient(100deg, transparent 0%, rgba(255, 0, 128,0.09) 50%, transparent 100%)",
-              animation: "flashSweep 4.8s ease-in-out infinite",
-              animationDelay: `${delay + 400}ms`,
-            }}
-          />
-        </div>
-      }
     >
-      <div className="text-[28px] font-semibold text-white tabular-nums tracking-tight leading-none">
+      <div className="text-[28px] font-semibold text-ink tabular-nums tracking-tight leading-none">
         {fmtNum(v)}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <DeltaPill value={kpi.delta} />
-        <span className="text-[10.5px] text-white/35">sesiones estimadas</span>
+        <span className="text-[10.5px] text-ink-40">sesiones estimadas</span>
       </div>
     </KpiShell>
   );
@@ -925,61 +782,34 @@ type PodiumState =
   | ({ status: "ready" } & PodiumPayload);
 
 // ─── Rank tokens ──────────────────────────────────────────────────────
+// Marca sobria: el medallero (🥇🥈🥉) ya distingue el rango — no hace falta
+// pintar cada tarjeta de un color distinto. Ring/borde levemente más marcado
+// solo en el campeón (#1). Sin halos rotantes, sin gradient-text.
 type RankTheme = {
   label: string;
   medal: string;
-  primary: string;
-  ring: string;
-  halo: string;
-  gradient: string;
-  nameGradient: string;
   cardBorder: string;
-  cardGlow: string;
 };
 
 const RANK: Record<1 | 2 | 3, RankTheme> = {
   1: {
     label: "Rey del período",
     medal: "🥇",
-    primary: "#ff99c7",
-    ring: "rgba(255, 0, 128,0.55)",
-    halo: "rgba(255, 0, 128,0.35)",
-    gradient:
-      "linear-gradient(135deg, #fff0f7 0%, #ff99c7 40%, #ff0080 100%)",
-    nameGradient:
-      "linear-gradient(120deg, #fff0f7 0%, #ff99c7 50%, #ff80b8 100%)",
-    cardBorder: "rgba(255, 0, 128,0.28)",
-    cardGlow: "rgba(255, 0, 128,0.22)",
+    cardBorder: "rgb(var(--ent-hairline-2))",
   },
   2: {
     label: "Segundo escalón",
     medal: "🥈",
-    primary: "#e5e7eb",
-    ring: "rgba(229,231,235,0.45)",
-    halo: "rgba(229,231,235,0.22)",
-    gradient:
-      "linear-gradient(135deg, #f8fafc 0%, #e5e7eb 45%, #94a3b8 100%)",
-    nameGradient:
-      "linear-gradient(120deg, #f8fafc 0%, #e5e7eb 55%, #cbd5e1 100%)",
-    cardBorder: "rgba(203,213,225,0.22)",
-    cardGlow: "rgba(203,213,225,0.15)",
+    cardBorder: "rgb(var(--ent-hairline))",
   },
   3: {
     label: "Tercer escalón",
     medal: "🥉",
-    primary: "#ff80b8",
-    ring: "rgba(255,128,184,0.45)",
-    halo: "rgba(255, 0, 128,0.22)",
-    gradient:
-      "linear-gradient(135deg, #ffd4e5 0%, #ff80b8 40%, #c70068 100%)",
-    nameGradient:
-      "linear-gradient(120deg, #ffd4e5 0%, #ff80b8 55%, #ff0080 100%)",
-    cardBorder: "rgba(255, 0, 128,0.22)",
-    cardGlow: "rgba(255, 0, 128,0.18)",
+    cardBorder: "rgb(var(--ent-hairline))",
   },
 };
 
-// ─── Avatar grande con halo ───────────────────────────────────────────
+// ─── Avatar grande ──────────────────────────────────────────────────────
 function PodiumAvatar({
   name,
   url,
@@ -998,53 +828,24 @@ function PodiumAvatar({
       className="relative flex-shrink-0"
       style={{ width: size, height: size }}
     >
-      {/* halo anillo rotante (solo en #1) */}
-      {rank === 1 && (
-        <span
-          aria-hidden
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            inset: -5,
-            background: `conic-gradient(from 0deg, transparent 0deg, ${theme.ring} 120deg, transparent 240deg, ${theme.ring} 360deg)`,
-            animation: "haloSpin 5.5s linear infinite",
-            mask: "radial-gradient(circle, transparent 62%, black 64%)",
-            WebkitMask: "radial-gradient(circle, transparent 62%, black 64%)",
-          }}
-        />
-      )}
-      {/* halo estático #2 y #3 */}
-      {rank !== 1 && (
-        <span
-          aria-hidden
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            inset: -3,
-            border: `1.5px solid ${theme.ring}`,
-            boxShadow: `0 0 14px ${theme.halo}`,
-          }}
-        />
-      )}
+      {/* ring hairline estático — más marcado en el campeón */}
+      <span
+        aria-hidden
+        className="absolute rounded-full pointer-events-none"
+        style={{ inset: -3, border: `1.5px solid ${theme.cardBorder}` }}
+      />
       {/* avatar */}
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={url}
           alt={name}
-          className="absolute inset-[3px] rounded-full object-cover"
-          style={{
-            border: `1.5px solid rgba(5,7,13,0.8)`,
-            boxShadow: `0 4px 16px ${theme.halo}`,
-          }}
+          className="absolute inset-[3px] rounded-full object-cover border-2 border-elevated"
         />
       ) : (
         <div
-          className="absolute inset-[3px] rounded-full flex items-center justify-center font-semibold text-[#1f0a19]"
-          style={{
-            fontSize: size * 0.42,
-            background: theme.gradient,
-            border: `1.5px solid rgba(5,7,13,0.8)`,
-            boxShadow: `0 4px 16px ${theme.halo}`,
-          }}
+          className="absolute inset-[3px] rounded-full flex items-center justify-center font-semibold text-ink bg-surface-2 border-2 border-elevated"
+          style={{ fontSize: size * 0.42 }}
         >
           {initial}
         </div>
@@ -1052,15 +853,8 @@ function PodiumAvatar({
       {/* medalla flotante */}
       <span
         aria-hidden
-        className="absolute -bottom-1 -right-1 flex items-center justify-center text-[14px]"
-        style={{
-          width: size * 0.42,
-          height: size * 0.42,
-          borderRadius: 999,
-          background: "rgba(5,7,13,0.92)",
-          border: `1px solid ${theme.ring}`,
-          boxShadow: `0 2px 8px ${theme.halo}`,
-        }}
+        className="absolute -bottom-1 -right-1 flex items-center justify-center text-[14px] rounded-full bg-elevated border border-hairline"
+        style={{ width: size * 0.42, height: size * 0.42 }}
       >
         {theme.medal}
       </span>
@@ -1084,95 +878,31 @@ function PodiumCard({
 
   return (
     <div
-      className="relative rounded-2xl overflow-hidden group"
+      className="relative rounded-2xl overflow-hidden group bg-elevated"
       style={{
         padding: isChampion ? 22 : 18,
-        background:
-          "linear-gradient(165deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 55%, rgba(255,255,255,0.02) 100%)",
         border: `1px solid ${theme.cardBorder}`,
-        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.35), 0 20px 50px -22px ${theme.cardGlow}`,
+        boxShadow: isChampion
+          ? "var(--tw-shadow, 0 1px 2px rgba(28,27,24,0.06)), 0 8px 24px -16px rgba(28,27,24,0.12)"
+          : "0 1px 2px rgba(28,27,24,0.05)",
         animation: `podiumIn 540ms ${ES} ${delay}ms both`,
         transition: `transform 260ms ${ES}, border-color 260ms ${ES}`,
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-        (e.currentTarget as HTMLDivElement).style.borderColor = theme.ring;
+        (e.currentTarget as HTMLDivElement).style.borderColor = "rgb(var(--ent-hairline-2))";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
         (e.currentTarget as HTMLDivElement).style.borderColor = theme.cardBorder;
       }}
     >
-      {/* aurora del rank en la esquina */}
-      <div
-        aria-hidden
-        className="absolute -top-32 -right-20 w-80 h-80 rounded-full pointer-events-none"
-        style={{
-          background: `radial-gradient(circle, ${theme.cardGlow} 0%, transparent 68%)`,
-          filter: "blur(38px)",
-          opacity: isChampion ? 0.85 : 0.55,
-        }}
-      />
-      {/* spotlight line top para #1 */}
+      {/* spotlight line top para #1 — línea sobria, no glow */}
       {isChampion && (
         <div
           aria-hidden
-          className="absolute top-0 left-6 right-6 h-[1px] pointer-events-none"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${theme.primary}, transparent)`,
-            opacity: 0.7,
-          }}
+          className="absolute top-0 left-6 right-6 h-[1px] pointer-events-none bg-accent opacity-30"
         />
-      )}
-      {/* sparkles sutiles para #1 */}
-      {isChampion && (
-        <>
-          <span
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{
-              top: "18%",
-              left: "32%",
-              width: 3,
-              height: 3,
-              borderRadius: 999,
-              background: theme.primary,
-              boxShadow: `0 0 8px ${theme.primary}`,
-              animation: `sparkleFloat 4.2s ease-in-out infinite`,
-              animationDelay: `${delay + 200}ms`,
-            }}
-          />
-          <span
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{
-              top: "30%",
-              left: "18%",
-              width: 2,
-              height: 2,
-              borderRadius: 999,
-              background: theme.primary,
-              boxShadow: `0 0 6px ${theme.primary}`,
-              animation: `sparkleFloat 5s ease-in-out infinite`,
-              animationDelay: `${delay + 1100}ms`,
-            }}
-          />
-          <span
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{
-              top: "12%",
-              right: "14%",
-              width: 2,
-              height: 2,
-              borderRadius: 999,
-              background: theme.primary,
-              boxShadow: `0 0 6px ${theme.primary}`,
-              animation: `sparkleFloat 4.6s ease-in-out infinite`,
-              animationDelay: `${delay + 1900}ms`,
-            }}
-          />
-        </>
       )}
 
       <div className="relative flex items-center gap-4">
@@ -1183,57 +913,45 @@ function PodiumCard({
           size={isChampion ? 68 : 56}
         />
         <div className="flex-1 min-w-0">
-          <div
-            className="text-[9.5px] font-bold uppercase tracking-[0.22em]"
-            style={{ color: theme.primary }}
-          >
+          <div className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-ink-40">
             #{slot.rank} · {theme.label}
           </div>
           <div
-            className={`mt-1 truncate ${isChampion ? "text-[22px]" : "text-[18px]"} font-semibold tracking-tight`}
-            style={{
-              background: theme.nameGradient,
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-              letterSpacing: "-0.02em",
-            }}
+            className={`mt-1 truncate text-ink ${isChampion ? "text-[22px]" : "text-[18px]"} font-semibold tracking-tight`}
+            style={{ letterSpacing: "-0.02em" }}
             title={slot.name}
           >
             {slot.name}
           </div>
-          <div className="text-[11px] text-white/40 tabular-nums truncate">
+          <div className="text-[11px] text-ink-40 tabular-nums truncate">
             @{slot.code}
           </div>
         </div>
       </div>
 
-      <div
-        className="relative mt-5 pt-4"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
-      >
+      <div className="relative mt-5 pt-4 border-t border-hairline">
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/35">
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-ink-40">
               Revenue
             </div>
-            <div className="mt-0.5 text-white tabular-nums font-semibold tracking-tight text-[15.5px]">
+            <div className="mt-0.5 text-ink tabular-nums font-semibold tracking-tight text-[15.5px]">
               {fmtARSCompact(revenue)}
             </div>
           </div>
           <div>
-            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/35">
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-ink-40">
               Convs.
             </div>
-            <div className="mt-0.5 text-white tabular-nums font-semibold tracking-tight text-[15.5px]">
+            <div className="mt-0.5 text-ink tabular-nums font-semibold tracking-tight text-[15.5px]">
               {fmtNum(conversions)}
             </div>
           </div>
           <div>
-            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/35">
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-ink-40">
               Ticket
             </div>
-            <div className="mt-0.5 text-white tabular-nums font-semibold tracking-tight text-[15.5px]">
+            <div className="mt-0.5 text-ink tabular-nums font-semibold tracking-tight text-[15.5px]">
               {fmtARSCompact(slot.avgTicket)}
             </div>
           </div>
@@ -1243,12 +961,9 @@ function PodiumCard({
           <span
             className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold tabular-nums px-2 py-0.5 rounded-full"
             style={{
-              background:
-                slot.vsAverage >= 0
-                  ? "rgba(134,239,172,0.10)"
-                  : "rgba(253,164,175,0.10)",
-              color: slot.vsAverage >= 0 ? "#86efac" : "#fda4af",
-              border: `1px solid ${slot.vsAverage >= 0 ? "rgba(134,239,172,0.22)" : "rgba(253,164,175,0.22)"}`,
+              background: slot.vsAverage >= 0 ? "rgba(47,145,83,0.10)" : "rgba(185,28,28,0.08)",
+              color: slot.vsAverage >= 0 ? "rgb(var(--ent-accent))" : "#b91c1c",
+              border: `1px solid ${slot.vsAverage >= 0 ? "rgba(47,145,83,0.22)" : "rgba(185,28,28,0.2)"}`,
             }}
           >
             {slot.vsAverage >= 0 ? (
@@ -1258,16 +973,10 @@ function PodiumCard({
             )}
             {Math.abs(slot.vsAverage).toFixed(0)}% vs. promedio
           </span>
-          <div className="flex items-center gap-2 text-[10.5px] text-white/40 tabular-nums">
+          <div className="flex items-center gap-2 text-[10.5px] text-ink-40 tabular-nums">
             {slot.campaignsCount > 0 && (
               <span className="inline-flex items-center gap-1">
-                <span
-                  className="w-1 h-1 rounded-full"
-                  style={{
-                    background: theme.primary,
-                    boxShadow: `0 0 6px ${theme.halo}`,
-                  }}
-                />
+                <span className="w-1 h-1 rounded-full bg-ink-40" />
                 {slot.campaignsCount} camp.
               </span>
             )}
@@ -1287,13 +996,8 @@ function HallOfFlameZone({ state }: { state: PodiumState }) {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="rounded-2xl h-[210px]"
-            style={{
-              background:
-                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              animation: `shimmerPulse 1.8s ease-in-out ${i * 140}ms infinite`,
-            }}
+            className="rounded-2xl h-[210px] bg-surface border border-hairline"
+            style={{ animation: `shimmerPulse 1.8s ease-in-out ${i * 140}ms infinite` }}
           />
         ))}
       </div>
@@ -1301,13 +1005,7 @@ function HallOfFlameZone({ state }: { state: PodiumState }) {
   }
   if (state.status === "error") {
     return (
-      <div
-        className="rounded-2xl p-5 text-white/70 text-[13px]"
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(253,164,175,0.2)",
-        }}
-      >
+      <div className="rounded-2xl p-5 text-ink-60 text-[13px] bg-surface border border-[#b91c1c33]">
         No pude cargar el podio. {state.message}
       </div>
     );
@@ -1315,17 +1013,11 @@ function HallOfFlameZone({ state }: { state: PodiumState }) {
   const { podium } = state;
   if (podium.length === 0) {
     return (
-      <div
-        className="rounded-2xl p-8 text-center"
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          border: "1px dashed rgba(255, 0, 128,0.18)",
-        }}
-      >
-        <p className="text-[14px] text-white/70 tracking-tight">
+      <div className="rounded-2xl p-8 text-center bg-surface border border-dashed border-hairline-2">
+        <p className="text-[14px] text-ink-60 tracking-tight">
           Todavía nadie subió al podio este período.
         </p>
-        <p className="mt-1 text-[12px] text-white/40">
+        <p className="mt-1 text-[12px] text-ink-40">
           Cuando tus creators empiecen a convertir, el Hall of flame se enciende.
         </p>
       </div>
@@ -1360,13 +1052,8 @@ function HeroMetricsZone({ state }: { state: HeroState }) {
         {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="rounded-2xl h-[140px]"
-            style={{
-              background:
-                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
-            }}
+            className="rounded-2xl h-[140px] bg-surface border border-hairline"
+            style={{ animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite` }}
           />
         ))}
       </div>
@@ -1374,13 +1061,7 @@ function HeroMetricsZone({ state }: { state: HeroState }) {
   }
   if (state.status === "error") {
     return (
-      <div
-        className="rounded-2xl p-5 text-white/70 text-[13px]"
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(253,164,175,0.2)",
-        }}
-      >
+      <div className="rounded-2xl p-5 text-ink-60 text-[13px] bg-surface border border-[#b91c1c33]">
         No pude cargar los hero metrics. {state.message}
       </div>
     );
@@ -1437,35 +1118,35 @@ const INBOX_THEME: Record<
   { accent: string; bg: string; border: string; glow: string; text: string; halo: string }
 > = {
   pink: {
-    accent: "#ff99c7",
-    bg: "linear-gradient(160deg, rgba(255, 0, 128,0.08) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    glow: "rgba(255, 0, 128,0.4)",
-    text: "#ffd4e5",
-    halo: "radial-gradient(circle at 30% 20%, rgba(255, 0, 128,0.35) 0%, transparent 60%)",
+    accent: "#6B685F",
+    bg: "linear-gradient(160deg, rgba(28,27,24,0.08) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    glow: "rgba(28,27,24,0.4)",
+    text: "#6B685F",
+    halo: "radial-gradient(circle at 30% 20%, rgba(28,27,24,0.35) 0%, transparent 60%)",
   },
   violet: {
-    accent: "#ff99c7",
-    bg: "linear-gradient(160deg, rgba(255, 0, 128,0.08) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    glow: "rgba(255, 0, 128,0.4)",
-    text: "#ffd4e5",
-    halo: "radial-gradient(circle at 30% 20%, rgba(255, 0, 128,0.35) 0%, transparent 60%)",
+    accent: "#6B685F",
+    bg: "linear-gradient(160deg, rgba(28,27,24,0.08) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    glow: "rgba(28,27,24,0.4)",
+    text: "#6B685F",
+    halo: "radial-gradient(circle at 30% 20%, rgba(28,27,24,0.35) 0%, transparent 60%)",
   },
   amber: {
-    accent: "#ff99c7",
-    bg: "linear-gradient(160deg, rgba(255, 0, 128,0.08) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    glow: "rgba(255, 0, 128,0.4)",
-    text: "#ffd4e5",
-    halo: "radial-gradient(circle at 30% 20%, rgba(255, 0, 128,0.35) 0%, transparent 60%)",
+    accent: "#6B685F",
+    bg: "linear-gradient(160deg, rgba(28,27,24,0.08) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    glow: "rgba(28,27,24,0.4)",
+    text: "#6B685F",
+    halo: "radial-gradient(circle at 30% 20%, rgba(28,27,24,0.35) 0%, transparent 60%)",
   },
   rose: {
     accent: "#fb7185",
     bg: "linear-gradient(160deg, rgba(251,113,133,0.08) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
     glow: "rgba(251,113,133,0.4)",
-    text: "#fecdd3",
+    text: "#9A978D",
     halo: "radial-gradient(circle at 30% 20%, rgba(251,113,133,0.35) 0%, transparent 60%)",
   },
 };
@@ -1493,27 +1174,11 @@ function InboxActionCard({
       href={action.href}
       className="group relative block rounded-2xl p-5 overflow-hidden transition-all"
       style={{
-        background: isPending ? theme.bg : "rgba(255,255,255,0.02)",
-        border: isPending ? `1px solid ${theme.border}` : "1px solid rgba(255,255,255,0.05)",
-        boxShadow: isPending
-          ? `0 20px 60px -30px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.04)`
-          : "inset 0 1px 0 rgba(255,255,255,0.03)",
+        background: isPending ? theme.bg : "rgba(28,27,24,0.03)",
+        border: isPending ? `1px solid ${theme.border}` : "1px solid rgba(28,27,24,0.04)",
         animation: `inboxIn 560ms ${ES} ${delay}ms both`,
       }}
     >
-      {/* Halo decorativo para cards con pendientes */}
-      {isPending ? (
-        <div
-          aria-hidden
-          className="absolute -top-10 -right-10 w-40 h-40 pointer-events-none"
-          style={{
-            background: theme.halo,
-            filter: "blur(20px)",
-            opacity: 0.6,
-            animation: "shimmerPulse 3.4s ease-in-out infinite",
-          }}
-        />
-      ) : null}
 
       {/* Header: icono + badge de count */}
       <div className="relative flex items-start justify-between">
@@ -1522,11 +1187,11 @@ function InboxActionCard({
           style={{
             background: isPending
               ? `linear-gradient(145deg, ${theme.accent}22, ${theme.accent}08)`
-              : "rgba(255,255,255,0.04)",
-            border: `1px solid ${isPending ? theme.border : "rgba(255,255,255,0.06)"}`,
+              : "rgba(28,27,24,0.045)",
+            border: `1px solid ${isPending ? theme.border : "rgba(28,27,24,0.05)"}`,
           }}
         >
-          <InboxIcon name={action.icon} color={isPending ? theme.accent : "rgba(255,255,255,0.4)"} />
+          <InboxIcon name={action.icon} color={isPending ? theme.accent : "rgb(var(--ent-ink-60))"} />
         </div>
 
         {isPending ? (
@@ -1559,12 +1224,12 @@ function InboxActionCard({
       {/* Title + subtitle */}
       <div className="relative mt-4">
         <h3
-          className="text-[15px] tracking-tight text-white"
+          className="text-[15px] tracking-tight text-ink"
           style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
         >
           {action.title}
         </h3>
-        <p className="mt-1 text-[12.5px] text-white/55 tracking-tight leading-snug">
+        <p className="mt-1 text-[12.5px] text-ink-60 tracking-tight leading-snug">
           {action.subtitle}
         </p>
       </div>
@@ -1608,15 +1273,15 @@ function InboxActionCard({
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="text-white/85 tracking-tight truncate">
+                <div className="text-ink tracking-tight truncate">
                   {s.primary}
                 </div>
-                <div className="text-white/35 text-[10.5px] tracking-tight truncate">
+                <div className="text-ink-40 text-[10.5px] tracking-tight truncate">
                   {s.secondary}
                 </div>
               </div>
               {s.hint ? (
-                <span className="text-[10px] text-white/30 tabular-nums whitespace-nowrap">
+                <span className="text-[10px] text-ink-40 tabular-nums whitespace-nowrap">
                   {s.hint}
                 </span>
               ) : null}
@@ -1628,19 +1293,19 @@ function InboxActionCard({
       {/* CTA footer */}
       <div
         className="relative mt-5 flex items-center justify-between pt-3"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderTop: "1px solid rgba(28,27,24,0.05)" }}
       >
         <span
           className="text-[11.5px] tracking-tight transition-colors"
-          style={{ color: isPending ? theme.text : "rgba(255,255,255,0.5)" }}
+          style={{ color: isPending ? theme.text : "rgb(var(--ent-ink-60))" }}
         >
           {action.cta}
         </span>
         <span
           className="flex items-center justify-center w-6 h-6 rounded-full transition-all group-hover:translate-x-0.5"
           style={{
-            background: isPending ? `${theme.accent}18` : "rgba(255,255,255,0.04)",
-            color: isPending ? theme.accent : "rgba(255,255,255,0.45)",
+            background: isPending ? `${theme.accent}18` : "rgba(28,27,24,0.045)",
+            color: isPending ? theme.accent : "rgb(var(--ent-ink-60))",
           }}
         >
           <ArrowRight size={12} strokeWidth={2.2} />
@@ -1660,8 +1325,8 @@ function ActionInboxZone({ state }: { state: InboxState }) {
             className="rounded-2xl h-[220px]"
             style={{
               background:
-                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-              border: "1px solid rgba(255,255,255,0.05)",
+                "linear-gradient(160deg, rgba(28,27,24,0.035) 0%, rgba(28,27,24,0.02) 100%)",
+              border: "1px solid rgba(28,27,24,0.04)",
               animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
             }}
           />
@@ -1672,9 +1337,9 @@ function ActionInboxZone({ state }: { state: InboxState }) {
   if (state.status === "error") {
     return (
       <div
-        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        className="rounded-2xl p-5 text-ink text-[13px]"
         style={{
-          background: "rgba(255,255,255,0.02)",
+          background: "rgba(28,27,24,0.03)",
           border: "1px solid rgba(253,164,175,0.2)",
         }}
       >
@@ -1695,22 +1360,15 @@ function ActionInboxZone({ state }: { state: InboxState }) {
         {totalPending === 0 ? (
           <>
             <CheckCircle2 size={14} color="rgba(134,239,172,0.9)" strokeWidth={2.2} />
-            <span className="text-white/70">
+            <span className="text-ink">
               Bandeja limpia. Todo lo accionable está resuelto.
             </span>
           </>
         ) : (
           <>
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{
-                background: "#ff99c7",
-                animation: "countPulse 1.8s ease-in-out infinite",
-                boxShadow: "0 0 8px rgba(255, 0, 128,0.6)",
-              }}
-            />
-            <span className="text-white/75">
-              <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <span className="text-ink">
+              <span className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
                 {totalPending}
               </span>{" "}
               {totalPending === 1 ? "cosa te está esperando" : "cosas te están esperando"}
@@ -1788,38 +1446,38 @@ const FLIGHT_STATUS: Record<
 > = {
   unlocked: {
     label: "Bonus desbloqueado",
-    accent: "#86efac",
+    accent: "#2F9153",
     bg: "linear-gradient(165deg, rgba(134,239,172,0.14) 0%, rgba(134,239,172,0.02) 100%)",
     border: "rgba(134,239,172,0.35)",
-    text: "#bbf7d0",
+    text: "#2F9153",
     glow: "rgba(134,239,172,0.35)",
     icon: "unlocked",
   },
   ahead: {
     label: "Adelantada",
-    accent: "#ff99c7",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.3)",
-    text: "#ffd4e5",
-    glow: "rgba(255, 0, 128,0.35)",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.1) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.3)",
+    text: "#6B685F",
+    glow: "rgba(28,27,24,0.35)",
     icon: "ahead",
   },
   on_track: {
     label: "En ritmo",
-    accent: "#ff99c7",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.07) 0%, rgba(255, 0, 128,0.015) 100%)",
-    border: "rgba(255, 0, 128,0.22)",
-    text: "#ffd4e5",
-    glow: "rgba(255, 0, 128,0.28)",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.07) 0%, rgba(28,27,24,0.015) 100%)",
+    border: "rgba(28,27,24,0.22)",
+    text: "#6B685F",
+    glow: "rgba(28,27,24,0.28)",
     icon: "on_track",
   },
   behind: {
     label: "Atrasada",
-    accent: "#ff99c7",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.05) 0%, rgba(255, 0, 128,0.01) 100%)",
-    border: "rgba(255, 0, 128,0.18)",
-    text: "#ffd4e5",
-    glow: "rgba(255, 0, 128,0.22)",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.05) 0%, rgba(28,27,24,0.01) 100%)",
+    border: "rgba(28,27,24,0.18)",
+    text: "#6B685F",
+    glow: "rgba(28,27,24,0.22)",
     icon: "behind",
   },
   at_risk: {
@@ -1827,7 +1485,7 @@ const FLIGHT_STATUS: Record<
     accent: "#fb7185",
     bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
-    text: "#fecdd3",
+    text: "#9A978D",
     glow: "rgba(251,113,133,0.35)",
     icon: "at_risk",
   },
@@ -1835,8 +1493,8 @@ const FLIGHT_STATUS: Record<
     label: "Sin bonus",
     accent: "#94a3b8",
     bg: "linear-gradient(165deg, rgba(148,163,184,0.05) 0%, rgba(148,163,184,0.01) 100%)",
-    border: "rgba(255,255,255,0.08)",
-    text: "rgba(255,255,255,0.55)",
+    border: "rgba(28,27,24,0.06)",
+    text: "rgb(var(--ent-ink-60))",
     glow: "rgba(148,163,184,0.2)",
     icon: "no_target",
   },
@@ -1844,8 +1502,8 @@ const FLIGHT_STATUS: Record<
     label: "Sin deadline",
     accent: "#94a3b8",
     bg: "linear-gradient(165deg, rgba(148,163,184,0.05) 0%, rgba(148,163,184,0.01) 100%)",
-    border: "rgba(255,255,255,0.08)",
-    text: "rgba(255,255,255,0.55)",
+    border: "rgba(28,27,24,0.06)",
+    text: "rgb(var(--ent-ink-60))",
     glow: "rgba(148,163,184,0.2)",
     icon: "no_target",
   },
@@ -1883,27 +1541,26 @@ function ProgressArc({
     <div className="relative">
       <div
         className="h-1.5 rounded-full overflow-hidden"
-        style={{ background: "rgba(255,255,255,0.06)" }}
+        style={{ background: "rgba(28,27,24,0.05)" }}
       >
         {timePct !== null ? (
           <div
             aria-hidden
-            className="absolute inset-y-0 left-0 h-1.5 rounded-full"
+            className="absolute inset-y-0 left-0 w-full h-1.5 rounded-full origin-left"
             style={{
-              width: `${Math.round(timePct * 100)}%`,
-              background: "rgba(255,255,255,0.14)",
-              transition: `width 800ms ${ES}`,
+              transform: `scaleX(${Math.min(1, Math.max(0, timePct))})`,
+              background: "rgba(28,27,24,0.08)",
+              transition: `transform 800ms ${ES}`,
             }}
           />
         ) : null}
         {revenuePct !== null ? (
           <div
-            className="absolute inset-y-0 left-0 h-1.5 rounded-full"
+            className="absolute inset-y-0 left-0 w-full h-1.5 rounded-full origin-left"
             style={{
-              width: `${Math.round(revenuePct * 100)}%`,
+              transform: `scaleX(${Math.min(1, Math.max(0, revenuePct))})`,
               background: `linear-gradient(90deg, ${accent}bb, ${accent})`,
-              boxShadow: `0 0 12px ${accent}66`,
-              transition: `width 900ms ${ES}`,
+              transition: `transform 900ms ${ES}`,
             }}
           />
         ) : null}
@@ -1945,10 +1602,10 @@ function CreatorMini({
         </div>
       )}
       <div className="min-w-0">
-        <div className="text-[12.5px] text-white/85 tracking-tight truncate">
+        <div className="text-[12.5px] text-ink tracking-tight truncate">
           {name}
         </div>
-        <div className="text-[10.5px] text-white/40 tracking-tight truncate">
+        <div className="text-[10.5px] text-ink-60 tracking-tight truncate">
           @{code}
         </div>
       </div>
@@ -1981,21 +1638,10 @@ function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
       style={{
         background: theme.bg,
         border: `1px solid ${theme.border}`,
-        boxShadow: `0 22px 60px -40px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.04)`,
+        boxShadow: `0 22px 60px -40px ${theme.glow}, inset 0 1px 0 rgba(28,27,24,0.045)`,
         animation: `flightIn 620ms ${ES} ${delay}ms both`,
       }}
     >
-      {/* sweep sutil de luz para unlocked + at_risk */}
-      {(flight.status === "unlocked" || flight.status === "at_risk") && (
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `linear-gradient(110deg, transparent 35%, ${theme.accent}14 50%, transparent 65%)`,
-            animation: "flightSheen 5.5s ease-in-out infinite",
-          }}
-        />
-      )}
 
       {/* Header: creator + status pill */}
       <div className="relative flex items-start justify-between gap-3">
@@ -2020,11 +1666,11 @@ function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
 
       {/* Campaign name */}
       <div className="relative mt-4">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/35 font-bold">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-ink-40 font-bold">
           Campaña
         </p>
         <h3
-          className="mt-1 text-[15px] tracking-tight text-white truncate"
+          className="mt-1 text-[15px] tracking-tight text-ink truncate"
           style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
           title={flight.name}
         >
@@ -2046,7 +1692,7 @@ function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
             >
               {revStr}
             </span>
-            <span className="text-[11px] text-white/40 tracking-tight">
+            <span className="text-[11px] text-ink-60 tracking-tight">
               / {targetStr}
             </span>
           </div>
@@ -2065,7 +1711,7 @@ function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
           accent={theme.accent}
         />
         {/* Legenda sutil */}
-        <div className="mt-2 flex items-center justify-between text-[10px] text-white/40 tracking-tight">
+        <div className="mt-2 flex items-center justify-between text-[10px] text-ink-60 tracking-tight">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <span
@@ -2077,7 +1723,7 @@ function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
             <span className="flex items-center gap-1">
               <span
                 className="w-1.5 h-1.5 rounded-full"
-                style={{ background: "rgba(255,255,255,0.3)" }}
+                style={{ background: "rgb(var(--ent-ink-40))" }}
               />
               Tiempo
             </span>
@@ -2093,20 +1739,20 @@ function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
       {/* Footer stats */}
       <div
         className="relative mt-4 pt-3 flex items-center justify-between text-[11px]"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderTop: "1px solid rgba(28,27,24,0.05)" }}
       >
         <div className="flex items-center gap-4">
           <div>
-            <div className="text-white/40 uppercase tracking-[0.12em] text-[9.5px] font-bold">
+            <div className="text-ink-60 uppercase tracking-[0.12em] text-[9.5px] font-bold">
               Ventas
             </div>
-            <div className="text-white/80 tabular-nums" style={{ fontWeight: 600 }}>
+            <div className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
               {flight.conversions}
             </div>
           </div>
           {bonusStr ? (
             <div>
-              <div className="text-white/40 uppercase tracking-[0.12em] text-[9.5px] font-bold">
+              <div className="text-ink-60 uppercase tracking-[0.12em] text-[9.5px] font-bold">
                 Bonus
               </div>
               <div
@@ -2139,8 +1785,8 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
             className="rounded-2xl h-[240px]"
             style={{
               background:
-                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-              border: "1px solid rgba(255,255,255,0.05)",
+                "linear-gradient(160deg, rgba(28,27,24,0.035) 0%, rgba(28,27,24,0.02) 100%)",
+              border: "1px solid rgba(28,27,24,0.04)",
               animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
             }}
           />
@@ -2151,9 +1797,9 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
   if (state.status === "error") {
     return (
       <div
-        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        className="rounded-2xl p-5 text-ink text-[13px]"
         style={{
-          background: "rgba(255,255,255,0.02)",
+          background: "rgba(28,27,24,0.03)",
           border: "1px solid rgba(253,164,175,0.2)",
         }}
       >
@@ -2167,14 +1813,14 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
       <div
         className="rounded-2xl p-8 text-center"
         style={{
-          background: "rgba(255,255,255,0.02)",
-          border: "1px dashed rgba(255, 0, 128,0.18)",
+          background: "rgba(28,27,24,0.03)",
+          border: "1px dashed rgba(28,27,24,0.18)",
         }}
       >
-        <p className="text-[14px] text-white/70 tracking-tight">
+        <p className="text-[14px] text-ink tracking-tight">
           No hay campañas activas ahora mismo.
         </p>
-        <p className="mt-1 text-[12px] text-white/40">
+        <p className="mt-1 text-[12px] text-ink-60">
           Cuando actives una campaña, va a aparecer acá con su progreso.
         </p>
       </div>
@@ -2189,15 +1835,9 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
         style={{ animation: `fadeIn 420ms ${ES}` }}
       >
         <div className="flex items-center gap-1.5">
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{
-              background: "#a855f7",
-              boxShadow: "0 0 8px rgba(168, 85, 247,0.6)",
-            }}
-          />
-          <span className="text-white/70">
-            <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-ink-40" />
+          <span className="text-ink">
+            <span className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
               {total}
             </span>{" "}
             {total === 1 ? "campaña activa" : "campañas activas"}
@@ -2205,11 +1845,11 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
         </div>
         {unlocked > 0 ? (
           <div className="flex items-center gap-1.5">
-            <Trophy size={12} color="#86efac" strokeWidth={2.2} />
-            <span className="text-white/70">
+            <Trophy size={12} color="#2F9153" strokeWidth={2.2} />
+            <span className="text-ink">
               <span
                 className="tabular-nums"
-                style={{ color: "#bbf7d0", fontWeight: 600 }}
+                style={{ color: "#2F9153", fontWeight: 600 }}
               >
                 {unlocked}
               </span>{" "}
@@ -2283,10 +1923,10 @@ const PLATFORM_THEME: Record<
 > = {
   INSTAGRAM: {
     label: "Instagram",
-    accent: "#ff0080",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    text: "#ffb8d4",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.1) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    text: "#6B685F",
   },
   TIKTOK: {
     label: "TikTok",
@@ -2300,14 +1940,14 @@ const PLATFORM_THEME: Record<
     accent: "#fb7185",
     bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
-    text: "#fecdd3",
+    text: "#9A978D",
   },
   OTHER: {
     label: "Otro",
     accent: "#94a3b8",
     bg: "linear-gradient(165deg, rgba(148,163,184,0.08) 0%, rgba(148,163,184,0.02) 100%)",
-    border: "rgba(255,255,255,0.08)",
-    text: "rgba(255,255,255,0.6)",
+    border: "rgba(28,27,24,0.06)",
+    text: "rgb(var(--ent-ink-60))",
   },
 };
 
@@ -2379,9 +2019,9 @@ function PlatformTile({
         >
           {fmtCompactNum(p.views)}
         </span>
-        <span className="text-[10.5px] text-white/40 tracking-tight">views</span>
+        <span className="text-[10.5px] text-ink-60 tracking-tight">views</span>
       </div>
-      <div className="mt-1 flex items-center justify-between text-[10.5px] text-white/55 tabular-nums">
+      <div className="mt-1 flex items-center justify-between text-[10.5px] text-ink-60 tabular-nums">
         <span>
           {p.count} {p.count === 1 ? "pieza" : "piezas"}
         </span>
@@ -2392,15 +2032,14 @@ function PlatformTile({
       {/* Share bar */}
       <div
         className="mt-2 h-1 rounded-full overflow-hidden"
-        style={{ background: "rgba(255,255,255,0.06)" }}
+        style={{ background: "rgba(28,27,24,0.05)" }}
       >
         <div
-          className="h-1 rounded-full"
+          className="h-1 w-full rounded-full origin-left"
           style={{
-            width: `${Math.round(share)}%`,
+            transform: `scaleX(${Math.min(1, Math.max(0, share / 100))})`,
             background: `linear-gradient(90deg, ${theme.accent}99, ${theme.accent})`,
-            boxShadow: `0 0 8px ${theme.accent}66`,
-            transition: `width 900ms ${ES}`,
+            transition: `transform 900ms ${ES}`,
           }}
         />
       </div>
@@ -2420,8 +2059,8 @@ function EmptyPlatforms() {
               key={k}
               className="rounded-2xl p-4"
               style={{
-                background: "rgba(255,255,255,0.02)",
-                border: "1px dashed rgba(255,255,255,0.06)",
+                background: "rgba(28,27,24,0.03)",
+                border: "1px dashed rgba(28,27,24,0.05)",
               }}
             >
               <div className="flex items-center gap-2 opacity-50">
@@ -2437,7 +2076,7 @@ function EmptyPlatforms() {
                   {theme.label}
                 </span>
               </div>
-              <p className="mt-3 text-[11px] text-white/35 tracking-tight">
+              <p className="mt-3 text-[11px] text-ink-40 tracking-tight">
                 Sin publicaciones
               </p>
             </div>
@@ -2469,23 +2108,11 @@ function TopPieceCard({
         background: theme.bg,
         border: `1px solid ${theme.border}`,
         boxShadow: isHero
-          ? `0 24px 60px -40px ${theme.accent}55, inset 0 1px 0 rgba(255,255,255,0.05)`
-          : "inset 0 1px 0 rgba(255,255,255,0.04)",
+          ? `0 24px 60px -40px ${theme.accent}55, inset 0 1px 0 rgba(28,27,24,0.04)`
+          : "inset 0 1px 0 rgba(28,27,24,0.045)",
         animation: `radarIn 620ms ${ES} ${delay}ms both`,
       }}
     >
-      {isHero && (
-        <div
-          aria-hidden
-          className="absolute -top-8 -right-8 w-28 h-28 pointer-events-none"
-          style={{
-            background: `radial-gradient(circle at 30% 20%, ${theme.accent}55 0%, transparent 65%)`,
-            filter: "blur(10px)",
-            animation: "shimmerPulse 3.4s ease-in-out infinite",
-          }}
-        />
-      )}
-
       <div className="relative flex items-start gap-3">
         {/* thumbnail / platform fallback */}
         <div
@@ -2539,26 +2166,26 @@ function TopPieceCard({
               <span
                 className="text-[9px] uppercase tracking-[0.14em] font-bold px-1.5 py-0.5 rounded"
                 style={{
-                  color: "#ffd4e5",
-                  background: "rgba(255, 0, 128,0.12)",
-                  border: "1px solid rgba(255, 0, 128,0.25)",
+                  color: "#6B685F",
+                  background: "rgba(28,27,24,0.12)",
+                  border: "1px solid rgba(28,27,24,0.25)",
                 }}
               >
                 UGC
               </span>
             ) : null}
           </div>
-          <div className="mt-0.5 text-[12.5px] text-white/85 tracking-tight truncate">
+          <div className="mt-0.5 text-[12.5px] text-ink tracking-tight truncate">
             {piece.creator.name}
           </div>
-          <div className="text-[10px] text-white/35 tracking-tight truncate">
+          <div className="text-[10px] text-ink-40 tracking-tight truncate">
             @{piece.creator.code}
           </div>
         </div>
 
         <ExternalLink
           size={12}
-          color="rgba(255,255,255,0.35)"
+          color="rgb(var(--ent-ink-40))"
           className="flex-shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
           strokeWidth={2}
         />
@@ -2576,11 +2203,11 @@ function TopPieceCard({
         >
           {fmtCompactNum(piece.views)}
         </span>
-        <span className="text-[10.5px] text-white/40 tracking-tight">views</span>
+        <span className="text-[10.5px] text-ink-60 tracking-tight">views</span>
         {avgEr > 0 ? (
           <span
             className="ml-auto text-[10.5px] tabular-nums font-bold"
-            style={{ color: outperforms >= 0 ? "#86efac" : "rgba(255,255,255,0.5)" }}
+            style={{ color: outperforms >= 0 ? "#2F9153" : "rgb(var(--ent-ink-60))" }}
           >
             {outperforms >= 0 ? "+" : ""}
             {Math.round(outperforms * 100)}% vs prom.
@@ -2591,7 +2218,7 @@ function TopPieceCard({
       {/* Engagement breakdown */}
       <div
         className="relative mt-3 pt-3 grid grid-cols-4 gap-2"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderTop: "1px solid rgba(28,27,24,0.05)" }}
       >
         <MetricPill icon="heart" value={piece.likes} color={theme.accent} />
         <MetricPill icon="comment" value={piece.comments} color={theme.accent} />
@@ -2622,7 +2249,7 @@ function MetricPill({
       <Bookmark size={10} color={color} strokeWidth={2.2} />
     );
   return (
-    <div className="flex items-center gap-1 text-[10.5px] tabular-nums text-white/70">
+    <div className="flex items-center gap-1 text-[10.5px] tabular-nums text-ink">
       {iconEl}
       <span>{fmtCompactNum(value)}</span>
     </div>
@@ -2639,8 +2266,8 @@ function ContentRadarZone({ state }: { state: RadarState }) {
               key={i}
               className="rounded-2xl h-[96px]"
               style={{
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: "rgba(28,27,24,0.03)",
+                border: "1px solid rgba(28,27,24,0.04)",
                 animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
               }}
             />
@@ -2652,8 +2279,8 @@ function ContentRadarZone({ state }: { state: RadarState }) {
               key={i}
               className="rounded-2xl h-[170px]"
               style={{
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: "rgba(28,27,24,0.03)",
+                border: "1px solid rgba(28,27,24,0.04)",
                 animation: `shimmerPulse 1.8s ease-in-out ${i * 140}ms infinite`,
               }}
             />
@@ -2665,9 +2292,9 @@ function ContentRadarZone({ state }: { state: RadarState }) {
   if (state.status === "error") {
     return (
       <div
-        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        className="rounded-2xl p-5 text-ink text-[13px]"
         style={{
-          background: "rgba(255,255,255,0.02)",
+          background: "rgba(28,27,24,0.03)",
           border: "1px solid rgba(253,164,175,0.2)",
         }}
       >
@@ -2686,24 +2313,18 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         style={{ animation: `fadeIn 420ms ${ES}` }}
       >
         <div className="flex items-center gap-1.5">
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{
-              background: "#a855f7",
-              boxShadow: "0 0 8px rgba(168, 85, 247,0.6)",
-            }}
-          />
-          <span className="text-white/70">
-            <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-ink-40" />
+          <span className="text-ink">
+            <span className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
               {totals.pieces}
             </span>{" "}
             {totals.pieces === 1 ? "pieza viva" : "piezas vivas"}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Eye size={12} color="rgba(255,255,255,0.5)" strokeWidth={2.2} />
-          <span className="text-white/70">
-            <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+          <Eye size={12} color="rgb(var(--ent-ink-60))" strokeWidth={2.2} />
+          <span className="text-ink">
+            <span className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
               {fmtCompactNum(totals.views)}
             </span>{" "}
             views totales
@@ -2711,9 +2332,9 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         </div>
         {totals.avgEngagementRate > 0 ? (
           <div className="flex items-center gap-1.5">
-            <Heart size={12} color="rgba(255, 0, 128,0.7)" strokeWidth={2.2} />
-            <span className="text-white/70">
-              <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+            <Heart size={12} color="rgba(28,27,24,0.7)" strokeWidth={2.2} />
+            <span className="text-ink">
+              <span className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
                 {(totals.avgEngagementRate * 100).toFixed(2)}%
               </span>{" "}
               engagement promedio
@@ -2722,11 +2343,11 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         ) : null}
         {totals.ugc > 0 ? (
           <div className="flex items-center gap-1.5">
-            <Sparkles size={12} color="#ff99c7" strokeWidth={2.2} />
-            <span className="text-white/70">
+            <Sparkles size={12} color="#6B685F" strokeWidth={2.2} />
+            <span className="text-ink">
               <span
                 className="tabular-nums"
-                style={{ color: "#ffd4e5", fontWeight: 600 }}
+                style={{ color: "#6B685F", fontWeight: 600 }}
               >
                 {totals.ugc}
               </span>{" "}
@@ -2756,10 +2377,10 @@ function ContentRadarZone({ state }: { state: RadarState }) {
 
       {/* Top pieces header */}
       <div className="flex items-center gap-2 mb-3">
-        <Flame size={12} color="#ff99c7" strokeWidth={2.2} />
+        <Flame size={12} color="#6B685F" strokeWidth={2.2} />
         <span
           className="text-[10.5px] uppercase tracking-[0.18em] font-bold"
-          style={{ color: "#ff80b8" }}
+          style={{ color: "#9A978D" }}
         >
           Piezas que están prendiendo
         </span>
@@ -2769,14 +2390,14 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         <div
           className="rounded-2xl p-6 text-center"
           style={{
-            background: "rgba(255,255,255,0.02)",
-            border: "1px dashed rgba(255, 0, 128,0.18)",
+            background: "rgba(28,27,24,0.03)",
+            border: "1px dashed rgba(28,27,24,0.18)",
           }}
         >
-          <p className="text-[13px] text-white/60 tracking-tight">
+          <p className="text-[13px] text-ink-60 tracking-tight">
             Todavía no hay piezas con métricas suficientes para rankear.
           </p>
-          <p className="mt-1 text-[11.5px] text-white/35">
+          <p className="mt-1 text-[11.5px] text-ink-40">
             Cuando tus creators carguen views y likes, acá aparecen las top 3.
           </p>
         </div>
@@ -2827,38 +2448,38 @@ const INSIGHT_THEME: Record<
   { accent: string; bg: string; border: string; text: string; glow: string }
 > = {
   violet: {
-    accent: "#ff99c7",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    text: "#ffd4e5",
-    glow: "rgba(255, 0, 128,0.35)",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.1) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    text: "#6B685F",
+    glow: "rgba(28,27,24,0.35)",
   },
   pink: {
-    accent: "#ff99c7",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    text: "#ffd4e5",
-    glow: "rgba(255, 0, 128,0.35)",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.1) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    text: "#6B685F",
+    glow: "rgba(28,27,24,0.35)",
   },
   amber: {
-    accent: "#ff99c7",
-    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
-    border: "rgba(255, 0, 128,0.28)",
-    text: "#ffd4e5",
-    glow: "rgba(255, 0, 128,0.35)",
+    accent: "#6B685F",
+    bg: "linear-gradient(165deg, rgba(28,27,24,0.1) 0%, rgba(28,27,24,0.02) 100%)",
+    border: "rgba(28,27,24,0.28)",
+    text: "#6B685F",
+    glow: "rgba(28,27,24,0.35)",
   },
   rose: {
     accent: "#fb7185",
     bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
-    text: "#fecdd3",
+    text: "#9A978D",
     glow: "rgba(251,113,133,0.32)",
   },
   green: {
-    accent: "#86efac",
+    accent: "#2F9153",
     bg: "linear-gradient(165deg, rgba(134,239,172,0.1) 0%, rgba(134,239,172,0.02) 100%)",
     border: "rgba(134,239,172,0.28)",
-    text: "#bbf7d0",
+    text: "#2F9153",
     glow: "rgba(134,239,172,0.32)",
   },
 };
@@ -2897,21 +2518,9 @@ function InsightCard({
       style={{
         background: theme.bg,
         border: `1px solid ${theme.border}`,
-        boxShadow: `0 24px 60px -42px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
         animation: `insightIn 620ms ${ES} ${delay}ms both`,
       }}
     >
-      <div
-        aria-hidden
-        className="absolute -top-12 -right-12 w-48 h-48 pointer-events-none"
-        style={{
-          background: `radial-gradient(circle at 30% 30%, ${theme.accent}35 0%, transparent 65%)`,
-          filter: "blur(22px)",
-          opacity: 0.65,
-          animation: "insightHalo 5s ease-in-out infinite",
-        }}
-      />
-
       <div className="relative flex items-center gap-2">
         <div
           className="w-7 h-7 rounded-xl flex items-center justify-center relative"
@@ -2921,14 +2530,6 @@ function InsightCard({
           }}
         >
           <InsightIcon name={insight.icon} color={theme.accent} size={13} />
-          <span
-            aria-hidden
-            className="absolute inset-0 rounded-xl"
-            style={{
-              boxShadow: `0 0 0 0 ${theme.accent}55`,
-              animation: "insightRing 2.8s ease-out infinite",
-            }}
-          />
         </div>
         <span
           className="text-[10px] font-bold uppercase tracking-[0.22em]"
@@ -2939,21 +2540,21 @@ function InsightCard({
       </div>
 
       <h3
-        className="relative mt-3 text-[15.5px] tracking-tight text-white leading-snug"
+        className="relative mt-3 text-[15.5px] tracking-tight text-ink leading-snug"
         style={{ fontWeight: 600, letterSpacing: "-0.012em" }}
       >
         {insight.headline}
       </h3>
 
-      <p className="relative mt-2 text-[12.5px] text-white/60 tracking-tight leading-relaxed">
+      <p className="relative mt-2 text-[12.5px] text-ink-60 tracking-tight leading-relaxed">
         {insight.detail}
       </p>
 
       <div
         className="relative mt-4 flex items-center gap-3 p-3 rounded-xl"
         style={{
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.05)",
+          background: "rgba(28,27,24,0.03)",
+          border: "1px solid rgba(28,27,24,0.04)",
         }}
       >
         {insight.avatarUrl ? (
@@ -2976,7 +2577,7 @@ function InsightCard({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-[9.5px] uppercase tracking-[0.16em] text-white/40 font-bold">
+          <div className="text-[9.5px] uppercase tracking-[0.16em] text-ink-60 font-bold">
             {insight.metric.label}
           </div>
           <div
@@ -2994,7 +2595,7 @@ function InsightCard({
 
       <div
         className="relative mt-4 flex items-center justify-between pt-3"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderTop: "1px solid rgba(28,27,24,0.05)" }}
       >
         <span className="text-[11.5px] tracking-tight" style={{ color: theme.text }}>
           {insight.action.label}
@@ -3019,8 +2620,8 @@ function QuickInsightsZone({ state }: { state: InsightsState }) {
             key={i}
             className="rounded-2xl h-[240px]"
             style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: "rgba(28,27,24,0.03)",
+              border: "1px solid rgba(28,27,24,0.04)",
               animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
             }}
           />
@@ -3031,9 +2632,9 @@ function QuickInsightsZone({ state }: { state: InsightsState }) {
   if (state.status === "error") {
     return (
       <div
-        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        className="rounded-2xl p-5 text-ink text-[13px]"
         style={{
-          background: "rgba(255,255,255,0.02)",
+          background: "rgba(28,27,24,0.03)",
           border: "1px solid rgba(253,164,175,0.2)",
         }}
       >
@@ -3048,10 +2649,10 @@ function QuickInsightsZone({ state }: { state: InsightsState }) {
         className="mb-4 flex items-center gap-1.5 text-[12px] tracking-tight"
         style={{ animation: `fadeIn 420ms ${ES}` }}
       >
-        <Sparkles size={12} color="#ff99c7" strokeWidth={2.2} />
-        <span className="text-white/70">
+        <Sparkles size={12} color="#6B685F" strokeWidth={2.2} />
+        <span className="text-ink">
           Aurum procesó tus datos del período y encontró{" "}
-          <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+          <span className="text-ink tabular-nums" style={{ fontWeight: 600 }}>
             {insights.length}
           </span>{" "}
           {insights.length === 1 ? "patrón accionable" : "patrones accionables"}.
@@ -3224,23 +2825,9 @@ export default function AuraInicioPage() {
   }, [rangeKey]);
 
   return (
-    <div
-      className="relative min-h-[calc(100vh-0px)]"
-      style={{
-        background:
-          "radial-gradient(1200px 600px at 15% -10%, rgba(255, 0, 128,0.06) 0%, transparent 60%), radial-gradient(900px 600px at 90% 10%, rgba(134,239,172,0.04) 0%, transparent 55%), #05070d",
-      }}
-    >
-      {/* Estilos locales (animaciones Aura) */}
+    <div className="relative min-h-[calc(100vh-0px)] bg-canvas">
+      {/* Estilos locales (animaciones Aura) — solo entradas/loading, sin glow/breath/spin decorativo */}
       <style jsx global>{`
-        @keyframes auraBreath {
-          0%, 100% { transform: scale(1); filter: brightness(1); }
-          50% { transform: scale(1.03); filter: brightness(1.08); }
-        }
-        @keyframes auraPulseRing {
-          0% { transform: scale(1); opacity: 0.75; }
-          100% { transform: scale(1.8); opacity: 0; }
-        }
         @keyframes fadeInDown {
           from { opacity: 0; transform: translateY(-6px); }
           to { opacity: 1; transform: translateY(0); }
@@ -3264,19 +2851,6 @@ export default function AuraInicioPage() {
           from { opacity: 0; transform: scale(0.5) translateY(4px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
-        @keyframes avatarHalo {
-          0%, 100% { transform: scale(1); opacity: 0.9; }
-          50% { transform: scale(1.15); opacity: 0.3; }
-        }
-        @keyframes reelBeat {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(168, 85, 247,0.35); }
-          50% { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(168, 85, 247,0); }
-        }
-        @keyframes flashSweep {
-          0% { left: -40%; }
-          55% { left: 120%; }
-          100% { left: 120%; }
-        }
         @keyframes shimmerPulse {
           0%, 100% { opacity: 0.55; }
           50% { opacity: 0.9; }
@@ -3284,14 +2858,6 @@ export default function AuraInicioPage() {
         @keyframes podiumIn {
           from { opacity: 0; transform: translateY(18px) scale(0.96); }
           to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes haloSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes sparkleFloat {
-          0%, 100% { transform: translateY(0) scale(1); opacity: 0.55; }
-          50% { transform: translateY(-6px) scale(1.18); opacity: 1; }
         }
         @keyframes inboxIn {
           from { opacity: 0; transform: translateY(14px) scale(0.98); }
@@ -3317,22 +2883,6 @@ export default function AuraInicioPage() {
           from { opacity: 0; transform: translateY(18px) scale(0.97); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes insightHalo {
-          0%, 100% { opacity: 0.45; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.06); }
-        }
-        @keyframes insightRing {
-          0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
-          70% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
-          100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
-        }
-        @keyframes flightSheen {
-          0% { transform: translateX(-40%); opacity: 0; }
-          15% { opacity: 1; }
-          50% { transform: translateX(40%); opacity: 0.6; }
-          85% { opacity: 0; }
-          100% { transform: translateX(60%); opacity: 0; }
-        }
       `}</style>
 
       <div
@@ -3344,44 +2894,25 @@ export default function AuraInicioPage() {
           <div className="flex items-start md:items-center justify-between gap-4 flex-col md:flex-row">
             <div>
               <div className="flex items-center gap-2.5">
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.28em]"
-                  style={{ color: "#ff80b8" }}
-                >
+                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-ink-40">
                   Aura · Inicio
                 </span>
-                <span
-                  className="w-1 h-1 rounded-full"
-                  style={{ background: "rgba(255,0,128,0.7)" }}
-                />
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40"
-                >
+                <span className="w-1 h-1 rounded-full bg-hairline-2" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
                   Tu programa, en vivo
                 </span>
               </div>
               <h1
-                className="mt-2 text-[34px] md:text-[40px] leading-[1.05] tracking-tight text-white"
+                className="mt-2 text-[34px] md:text-[40px] leading-[1.05] tracking-tight text-ink"
                 style={{ fontWeight: 600, letterSpacing: "-0.025em" }}
               >
                 {greeting()}
                 {user ? (
                   <>
-                    ,{" "}
-                    <span
-                      style={{
-                        background:
-                          "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                        WebkitBackgroundClip: "text",
-                        backgroundClip: "text",
-                        color: "transparent",
-                      }}
-                    >
-                      {user}
-                    </span>
+                    , <span>{user}</span>
                   </>
                 ) : null}
-                <span className="text-white/35">.</span>
+                <span className="text-ink-40">.</span>
               </h1>
             </div>
 
@@ -3402,16 +2933,14 @@ export default function AuraInicioPage() {
         <section className="mt-8">
           <div className="flex items-center gap-2.5 mb-4">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#ff80b8" }}
+              className="text-[10px] font-bold uppercase tracking-[0.26em] text-ink-40"
             >
               Pulso del programa
             </span>
             <span
-              className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(255, 0, 128,0.55)" }}
+              className="w-1 h-1 rounded-full bg-hairline-2"
             />
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Hero metrics
             </span>
           </div>
@@ -3422,16 +2951,14 @@ export default function AuraInicioPage() {
         <section className="mt-10">
           <div className="flex items-center gap-2.5 mb-4">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#ff80b8" }}
+              className="text-[10px] font-bold uppercase tracking-[0.26em] text-ink-40"
             >
               Hall of flame
             </span>
             <span
-              className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(255, 0, 128,0.55)" }}
+              className="w-1 h-1 rounded-full bg-hairline-2"
             />
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Podio del período
             </span>
           </div>
@@ -3446,16 +2973,14 @@ export default function AuraInicioPage() {
         <section className="mt-10">
           <div className="flex items-center gap-2.5 mb-4">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#ff80b8" }}
+              className="text-[10px] font-bold uppercase tracking-[0.26em] text-ink-40"
             >
               Bandeja de acciones
             </span>
             <span
-              className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(255, 0, 128,0.55)" }}
+              className="w-1 h-1 rounded-full bg-hairline-2"
             />
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Lo que te está esperando
             </span>
           </div>
@@ -3466,16 +2991,14 @@ export default function AuraInicioPage() {
         <section className="mt-10">
           <div className="flex items-center gap-2.5 mb-4">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#ff80b8" }}
+              className="text-[10px] font-bold uppercase tracking-[0.26em] text-ink-40"
             >
               Campañas en vuelo
             </span>
             <span
-              className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(255, 0, 128,0.55)" }}
+              className="w-1 h-1 rounded-full bg-hairline-2"
             />
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Flight deck · Progreso vs bonus
             </span>
           </div>
@@ -3486,16 +3009,14 @@ export default function AuraInicioPage() {
         <section className="mt-10">
           <div className="flex items-center gap-2.5 mb-4">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#ff80b8" }}
+              className="text-[10px] font-bold uppercase tracking-[0.26em] text-ink-40"
             >
               Content radar
             </span>
             <span
-              className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(255, 0, 128,0.55)" }}
+              className="w-1 h-1 rounded-full bg-hairline-2"
             />
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Pulso del contenido publicado
             </span>
           </div>
@@ -3506,16 +3027,14 @@ export default function AuraInicioPage() {
         <section className="mt-10 mb-4">
           <div className="flex items-center gap-2.5 mb-4">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#ff80b8" }}
+              className="text-[10px] font-bold uppercase tracking-[0.26em] text-ink-40"
             >
               Insights rápidos
             </span>
             <span
-              className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(255, 0, 128,0.55)" }}
+              className="w-1 h-1 rounded-full bg-hairline-2"
             />
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-40">
               Lo que Aurum detectó en tus datos
             </span>
           </div>

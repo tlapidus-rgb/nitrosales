@@ -3,20 +3,18 @@
 import { useSession } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
 import { AurumOrb } from "@/components/aurum/AurumOrb";
+import { LivePulse } from "@/components/enterprise/ui";
+
+const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
 type Message = { role: "user" | "assistant"; content: string };
 type ReasoningMode = "FLASH" | "CORE" | "DEEP";
 type Confidence = "high" | "medium" | "low" | "none";
 
-const MODES: Array<{
-  key: ReasoningMode;
-  label: string;
-  desc: string;
-  color: string;
-}> = [
-  { key: "FLASH", label: "Flash", desc: "Rápido · Haiku", color: "#60a5fa" },
-  { key: "CORE", label: "Core", desc: "Default · Sonnet", color: "#fbbf24" },
-  { key: "DEEP", label: "Deep", desc: "Profundo · Opus", color: "#a78bfa" },
+const MODES: Array<{ key: ReasoningMode; label: string; desc: string }> = [
+  { key: "FLASH", label: "Flash", desc: "Rápido · Haiku" },
+  { key: "CORE", label: "Core", desc: "Default · Sonnet" },
+  { key: "DEEP", label: "Deep", desc: "Profundo · Opus" },
 ];
 
 const SUGGESTIONS = [
@@ -40,7 +38,7 @@ const THINKING_STATES = [
 const INDUSTRIES = [
   { value: "juguetes", label: "Juguetes", icon: "\u{1F9F8}" },
   { value: "moda", label: "Moda & Indumentaria", icon: "\u{1F45A}" },
-  { value: "electronica", label: "Electr\u00f3nica & Tech", icon: "\u{1F4F1}" },
+  { value: "electronica", label: "Electrónica & Tech", icon: "\u{1F4F1}" },
   { value: "alimentos", label: "Alimentos & Bebidas", icon: "\u{1F354}" },
   { value: "belleza", label: "Belleza & Cuidado Personal", icon: "\u{1F484}" },
   { value: "deportes", label: "Deportes & Fitness", icon: "\u{26BD}" },
@@ -50,14 +48,14 @@ const INDUSTRIES = [
 
 const BUSINESS_TYPES = [
   { value: "Ecommerce puro", label: "Ecommerce puro", desc: "Solo venta online" },
-  { value: "Omnichannel", label: "Omnichannel", desc: "Tiendas f\u00edsicas + online" },
+  { value: "Omnichannel", label: "Omnichannel", desc: "Tiendas físicas + online" },
   { value: "Marketplace", label: "Marketplace", desc: "MercadoLibre, Amazon, etc." },
   { value: "Mayorista", label: "Mayorista", desc: "Venta B2B" },
 ];
 
 const COUNTRIES = [
   { value: "argentina", label: "Argentina", flag: "\u{1F1E6}\u{1F1F7}" },
-  { value: "mexico", label: "M\u00e9xico", flag: "\u{1F1F2}\u{1F1FD}" },
+  { value: "mexico", label: "México", flag: "\u{1F1F2}\u{1F1FD}" },
   { value: "colombia", label: "Colombia", flag: "\u{1F1E8}\u{1F1F4}" },
   { value: "chile", label: "Chile", flag: "\u{1F1E8}\u{1F1F1}" },
   { value: "otro", label: "Otro", flag: "\u{1F30E}" },
@@ -66,12 +64,13 @@ const COUNTRIES = [
 const SALES_CHANNELS = ["Tienda propia", "MercadoLibre", "Tienda Nube", "VTEX", "Shopify", "Otros marketplaces"];
 const AD_CHANNELS = ["Google Ads", "Meta Ads", "TikTok Ads", "MercadoLibre Ads", "Ninguno"];
 const STAGES = [
-  { value: "starting", label: "Reci\u00e9n arrancando", desc: "< 6 meses" },
-  { value: "growth", label: "En crecimiento", desc: "6 meses - 2 a\u00f1os" },
-  { value: "established", label: "Establecido", desc: "> 2 a\u00f1os" },
+  { value: "starting", label: "Recién arrancando", desc: "< 6 meses" },
+  { value: "growth", label: "En crecimiento", desc: "6 meses - 2 años" },
+  { value: "established", label: "Establecido", desc: "> 2 años" },
 ];
 
-// AurumOrb ahora se importa desde @/components/aurum/AurumOrb (anillo Saturno).
+// AurumOrb se importa desde @/components/aurum/AurumOrb (mascota de marca —
+// conserva su dorado propio, no se toca acá).
 
 // ══════ Cycling Headline (welcome) ══════
 const WELCOME_PHRASES = [
@@ -90,13 +89,10 @@ function CyclingHeadline() {
       {WELCOME_PHRASES.map((phrase, i) => (
         <div
           key={i}
-          className="absolute inset-0 text-[11px] font-mono uppercase tracking-[0.2em] text-center transition-all duration-700"
-          style={{
-            color: "#fbbf24",
-            opacity: i === idx ? 0.85 : 0,
-            transform: i === idx ? "translateY(0)" : "translateY(6px)",
-            textShadow: "0 0 14px rgba(251,191,36,0.35)",
-          }}
+          className={cx(
+            "absolute inset-0 text-[11px] font-geistmono uppercase tracking-[0.2em] text-center text-ink-40 transition-opacity duration-700",
+            i === idx ? "opacity-100" : "opacity-0"
+          )}
         >
           {phrase}
         </div>
@@ -116,28 +112,19 @@ function AurumThinking() {
     <div className="flex items-center gap-4 py-2">
       <AurumOrb size={42} thinking />
       <div className="flex flex-col">
-        <div
-          key={idx}
-          className="text-sm font-medium"
-          style={{
-            color: "#fde68a",
-            animation: "aurumFadeUp 500ms cubic-bezier(0.16,1,0.3,1)",
-            textShadow: "0 0 20px rgba(251,191,36,0.3)",
-          }}
-        >
+        <div key={idx} className="text-sm font-medium text-ink">
           {THINKING_STATES[idx]}
-          <span className="ml-1 opacity-70">...</span>
+          <span className="ml-1 opacity-60">...</span>
         </div>
         <div className="mt-1 flex gap-1">
           {THINKING_STATES.map((_, i) => (
             <div
               key={i}
-              className="h-[2px] rounded-full transition-all duration-500"
-              style={{
-                width: i === idx ? 18 : 6,
-                background: i <= idx ? "#fbbf24" : "rgba(251,191,36,0.15)",
-                boxShadow: i === idx ? "0 0 8px rgba(251,191,36,0.6)" : "none",
-              }}
+              className={cx(
+                "h-[2px] rounded-full transition-all duration-500",
+                i <= idx ? "bg-ink" : "bg-hairline-2"
+              )}
+              style={{ width: i === idx ? 18 : 6 }}
             />
           ))}
         </div>
@@ -301,7 +288,7 @@ export default function ChatPage() {
       const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) => {
         if (p.startsWith("**") && p.endsWith("**"))
           return (
-            <strong key={j} className="font-semibold" style={{ color: "#fde68a" }}>
+            <strong key={j} className="font-semibold text-ink">
               {p.slice(2, -2)}
             </strong>
           );
@@ -309,22 +296,22 @@ export default function ChatPage() {
       });
       if (line.startsWith("### "))
         return (
-          <h4 key={i} className="font-bold text-sm mt-4 mb-1.5" style={{ color: "#fcd34d" }}>
+          <h4 key={i} className="font-semibold text-sm mt-4 mb-1.5 text-ink">
             {line.replace("### ", "")}
           </h4>
         );
       if (line.startsWith("## "))
         return (
-          <h3 key={i} className="font-bold text-base mt-5 mb-2" style={{ color: "#fbbf24" }}>
+          <h3 key={i} className="font-semibold text-base mt-5 mb-2 text-ink">
             {line.replace("## ", "")}
           </h3>
         );
       if (line.startsWith("---"))
-        return <hr key={i} className="my-3" style={{ borderColor: "rgba(251,191,36,0.15)" }} />;
+        return <hr key={i} className="my-3 border-hairline" />;
       if (line.trim().startsWith("- ") || line.trim().startsWith("• "))
         return (
           <div key={i} className="flex gap-2 my-0.5">
-            <span style={{ color: "#fbbf24" }}>•</span>
+            <span className="text-ink-40">•</span>
             <span>{line.replace(/^[\s]*[-•]\s/, "")}</span>
           </div>
         );
@@ -337,23 +324,14 @@ export default function ChatPage() {
     });
   }
 
-  const aurumCanvas: React.CSSProperties = {
-    background:
-      "radial-gradient(ellipse at top, rgba(251,191,36,0.06) 0%, transparent 55%), radial-gradient(ellipse at bottom, rgba(217,119,6,0.04) 0%, transparent 60%), linear-gradient(180deg, #0a0a0f 0%, #0f0d14 50%, #0a0a0f 100%)",
-    height: "100%",
-    width: "100%",
-    padding: "1.5rem 2rem",
-    overflow: "hidden",
-  };
+  const canvasClass = "h-full w-full flex flex-col overflow-hidden bg-canvas px-6 py-6 lg:px-8";
 
   if (checkingOnboarding) {
     return (
-      <div style={aurumCanvas} className="flex items-center justify-center">
+      <div className={cx(canvasClass, "items-center justify-center")}>
         <div className="flex flex-col items-center gap-4">
           <AurumOrb size={56} thinking />
-          <div className="text-sm font-medium" style={{ color: "#fde68a" }}>
-            Despertando a Aurum
-          </div>
+          <div className="text-sm font-medium text-ink-60">Despertando a Aurum</div>
         </div>
       </div>
     );
@@ -361,25 +339,18 @@ export default function ChatPage() {
 
   // ══════ ONBOARDING WIZARD ══════
   if (needsOnboarding) {
-    const optionButton = (sel: boolean): React.CSSProperties => ({
-      background: sel
-        ? "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(245,158,11,0.05))"
-        : "rgba(255,255,255,0.02)",
-      border: sel ? "1px solid rgba(251,191,36,0.5)" : "1px solid rgba(255,255,255,0.08)",
-      boxShadow: sel ? "0 0 20px rgba(251,191,36,0.15)" : "none",
-    });
+    const optionClass = (sel: boolean) =>
+      cx(
+        "rounded-xl border transition-colors duration-150 ease-ent",
+        sel ? "bg-ink border-ink" : "bg-white border-hairline-2 hover:border-hairline"
+      );
 
     const AutoBadge = ({ field }: { field: string }) => {
       const conf = autoDetected[field];
       if (!conf || conf === "none") return null;
       return (
         <span
-          className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider align-middle"
-          style={{
-            background: "rgba(34,197,94,0.1)",
-            border: "1px solid rgba(34,197,94,0.35)",
-            color: "#86efac",
-          }}
+          className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-geistmono uppercase tracking-wider align-middle bg-accent-soft text-accent border border-accent/20"
           title={`Auto-detectado con confianza ${conf}`}
         >
           ✓ Auto
@@ -389,10 +360,10 @@ export default function ChatPage() {
 
     const steps = [
       <div key="industry">
-        <h3 className="text-xl font-bold text-white mb-2">
+        <h3 className="text-xl font-semibold text-ink mb-2">
           En qué rubro está tu negocio?<AutoBadge field="industry" />
         </h3>
-        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>
+        <p className="text-sm mb-5 text-ink-60">
           {autoDetected.industry
             ? "Detectamos esto desde tu catálogo. Podés cambiarlo si está mal."
             : "Aurum adapta sus insights a tu estacionalidad y benchmarks"}
@@ -404,11 +375,10 @@ export default function ChatPage() {
               <button
                 key={ind.value}
                 onClick={() => setOnboardingData({ ...onboardingData, industry: ind.value })}
-                className="p-3 rounded-xl text-left transition-all duration-300"
-                style={optionButton(sel)}
+                className={cx("p-3 text-left", optionClass(sel))}
               >
                 <span className="text-2xl">{ind.icon}</span>
-                <div className="text-sm font-medium mt-1" style={{ color: sel ? "#fde68a" : "#d1d5db" }}>
+                <div className={cx("text-sm font-medium mt-1", sel ? "text-white" : "text-ink-60")}>
                   {ind.label}
                 </div>
               </button>
@@ -421,17 +391,12 @@ export default function ChatPage() {
             placeholder="Describí tu rubro..."
             value={onboardingData.customIndustry}
             onChange={(e) => setOnboardingData({ ...onboardingData, customIndustry: e.target.value })}
-            className="mt-3 w-full rounded-lg px-3 py-2.5 text-sm outline-none transition"
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(251,191,36,0.3)",
-              color: "white",
-            }}
+            className="mt-3 w-full rounded-lg px-3 py-2.5 text-sm outline-none transition bg-surface border border-hairline-2 text-ink placeholder:text-ink-40 focus:border-hairline"
           />
         )}
       </div>,
       <div key="type">
-        <h3 className="text-xl font-bold text-white mb-5">Qué tipo de negocio es?</h3>
+        <h3 className="text-xl font-semibold text-ink mb-5">Qué tipo de negocio es?</h3>
         <div className="grid grid-cols-2 gap-2.5">
           {BUSINESS_TYPES.map((bt) => {
             const sel = onboardingData.businessType === bt.value;
@@ -439,19 +404,18 @@ export default function ChatPage() {
               <button
                 key={bt.value}
                 onClick={() => setOnboardingData({ ...onboardingData, businessType: bt.value })}
-                className="p-4 rounded-xl text-left transition-all duration-300"
-                style={optionButton(sel)}
+                className={cx("p-4 text-left", optionClass(sel))}
               >
-                <div className="font-medium" style={{ color: sel ? "#fde68a" : "#e5e7eb" }}>{bt.label}</div>
-                <div className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{bt.desc}</div>
+                <div className={cx("font-medium", sel ? "text-white" : "text-ink")}>{bt.label}</div>
+                <div className={cx("text-xs mt-0.5", sel ? "text-white/70" : "text-ink-60")}>{bt.desc}</div>
               </button>
             );
           })}
         </div>
       </div>,
       <div key="country">
-        <h3 className="text-xl font-bold text-white mb-2">En qué país operás principalmente?</h3>
-        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>Para el calendario comercial y la moneda</p>
+        <h3 className="text-xl font-semibold text-ink mb-2">En qué país operás principalmente?</h3>
+        <p className="text-sm mb-5 text-ink-60">Para el calendario comercial y la moneda</p>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
           {COUNTRIES.map((c) => {
             const sel = onboardingData.country === c.value;
@@ -459,11 +423,10 @@ export default function ChatPage() {
               <button
                 key={c.value}
                 onClick={() => setOnboardingData({ ...onboardingData, country: c.value })}
-                className="p-3 rounded-xl text-center transition-all duration-300"
-                style={optionButton(sel)}
+                className={cx("p-3 text-center", optionClass(sel))}
               >
                 <span className="text-2xl">{c.flag}</span>
-                <div className="text-sm font-medium mt-1" style={{ color: sel ? "#fde68a" : "#d1d5db" }}>
+                <div className={cx("text-sm font-medium mt-1", sel ? "text-white" : "text-ink-60")}>
                   {c.label}
                 </div>
               </button>
@@ -472,10 +435,10 @@ export default function ChatPage() {
         </div>
       </div>,
       <div key="sales">
-        <h3 className="text-xl font-bold text-white mb-2">
+        <h3 className="text-xl font-semibold text-ink mb-2">
           Dónde vendés?<AutoBadge field="salesChannels" />
         </h3>
-        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>
+        <p className="text-sm mb-5 text-ink-60">
           {autoDetected.salesChannels
             ? "Detectamos estos canales en tus integraciones activas."
             : "Podés elegir varios"}
@@ -489,12 +452,10 @@ export default function ChatPage() {
                 onClick={() =>
                   setOnboardingData({ ...onboardingData, salesChannels: toggleMultiSelect(onboardingData.salesChannels, ch) })
                 }
-                className="px-4 py-2 rounded-full text-sm transition-all duration-300"
-                style={{
-                  ...optionButton(sel),
-                  color: sel ? "#fde68a" : "#d1d5db",
-                  fontWeight: sel ? 500 : 400,
-                }}
+                className={cx(
+                  "px-4 py-2 rounded-full text-sm border transition-colors duration-150 ease-ent",
+                  sel ? "bg-ink border-ink text-white font-medium" : "bg-white border-hairline-2 text-ink-60 hover:border-hairline"
+                )}
               >
                 {ch}
               </button>
@@ -503,10 +464,10 @@ export default function ChatPage() {
         </div>
       </div>,
       <div key="ads">
-        <h3 className="text-xl font-bold text-white mb-2">
+        <h3 className="text-xl font-semibold text-ink mb-2">
           Dónde hacés publicidad?<AutoBadge field="adChannels" />
         </h3>
-        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>
+        <p className="text-sm mb-5 text-ink-60">
           {autoDetected.adChannels
             ? "Detectamos estas plataformas en tus integraciones activas."
             : "Podés elegir varios"}
@@ -526,12 +487,10 @@ export default function ChatPage() {
                         : toggleMultiSelect(onboardingData.adChannels.filter((c) => c !== "Ninguno"), ch),
                   })
                 }
-                className="px-4 py-2 rounded-full text-sm transition-all duration-300"
-                style={{
-                  ...optionButton(sel),
-                  color: sel ? "#fde68a" : "#d1d5db",
-                  fontWeight: sel ? 500 : 400,
-                }}
+                className={cx(
+                  "px-4 py-2 rounded-full text-sm border transition-colors duration-150 ease-ent",
+                  sel ? "bg-ink border-ink text-white font-medium" : "bg-white border-hairline-2 text-ink-60 hover:border-hairline"
+                )}
               >
                 {ch}
               </button>
@@ -540,7 +499,7 @@ export default function ChatPage() {
         </div>
       </div>,
       <div key="stage">
-        <h3 className="text-xl font-bold text-white mb-5">En qué etapa está tu negocio?</h3>
+        <h3 className="text-xl font-semibold text-ink mb-5">En qué etapa está tu negocio?</h3>
         <div className="grid grid-cols-3 gap-3">
           {STAGES.map((s) => {
             const sel = onboardingData.businessStage === s.value;
@@ -548,11 +507,10 @@ export default function ChatPage() {
               <button
                 key={s.value}
                 onClick={() => setOnboardingData({ ...onboardingData, businessStage: s.value })}
-                className="p-4 rounded-xl text-center transition-all duration-300"
-                style={optionButton(sel)}
+                className={cx("p-4 text-center", optionClass(sel))}
               >
-                <div className="font-medium" style={{ color: sel ? "#fde68a" : "#e5e7eb" }}>{s.label}</div>
-                <div className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{s.desc}</div>
+                <div className={cx("font-medium", sel ? "text-white" : "text-ink")}>{s.label}</div>
+                <div className={cx("text-xs mt-0.5", sel ? "text-white/70" : "text-ink-60")}>{s.desc}</div>
               </button>
             );
           })}
@@ -570,21 +528,14 @@ export default function ChatPage() {
     ][onboardingStep];
 
     return (
-      <div style={aurumCanvas} className="flex flex-col items-center justify-center">
+      <div className={cx(canvasClass, "items-center justify-center")}>
         <div className="w-full max-w-2xl">
           <div className="flex flex-col items-center text-center mb-8">
             <AurumOrb size={64} />
-            <h2
-              className="text-3xl font-bold mt-4 tracking-tight"
-              style={{
-                background: "linear-gradient(135deg, #fef3c7 0%, #fbbf24 50%, #d97706 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
+            <h2 className="text-3xl font-medium mt-4 tracking-tight text-ink">
               Configurar Aurum
             </h2>
-            <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
+            <p className="text-sm mt-1 text-ink-60">
               Contanos sobre tu negocio para que Aurum te dé análisis personalizados
             </p>
           </div>
@@ -593,41 +544,25 @@ export default function ChatPage() {
             {steps.map((_, i) => (
               <div
                 key={i}
-                className="h-[3px] flex-1 rounded-full transition-all duration-500"
-                style={{
-                  background:
-                    i <= onboardingStep
-                      ? "linear-gradient(90deg, #fbbf24, #f59e0b)"
-                      : "rgba(255,255,255,0.08)",
-                  boxShadow: i === onboardingStep ? "0 0 10px rgba(251,191,36,0.5)" : "none",
-                }}
+                className={cx(
+                  "h-[3px] flex-1 rounded-full transition-colors duration-500",
+                  i <= onboardingStep ? "bg-ink" : "bg-hairline-2"
+                )}
               />
             ))}
           </div>
 
-          <div
-            className="rounded-2xl p-7 mb-6 relative overflow-hidden"
-            style={{
-              background: "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))",
-              border: "1px solid rgba(251,191,36,0.15)",
-              boxShadow: "0 0 40px rgba(251,191,36,0.06), inset 0 1px 0 rgba(253,224,71,0.08)",
-            }}
-          >
-            <div
-              className="absolute top-0 left-0 right-0 h-[1px]"
-              style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent)" }}
-            />
+          <div className="rounded-2xl p-7 mb-6 bg-elevated border border-hairline shadow-ent-xs">
             {steps[onboardingStep]}
           </div>
 
           <div className="flex justify-between items-center">
             <button
               onClick={() => setOnboardingStep(Math.max(0, onboardingStep - 1))}
-              className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-300"
-              style={{
-                color: onboardingStep === 0 ? "rgba(255,255,255,0.2)" : "#9ca3af",
-                cursor: onboardingStep === 0 ? "not-allowed" : "pointer",
-              }}
+              className={cx(
+                "px-5 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 ease-ent",
+                onboardingStep === 0 ? "text-ink-40 cursor-not-allowed" : "text-ink-60 hover:text-ink"
+              )}
               disabled={onboardingStep === 0}
             >
               ← Anterior
@@ -637,13 +572,10 @@ export default function ChatPage() {
               <button
                 onClick={() => setOnboardingStep(onboardingStep + 1)}
                 disabled={!canAdvance}
-                className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300"
-                style={{
-                  background: canAdvance ? "linear-gradient(135deg, #fbbf24, #d97706)" : "rgba(255,255,255,0.04)",
-                  color: canAdvance ? "#1a0f00" : "rgba(255,255,255,0.25)",
-                  boxShadow: canAdvance ? "0 0 25px rgba(251,191,36,0.35)" : "none",
-                  cursor: canAdvance ? "pointer" : "not-allowed",
-                }}
+                className={cx(
+                  "px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors duration-150 ease-ent",
+                  canAdvance ? "bg-ink text-white hover:bg-ink/90" : "bg-surface-2 text-ink-40 cursor-not-allowed"
+                )}
               >
                 Siguiente →
               </button>
@@ -651,36 +583,23 @@ export default function ChatPage() {
               <button
                 onClick={submitOnboarding}
                 disabled={!canAdvance || savingOnboarding}
-                className="px-7 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300"
-                style={{
-                  background:
-                    canAdvance && !savingOnboarding
-                      ? "linear-gradient(135deg, #fbbf24, #d97706)"
-                      : "rgba(255,255,255,0.04)",
-                  color: canAdvance && !savingOnboarding ? "#1a0f00" : "rgba(255,255,255,0.25)",
-                  boxShadow: canAdvance && !savingOnboarding ? "0 0 30px rgba(251,191,36,0.45)" : "none",
-                  cursor: canAdvance && !savingOnboarding ? "pointer" : "not-allowed",
-                }}
+                className={cx(
+                  "px-7 py-2.5 rounded-lg text-sm font-semibold transition-colors duration-150 ease-ent",
+                  canAdvance && !savingOnboarding ? "bg-ink text-white hover:bg-ink/90" : "bg-surface-2 text-ink-40 cursor-not-allowed"
+                )}
               >
-                {savingOnboarding ? "Despertando Aurum..." : "✨ Activar Aurum"}
+                {savingOnboarding ? "Despertando Aurum..." : "Activar Aurum"}
               </button>
             )}
           </div>
 
           {onboardingError && (
-            <div
-              className="mt-4 p-3 rounded-lg text-sm"
-              style={{
-                background: "rgba(220,38,38,0.08)",
-                border: "1px solid rgba(220,38,38,0.25)",
-                color: "#fca5a5",
-              }}
-            >
+            <div className="mt-4 p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
               {onboardingError}
             </div>
           )}
 
-          <p className="text-center text-xs mt-4" style={{ color: "#6b7280" }}>
+          <p className="text-center text-xs mt-4 text-ink-40">
             Paso {onboardingStep + 1} de {steps.length} · Podés editarlo desde Sinapsis
           </p>
         </div>
@@ -692,41 +611,20 @@ export default function ChatPage() {
   const isEmpty = messages.length === 0;
 
   return (
-    <div style={aurumCanvas} className="flex flex-col">
+    <div className={cx(canvasClass)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-5 flex-shrink-0">
         <div className="flex items-center gap-3">
           <AurumOrb size={40} thinking={loading} />
           <div>
-            <h2
-              className="text-2xl font-bold tracking-tight leading-none"
-              style={{
-                background: "linear-gradient(135deg, #fef3c7 0%, #fbbf24 50%, #d97706 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              Aurum
-            </h2>
-            <div className="flex items-center gap-2 mt-1">
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: "#fbbf24", boxShadow: "0 0 8px rgba(251,191,36,0.8)" }}
-              />
-              <span className="text-[11px] font-mono uppercase tracking-[0.15em]" style={{ color: "#fbbf24" }}>
-                Inteligencia activa
-              </span>
+            <h2 className="text-2xl font-medium tracking-tight leading-none text-ink">Aurum</h2>
+            <div className="mt-1.5">
+              <LivePulse status="LIVE" label="Inteligencia activa" />
             </div>
           </div>
         </div>
-        <div
-          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full"
-          style={{
-            background: "rgba(251,191,36,0.06)",
-            border: "1px solid rgba(251,191,36,0.18)",
-          }}
-        >
-          <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "#fde68a" }}>
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-hairline">
+          <span className="text-[10px] font-geistmono uppercase tracking-widest text-ink-40">
             Growth · Insights · Acciones
           </span>
         </div>
@@ -735,56 +633,24 @@ export default function ChatPage() {
       {/* Conversation area */}
       <div className="flex-1 overflow-y-auto min-h-0 pr-2">
         {isEmpty && !loading && (
-          <div
-            className="flex flex-col items-center text-center mt-6 mb-8 relative"
-            style={{ animation: "aurumFadeUp 600ms cubic-bezier(0.16,1,0.3,1)" }}
-          >
-            {/* Outer halo */}
-            <div
-              className="absolute top-0 left-1/2 -translate-x-1/2 w-[280px] h-[280px] pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(circle, rgba(251,191,36,0.10) 0%, rgba(251,191,36,0.04) 30%, transparent 65%)",
-                animation: "aurumPulseRing 5s ease-in-out infinite",
-              }}
-            />
+          <div className="flex flex-col items-center text-center mt-6 mb-8">
             {/* Pre-headline badge */}
-            <div
-              className="relative inline-flex items-center gap-2 px-3 py-1 rounded-full mb-5"
-              style={{
-                background: "linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.02))",
-                border: "1px solid rgba(251,191,36,0.28)",
-                boxShadow: "0 0 18px rgba(251,191,36,0.10)",
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: "#fbbf24", boxShadow: "0 0 8px rgba(251,191,36,0.9)", animation: "aurumBreath 2.4s ease-in-out infinite" }}
-              />
-              <span className="text-[9px] font-mono uppercase tracking-[0.22em]" style={{ color: "#fde68a" }}>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-5 bg-surface border border-hairline">
+              <span className="w-1.5 h-1.5 rounded-full bg-ink-40" />
+              <span className="text-[9px] font-geistmono uppercase tracking-[0.22em] text-ink-40">
                 Intelligence Engine · v1
               </span>
             </div>
 
-            <div className="relative" style={{ animation: "aurumFloat 4s ease-in-out infinite" }}>
-              <AurumOrb size={92} />
-            </div>
+            <AurumOrb size={92} />
 
-            <h3
-              className="text-3xl font-bold mt-5 tracking-tight"
-              style={{
-                background: "linear-gradient(135deg, #ffffff 0%, #fef3c7 50%, #fbbf24 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 className="text-3xl font-medium mt-5 tracking-tight text-ink" style={{ letterSpacing: "-0.01em" }}>
               Qué querés entender hoy?
             </h3>
 
             <CyclingHeadline />
 
-            <p className="text-[13px] mt-4 max-w-md leading-relaxed" style={{ color: "#9ca3af" }}>
+            <p className="text-[13px] mt-4 max-w-md leading-relaxed text-ink-60">
               Accedo en tiempo real a ventas, ads, tráfico, clientes y productos. Cada respuesta
               trae diagnóstico, insights, oportunidades y plan de acción.
             </p>
@@ -793,44 +659,21 @@ export default function ChatPage() {
 
         <div className="space-y-5 pb-4">
           {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              style={{ animation: "aurumFadeUp 500ms cubic-bezier(0.16,1,0.3,1)" }}
-            >
+            <div key={i} className={cx("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
               {msg.role === "assistant" && (
                 <div className="flex gap-3 max-w-[88%]">
                   <div className="mt-1">
                     <AurumOrb size={32} />
                   </div>
-                  <div
-                    className="relative rounded-2xl px-5 py-4"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015))",
-                      border: "1px solid rgba(251,191,36,0.18)",
-                      boxShadow:
-                        "0 4px 30px rgba(0,0,0,0.4), 0 0 25px rgba(251,191,36,0.06), inset 0 1px 0 rgba(253,224,71,0.08)",
-                    }}
-                  >
-                    <div
-                      className="absolute top-0 left-4 right-4 h-[1px]"
-                      style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)" }}
-                    />
-                    <div className="text-[13.5px] leading-relaxed" style={{ color: "#e5e7eb" }}>
+                  <div className="rounded-2xl px-5 py-4 bg-elevated border border-hairline shadow-ent-xs">
+                    <div className="text-[13.5px] leading-relaxed text-ink">
                       {renderContent(msg.content)}
                     </div>
                   </div>
                 </div>
               )}
               {msg.role === "user" && (
-                <div
-                  className="rounded-2xl px-4 py-3 max-w-[75%] text-[13.5px] leading-relaxed"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "#f3f4f6",
-                  }}
-                >
+                <div className="rounded-2xl px-4 py-3 max-w-[75%] text-[13.5px] leading-relaxed bg-ink text-white">
                   {msg.content}
                 </div>
               )}
@@ -838,18 +681,8 @@ export default function ChatPage() {
           ))}
 
           {loading && (
-            <div
-              className="flex justify-start"
-              style={{ animation: "aurumFadeUp 400ms cubic-bezier(0.16,1,0.3,1)" }}
-            >
-              <div
-                className="rounded-2xl px-5 py-3"
-                style={{
-                  background: "linear-gradient(180deg, rgba(251,191,36,0.04), rgba(251,191,36,0.01))",
-                  border: "1px solid rgba(251,191,36,0.22)",
-                  boxShadow: "0 0 25px rgba(251,191,36,0.08)",
-                }}
-              >
+            <div className="flex justify-start">
+              <div className="rounded-2xl px-5 py-3 bg-elevated border border-hairline shadow-ent-xs">
                 <AurumThinking />
               </div>
             </div>
@@ -861,7 +694,7 @@ export default function ChatPage() {
       {/* Suggestions */}
       {isEmpty && !loading && (
         <div className="mb-4 flex-shrink-0">
-          <p className="text-[10px] font-mono uppercase tracking-[0.2em] mb-3" style={{ color: "#fbbf24" }}>
+          <p className="text-[10px] font-geistmono uppercase tracking-[0.2em] mb-3 text-ink-40">
             Análisis estratégicos
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
@@ -869,39 +702,16 @@ export default function ChatPage() {
               <button
                 key={i}
                 onClick={() => sendMessage(s.prompt)}
-                className="group relative text-left rounded-xl px-4 py-3 transition-all duration-500 overflow-hidden"
-                style={{
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  animation: `aurumFadeUp 500ms cubic-bezier(0.16,1,0.3,1) ${i * 60}ms both`,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(245,158,11,0.02))";
-                  e.currentTarget.style.borderColor = "rgba(251,191,36,0.45)";
-                  e.currentTarget.style.boxShadow = "0 0 28px rgba(251,191,36,0.14), inset 0 1px 0 rgba(253,224,71,0.10)";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
+                className="group relative text-left rounded-xl px-4 py-3 transition-all duration-150 ease-ent bg-elevated border border-hairline shadow-ent-xs hover:border-hairline-2 hover:shadow-ent-soft"
               >
-                {/* Top gold accent line — appears on hover */}
-                <div
-                  className="absolute top-0 left-3 right-3 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.7), transparent)" }}
-                />
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white">{s.title}</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: "#9ca3af" }}>{s.subtitle}</div>
+                    <div className="text-sm font-semibold text-ink">{s.title}</div>
+                    <div className="text-[11px] mt-0.5 text-ink-60">{s.subtitle}</div>
                   </div>
                   {/* Arrow appears on hover */}
                   <svg
-                    className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-x-1 group-hover:translate-x-0"
-                    style={{ color: "#fbbf24" }}
+                    className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-150 -translate-x-1 group-hover:translate-x-0 text-ink-40"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -924,17 +734,10 @@ export default function ChatPage() {
             <button
               key={m.key}
               onClick={() => setMode(m.key)}
-              className="px-3 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-wider transition-all duration-300"
-              style={{
-                background: sel
-                  ? `linear-gradient(135deg, ${m.color}22, ${m.color}08)`
-                  : "rgba(255,255,255,0.02)",
-                border: sel
-                  ? `1px solid ${m.color}99`
-                  : "1px solid rgba(255,255,255,0.08)",
-                color: sel ? m.color : "#9ca3af",
-                boxShadow: sel ? `0 0 18px ${m.color}33` : "none",
-              }}
+              className={cx(
+                "px-3 py-1.5 rounded-full text-[11px] font-geistmono uppercase tracking-wider border transition-colors duration-150 ease-ent",
+                sel ? "bg-ink border-ink text-white" : "bg-white border-hairline-2 text-ink-60 hover:border-hairline"
+              )}
               title={m.desc}
             >
               {m.label}
@@ -945,37 +748,23 @@ export default function ChatPage() {
 
       {/* Input */}
       <div className="flex-shrink-0">
-        <div
-          className="flex items-center gap-2 rounded-2xl pl-5 pr-2 py-2 transition-all duration-500"
-          style={{
-            background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
-            border: "1px solid rgba(251,191,36,0.25)",
-            boxShadow: "0 0 30px rgba(251,191,36,0.08), inset 0 1px 0 rgba(253,224,71,0.06)",
-          }}
-        >
+        <div className="flex items-center gap-2 rounded-2xl pl-5 pr-2 py-2 bg-elevated border border-hairline-2 focus-within:border-hairline transition-colors duration-150 ease-ent">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             placeholder="Preguntá lo que quieras entender de tu negocio..."
-            className="flex-1 bg-transparent text-[14px] outline-none py-2"
-            style={{ color: "#f3f4f6" }}
+            className="flex-1 bg-transparent text-[14px] outline-none py-2 text-ink placeholder:text-ink-40"
             disabled={loading}
           />
           <button
             onClick={() => sendMessage()}
             disabled={loading || !input.trim()}
-            className="rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2"
-            style={{
-              background:
-                loading || !input.trim()
-                  ? "rgba(255,255,255,0.04)"
-                  : "linear-gradient(135deg, #fbbf24, #d97706)",
-              color: loading || !input.trim() ? "rgba(255,255,255,0.3)" : "#1a0f00",
-              boxShadow: loading || !input.trim() ? "none" : "0 0 25px rgba(251,191,36,0.4)",
-              cursor: loading || !input.trim() ? "not-allowed" : "pointer",
-            }}
+            className={cx(
+              "rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors duration-150 ease-ent flex items-center gap-2",
+              loading || !input.trim() ? "bg-surface-2 text-ink-40 cursor-not-allowed" : "bg-ink text-white hover:bg-ink/90"
+            )}
           >
             <span>Enviar</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -983,7 +772,7 @@ export default function ChatPage() {
             </svg>
           </button>
         </div>
-        <p className="text-[10px] text-center mt-2" style={{ color: "#6b7280" }}>
+        <p className="text-[10px] text-center mt-2 text-ink-40">
           Aurum puede equivocarse. Verificá decisiones críticas con tus datos.
         </p>
       </div>

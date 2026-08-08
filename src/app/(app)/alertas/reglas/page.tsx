@@ -280,10 +280,10 @@ export default function AlertasReglasPage() {
         position: "relative",
         minHeight: "100%",
         padding: "32px 40px 64px",
-        background: "#fafafa",
+        background: "#FBFAF7",
       }}
     >
-      {/* Aurora premium con 3 capas */}
+      {/* Ambient wash sobrio — profundidad sutil, sin arcoíris */}
       <div
         style={{
           position: "absolute",
@@ -291,9 +291,9 @@ export default function AlertasReglasPage() {
           pointerEvents: "none",
           zIndex: 0,
           background:
-            "radial-gradient(900px 500px at 85% -10%, rgba(244, 63, 94, 0.07), transparent 60%)," +
-            "radial-gradient(700px 400px at 5% 30%, rgba(99, 102, 241, 0.05), transparent 60%)," +
-            "radial-gradient(600px 400px at 50% 110%, rgba(245, 158, 11, 0.04), transparent 60%)",
+            "radial-gradient(900px 500px at 85% -10%, rgba(28,27,24,0.03), transparent 60%)," +
+            "radial-gradient(700px 400px at 5% 30%, rgba(28,27,24,0.02), transparent 60%)," +
+            "radial-gradient(600px 400px at 50% 110%, rgba(28,27,24,0.02), transparent 60%)",
         }}
       />
 
@@ -322,10 +322,10 @@ export default function AlertasReglasPage() {
           style={{
             background: "white",
             borderRadius: 18,
-            border: "1px solid rgba(15, 23, 42, 0.05)",
+            border: "1px solid rgba(28,27,24, 0.05)",
             padding: "28px 32px",
             marginBottom: 16,
-            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.02), 0 8px 24px rgba(15, 23, 42, 0.04)",
+            boxShadow: "0 1px 3px rgba(28,27,24, 0.02), 0 8px 24px rgba(28,27,24, 0.04)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -339,13 +339,13 @@ export default function AlertasReglasPage() {
                 width: 56,
                 height: 56,
                 borderRadius: 14,
-                background: "linear-gradient(135deg, #f43f5e, #f59e0b)",
+                background: "#1C1B18",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "white",
                 flexShrink: 0,
-                boxShadow: "0 6px 20px rgba(244, 63, 94, 0.25)",
+                boxShadow: "0 6px 20px rgba(28,27,24,0.18)",
               }}
             >
               <Settings2 size={26} />
@@ -377,7 +377,7 @@ export default function AlertasReglasPage() {
                 alignItems: "center",
                 gap: 7,
                 padding: "11px 18px",
-                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                background: "#1C1B18",
                 color: "white",
                 border: "none",
                 borderRadius: 11,
@@ -385,16 +385,16 @@ export default function AlertasReglasPage() {
                 fontSize: 13,
                 fontWeight: 600,
                 whiteSpace: "nowrap",
-                boxShadow: "0 4px 16px rgba(99, 102, 241, 0.35)",
+                boxShadow: "0 4px 16px rgba(28,27,24, 0.35)",
                 transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow = "0 6px 22px rgba(99, 102, 241, 0.45)";
+                e.currentTarget.style.boxShadow = "0 6px 22px rgba(28,27,24, 0.45)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.35)";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(28,27,24, 0.35)";
               }}
             >
               <Plus size={15} /> Nueva regla
@@ -405,9 +405,9 @@ export default function AlertasReglasPage() {
         {/* KPI strip premium (3 cards grandes) */}
         {!loading && rules.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 32 }}>
-            <KpiCardPremium label="Activas" value={totalActive} sub={`de ${rules.length} reglas`} tone="#10b981" Icon={Power} />
-            <KpiCardPremium label="Reportes programados" value={totalScheduled} sub={totalScheduled === 1 ? "regla schedule" : "reglas schedule"} tone="#0ea5e9" Icon={Clock} />
-            <KpiCardPremium label="Alertas condicionales" value={totalConditional} sub={totalConditional === 1 ? "regla condition" : "reglas condition"} tone="#f43f5e" Icon={Bolt} />
+            <KpiCardPremium label="Activas" value={totalActive} sub={`de ${rules.length} reglas`} tone="#2F9153" Icon={Power} />
+            <KpiCardPremium label="Reportes programados" value={totalScheduled} sub={totalScheduled === 1 ? "regla schedule" : "reglas schedule"} tone="#57544C" Icon={Clock} />
+            <KpiCardPremium label="Alertas condicionales" value={totalConditional} sub={totalConditional === 1 ? "regla condition" : "reglas condition"} tone="#57544C" Icon={Bolt} />
           </div>
         )}
 
@@ -480,8 +480,8 @@ export default function AlertasReglasPage() {
             style={{
               marginTop: 28,
               padding: 18,
-              background: "linear-gradient(135deg, rgba(168, 85, 247, 0.05), rgba(244, 63, 94, 0.05))",
-              border: "1px dashed rgba(168, 85, 247, 0.25)",
+              background: "rgba(28,27,24,0.03)",
+              border: "1px dashed rgba(28,27,24, 0.16)",
               borderRadius: 12,
               display: "flex",
               alignItems: "center",
@@ -493,7 +493,7 @@ export default function AlertasReglasPage() {
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                background: "linear-gradient(135deg, #a855f7, #f43f5e)",
+                background: "#1C1B18",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -505,7 +505,7 @@ export default function AlertasReglasPage() {
             </div>
             <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
               <b style={{ color: "#0f172a" }}>¿Querés crear otra regla?</b>{" "}
-              Usá <b style={{ color: "#6366f1" }}>"+ Nueva regla"</b> arriba para el wizard guiado paso a paso,
+              Usá <b style={{ color: "#1C1B18" }}>"+ Nueva regla"</b> arriba para el wizard guiado paso a paso,
               o pedísela a Aurum en el chat con lenguaje natural — ej:{" "}
               <i style={{ color: "#475569" }}>"avisame si las cancelaciones de ML pasan el 5%"</i>.
             </div>
@@ -579,8 +579,8 @@ function KpiCardPremium({
         padding: "20px 22px",
         background: "white",
         borderRadius: 14,
-        border: "1px solid rgba(15, 23, 42, 0.05)",
-        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.02), 0 4px 14px rgba(15, 23, 42, 0.03)",
+        border: "1px solid rgba(28,27,24, 0.05)",
+        boxShadow: "0 1px 3px rgba(28,27,24, 0.02), 0 4px 14px rgba(28,27,24, 0.03)",
         position: "relative",
         overflow: "hidden",
       }}
@@ -682,7 +682,7 @@ function ModuleGroup({
           </div>
         </div>
         {/* Divider sutil */}
-        <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, rgba(15,23,42,0.08), transparent)", marginLeft: 8 }} />
+        <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, rgba(28,27,24,0.08), transparent)", marginLeft: 8 }} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -734,20 +734,20 @@ function RuleCard({
       style={{
         background: "white",
         borderRadius: 14,
-        border: "1px solid rgba(15, 23, 42, 0.05)",
+        border: "1px solid rgba(28,27,24, 0.05)",
         position: "relative",
         overflow: "hidden",
         opacity: rule.enabled ? 1 : 0.65,
         transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.02), 0 4px 14px rgba(15, 23, 42, 0.03)",
+        boxShadow: "0 1px 3px rgba(28,27,24, 0.02), 0 4px 14px rgba(28,27,24, 0.03)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06)";
-        e.currentTarget.style.borderColor = "rgba(15, 23, 42, 0.08)";
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,27,24, 0.04), 0 8px 24px rgba(28,27,24, 0.06)";
+        e.currentTarget.style.borderColor = "rgba(28,27,24, 0.08)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "0 1px 3px rgba(15, 23, 42, 0.02), 0 4px 14px rgba(15, 23, 42, 0.03)";
-        e.currentTarget.style.borderColor = "rgba(15, 23, 42, 0.05)";
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,27,24, 0.02), 0 4px 14px rgba(28,27,24, 0.03)";
+        e.currentTarget.style.borderColor = "rgba(28,27,24, 0.05)";
       }}
     >
       {/* Accent bar lateral del color de severidad */}
@@ -813,14 +813,14 @@ function RuleCard({
           style={{
             marginTop: 16,
             paddingTop: 14,
-            borderTop: "1px dashed rgba(15, 23, 42, 0.06)",
+            borderTop: "1px dashed rgba(28,27,24, 0.06)",
             display: "flex",
             gap: 6,
             justifyContent: "flex-end",
           }}
         >
-          <IconButton Icon={Play} label="Probar ahora" onClick={onPreview} tone="#6366f1" />
-          <IconButton Icon={Pencil} label="Editar" onClick={onEdit} tone="#0ea5e9" />
+          <IconButton Icon={Play} label="Probar ahora" onClick={onPreview} tone="#57544C" />
+          <IconButton Icon={Pencil} label="Editar" onClick={onEdit} tone="#57544C" />
           <IconButton Icon={Trash2} label="Borrar" onClick={onDelete} tone="#ef4444" />
         </div>
       </div>
@@ -887,7 +887,7 @@ function ToggleSwitch({ enabled, onClick }: { enabled: boolean; onClick: () => v
         cursor: "pointer",
         flexShrink: 0,
         transition: "background 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-        boxShadow: enabled ? "0 2px 8px rgba(16, 185, 129, 0.35)" : "inset 0 1px 2px rgba(15,23,42,0.06)",
+        boxShadow: enabled ? "0 2px 8px rgba(16, 185, 129, 0.35)" : "inset 0 1px 2px rgba(28,27,24,0.06)",
         padding: 0,
       }}
     >
@@ -900,7 +900,7 @@ function ToggleSwitch({ enabled, onClick }: { enabled: boolean; onClick: () => v
           height: 18,
           borderRadius: 999,
           background: "white",
-          boxShadow: "0 2px 4px rgba(15, 23, 42, 0.2)",
+          boxShadow: "0 2px 4px rgba(28,27,24, 0.2)",
           transition: "left 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       />
@@ -931,7 +931,7 @@ function IconButton({
         padding: "7px 12px",
         background: "transparent",
         color: "#64748b",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
+        border: "1px solid rgba(28,27,24, 0.08)",
         borderRadius: 8,
         cursor: "pointer",
         fontSize: 12,
@@ -946,7 +946,7 @@ function IconButton({
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent";
         e.currentTarget.style.color = "#64748b";
-        e.currentTarget.style.borderColor = "rgba(15, 23, 42, 0.08)";
+        e.currentTarget.style.borderColor = "rgba(28,27,24, 0.08)";
       }}
     >
       <Icon size={13} />
@@ -961,7 +961,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
       style={{
         background: "white",
         borderRadius: 16,
-        border: "1px solid rgba(15, 23, 42, 0.06)",
+        border: "1px solid rgba(28,27,24, 0.06)",
         padding: 48,
         textAlign: "center",
       }}
@@ -971,7 +971,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
           width: 64,
           height: 64,
           borderRadius: 16,
-          background: "linear-gradient(135deg, #a855f7, #f43f5e)",
+          background: "#1C1B18",
           margin: "0 auto 18px",
           display: "inline-flex",
           alignItems: "center",
@@ -1005,14 +1005,14 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
             alignItems: "center",
             gap: 8,
             padding: "10px 18px",
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            background: "#1C1B18",
             color: "white",
             border: "none",
             borderRadius: 10,
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 12px rgba(99, 102, 241, 0.25)",
+            boxShadow: "0 2px 12px rgba(28,27,24, 0.25)",
           }}
         >
           <Plus size={14} /> Crear regla con wizard
@@ -1025,12 +1025,12 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
             gap: 8,
             padding: "10px 18px",
             background: "white",
-            color: "#a855f7",
+            color: "#1C1B18",
             textDecoration: "none",
             borderRadius: 10,
             fontSize: 13,
             fontWeight: 600,
-            border: "1px solid rgba(168, 85, 247, 0.25)",
+            border: "1px solid rgba(28,27,24, 0.16)",
           }}
         >
           <Sparkles size={14} /> Pedísela a Aurum
@@ -1045,8 +1045,8 @@ function ExampleChip({ text }: { text: string }) {
     <div
       style={{
         padding: "10px 14px",
-        background: "#fafafa",
-        border: "1px solid rgba(15, 23, 42, 0.06)",
+        background: "#F5F3EE",
+        border: "1px solid rgba(28,27,24, 0.06)",
         borderRadius: 8,
         fontSize: 12,
         color: "#475569",
@@ -1095,8 +1095,8 @@ function PreviewModal({
             style={{
               padding: 16,
               borderRadius: 12,
-              background: "#fafafa",
-              border: "1px solid rgba(15, 23, 42, 0.08)",
+              background: "#F5F3EE",
+              border: "1px solid rgba(28,27,24, 0.08)",
               borderLeft: `4px solid ${data.preview.severity === "critical" ? "#ef4444" : data.preview.severity === "warning" ? "#f59e0b" : "#0ea5e9"}`,
             }}
           >
@@ -1113,7 +1113,7 @@ function PreviewModal({
                   display: "inline-block",
                   marginTop: 12,
                   fontSize: 12,
-                  color: "#6366f1",
+                  color: "#1C1B18",
                   fontWeight: 600,
                   textDecoration: "none",
                 }}
@@ -1155,7 +1155,7 @@ function ConfirmDeleteModal({
             padding: "8px 16px",
             background: "transparent",
             color: "#64748b",
-            border: "1px solid rgba(15,23,42,0.1)",
+            border: "1px solid rgba(28,27,24,0.1)",
             borderRadius: 8,
             cursor: "pointer",
             fontSize: 13,
@@ -1194,7 +1194,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15, 23, 42, 0.4)",
+        background: "rgba(28,27,24, 0.4)",
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
@@ -1213,7 +1213,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
           width: "100%",
           maxHeight: "85vh",
           overflowY: "auto",
-          boxShadow: "0 20px 60px rgba(15, 23, 42, 0.18)",
+          boxShadow: "0 20px 60px rgba(28,27,24, 0.18)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
@@ -1304,7 +1304,7 @@ function EditDrawer({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15, 23, 42, 0.4)",
+        background: "rgba(28,27,24, 0.4)",
         backdropFilter: "blur(4px)",
         zIndex: 110,
         display: "flex",
@@ -1319,7 +1319,7 @@ function EditDrawer({
           background: "white",
           height: "100%",
           overflowY: "auto",
-          boxShadow: "-12px 0 40px rgba(15, 23, 42, 0.18)",
+          boxShadow: "-12px 0 40px rgba(28,27,24, 0.18)",
           display: "flex",
           flexDirection: "column",
         }}
@@ -1330,7 +1330,7 @@ function EditDrawer({
             position: "sticky",
             top: 0,
             background: "white",
-            borderBottom: "1px solid rgba(15,23,42,0.06)",
+            borderBottom: "1px solid rgba(28,27,24,0.06)",
             padding: "20px 24px",
             display: "flex",
             alignItems: "flex-start",
@@ -1523,7 +1523,7 @@ function EditDrawer({
             position: "sticky",
             bottom: 0,
             background: "white",
-            borderTop: "1px solid rgba(15,23,42,0.06)",
+            borderTop: "1px solid rgba(28,27,24,0.06)",
             padding: "14px 24px",
             display: "flex",
             justifyContent: "flex-end",
@@ -1537,7 +1537,7 @@ function EditDrawer({
               padding: "9px 16px",
               background: "transparent",
               color: "#64748b",
-              border: "1px solid rgba(15,23,42,0.1)",
+              border: "1px solid rgba(28,27,24,0.1)",
               borderRadius: 8,
               cursor: saving ? "not-allowed" : "pointer",
               fontSize: 13,
@@ -1551,7 +1551,7 @@ function EditDrawer({
             disabled={saving}
             style={{
               padding: "9px 16px",
-              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+              background: "#1C1B18",
               color: "white",
               border: "none",
               borderRadius: 8,
@@ -1703,7 +1703,7 @@ function CreateWizard({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15, 23, 42, 0.4)",
+        background: "rgba(28,27,24, 0.4)",
         backdropFilter: "blur(4px)",
         zIndex: 110,
         display: "flex",
@@ -1718,7 +1718,7 @@ function CreateWizard({
           background: "white",
           height: "100%",
           overflowY: "auto",
-          boxShadow: "-12px 0 40px rgba(15, 23, 42, 0.18)",
+          boxShadow: "-12px 0 40px rgba(28,27,24, 0.18)",
           display: "flex",
           flexDirection: "column",
         }}
@@ -1729,7 +1729,7 @@ function CreateWizard({
             position: "sticky",
             top: 0,
             background: "white",
-            borderBottom: "1px solid rgba(15,23,42,0.06)",
+            borderBottom: "1px solid rgba(28,27,24,0.06)",
             padding: "20px 24px",
             zIndex: 5,
           }}
@@ -1775,7 +1775,7 @@ function CreateWizard({
                   flex: 1,
                   height: 3,
                   borderRadius: 999,
-                  background: n <= step ? "linear-gradient(90deg, #6366f1, #8b5cf6)" : "rgba(15,23,42,0.08)",
+                  background: n <= step ? "#1C1B18" : "rgba(28,27,24,0.08)",
                   transition: "background 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               />
@@ -1808,7 +1808,7 @@ function CreateWizard({
                         gap: 12,
                         padding: 14,
                         background: "white",
-                        border: "1px solid rgba(15,23,42,0.08)",
+                        border: "1px solid rgba(28,27,24,0.08)",
                         borderRadius: 12,
                         cursor: "pointer",
                         textAlign: "left",
@@ -1819,7 +1819,7 @@ function CreateWizard({
                         e.currentTarget.style.transform = "translateY(-1px)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(15,23,42,0.08)";
+                        e.currentTarget.style.borderColor = "rgba(28,27,24,0.08)";
                         e.currentTarget.style.transform = "translateY(0)";
                       }}
                     >
@@ -1872,8 +1872,8 @@ function CreateWizard({
                   style={{
                     width: "100%",
                     padding: "9px 12px 9px 36px",
-                    background: "#fafafa",
-                    border: "1px solid rgba(15,23,42,0.08)",
+                    background: "#F5F3EE",
+                    border: "1px solid rgba(28,27,24,0.08)",
                     borderRadius: 8,
                     fontSize: 13,
                     color: "#0f172a",
@@ -1903,18 +1903,18 @@ function CreateWizard({
                         gap: 12,
                         padding: 14,
                         background: "white",
-                        border: "1px solid rgba(15,23,42,0.08)",
+                        border: "1px solid rgba(28,27,24,0.08)",
                         borderRadius: 10,
                         cursor: "pointer",
                         textAlign: "left",
                         transition: "all 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.4)";
-                        e.currentTarget.style.background = "rgba(99, 102, 241, 0.02)";
+                        e.currentTarget.style.borderColor = "rgba(28,27,24, 0.4)";
+                        e.currentTarget.style.background = "rgba(28,27,24, 0.02)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(15,23,42,0.08)";
+                        e.currentTarget.style.borderColor = "rgba(28,27,24,0.08)";
                         e.currentTarget.style.background = "white";
                       }}
                     >
@@ -1964,8 +1964,8 @@ function CreateWizard({
               <div
                 style={{
                   padding: 12,
-                  background: "rgba(99, 102, 241, 0.05)",
-                  border: "1px solid rgba(99, 102, 241, 0.2)",
+                  background: "rgba(28,27,24, 0.05)",
+                  border: "1px solid rgba(28,27,24, 0.2)",
                   borderRadius: 10,
                   display: "flex",
                   alignItems: "center",
@@ -1974,7 +1974,7 @@ function CreateWizard({
                   color: "#475569",
                 }}
               >
-                <Check size={14} style={{ color: "#6366f1", flexShrink: 0 }} />
+                <Check size={14} style={{ color: "#1C1B18", flexShrink: 0 }} />
                 <div>
                   <b style={{ color: "#0f172a" }}>{primitive.label}</b> — {primitive.description}
                 </div>
@@ -2112,8 +2112,8 @@ function CreateWizard({
               <div
                 style={{
                   padding: 18,
-                  background: "linear-gradient(135deg, rgba(99,102,241,0.05), rgba(139,92,246,0.05))",
-                  border: "1px solid rgba(99,102,241,0.2)",
+                  background: "rgba(28,27,24,0.03)",
+                  border: "1px solid rgba(28,27,24,0.12)",
                   borderRadius: 12,
                 }}
               >
@@ -2186,7 +2186,7 @@ function CreateWizard({
             position: "sticky",
             bottom: 0,
             background: "white",
-            borderTop: "1px solid rgba(15,23,42,0.06)",
+            borderTop: "1px solid rgba(28,27,24,0.06)",
             padding: "14px 24px",
             display: "flex",
             justifyContent: "space-between",
@@ -2209,7 +2209,7 @@ function CreateWizard({
               padding: "9px 16px",
               background: "transparent",
               color: "#64748b",
-              border: "1px solid rgba(15,23,42,0.1)",
+              border: "1px solid rgba(28,27,24,0.1)",
               borderRadius: 8,
               cursor: saving ? "not-allowed" : "pointer",
               fontSize: 13,
@@ -2226,7 +2226,7 @@ function CreateWizard({
                 disabled={!name.trim()}
                 style={{
                   padding: "9px 16px",
-                  background: name.trim() ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#e2e8f0",
+                  background: name.trim() ? "#1C1B18" : "#EDEAE3",
                   color: name.trim() ? "white" : "#94a3b8",
                   border: "none",
                   borderRadius: 8,
@@ -2247,7 +2247,7 @@ function CreateWizard({
                 disabled={saving}
                 style={{
                   padding: "9px 18px",
-                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                  background: "#1C1B18",
                   color: "white",
                   border: "none",
                   borderRadius: 8,
@@ -2258,7 +2258,7 @@ function CreateWizard({
                   alignItems: "center",
                   gap: 6,
                   opacity: saving ? 0.6 : 1,
-                  boxShadow: "0 2px 12px rgba(99, 102, 241, 0.25)",
+                  boxShadow: "0 2px 12px rgba(28,27,24, 0.25)",
                 }}
               >
                 {saving ? <Loader2 size={13} className="spin" /> : <Check size={13} />}
@@ -2300,7 +2300,7 @@ const inputStyle: any = {
   width: "100%",
   padding: "9px 12px",
   background: "white",
-  border: "1px solid rgba(15,23,42,0.12)",
+  border: "1px solid rgba(28,27,24,0.12)",
   borderRadius: 8,
   fontSize: 13,
   color: "#0f172a",
@@ -2329,7 +2329,7 @@ function Section({ title, Icon, children }: { title: string; Icon: any; children
   return (
     <div
       style={{
-        background: "#fafafa",
+        background: "#F5F3EE",
         borderRadius: 10,
         padding: 14,
         display: "flex",
@@ -2442,8 +2442,8 @@ function ChannelToggle({
         alignItems: "center",
         gap: 12,
         padding: 10,
-        background: checked ? "rgba(99, 102, 241, 0.05)" : "white",
-        border: `1px solid ${checked ? "rgba(99,102,241,0.3)" : "rgba(15,23,42,0.08)"}`,
+        background: checked ? "rgba(28,27,24, 0.05)" : "white",
+        border: `1px solid ${checked ? "rgba(28,27,24,0.3)" : "rgba(28,27,24,0.08)"}`,
         borderRadius: 8,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
@@ -2460,7 +2460,7 @@ function ChannelToggle({
           width: 28,
           height: 28,
           borderRadius: 7,
-          background: checked ? "#6366f1" : "#cbd5e1",
+          background: checked ? "#1C1B18" : "#cbd5e1",
           color: "white",
           display: "inline-flex",
           alignItems: "center",
@@ -2499,7 +2499,7 @@ function SeverityChip({
         padding: "8px 10px",
         background: active ? `${tone}15` : "white",
         color: active ? tone : "#64748b",
-        border: `1px solid ${active ? `${tone}40` : "rgba(15,23,42,0.1)"}`,
+        border: `1px solid ${active ? `${tone}40` : "rgba(28,27,24,0.1)"}`,
         borderRadius: 8,
         cursor: "pointer",
         fontSize: 12,

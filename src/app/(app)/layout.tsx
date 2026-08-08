@@ -613,19 +613,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <main
               className={
                 isAurumLocked
-                  ? "flex-1 p-0 overflow-hidden bg-[#0a0a0f]"
+                  ? "flex-1 p-0 overflow-hidden bg-canvas"
                   : isAurumScroll
-                  ? "flex-1 p-0 overflow-y-auto bg-[#0a0a0f]"
+                  ? "flex-1 p-0 overflow-y-auto bg-canvas"
                   : isNitropixel
-                  ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
+                  ? "flex-1 p-0 overflow-hidden bg-canvas"
                   : isJourneys
                   ? "flex-1 p-0 overflow-y-auto bg-canvas"
                   : isPixelAttribution
                   ? "flex-1 p-0 overflow-y-auto bg-canvas"
                   : isAura
-                  ? "flex-1 p-0 overflow-y-auto bg-[#05070d]"
+                  ? "flex-1 p-0 overflow-y-auto bg-canvas"
                   : isAlertas
-                  ? "flex-1 p-0 overflow-hidden bg-[#fafafa]"
+                  ? "flex-1 p-0 overflow-hidden bg-canvas"
                   : "flex-1 p-4 lg:p-6 bg-canvas overflow-y-auto"
               }
             >

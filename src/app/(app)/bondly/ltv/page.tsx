@@ -16,12 +16,11 @@ import {
 import { KpiCard, ChangeBadge } from "@/components/dashboard";
 import {
   BondlyKeyframes,
-  BondlyAuroras,
   KpiTile,
   InfoTip as BondlyInfoTip,
   BondlyTrustStrip,
 } from "@/components/bondly/primitives";
-import { ES, BONDLY_GRAD } from "@/components/bondly/constants";
+import { LivePulse } from "@/components/enterprise/ui";
 
 // ─────────────────────────────────────────────
 // Constants
@@ -35,7 +34,7 @@ const CHANNEL_COLORS: Record<string, string> = {
   "Google Organic": "#34A853",
   "Directo": "#6B7280",
   "TikTok": "#000000",
-  "Paid Otro": "#8B5CF6",
+  "Paid Otro": "#9A978D",
   "Sin datos": "#D1D5DB",
 };
 
@@ -421,42 +420,18 @@ export default function LtvPage() {
     <>
       <BondlyKeyframes />
       <div className="p-4 lg:p-6 max-w-[1400px] mx-auto space-y-6">
-        {/* ══ HERO premium Bondly ════════════════════════════════════ */}
-        <div
-          className="relative overflow-hidden rounded-2xl"
-          style={{
-            background:
-              "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            boxShadow:
-              "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(16,185,129,0.35)",
-          }}
-        >
-          <BondlyAuroras variant="bondly" />
+        {/* ══ HERO Bondly ════════════════════════════════════ */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
           <div className="relative z-10 px-5 lg:px-7 py-6 lg:py-8">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase text-cyan-300/80">
-                    <span
-                      className="w-1.5 h-1.5 rounded-full bg-cyan-400"
-                      style={{ animation: `bondlyLivePulse 2.4s ${ES} infinite` }}
-                    />
-                    LIFETIME VALUE · LIVE
-                  </span>
+                  <LivePulse status="LIVE" label="Lifetime Value · Live" />
                 </div>
-                <h1
-                  className="text-[36px] lg:text-[44px] font-bold leading-tight tracking-tight"
-                  style={{
-                    backgroundImage: BONDLY_GRAD,
-                    backgroundClip: "text",
-                    WebkitBackgroundClip: "text",
-                    color: "transparent",
-                  }}
-                >
+                <h1 className="text-[36px] lg:text-[44px] font-semibold leading-tight tracking-tight text-ink">
                   Lifetime Value
                 </h1>
-                <p className="text-slate-300/80 text-sm mt-2 max-w-2xl leading-relaxed">
+                <p className="text-ink-60 text-sm mt-2 max-w-2xl leading-relaxed">
                   Tres capas de LTV conviviendo en la misma pantalla: lo que ya gastaron tus clientes, lo que van a gastar (predictivo post-compra) y el potencial de visitantes que todavía no compraron (behavioral pre-compra). Nadie más puede mostrarte las tres juntas.
                 </p>
                 <div className="mt-3">
@@ -466,15 +441,15 @@ export default function LtvPage() {
                     content={
                       <div className="space-y-2">
                         <p>
-                          <span className="text-cyan-300 font-semibold">Capa 1 · Histórico:</span>{" "}
+                          <span className="text-white font-semibold">Capa 1 · Histórico:</span>{" "}
                           revenue real acumulado por cliente (orders completadas menos devoluciones).
                         </p>
                         <p>
-                          <span className="text-cyan-300 font-semibold">Capa 2 · Predicho post-compra:</span>{" "}
+                          <span className="text-white font-semibold">Capa 2 · Predicho post-compra:</span>{" "}
                           modelos probabilísticos validados por literatura académica (Fader & Hardie, Wharton School of Business, 2005-2013), entrenados con tu propia historia de compras.
                         </p>
                         <p>
-                          <span className="text-cyan-300 font-semibold">Capa 3 · Behavioral pre-compra:</span>{" "}
+                          <span className="text-white font-semibold">Capa 3 · Behavioral pre-compra:</span>{" "}
                           score 0-100 aplicado a tu funnel NitroPixel, basado en investigación de marketing digital (McKinsey, HBR, Google Research) sobre señales tempranas de intención. Recalibración semanal.
                         </p>
                         <p className="text-zinc-400 text-[11px] pt-1 border-t border-zinc-800">
@@ -487,35 +462,20 @@ export default function LtvPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {QUICK_RANGES.map((r) => (
-                  <button
-                    key={r.days}
-                    onClick={() => handleQuickRange(r.days)}
-                    className="px-3 py-1.5 text-[11px] font-mono tracking-wider uppercase rounded-lg transition-all"
-                    style={{
-                      background:
-                        activeQuickRange === r.days
-                          ? "rgba(6,182,212,0.18)"
-                          : "rgba(255,255,255,0.04)",
-                      color:
-                        activeQuickRange === r.days ? "#67e8f9" : "#94a3b8",
-                      border:
-                        activeQuickRange === r.days
-                          ? "1px solid rgba(6,182,212,0.4)"
-                          : "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-                <span
-                  className="px-3 py-1.5 text-[11px] font-mono tracking-wider uppercase rounded-lg"
-                  style={{
-                    background: "rgba(16,185,129,0.10)",
-                    color: "#6ee7b7",
-                    border: "1px solid rgba(16,185,129,0.20)",
-                  }}
-                >
+                <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-ent-xs border border-hairline">
+                  {QUICK_RANGES.map((r) => (
+                    <button
+                      key={r.days}
+                      onClick={() => handleQuickRange(r.days)}
+                      className={`px-3 py-1.5 text-[11px] font-geistmono tracking-wider uppercase rounded-lg transition-colors duration-200 ${
+                        activeQuickRange === r.days ? "bg-ink text-white" : "text-ink-60 hover:text-ink"
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="px-3 py-1.5 text-[11px] font-geistmono tracking-wider uppercase rounded-lg bg-accent-soft text-accent border border-accent/20">
                   Solo VTEX
                 </span>
               </div>
@@ -545,7 +505,7 @@ export default function LtvPage() {
           <KpiTile
             icon={Sparkles}
             iconBg="rgba(168,85,247,0.10)"
-            iconColor="#a855f7"
+            iconColor="#9A978D"
             label="VISITANTES HIGH-SCORE"
             value={behavioralCount}
             loading={loading}
@@ -556,7 +516,7 @@ export default function LtvPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <KpiTile
             icon={Gauge}
-            iconBg="rgba(6,182,212,0.10)"
+            iconBg="rgba(229,225,216,0.10)"
             iconColor="#0891b2"
             label="LTV:CAC GLOBAL"
             value={Math.round(ltvCacX * 100) / 100}
@@ -610,64 +570,26 @@ export default function LtvPage() {
       <div>{/* sentinel */}</div>
 
       {/* ── Predicciones de LTV (pLTV engine con Trust Strip) ── */}
-      <div
-        className="relative overflow-hidden rounded-2xl"
-        style={{
-          background:
-            "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          boxShadow:
-            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(99,102,241,0.35)",
-        }}
-      >
-        <BondlyAuroras variant="bondly" />
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-6 lg:py-8">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <div
-                  className="p-2 rounded-xl"
-                  style={{
-                    background: "rgba(99,102,241,0.14)",
-                    border: "1px solid rgba(99,102,241,0.25)",
-                  }}
-                >
-                  <Brain size={18} style={{ color: "#a5b4fc" }} strokeWidth={2.2} />
+                <div className="p-2 rounded-xl bg-surface-2 border border-hairline">
+                  <Brain size={18} className="text-ink-60" strokeWidth={2.2} />
                 </div>
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono tracking-[0.18em] uppercase"
-                  style={{
-                    background: "rgba(168,85,247,0.12)",
-                    color: "#d8b4fe",
-                    border: "1px solid rgba(168,85,247,0.25)",
-                  }}
-                >
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-geistmono tracking-[0.18em] uppercase bg-surface-2 text-ink-60 border border-hairline">
                   <Sparkles size={9} />
                   Predictivo
                 </span>
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono tracking-[0.18em] uppercase"
-                  style={{
-                    background: "rgba(6,182,212,0.10)",
-                    color: "#67e8f9",
-                    border: "1px solid rgba(6,182,212,0.25)",
-                  }}
-                >
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-geistmono tracking-[0.18em] uppercase bg-surface-2 text-ink-60 border border-hairline">
                   Modelo estadístico
                 </span>
               </div>
-              <h2
-                className="text-[24px] lg:text-[28px] font-bold leading-tight tracking-tight"
-                style={{
-                  backgroundImage: BONDLY_GRAD,
-                  backgroundClip: "text",
-                  WebkitBackgroundClip: "text",
-                  color: "transparent",
-                }}
-              >
+              <h2 className="text-[24px] lg:text-[28px] font-semibold leading-tight tracking-tight text-ink">
                 Predicted Lifetime Value
               </h2>
-              <p className="text-slate-300/75 text-xs lg:text-sm mt-2 max-w-2xl leading-relaxed">
+              <p className="text-ink-60 text-xs lg:text-sm mt-2 max-w-2xl leading-relaxed">
                 Motor predictivo que combina BG/NBD (cuántas compras va a hacer) y Gamma-Gamma (cuánto va a gastar en cada una). Entrenado con tu propia historia de compras, reentrenado diariamente con data fresca.
               </p>
               <div className="mt-3">
@@ -678,7 +600,7 @@ export default function LtvPage() {
                     <div className="space-y-2">
                       <p>
                         Basado en modelos probabilísticos validados por literatura académica{" "}
-                        <span className="text-cyan-300 font-semibold">(Fader &amp; Hardie, Wharton School of Business, 2005-2013)</span>,
+                        <span className="text-white font-semibold">(Fader &amp; Hardie, Wharton School of Business, 2005-2013)</span>,
                         entrenados con tu propia historia de compras.
                       </p>
                       <p>
@@ -696,14 +618,7 @@ export default function LtvPage() {
               <button
                 onClick={handleRunPrediction}
                 disabled={predRunning}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
-                style={{
-                  background: "rgba(99,102,241,0.14)",
-                  color: "#c7d2fe",
-                  border: "1px solid rgba(99,102,241,0.30)",
-                  opacity: predRunning ? 0.5 : 1,
-                  cursor: predRunning ? "not-allowed" : "pointer",
-                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all bg-surface-2 text-ink-60 border border-hairline hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {predRunning ? (
                   <>
@@ -732,21 +647,21 @@ export default function LtvPage() {
           <>
             {/* Prediction KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-4 lg:p-5">
-              <div className="bg-violet-50 rounded-lg p-3">
-                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Clientes Predichos</p>
-                <p className="text-lg font-bold text-violet-900 mt-1">{predData.summary.total.toLocaleString("es-AR")}</p>
+              <div className="bg-surface-2 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">Clientes Predichos</p>
+                <p className="text-lg font-bold text-ink mt-1">{predData.summary.total.toLocaleString("es-AR")}</p>
               </div>
-              <div className="bg-violet-50 rounded-lg p-3">
-                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">pLTV 90d Promedio</p>
-                <p className="text-lg font-bold text-violet-900 mt-1">{formatARS(predData.summary.avgLtv90d)}</p>
+              <div className="bg-surface-2 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">pLTV 90d Promedio</p>
+                <p className="text-lg font-bold text-ink mt-1">{formatARS(predData.summary.avgLtv90d)}</p>
               </div>
-              <div className="bg-violet-50 rounded-lg p-3">
-                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">pLTV 365d Promedio</p>
-                <p className="text-lg font-bold text-violet-900 mt-1">{formatARS(predData.summary.avgLtv365d)}</p>
+              <div className="bg-surface-2 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">pLTV 365d Promedio</p>
+                <p className="text-lg font-bold text-ink mt-1">{formatARS(predData.summary.avgLtv365d)}</p>
               </div>
-              <div className="bg-violet-50 rounded-lg p-3">
-                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Confianza Prom.</p>
-                <p className="text-lg font-bold text-violet-900 mt-1">{Math.round(predData.summary.avgConfidence * 100)}%</p>
+              <div className="bg-surface-2 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">Confianza Prom.</p>
+                <p className="text-lg font-bold text-ink mt-1">{Math.round(predData.summary.avgConfidence * 100)}%</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Enviados</p>
@@ -778,7 +693,7 @@ export default function LtvPage() {
                           </td>
                           <td className="text-right px-3 py-2 text-gray-600">{ch.customers.toLocaleString("es-AR")}</td>
                           <td className="text-right px-3 py-2 text-gray-600">{formatARS(ch.avgLtv90d)}</td>
-                          <td className="text-right px-3 py-2 font-medium text-violet-700">{formatARS(ch.avgLtv365d)}</td>
+                          <td className="text-right px-3 py-2 font-medium text-ink-60">{formatARS(ch.avgLtv365d)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -839,7 +754,7 @@ export default function LtvPage() {
                               </span>
                             </td>
                             <td className="text-right px-3 py-2 text-gray-600">{formatARS(c.predictedLtv90d)}</td>
-                            <td className="text-right px-3 py-2 font-medium text-violet-700">{formatARS(c.predictedLtv365d)}</td>
+                            <td className="text-right px-3 py-2 font-medium text-ink-60">{formatARS(c.predictedLtv365d)}</td>
                             <td className="text-right px-3 py-2">
                               <span className={`text-xs font-medium ${c.confidence >= 0.7 ? "text-emerald-600" : c.confidence >= 0.5 ? "text-amber-600" : "text-red-500"}`}>
                                 {Math.round(c.confidence * 100)}%
@@ -862,7 +777,7 @@ export default function LtvPage() {
                           </tr>
                           {/* Expanded detail row */}
                           {expandedCustomer === c.id && (
-                            <tr className="bg-violet-50/30">
+                            <tr className="bg-surface-2/50">
                               <td colSpan={9} className="px-4 py-3">
                                 {detailLoading ? (
                                   <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -1009,7 +924,7 @@ export default function LtvPage() {
                       {thresholdConfig.suggested && !showThresholdEdit && (
                         <button
                           onClick={handleApplySuggested}
-                          className="text-[10px] px-2 py-1 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+                          className="text-[10px] px-2 py-1 rounded bg-surface-2 text-ink-60 hover:bg-surface-2 transition-colors"
                         >
                           Usar sugerido
                         </button>
@@ -1030,7 +945,7 @@ export default function LtvPage() {
                           type="number"
                           value={editLow}
                           onChange={(e) => setEditLow(e.target.value)}
-                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-violet-300 focus:border-violet-300"
+                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
                           placeholder="25000"
                         />
                       </div>
@@ -1040,14 +955,14 @@ export default function LtvPage() {
                           type="number"
                           value={editMed}
                           onChange={(e) => setEditMed(e.target.value)}
-                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-violet-300 focus:border-violet-300"
+                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
                           placeholder="100000"
                         />
                       </div>
                       <button
                         onClick={handleSaveThresholds}
                         disabled={savingThresholds || !editLow || !editMed || Number(editMed) <= Number(editLow)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-ink text-white hover:bg-ink/90 disabled:opacity-50 transition-colors"
                       >
                         {savingThresholds ? "Guardando..." : "Guardar y recalcular"}
                       </button>
@@ -1079,7 +994,7 @@ export default function LtvPage() {
             <button
               onClick={handleRunPrediction}
               disabled={predRunning}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-ink text-white hover:bg-ink/90 disabled:opacity-50 transition-colors"
             >
               {predRunning ? (
                 <>
@@ -1098,42 +1013,17 @@ export default function LtvPage() {
       </div>
 
       {/* ══ INSIGHTS ENGINE — cards accionables ══════════════════════════ */}
-      <div
-        className="relative overflow-hidden rounded-2xl"
-        style={{
-          background:
-            "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          boxShadow:
-            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(139,92,246,0.35)",
-        }}
-      >
-        <BondlyAuroras variant="bondly" />
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-5 lg:py-6">
           <div className="flex items-center gap-3 mb-4">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(139,92,246,0.22), rgba(236,72,153,0.18))",
-                border: "1px solid rgba(139,92,246,0.35)",
-              }}
-            >
-              <Sparkles className="w-4 h-4 text-fuchsia-300" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-surface-2 border border-hairline">
+              <Sparkles className="w-4 h-4 text-ink-60" />
             </div>
             <div>
-              <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-fuchsia-300/80">
+              <p className="text-[10px] font-geistmono tracking-[0.22em] uppercase text-ink-40">
                 INSIGHTS ENGINE
               </p>
-              <h2
-                className="text-xl lg:text-2xl font-semibold tracking-tight"
-                style={{
-                  backgroundImage: BONDLY_GRAD,
-                  backgroundClip: "text",
-                  WebkitBackgroundClip: "text",
-                  color: "transparent",
-                }}
-              >
+              <h2 className="text-xl lg:text-2xl font-semibold tracking-tight text-ink">
                 Patrones accionables
               </h2>
             </div>
@@ -1144,17 +1034,17 @@ export default function LtvPage() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="h-32 rounded-xl bg-white/5 border border-white/5"
+                  className="h-32 rounded-xl bg-surface-2 border border-hairline animate-pulse"
                 />
               ))}
             </div>
           ) : insights.length === 0 ? (
-            <div className="px-4 py-6 rounded-xl bg-white/5 border border-white/10 text-center">
+            <div className="px-4 py-6 rounded-xl bg-surface border border-hairline text-center">
               <div className="text-2xl mb-2">💡</div>
-              <p className="text-sm text-zinc-300">
+              <p className="text-sm text-ink-60">
                 Sin patrones fuertes en este período
               </p>
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="text-xs text-ink-40 mt-1">
                 Probá ampliar el rango para dejar que el motor encuentre señales.
               </p>
             </div>
@@ -1163,36 +1053,29 @@ export default function LtvPage() {
               {insights.map((card: any) => {
                 const toneColor =
                   card.tone === "critical"
-                    ? "rgba(239,68,68,0.5)"
+                    ? "#b91c1c"
                     : card.tone === "opportunity"
-                    ? "rgba(16,185,129,0.5)"
-                    : card.tone === "whale"
-                    ? "rgba(59,130,246,0.5)"
-                    : card.tone === "behavioral"
-                    ? "rgba(168,85,247,0.5)"
-                    : "rgba(234,179,8,0.5)";
+                    ? "#2F9153"
+                    : "#E5E1D8";
                 return (
                   <div
                     key={card.id}
-                    className="rounded-xl p-4 bg-white/[0.04] hover:bg-white/[0.06] transition-colors"
-                    style={{
-                      border: `1px solid ${toneColor}`,
-                      backdropFilter: "blur(8px)",
-                    }}
+                    className="rounded-xl p-4 bg-white hover:bg-surface transition-colors border"
+                    style={{ borderColor: toneColor }}
                   >
                     <div className="flex items-start gap-2 mb-2">
                       <span className="text-xl leading-none">{card.icon}</span>
-                      <h3 className="text-sm font-semibold text-white leading-snug">
+                      <h3 className="text-sm font-semibold text-ink leading-snug">
                         {card.title}
                       </h3>
                     </div>
-                    <p className="text-xs text-zinc-400 leading-relaxed mb-3">
+                    <p className="text-xs text-ink-60 leading-relaxed mb-3">
                       {card.body}
                     </p>
                     {card.cta?.href ? (
                       <a
                         href={card.cta.href}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-ink-60 transition-colors"
                       >
                         {card.cta.label}
                         <ArrowUpRight className="w-3 h-3" />
@@ -1201,10 +1084,10 @@ export default function LtvPage() {
                       <button
                         disabled
                         title="Próximamente"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-40 cursor-not-allowed"
                       >
                         {card.cta?.label ?? "Ver más"}
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-400">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-ink-40">
                           Próximamente
                         </span>
                       </button>
@@ -1218,41 +1101,23 @@ export default function LtvPage() {
       </div>
 
       {/* ══ BEHAVIORAL LTV EXPLORER ══════════════════════════════════════ */}
-      <div
-        className="relative overflow-hidden rounded-2xl"
-        style={{
-          background:
-            "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          boxShadow:
-            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(16,185,129,0.25)",
-        }}
-      >
-        <BondlyAuroras variant="bondly" />
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-6">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-5">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase text-emerald-300/80">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-geistmono tracking-[0.22em] uppercase text-ink-40">
                   <Activity className="w-3 h-3" />
                   BEHAVIORAL LTV · PRE-COMPRA
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-violet-500/15 text-violet-300 border border-violet-400/30">
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-geistmono uppercase tracking-wider bg-surface-2 text-ink-60 border border-hairline">
                   Modelo estadístico
                 </span>
               </div>
-              <h2
-                className="text-xl lg:text-2xl font-semibold tracking-tight"
-                style={{
-                  backgroundImage: BONDLY_GRAD,
-                  backgroundClip: "text",
-                  WebkitBackgroundClip: "text",
-                  color: "transparent",
-                }}
-              >
+              <h2 className="text-xl lg:text-2xl font-semibold tracking-tight text-ink">
                 Visitantes con perfil de futuro VIP
               </h2>
-              <p className="text-xs text-zinc-400 mt-1.5 max-w-2xl leading-relaxed">
+              <p className="text-xs text-ink-60 mt-1.5 max-w-2xl leading-relaxed">
                 Score 0-100 calculado server-side sobre señales pixel (sesiones,
                 navegación, intención, origen, consistencia). Recalibración
                 semanal contra conversiones reales.
@@ -1266,31 +1131,31 @@ export default function LtvPage() {
             {/* Stats rápidas */}
             {behavioral?.stats && (
               <div className="flex flex-wrap gap-2">
-                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-hairline">
+                  <div className="text-[9px] font-geistmono tracking-widest uppercase text-ink-40">
                     Anónimos high
                   </div>
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-ink">
                     {(behavioral.stats.anonymousHighScore || 0).toLocaleString(
                       "es-AR"
                     )}
                   </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-hairline">
+                  <div className="text-[9px] font-geistmono tracking-widest uppercase text-ink-40">
                     Identif. sin compra
                   </div>
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-ink">
                     {(
                       behavioral.stats.identifiedNoPurchase || 0
                     ).toLocaleString("es-AR")}
                   </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-hairline">
+                  <div className="text-[9px] font-geistmono tracking-widest uppercase text-ink-40">
                     Total analizado
                   </div>
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-ink">
                     {(behavioral.stats.total || 0).toLocaleString("es-AR")}
                   </div>
                 </div>
@@ -1314,8 +1179,8 @@ export default function LtvPage() {
                 onClick={() => setBehavioralFilter(f.key as any)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   behavioralFilter === f.key
-                    ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/40"
-                    : "bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10 hover:text-zinc-200"
+                    ? "bg-ink text-white"
+                    : "bg-surface-2 text-ink-60 border border-hairline hover:text-ink"
                 }`}
               >
                 {f.label}
@@ -1324,21 +1189,21 @@ export default function LtvPage() {
           </div>
 
           {/* Tabla */}
-          <div className="rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+          <div className="rounded-xl bg-surface border border-hairline overflow-hidden">
             {behavioralLoading ? (
               <div className="p-6 space-y-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
-                    className="h-8 rounded bg-white/5 animate-pulse"
+                    className="h-8 rounded bg-surface-2 animate-pulse"
                   />
                 ))}
               </div>
             ) : behavioral?.visitors?.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-white/[0.03] border-b border-white/5">
-                    <tr className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  <thead className="bg-surface-2 border-b border-hairline">
+                    <tr className="text-[10px] font-geistmono uppercase tracking-widest text-ink-40">
                       <th className="text-left px-4 py-2.5 font-medium">
                         Visitor
                       </th>
@@ -1365,10 +1230,10 @@ export default function LtvPage() {
                       .map((v: any) => (
                         <tr
                           key={v.visitorId}
-                          className="border-t border-white/5 hover:bg-white/[0.02] transition-colors"
+                          className="border-t border-hairline hover:bg-surface transition-colors"
                         >
                           <td className="px-4 py-2.5">
-                            <div className="text-xs font-medium text-zinc-200 truncate max-w-[240px]">
+                            <div className="text-xs font-medium text-ink truncate max-w-[240px]">
                               {v.displayId}
                             </div>
                           </td>
@@ -1376,10 +1241,10 @@ export default function LtvPage() {
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                                 v.status === "customer"
-                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  ? "bg-accent-soft text-accent"
                                   : v.status === "identified_no_purchase"
-                                  ? "bg-amber-500/15 text-amber-300"
-                                  : "bg-zinc-500/15 text-zinc-300"
+                                  ? "bg-[#f6edd8] text-[#8a5e12]"
+                                  : "bg-surface-2 text-ink-40"
                               }`}
                             >
                               {v.status === "customer"
@@ -1391,16 +1256,13 @@ export default function LtvPage() {
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              <div className="w-20 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                              <div className="w-20 h-1.5 rounded-full bg-surface-2 overflow-hidden">
                                 <div
-                                  className="h-full rounded-full"
-                                  style={{
-                                    width: `${v.score}%`,
-                                    background: BONDLY_GRAD,
-                                  }}
+                                  className="h-full rounded-full bg-ink"
+                                  style={{ width: `${v.score}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-semibold text-white tabular-nums">
+                              <span className="text-xs font-semibold text-ink tabular-nums">
                                 {v.score}
                               </span>
                             </div>
@@ -1412,14 +1274,14 @@ export default function LtvPage() {
                                 .map((d: string, i: number) => (
                                   <span
                                     key={i}
-                                    className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-300 border border-white/10"
+                                    className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-ink-60 border border-hairline"
                                   >
                                     {d}
                                   </span>
                                 ))}
                             </div>
                           </td>
-                          <td className="text-right px-4 py-2.5 text-xs text-zinc-400 tabular-nums">
+                          <td className="text-right px-4 py-2.5 text-xs text-ink-40 tabular-nums">
                             {v.daysSinceLastSeen}d
                           </td>
                           <td className="text-right px-4 py-2.5">
@@ -1428,7 +1290,7 @@ export default function LtvPage() {
                                 onClick={() =>
                                   handleOpenJourney(v.customerId!)
                                 }
-                                className="text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+                                className="text-[11px] font-medium text-ink hover:text-ink-60 transition-colors"
                               >
                                 Ver journey
                               </button>
@@ -1436,7 +1298,7 @@ export default function LtvPage() {
                               <button
                                 disabled
                                 title="Próximamente"
-                                className="text-[11px] font-medium text-zinc-600 cursor-not-allowed"
+                                className="text-[11px] font-medium text-ink-40/70 cursor-not-allowed"
                               >
                                 Retargeting
                               </button>
@@ -1448,7 +1310,7 @@ export default function LtvPage() {
                 </table>
               </div>
             ) : (
-              <div className="p-6 text-center text-xs text-zinc-500">
+              <div className="p-6 text-center text-xs text-ink-40">
                 No hay visitantes para este filtro.
               </div>
             )}
@@ -1463,32 +1325,14 @@ export default function LtvPage() {
 
       {/* ══ JOURNEY DRAWER — conditional ════════════════════════════════ */}
       {journeyCustomerId && (
-        <div
-          className="relative overflow-hidden rounded-2xl"
-          style={{
-            background:
-              "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            boxShadow:
-              "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(59,130,246,0.25)",
-          }}
-        >
-          <BondlyAuroras variant="bondly" />
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
           <div className="relative z-10 px-5 lg:px-7 py-6">
             <div className="flex items-start justify-between mb-5">
               <div>
-                <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-cyan-300/80 mb-1">
+                <p className="text-[10px] font-geistmono tracking-[0.22em] uppercase text-ink-40 mb-1">
                   CUSTOMER JOURNEY
                 </p>
-                <h2
-                  className="text-xl font-semibold tracking-tight"
-                  style={{
-                    backgroundImage: BONDLY_GRAD,
-                    backgroundClip: "text",
-                    WebkitBackgroundClip: "text",
-                    color: "transparent",
-                  }}
-                >
+                <h2 className="text-xl font-semibold tracking-tight text-ink">
                   {journeyData?.customer?.firstName ||
                     journeyData?.customer?.email ||
                     "Cargando..."}
@@ -1499,7 +1343,7 @@ export default function LtvPage() {
                   setJourneyCustomerId(null);
                   setJourneyData(null);
                 }}
-                className="text-xs text-zinc-400 hover:text-white transition-colors"
+                className="text-xs text-ink-40 hover:text-ink transition-colors"
               >
                 Cerrar ✕
               </button>
@@ -1510,7 +1354,7 @@ export default function LtvPage() {
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="h-10 rounded bg-white/5 animate-pulse"
+                    className="h-10 rounded bg-surface-2 animate-pulse"
                   />
                 ))}
               </div>
@@ -1518,18 +1362,18 @@ export default function LtvPage() {
               <>
                 {/* Summary chips */}
                 <div className="flex flex-wrap gap-2 mb-4 text-xs">
-                  <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+                  <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-hairline text-ink-60">
                     {journeyData.summary.totalSessions} sesiones
                   </span>
-                  <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+                  <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-hairline text-ink-60">
                     {journeyData.summary.totalPageViews} pageviews
                   </span>
-                  <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+                  <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-hairline text-ink-60">
                     {journeyData.summary.totalOrders} órdenes
                   </span>
                   {journeyData.summary.daysBetweenFirstVisitAndFirstOrder !=
                     null && (
-                    <span className="px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-400/20 text-cyan-300">
+                    <span className="px-2.5 py-1 rounded-lg bg-accent-soft border border-accent/20 text-accent">
                       {
                         journeyData.summary
                           .daysBetweenFirstVisitAndFirstOrder
@@ -1541,13 +1385,7 @@ export default function LtvPage() {
 
                 {/* Timeline */}
                 <div className="relative pl-6 max-h-[500px] overflow-y-auto">
-                  <div
-                    className="absolute left-2 top-2 bottom-2 w-px"
-                    style={{
-                      background:
-                        "linear-gradient(to bottom, rgba(16,185,129,0.5), rgba(6,182,212,0.2))",
-                    }}
-                  />
+                  <div className="absolute left-2 top-2 bottom-2 w-px bg-hairline-2" />
                   {journeyData.timeline.slice(-80).map((item: any) => {
                     const dotColor =
                       item.type === "order"
@@ -1555,9 +1393,9 @@ export default function LtvPage() {
                         : item.type === "cart_add"
                         ? "#f59e0b"
                         : item.type === "identify"
-                        ? "#a855f7"
+                        ? "#9A978D"
                         : item.type === "product_view"
-                        ? "#06b6d4"
+                        ? "#2F9153"
                         : "#64748b";
                     const date = new Date(item.timestamp);
                     return (
@@ -1566,15 +1404,15 @@ export default function LtvPage() {
                         className="relative mb-3 flex items-start gap-3"
                       >
                         <span
-                          className="absolute -left-[22px] top-1 w-2.5 h-2.5 rounded-full ring-2 ring-black/40"
+                          className="absolute -left-[22px] top-1 w-2.5 h-2.5 rounded-full ring-2 ring-white"
                           style={{ backgroundColor: dotColor }}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 text-xs">
-                            <span className="font-medium text-zinc-200">
+                            <span className="font-medium text-ink">
                               {item.title}
                             </span>
-                            <span className="text-[10px] text-zinc-500 font-mono">
+                            <span className="text-[10px] text-ink-40 font-geistmono">
                               {date.toLocaleDateString("es-AR", {
                                 day: "2-digit",
                                 month: "short",
@@ -1584,7 +1422,7 @@ export default function LtvPage() {
                             </span>
                           </div>
                           {item.subtitle && (
-                            <p className="text-[11px] text-zinc-500 truncate max-w-[90%]">
+                            <p className="text-[11px] text-ink-40 truncate max-w-[90%]">
                               {item.subtitle}
                             </p>
                           )}
@@ -1595,7 +1433,7 @@ export default function LtvPage() {
                 </div>
               </>
             ) : (
-              <div className="p-6 text-center text-xs text-zinc-500">
+              <div className="p-6 text-center text-xs text-ink-40">
                 No hay eventos para este cliente.
               </div>
             )}
@@ -1633,7 +1471,7 @@ export default function LtvPage() {
                         style={{
                           width: `${Math.max(share * 100, 3)}%`,
                           background: isTop
-                            ? "linear-gradient(135deg, #10b981, #06b6d4)"
+                            ? "linear-gradient(135deg, #10b981, #2F9153)"
                             : `rgba(16,185,129,${0.15 + d.decile * 0.07})`,
                           color: isTop ? "white" : "#064e3b",
                           borderRight:
@@ -2007,7 +1845,7 @@ export default function LtvPage() {
                         key={`${p.from}-${p.to}-${i}`}
                         className="rounded-lg p-3 transition-all hover:shadow-md"
                         style={{
-                          background: `linear-gradient(135deg, rgba(16,185,129,${bgOpacity}) 0%, rgba(6,182,212,${
+                          background: `linear-gradient(135deg, rgba(16,185,129,${bgOpacity}) 0%, rgba(229,225,216,${
                             bgOpacity * 0.6
                           }) 100%)`,
                           border: `1px solid rgba(16,185,129,${
@@ -2048,7 +1886,7 @@ export default function LtvPage() {
                             style={{
                               width: `${(customers / maxCustomers) * 100}%`,
                               background:
-                                "linear-gradient(to right, #10b981, #06b6d4)",
+                                "linear-gradient(to right, #10b981, #2F9153)",
                             }}
                           />
                         </div>
@@ -2067,35 +1905,23 @@ export default function LtvPage() {
       </div>
 
       {/* ══ CHURN RISK SCOREBOARD ═════════════════════════════════════════ */}
-      <div
-        className="relative overflow-hidden rounded-2xl"
-        style={{
-          background:
-            "linear-gradient(135deg, #140a15 0%, #0f0810 60%, #140a15 100%)",
-          border: "1px solid rgba(239,68,68,0.15)",
-          boxShadow:
-            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(239,68,68,0.25)",
-        }}
-      >
-        <BondlyAuroras variant="bondly" />
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-6">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-5">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase text-rose-300/80">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-geistmono tracking-[0.22em] uppercase text-ink-40">
                   <TrendingDown className="w-3 h-3" />
                   CHURN RISK · SCOREBOARD
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-rose-500/15 text-rose-300 border border-rose-400/30">
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-geistmono uppercase tracking-wider bg-surface-2 text-ink-60 border border-hairline">
                   Composite score
                 </span>
               </div>
-              <h2
-                className="text-xl lg:text-2xl font-semibold tracking-tight text-white"
-              >
+              <h2 className="text-xl lg:text-2xl font-semibold tracking-tight text-ink">
                 Clientes en riesgo de churn
               </h2>
-              <p className="text-xs text-zinc-400 mt-1.5 max-w-2xl">
+              <p className="text-xs text-ink-60 mt-1.5 max-w-2xl">
                 Score 0-100 que combina recency, frecuencia, engagement pixel
                 y tendencia de AOV. Crítico ≥75, Alto ≥55.
                 <BondlyInfoTip
@@ -2106,27 +1932,27 @@ export default function LtvPage() {
             </div>
             {churnRisk?.summary && (
               <div className="flex flex-wrap gap-2">
-                <div className="px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-400/30">
-                  <div className="text-[9px] font-mono tracking-widest uppercase text-rose-300/70">
+                <div className="px-3 py-1.5 rounded-lg bg-[#fbe9e7] border border-[#e0998f]">
+                  <div className="text-[9px] font-geistmono tracking-widest uppercase text-[#a3352b]">
                     Crítico
                   </div>
-                  <div className="text-sm font-semibold text-rose-200">
+                  <div className="text-sm font-semibold text-[#8c2c22]">
                     {churnRisk.summary.critico}
                   </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-400/30">
-                  <div className="text-[9px] font-mono tracking-widest uppercase text-amber-300/70">
+                <div className="px-3 py-1.5 rounded-lg bg-[#f6edd8] border border-[#dcc494]">
+                  <div className="text-[9px] font-geistmono tracking-widest uppercase text-[#8a5e12]">
                     Alto
                   </div>
-                  <div className="text-sm font-semibold text-amber-200">
+                  <div className="text-sm font-semibold text-[#8a5e12]">
                     {churnRisk.summary.alto}
                   </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-hairline">
+                  <div className="text-[9px] font-geistmono tracking-widest uppercase text-ink-40">
                     Analizados
                   </div>
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-ink">
                     {churnRisk.summary.total}
                   </div>
                 </div>
@@ -2134,21 +1960,21 @@ export default function LtvPage() {
             )}
           </div>
 
-          <div className="rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+          <div className="rounded-xl bg-surface border border-hairline overflow-hidden">
             {churnLoading ? (
               <div className="p-6 space-y-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
-                    className="h-10 rounded bg-white/5 animate-pulse"
+                    className="h-10 rounded bg-surface-2 animate-pulse"
                   />
                 ))}
               </div>
             ) : churnRisk?.clients?.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-white/[0.03] border-b border-white/5">
-                    <tr className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  <thead className="bg-surface-2 border-b border-hairline">
+                    <tr className="text-[10px] font-geistmono uppercase tracking-widest text-ink-40">
                       <th className="text-left px-4 py-2.5 font-medium">
                         Cliente
                       </th>
@@ -2176,29 +2002,29 @@ export default function LtvPage() {
                     {churnRisk.clients.map((c: any) => {
                       const tierColor =
                         c.churnTier === "critico"
-                          ? "bg-rose-500/20 text-rose-200 border-rose-400/40"
+                          ? "bg-[#fbe9e7] text-[#a3352b] border-[#e0998f]"
                           : c.churnTier === "alto"
-                          ? "bg-amber-500/20 text-amber-200 border-amber-400/40"
+                          ? "bg-[#f6edd8] text-[#8a5e12] border-[#dcc494]"
                           : c.churnTier === "medio"
-                          ? "bg-yellow-500/15 text-yellow-200 border-yellow-400/30"
-                          : "bg-emerald-500/15 text-emerald-200 border-emerald-400/30";
-                      const scoreBg =
+                          ? "bg-[#faf3d6] text-[#8a7412] border-[#e2d391]"
+                          : "bg-accent-soft text-accent border-accent/20";
+                      const scoreBarColor =
                         c.churnTier === "critico"
-                          ? "linear-gradient(to right, #f43f5e, #f97316)"
+                          ? "#a3352b"
                           : c.churnTier === "alto"
-                          ? "linear-gradient(to right, #f59e0b, #eab308)"
-                          : "linear-gradient(to right, #10b981, #06b6d4)";
+                          ? "#8a5e12"
+                          : "#2F9153";
                       return (
                         <tr
                           key={c.customerId}
-                          className="border-t border-white/5 hover:bg-white/[0.02] transition-colors"
+                          className="border-t border-hairline hover:bg-surface transition-colors"
                         >
                           <td className="px-4 py-2.5">
-                            <div className="text-xs font-medium text-zinc-200 truncate max-w-[220px]">
+                            <div className="text-xs font-medium text-ink truncate max-w-[220px]">
                               {c.displayName}
                             </div>
                             {c.email && (
-                              <div className="text-[10px] text-zinc-500 truncate max-w-[220px]">
+                              <div className="text-[10px] text-ink-40 truncate max-w-[220px]">
                                 {c.email}
                               </div>
                             )}
@@ -2212,33 +2038,33 @@ export default function LtvPage() {
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              <div className="w-20 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                              <div className="w-20 h-1.5 rounded-full bg-surface-2 overflow-hidden">
                                 <div
                                   className="h-full rounded-full"
                                   style={{
                                     width: `${c.churnScore}%`,
-                                    background: scoreBg,
+                                    backgroundColor: scoreBarColor,
                                   }}
                                 />
                               </div>
-                              <span className="text-xs font-semibold text-white tabular-nums">
+                              <span className="text-xs font-semibold text-ink tabular-nums">
                                 {c.churnScore}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-zinc-400 max-w-[260px] truncate">
+                          <td className="px-4 py-2.5 text-xs text-ink-60 max-w-[260px] truncate">
                             {(c.reasons && c.reasons[0]) || "—"}
                           </td>
-                          <td className="text-right px-4 py-2.5 text-xs text-zinc-300 tabular-nums">
+                          <td className="text-right px-4 py-2.5 text-xs text-ink-60 tabular-nums">
                             {formatARS(Number(c.totalLtv) || 0)}
                           </td>
-                          <td className="text-right px-4 py-2.5 text-xs text-zinc-500 tabular-nums">
+                          <td className="text-right px-4 py-2.5 text-xs text-ink-40 tabular-nums">
                             {c.daysSinceLastOrder}d
                           </td>
                           <td className="text-right px-4 py-2.5">
                             <button
                               onClick={() => handleOpenJourney(c.customerId)}
-                              className="text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+                              className="text-[11px] font-medium text-ink hover:text-ink-60 transition-colors"
                             >
                               Ver journey
                             </button>
@@ -2250,7 +2076,7 @@ export default function LtvPage() {
                 </table>
               </div>
             ) : (
-              <div className="p-6 text-center text-xs text-zinc-500">
+              <div className="p-6 text-center text-xs text-ink-40">
                 No hay clientes en riesgo de churn con los criterios actuales.
               </div>
             )}
@@ -2286,23 +2112,11 @@ export default function LtvPage() {
                 {topCustomers.map((c: any, i: number) => {
                   const tierStyle =
                     i === 0
-                      ? {
-                          label: "VIP",
-                          bg: "bg-gradient-to-br from-amber-400 to-orange-500 text-white",
-                          glow: "shadow-[0_0_15px_rgba(251,191,36,0.3)]",
-                        }
+                      ? { label: "VIP", bg: "bg-ink text-white" }
                       : i === 1
-                      ? {
-                          label: "GOLD",
-                          bg: "bg-gradient-to-br from-yellow-400 to-amber-500 text-white",
-                          glow: "",
-                        }
+                      ? { label: "GOLD", bg: "bg-ink/80 text-white" }
                       : i === 2
-                      ? {
-                          label: "BRONZE",
-                          bg: "bg-gradient-to-br from-orange-400 to-amber-600 text-white",
-                          glow: "",
-                        }
+                      ? { label: "BRONZE", bg: "bg-ink/60 text-white" }
                       : null;
                   return (
                     <tr
@@ -2314,7 +2128,7 @@ export default function LtvPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-gray-400 text-xs">{i + 1}</span>
                             <span
-                              className={`text-[9px] font-mono font-semibold tracking-wider px-1.5 py-0.5 rounded ${tierStyle.bg} ${tierStyle.glow}`}
+                              className={`text-[9px] font-geistmono font-semibold tracking-wider px-1.5 py-0.5 rounded ${tierStyle.bg}`}
                             >
                               {tierStyle.label}
                             </span>
