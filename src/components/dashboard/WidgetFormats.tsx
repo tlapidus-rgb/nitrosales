@@ -97,7 +97,7 @@ function FormatChrome({
 }: ChromeProps) {
   const draggingClass = isDragging ? "opacity-40 scale-[0.98]" : "";
   const dragOverClass = isDragOver
-    ? "ring-2 ring-slate-900/15 border-slate-300"
+    ? "ring-2 ring-ink/15 border-hairline"
     : "";
   const editClass = editMode ? "cursor-grab active:cursor-grabbing" : "";
 
@@ -112,7 +112,7 @@ function FormatChrome({
           <button
             onClick={onRemove}
             aria-label="Quitar widget"
-            className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 flex items-center justify-center z-10 shadow-sm"
+            className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white border border-hairline text-ink-40 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 flex items-center justify-center z-10 shadow-sm"
             style={{
               transitionProperty: "color, background-color, border-color",
               transitionDuration: "200ms",
@@ -121,7 +121,7 @@ function FormatChrome({
           >
             <X className="w-3.5 h-3.5" />
           </button>
-          <div className="absolute top-3 left-3 text-slate-300 pointer-events-none">
+          <div className="absolute top-3 left-3 text-ink-40 pointer-events-none">
             <GripVertical className="w-4 h-4" />
           </div>
         </>
@@ -144,11 +144,11 @@ function FormatChrome({
               {category}
             </span>
           </div>
-          <h3 className="text-[13px] font-semibold tracking-tight text-slate-900 truncate">
+          <h3 className="text-[13px] font-semibold tracking-tight text-ink truncate">
             {title}
           </h3>
           {subtitle && (
-            <p className="text-[11px] text-slate-500 mt-0.5 truncate">{subtitle}</p>
+            <p className="text-[11px] text-ink-40 mt-0.5 truncate">{subtitle}</p>
           )}
         </div>
         {headerRight && (
@@ -170,7 +170,7 @@ function Delta({ change, inverse }: { change?: number; inverse?: boolean }) {
   const isNeutral = raw === 0;
   const isGood = inverse ? raw < 0 : raw > 0;
   const color = isNeutral
-    ? "text-slate-400"
+    ? "text-ink-40"
     : isGood
       ? "text-cyan-600"
       : "text-rose-500";
@@ -198,13 +198,13 @@ export function FormatKpi({ data, sparkline = [], ...chrome }: FormatKpiProps) {
   const isGood = data?.inverse ? (data?.change ?? 0) < 0 : (data?.change ?? 0) > 0;
   const isNeutral = (data?.change ?? 0) === 0;
   const sparkColor =
-    isNeutral || !hasDelta ? "#64748b" : isGood ? "#06b6d4" : "#f43f5e";
+    isNeutral || !hasDelta ? "#6B685F" : isGood ? "#2F9153" : "#b91c1c";
 
   return (
     <FormatChrome {...chrome}>
       {/* Override header to add Delta inline (compatible with chrome's headerRight slot) */}
       {data ? (
-        <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
+        <p className="text-2xl font-bold tabular-nums tracking-tight text-ink">
           {animatedValue}
         </p>
       ) : (
@@ -221,7 +221,7 @@ export function FormatKpi({ data, sparkline = [], ...chrome }: FormatKpiProps) {
         </div>
       )}
       {data?.sub && (
-        <p className="text-[11px] text-slate-400 mt-1.5 leading-tight">{data.sub}</p>
+        <p className="text-[11px] text-ink-40 mt-1.5 leading-tight">{data.sub}</p>
       )}
     </FormatChrome>
   );
@@ -240,14 +240,14 @@ export function FormatBigNumber({
   const isGood = data?.inverse ? (data?.change ?? 0) < 0 : (data?.change ?? 0) > 0;
   const isNeutral = (data?.change ?? 0) === 0;
   const sparkColor =
-    isNeutral || !hasDelta ? "#64748b" : isGood ? "#06b6d4" : "#f43f5e";
+    isNeutral || !hasDelta ? "#6B685F" : isGood ? "#2F9153" : "#b91c1c";
 
   return (
     <FormatChrome {...chrome} className="min-h-[170px]">
       <div className="flex items-end justify-between gap-4 mt-1">
         <div className="flex-1 min-w-0">
           {data ? (
-            <p className="text-[44px] leading-none font-bold tabular-nums tracking-tight text-slate-900 truncate">
+            <p className="text-[44px] leading-none font-bold tabular-nums tracking-tight text-ink truncate">
               {animatedValue}
             </p>
           ) : (
@@ -256,7 +256,7 @@ export function FormatBigNumber({
           <div className="flex items-center gap-2 mt-2">
             <Delta change={data?.change} inverse={data?.inverse} />
             {data?.sub && (
-              <span className="text-[11px] text-slate-400 truncate">{data.sub}</span>
+              <span className="text-[11px] text-ink-40 truncate">{data.sub}</span>
             )}
           </div>
         </div>
@@ -280,7 +280,7 @@ export function FormatSparkline({
 }: FormatKpiProps) {
   const isGood = data?.inverse ? (data?.change ?? 0) < 0 : (data?.change ?? 0) > 0;
   const isNeutral = (data?.change ?? 0) === 0;
-  const color = isNeutral ? "#64748b" : isGood ? "#06b6d4" : "#f43f5e";
+  const color = isNeutral ? "#6B685F" : isGood ? "#2F9153" : "#b91c1c";
   return (
     <FormatChrome {...chrome}>
       <div className="mt-2">
@@ -291,7 +291,7 @@ export function FormatSparkline({
         )}
       </div>
       {data?.sub && (
-        <p className="text-[11px] text-slate-400 mt-2 leading-tight truncate">
+        <p className="text-[11px] text-ink-40 mt-2 leading-tight truncate">
           {data.sub}
         </p>
       )}
@@ -309,7 +309,7 @@ export interface FormatChartProps extends Omit<ChromeProps, "children"> {
 }
 export function FormatMiniLine({
   series,
-  color = "#06b6d4",
+  color = "#2F9153",
   valueFormatter = (v) => String(v),
   ...chrome
 }: FormatChartProps) {
@@ -376,7 +376,7 @@ export function FormatMiniLine({
 // ══════════════════════════════════════════════════════════════
 export function FormatMiniBar({
   series,
-  color = "#8b5cf6",
+  color = "#6B685F",
   valueFormatter = (v) => String(v),
   ...chrome
 }: FormatChartProps) {
@@ -475,10 +475,10 @@ export function FormatDonut({
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-400">
+              <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-ink-40">
                 Total
               </span>
-              <span className="text-base font-bold tabular-nums tracking-tight text-slate-900">
+              <span className="text-base font-bold tabular-nums tracking-tight text-ink">
                 {valueFormatter(total)}
               </span>
             </div>
@@ -492,8 +492,8 @@ export function FormatDonut({
                     className="w-2 h-2 rounded-full shrink-0"
                     style={{ background: it.color || "#94a3b8" }}
                   />
-                  <span className="text-slate-600 truncate flex-1">{it.label}</span>
-                  <span className="text-slate-900 font-semibold tabular-nums">
+                  <span className="text-ink-60 truncate flex-1">{it.label}</span>
+                  <span className="text-ink font-semibold tabular-nums">
                     {pct.toFixed(0)}%
                   </span>
                 </div>
@@ -519,7 +519,7 @@ export function FormatList({
   items,
   valueFormatter = (v) => formatARS(v),
   secondaryFormatter,
-  accent = "#06b6d4",
+  accent = "#2F9153",
   ...chrome
 }: FormatListProps) {
   const max = items.reduce((m, i) => Math.max(m, i.value), 0);
@@ -535,18 +535,18 @@ export function FormatList({
               <div key={it.key} className="group">
                 <div className="flex items-baseline justify-between gap-2 mb-1">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold tabular-nums text-slate-400 w-4">
+                    <span className="text-[10px] font-bold tabular-nums text-ink-40 w-4">
                       {idx + 1}
                     </span>
-                    <span className="text-[12px] text-slate-700 font-medium truncate">
+                    <span className="text-[12px] text-ink-60 font-medium truncate">
                       {it.label}
                     </span>
                   </div>
-                  <span className="text-[12px] font-semibold tabular-nums text-slate-900 shrink-0">
+                  <span className="text-[12px] font-semibold tabular-nums text-ink shrink-0">
                     {valueFormatter(it.value)}
                   </span>
                 </div>
-                <div className="h-1 rounded-full bg-slate-100 overflow-hidden ml-6">
+                <div className="h-1 rounded-full bg-surface overflow-hidden ml-6">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -557,7 +557,7 @@ export function FormatList({
                   />
                 </div>
                 {it.secondary !== undefined && secondaryFormatter && (
-                  <p className="text-[10px] text-slate-400 mt-0.5 ml-6 tabular-nums">
+                  <p className="text-[10px] text-ink-40 mt-0.5 ml-6 tabular-nums">
                     {secondaryFormatter(it.secondary)}
                   </p>
                 )}
