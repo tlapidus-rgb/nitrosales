@@ -22,28 +22,26 @@ import {
 } from "lucide-react";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  purple: "#a855f7",
-  purpleSoft: "rgba(168, 85, 247, 0.10)",
-  purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "#00d4ff",
-  cyanSoft: "rgba(0, 212, 255, 0.10)",
-  cyanBorder: "rgba(0, 212, 255, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  ink: "rgb(var(--ent-ink))",
+  inkSoft: "rgba(28,27,24,0.06)",
+  inkBorder: "rgba(28,27,24,0.16)",
+  accent: "rgb(var(--ent-accent))",
+  accentSoft: "rgba(47,145,83,0.10)",
+  accentBorder: "rgba(47,145,83,0.28)",
+  amber: "rgb(var(--ent-amber))",
+  amberSoft: "rgba(201,138,26,0.10)",
+  amberBorder: "rgba(201,138,26,0.28)",
+  danger: "#b91c1c",
+  dangerSoft: "rgba(185,28,28,0.08)",
+  dangerBorder: "rgba(185,28,28,0.24)",
 };
 
 type Brief = {
@@ -64,9 +62,9 @@ type Brief = {
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  ACTIVE: { label: "Activo", color: THEME.green, bg: THEME.greenSoft, border: THEME.greenBorder },
-  COMPLETED: { label: "Completado", color: THEME.purple, bg: THEME.purpleSoft, border: THEME.purpleBorder },
-  CANCELLED: { label: "Cancelado", color: THEME.textMuted, bg: "rgba(255,255,255,0.04)", border: THEME.border },
+  ACTIVE: { label: "Activo", color: THEME.accent, bg: THEME.accentSoft, border: THEME.accentBorder },
+  COMPLETED: { label: "Completado", color: THEME.textSecondary, bg: THEME.bgSoft, border: THEME.border },
+  CANCELLED: { label: "Cancelado", color: THEME.textMuted, bg: THEME.bgSoft, border: THEME.border },
 };
 
 const TYPE_CFG: Record<string, string> = {
@@ -91,7 +89,7 @@ function daysUntil(iso: string | null) {
 
 export default function BriefingsListPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen" style={{ background: THEME.bgPage }} />}>
+    <Suspense fallback={<div className="min-h-screen bg-canvas" />}>
       <BriefingsListInner />
     </Suspense>
   );
@@ -135,7 +133,7 @@ function BriefingsListInner() {
   const empty = !loading && rows.length === 0;
 
   return (
-    <div className="min-h-screen" style={{ background: THEME.bgPage }}>
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[1320px] mx-auto px-6 md:px-10 py-8 md:py-10">
         {/* BREADCRUMB */}
         <div className="mb-3 flex items-center gap-1.5 text-[11px]" style={{ color: THEME.textMuted }}>
@@ -152,26 +150,13 @@ function BriefingsListInner() {
             <div className="text-[11px] tracking-[0.18em] uppercase font-medium mb-2" style={{ color: THEME.textMuted }}>
               Aura · Contenido
             </div>
-            <h1
-              className="text-[32px] font-semibold tracking-tight leading-none"
-              style={{
-                background: THEME.gradientText,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
+            <h1 className="text-[32px] font-semibold tracking-tight leading-none text-ink">
               Briefings
             </h1>
           </div>
           <button
             onClick={() => setShowNew(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight"
-            style={{
-              background: "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-              color: "#FFF",
-              boxShadow: "0 4px 20px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
-            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight bg-ink text-white"
           >
             <Plus size={14} strokeWidth={2.4} />
             Nuevo briefing
@@ -199,9 +184,9 @@ function BriefingsListInner() {
               onClick={() => setStatusFilter(s)}
               className="px-3 py-2 rounded-xl text-[12px] font-medium tracking-tight"
               style={{
-                background: statusFilter === s ? THEME.purpleSoft : THEME.bgCard,
-                color: statusFilter === s ? THEME.purple : THEME.textSecondary,
-                border: `1px solid ${statusFilter === s ? THEME.purpleBorder : THEME.border}`,
+                background: statusFilter === s ? THEME.inkSoft : THEME.bgCard,
+                color: statusFilter === s ? THEME.ink : THEME.textSecondary,
+                border: `1px solid ${statusFilter === s ? THEME.inkBorder : THEME.border}`,
               }}
             >
               {s === "all" ? "Todos" : STATUS_CFG[s]?.label ?? s}
@@ -242,11 +227,7 @@ function BriefingsListInner() {
             </div>
             <button
               onClick={() => setShowNew(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold"
-              style={{
-                background: "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                color: "#FFF",
-              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold bg-ink text-white"
             >
               <Plus size={14} strokeWidth={2.4} /> Crear briefing
             </button>
@@ -290,13 +271,13 @@ function BriefCard({ b }: { b: Brief }) {
       className="block p-5 rounded-2xl transition-all hover:-translate-y-0.5"
       style={{
         background: THEME.bgCard,
-        border: `1px solid ${overdue ? THEME.goldBorder : THEME.border}`,
+        border: `1px solid ${overdue ? THEME.amberBorder : THEME.border}`,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = overdue ? THEME.gold : THEME.borderStrong;
+        e.currentTarget.style.borderColor = overdue ? THEME.amber : THEME.borderStrong;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = overdue ? THEME.goldBorder : THEME.border;
+        e.currentTarget.style.borderColor = overdue ? THEME.amberBorder : THEME.border;
       }}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -312,7 +293,7 @@ function BriefCard({ b }: { b: Brief }) {
               className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[10px] font-semibold"
               style={{
                 color: THEME.textSecondary,
-                background: "rgba(255,255,255,0.04)",
+                background: THEME.bgSoft,
                 border: `1px solid ${THEME.border}`,
               }}
             >
@@ -321,7 +302,7 @@ function BriefCard({ b }: { b: Brief }) {
             {overdue ? (
               <span
                 className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[10px] font-semibold"
-                style={{ color: THEME.gold, background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}
+                style={{ color: THEME.amber, background: THEME.amberSoft, border: `1px solid ${THEME.amberBorder}` }}
               >
                 <AlertTriangle size={10} strokeWidth={2.4} />
                 Vencido
@@ -329,7 +310,7 @@ function BriefCard({ b }: { b: Brief }) {
             ) : urgent ? (
               <span
                 className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[10px] font-semibold"
-                style={{ color: THEME.gold, background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}
+                style={{ color: THEME.amber, background: THEME.amberSoft, border: `1px solid ${THEME.amberBorder}` }}
               >
                 <Clock size={10} strokeWidth={2.4} />
                 {days}d
@@ -363,7 +344,7 @@ function BriefCard({ b }: { b: Brief }) {
         {b.campaign ? (
           <div
             className="inline-flex items-center gap-1 px-2 py-[2px] rounded-full text-[10.5px]"
-            style={{ background: THEME.purpleSoft, color: THEME.purple, border: `1px solid ${THEME.purpleBorder}` }}
+            style={{ background: THEME.inkSoft, color: THEME.ink, border: `1px solid ${THEME.inkBorder}` }}
           >
             {b.campaign.name}
           </div>
@@ -384,12 +365,12 @@ function BriefCard({ b }: { b: Brief }) {
             <FileText size={10} strokeWidth={2.4} /> {b.totalSubmissions} envíos
           </div>
           {b.pendingSubmissions > 0 ? (
-            <div className="inline-flex items-center gap-1" style={{ color: THEME.gold }}>
+            <div className="inline-flex items-center gap-1" style={{ color: THEME.amber }}>
               <Clock size={10} strokeWidth={2.4} /> {b.pendingSubmissions} por revisar
             </div>
           ) : null}
           {b.approvedSubmissions > 0 ? (
-            <div className="inline-flex items-center gap-1" style={{ color: THEME.green }}>
+            <div className="inline-flex items-center gap-1" style={{ color: THEME.accent }}>
               <CheckCircle2 size={10} strokeWidth={2.4} /> {b.approvedSubmissions}
             </div>
           ) : null}
@@ -427,10 +408,10 @@ function Avatar({ name, url, size = 24 }: { name: string; url: string | null; si
       style={{
         width: size,
         height: size,
-        background: THEME.purpleSoft,
-        color: THEME.purple,
+        background: THEME.inkSoft,
+        color: THEME.ink,
         fontSize: size * 0.4,
-        border: `1px solid ${THEME.purpleBorder}`,
+        border: `1px solid ${THEME.inkBorder}`,
       }}
     >
       {initials}
@@ -505,12 +486,12 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(28,27,24,0.45)" }}
       onClick={onClose}
     >
       <div
         className="w-full max-w-xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
-        style={{ background: "#14141f", border: `1px solid ${THEME.borderStrong}` }}
+        style={{ background: THEME.bgCard, border: `1px solid ${THEME.borderStrong}` }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-5">
@@ -525,7 +506,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg"
-            style={{ color: THEME.textMuted, background: "rgba(255,255,255,0.04)" }}
+            style={{ color: THEME.textMuted, background: THEME.bgSoft }}
           >
             <X size={16} />
           </button>
@@ -558,7 +539,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-xl bg-transparent outline-none text-[13px]"
-                style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}`, background: "#14141f" }}
+                style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}`, background: THEME.bgCard }}
               >
                 {Object.entries(TYPE_CFG).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -584,7 +565,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 value={form.influencerId}
                 onChange={(e) => setForm({ ...form, influencerId: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-xl bg-transparent outline-none text-[13px]"
-                style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}`, background: "#14141f" }}
+                style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}`, background: THEME.bgCard }}
               >
                 <option value="">Sin asignar (general)</option>
                 {influencers.map((i) => (
@@ -599,7 +580,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 value={form.campaignId}
                 onChange={(e) => setForm({ ...form, campaignId: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-xl bg-transparent outline-none text-[13px]"
-                style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}`, background: "#14141f" }}
+                style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}`, background: THEME.bgCard }}
               >
                 <option value="">Sin campaña</option>
                 {campaigns.map((c) => (
@@ -666,7 +647,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
           {err ? (
             <div
               className="text-[12px] p-2.5 rounded-lg"
-              style={{ color: THEME.gold, background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}
+              style={{ color: THEME.danger, background: THEME.dangerSoft, border: `1px solid ${THEME.dangerBorder}` }}
             >
               {err}
             </div>
@@ -677,17 +658,15 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-[13px] font-medium"
-            style={{ color: THEME.textSecondary, background: "rgba(255,255,255,0.04)" }}
+            style={{ color: THEME.textSecondary, background: THEME.bgSoft }}
           >
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-4 py-2 rounded-xl text-[13px] font-semibold"
+            className="px-4 py-2 rounded-xl text-[13px] font-semibold bg-ink text-white"
             style={{
-              background: "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-              color: "#FFF",
               opacity: saving ? 0.6 : 1,
             }}
           >

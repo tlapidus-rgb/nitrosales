@@ -41,7 +41,7 @@ interface PublicacionesData {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "#10b981", paused: "#f59e0b", closed: "#94a3b8", under_review: "#8b5cf6",
+  active: "#10b981", paused: "#f59e0b", closed: "#9A978D", under_review: "#8b5cf6",
 };
 const STATUS_LABELS: Record<string, string> = {
   active: "Activa", paused: "Pausada", closed: "Cerrada", under_review: "En revisión",
@@ -53,7 +53,7 @@ const LISTING_TYPE_LABELS: Record<string, string> = {
 
 const LISTING_TYPE_COLORS: Record<string, string> = {
   gold_special: "#fbbf24", gold_pro: "#f59e0b", gold: "#f97316",
-  silver: "#94a3b8", bronze: "#a16207", free: "#cbd5e1",
+  silver: "#9A978D", bronze: "#a16207", free: "#9A978D",
 };
 
 export default function PublicacionesPage() {
@@ -97,7 +97,7 @@ export default function PublicacionesPage() {
       {/* KPIs PREMIUM */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
         <KpiPremium label="Activas" value={kpis.active.toLocaleString("es-AR")} sub={`${kpis.total} total`} tone="#10b981" Icon={Eye} />
-        <KpiPremium label="Pausadas" value={kpis.paused.toLocaleString("es-AR")} sub={kpis.paused > 0 ? "revisar" : "todo activo"} tone={kpis.paused > 0 ? "#f59e0b" : "#94a3b8"} Icon={EyeOff} />
+        <KpiPremium label="Pausadas" value={kpis.paused.toLocaleString("es-AR")} sub={kpis.paused > 0 ? "revisar" : "todo activo"} tone={kpis.paused > 0 ? "#f59e0b" : "#9A978D"} Icon={EyeOff} />
         <KpiPremium label="Precio promedio" value={formatARS(kpis.avgPrice)} sub="por publicación" tone="#8b5cf6" Icon={Tag} />
         <KpiPremium label="Stock total" value={formatCompact(kpis.totalStock)} sub="unidades" tone="#3b82f6" Icon={Package} />
         <KpiPremium label="Envío gratis" value={`${kpis.freeShippingPct}%`} sub={`${kpis.freeShipping.toLocaleString("es-AR")} pubs`} tone="#06b6d4" Icon={Truck} />
@@ -108,26 +108,26 @@ export default function PublicacionesPage() {
       {data.listingTypes.length > 0 && (
         <div
           style={{
-            background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+            background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)",
             padding: 18, marginBottom: 16,
-            boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+            boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: `${ML_PRIMARY}12`, color: ML_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <Layers size={14} />
             </div>
-            <h2 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
               Distribución por tipo de publicación
             </h2>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {data.listingTypes.map((lt) => {
-              const tone = LISTING_TYPE_COLORS[lt.type] || "#94a3b8";
+              const tone = LISTING_TYPE_COLORS[lt.type] || "#9A978D";
               return (
                 <div key={lt.type} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 12px", background: `${tone}10`, border: `1px solid ${tone}25`, borderRadius: 8 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 999, background: tone }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{LISTING_TYPE_LABELS[lt.type] || lt.type}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#6B685F" }}>{LISTING_TYPE_LABELS[lt.type] || lt.type}</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums" }}>{lt.count.toLocaleString("es-AR")}</span>
                 </div>
               );
@@ -143,7 +143,7 @@ export default function PublicacionesPage() {
             { value: "all", label: "Todas", tone: ML_PRIMARY },
             { value: "active", label: "Activas", tone: "#10b981" },
             { value: "paused", label: "Pausadas", tone: "#f59e0b" },
-            { value: "closed", label: "Cerradas", tone: "#94a3b8" },
+            { value: "closed", label: "Cerradas", tone: "#9A978D" },
           ].map((s) => (
             <FilterPill key={s.value} active={status === s.value} onClick={() => { setStatus(s.value); setPage(1); }} tone={s.tone}>
               {s.label}
@@ -152,7 +152,7 @@ export default function PublicacionesPage() {
         </div>
 
         <div style={{ position: "relative" }}>
-          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9A978D" }} />
           <input
             type="text" placeholder="Buscar por título o MLA…"
             value={searchInput}
@@ -160,8 +160,8 @@ export default function PublicacionesPage() {
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             style={{
               paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
-              border: "1px solid rgba(15,23,42,.1)", borderRadius: 8,
-              fontSize: 12, color: "#0f172a", background: "white", width: 260, outline: "none",
+              border: "1px solid rgba(28,27,24,.1)", borderRadius: 8,
+              fontSize: 12, color: "#1C1B18", background: "white", width: 260, outline: "none",
             }}
           />
         </div>
@@ -170,15 +170,15 @@ export default function PublicacionesPage() {
       {/* LISTINGS TABLE PREMIUM */}
       <div
         style={{
-          background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+          background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)",
           overflow: "hidden",
-          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         }}
       >
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid rgba(15,23,42,.08)", background: "#fafafa" }}>
+              <tr style={{ borderBottom: "1px solid rgba(28,27,24,.08)", background: "#F5F3EE" }}>
                 <Th>Producto</Th>
                 <Th align="right">Precio</Th>
                 <Th align="center">Stock</Th>
@@ -195,7 +195,7 @@ export default function PublicacionesPage() {
               ))}
               {listings.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: 60, fontSize: 13, color: "#94a3b8" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: 60, fontSize: 13, color: "#9A978D" }}>
                     {kpis.total === 0 ? "Sin publicaciones sincronizadas. Sincronizá MELI desde el dashboard." : "No se encontraron resultados con esos filtros."}
                   </td>
                 </tr>
@@ -205,9 +205,9 @@ export default function PublicacionesPage() {
         </div>
 
         {pagination.totalPages > 1 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderTop: "1px solid rgba(15,23,42,.06)" }}>
-            <div style={{ fontSize: 12, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
-              Página <b style={{ color: "#475569" }}>{pagination.page}</b> de {pagination.totalPages}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderTop: "1px solid rgba(28,27,24,.06)" }}>
+            <div style={{ fontSize: 12, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
+              Página <b style={{ color: "#6B685F" }}>{pagination.page}</b> de {pagination.totalPages}
               <span style={{ marginLeft: 8 }}>· {pagination.totalCount.toLocaleString("es-AR")} publicaciones</span>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -228,14 +228,14 @@ export default function PublicacionesPage() {
 }
 
 function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
-  const stockTone = l.availableQty <= 3 ? "#ef4444" : l.availableQty <= 10 ? "#f59e0b" : "#475569";
+  const stockTone = l.availableQty <= 3 ? "#ef4444" : l.availableQty <= 10 ? "#f59e0b" : "#6B685F";
   const stockBg = l.availableQty <= 3 ? "rgba(239,68,68,.08)" : l.availableQty <= 10 ? "rgba(245,158,11,.08)" : "transparent";
-  const typeColor = LISTING_TYPE_COLORS[l.listingType] || "#94a3b8";
+  const typeColor = LISTING_TYPE_COLORS[l.listingType] || "#9A978D";
 
   return (
     <tr
       style={{
-        borderBottom: isLast ? "none" : "1px solid rgba(15,23,42,.04)",
+        borderBottom: isLast ? "none" : "1px solid rgba(28,27,24,.04)",
         transition: "background 0.15s",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(245,158,11,.03)")}
@@ -243,19 +243,19 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
     >
       <Td>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", background: "#f1f5f9", flexShrink: 0 }}>
-            {l.thumbnailUrl ? <img src={l.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} style={{ color: "#cbd5e1", margin: "11px auto" }} />}
+          <div style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", background: "#EDEAE3", flexShrink: 0 }}>
+            {l.thumbnailUrl ? <img src={l.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} style={{ color: "#9A978D", margin: "11px auto" }} />}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{l.title}</div>
-            <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>{l.mlItemId}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#1C1B18", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{l.title}</div>
+            <div style={{ fontSize: 10, color: "#9A978D", fontFamily: "monospace" }}>{l.mlItemId}</div>
           </div>
         </div>
       </Td>
       <Td align="right">
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.price)}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.price)}</div>
         {l.originalPrice && l.originalPrice > l.price && (
-          <div style={{ fontSize: 10, color: "#94a3b8", textDecoration: "line-through", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.originalPrice)}</div>
+          <div style={{ fontSize: 10, color: "#9A978D", textDecoration: "line-through", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.originalPrice)}</div>
         )}
       </Td>
       <Td align="center">
@@ -264,7 +264,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
         </span>
       </Td>
       <Td align="center">
-        <span style={{ fontSize: 12, color: "#475569", fontVariantNumeric: "tabular-nums" }}>{l.soldQty.toLocaleString("es-AR")}</span>
+        <span style={{ fontSize: 12, color: "#6B685F", fontVariantNumeric: "tabular-nums" }}>{l.soldQty.toLocaleString("es-AR")}</span>
       </Td>
       <Td align="center">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: typeColor, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: `${typeColor}15` }}>
@@ -273,7 +273,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
         </span>
       </Td>
       <Td align="center">
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 8px", borderRadius: 5, background: `${STATUS_COLORS[l.status] || "#94a3b8"}15`, color: STATUS_COLORS[l.status] || "#94a3b8" }}>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 8px", borderRadius: 5, background: `${STATUS_COLORS[l.status] || "#9A978D"}15`, color: STATUS_COLORS[l.status] || "#9A978D" }}>
           {STATUS_LABELS[l.status] || l.status}
         </span>
       </Td>
@@ -282,7 +282,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
           {l.freeShipping && <AttrBadge label="Gratis" tone="#10b981" />}
           {l.fulfillment === "fulfillment" && <AttrBadge label="Full" tone="#3b82f6" />}
           {l.catalogListing && <AttrBadge label="Cat" tone="#8b5cf6" />}
-          {!l.freeShipping && l.fulfillment !== "fulfillment" && !l.catalogListing && <span style={{ fontSize: 10, color: "#cbd5e1" }}>—</span>}
+          {!l.freeShipping && l.fulfillment !== "fulfillment" && !l.catalogListing && <span style={{ fontSize: 10, color: "#9A978D" }}>—</span>}
         </div>
       </Td>
       <Td align="center">
@@ -293,11 +293,11 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
             style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               width: 28, height: 28, borderRadius: 7,
-              color: "#94a3b8", background: "transparent",
+              color: "#9A978D", background: "transparent",
               transition: "all 0.15s",
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = `${ML_PRIMARY}12`; e.currentTarget.style.color = ML_PRIMARY; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9A978D"; }}
           >
             <ExternalLink size={13} />
           </a>
@@ -313,7 +313,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
 
 function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" | "center" }) {
   return (
-    <th style={{ textAlign: align as any, fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", padding: "12px 14px" }}>
+    <th style={{ textAlign: align as any, fontSize: 10, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", padding: "12px 14px" }}>
       {children}
     </th>
   );
@@ -338,8 +338,8 @@ function FilterPill({ children, active, onClick, tone }: { children: React.React
       style={{
         padding: "7px 13px",
         background: active ? `${tone}12` : "white",
-        color: active ? tone : "#64748b",
-        border: `1px solid ${active ? `${tone}30` : "rgba(15,23,42,.08)"}`,
+        color: active ? tone : "#9A978D",
+        border: `1px solid ${active ? `${tone}30` : "rgba(28,27,24,.08)"}`,
         borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
         transition: "all 0.15s cubic-bezier(0.16,1,0.3,1)",
       }}
@@ -356,8 +356,8 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
         padding: "20px 22px",
         background: "white",
         borderRadius: 14,
-        border: "1px solid rgba(15,23,42,.05)",
-        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        border: "1px solid rgba(28,27,24,.05)",
+        boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         position: "relative",
         overflow: "hidden",
       }}
@@ -365,11 +365,11 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: `${tone}12`, color: tone, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={15} />
@@ -383,9 +383,9 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
   return (
     <div
       style={{
-        background: "white", borderRadius: 18, border: "1px solid rgba(15,23,42,.05)",
+        background: "white", borderRadius: 18, border: "1px solid rgba(28,27,24,.05)",
         padding: "26px 30px", marginBottom: 24,
-        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 8px 24px rgba(15,23,42,.04)",
+        boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 8px 24px rgba(28,27,24,.04)",
         display: "flex", alignItems: "center", gap: 18,
       }}
     >
@@ -401,8 +401,8 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
         <Icon size={26} />
       </div>
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a", margin: 0, marginBottom: 4 }}>{title}</h1>
-        <div style={{ fontSize: 13, color: "#64748b", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>{title}</h1>
+        <div style={{ fontSize: 13, color: "#9A978D", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
       </div>
     </div>
   );
@@ -412,9 +412,9 @@ function Breadcrumb() {
   return (
     <Link
       href="/mercadolibre"
-      style={{ fontSize: 12, color: "#94a3b8", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
-      onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+      style={{ fontSize: 12, color: "#9A978D", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = "#6B685F")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#9A978D")}
     >
       <ArrowLeft size={13} /> MercadoLibre
     </Link>
@@ -428,8 +428,8 @@ function PagBtn({ children, onClick, disabled }: { children: React.ReactNode; on
       disabled={disabled}
       style={{
         display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px",
-        background: "white", color: disabled ? "#cbd5e1" : "#475569",
-        border: "1px solid rgba(15,23,42,.1)", borderRadius: 8,
+        background: "white", color: disabled ? "#9A978D" : "#6B685F",
+        border: "1px solid rgba(28,27,24,.1)", borderRadius: 8,
         cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600,
         transition: "all 0.15s",
       }}
@@ -441,7 +441,7 @@ function PagBtn({ children, onClick, disabled }: { children: React.ReactNode; on
 
 function LoadingState({ text }: { text: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#94a3b8" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>{text}</span>
       <style jsx>{`
@@ -454,16 +454,7 @@ function LoadingState({ text }: { text: string }) {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ position: "relative", minHeight: "100%", padding: "32px 40px 64px", background: "#fafafa" }}>
-      <div
-        style={{
-          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-          background:
-            "radial-gradient(900px 500px at 85% -10%, rgba(245,158,11,.08), transparent 60%)," +
-            "radial-gradient(700px 400px at 5% 30%, rgba(251,191,36,.05), transparent 60%)," +
-            "radial-gradient(600px 400px at 50% 110%, rgba(249,115,22,.04), transparent 60%)",
-        }}
-      />
+    <div style={{ position: "relative", minHeight: "100%", padding: "32px 40px 64px", background: "#FBFAF7" }}>
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1240, margin: "0 auto" }}>{children}</div>
     </div>
   );

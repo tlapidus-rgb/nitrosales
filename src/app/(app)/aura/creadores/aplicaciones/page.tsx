@@ -265,7 +265,7 @@ export default function AplicacionesPage() {
                     href={applyUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center p-1.5 rounded-lg shrink-0 transition-all hover:bg-white/5"
+                    className="inline-flex items-center justify-center p-1.5 rounded-lg shrink-0 transition-all hover:bg-elevated/5"
                     style={{ border: `1px solid ${THEME.border}`, color: THEME.textSecondary }}
                     title="Abrir en una pestaña nueva"
                   >

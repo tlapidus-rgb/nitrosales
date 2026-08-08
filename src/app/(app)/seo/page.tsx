@@ -146,7 +146,7 @@ function InfoTip({ text }: { text: string }) {
       <HelpCircle
         size={13}
         strokeWidth={2}
-        className="text-slate-400 hover:text-slate-600 cursor-help transition-colors"
+        className="text-ink-40 hover:text-ink-60 cursor-help transition-colors"
       />
       {open && (
         <span
@@ -154,7 +154,7 @@ function InfoTip({ text }: { text: string }) {
           style={{ minWidth: 240 }}
         >
           <span
-            className="block text-[11px] leading-relaxed text-white bg-slate-900 rounded-lg px-3 py-2 shadow-xl text-left font-normal normal-case tracking-normal"
+            className="block text-[11px] leading-relaxed text-white bg-ink rounded-lg px-3 py-2 shadow-xl text-left font-normal normal-case tracking-normal"
             style={{
               animation: "fadeInUp 180ms " + ES_TRANSITION,
             }}
@@ -166,7 +166,7 @@ function InfoTip({ text }: { text: string }) {
             style={{
               borderLeft: "4px solid transparent",
               borderRight: "4px solid transparent",
-              borderTop: "4px solid rgb(15,23,42)",
+              borderTop: "4px solid rgb(28,27,24)",
             }}
           />
         </span>
@@ -205,7 +205,7 @@ function CountPos({ value }: { value: number }) {
 
 function DeltaPill({ value, inverse = false }: { value: number; inverse?: boolean }) {
   if (!isFinite(value) || value === 0) {
-    return <span className="text-[11px] text-slate-400 tabular-nums">—</span>;
+    return <span className="text-[11px] text-ink-40 tabular-nums">—</span>;
   }
   const good = inverse ? value < 0 : value > 0;
   const Icon = value > 0 ? ArrowUpRight : ArrowDownRight;
@@ -235,7 +235,7 @@ const COACH_TONE: Record<CoachTone, { bg: string; border: string; icon: string; 
   blue:    { bg: "from-blue-50 to-blue-50/0",     border: "border-blue-100",    icon: "text-blue-600",    chip: "bg-blue-100 text-blue-700",       ring: "ring-blue-200" },
   rose:    { bg: "from-rose-50 to-rose-50/0",     border: "border-rose-100",    icon: "text-rose-600",    chip: "bg-rose-100 text-rose-700",       ring: "ring-rose-200" },
   violet:  { bg: "from-violet-50 to-violet-50/0", border: "border-violet-100",  icon: "text-violet-600",  chip: "bg-violet-100 text-violet-700",   ring: "ring-violet-200" },
-  slate:   { bg: "from-slate-50 to-slate-50/0",   border: "border-slate-200",   icon: "text-slate-600",   chip: "bg-slate-100 text-slate-700",     ring: "ring-slate-200" },
+  slate:   { bg: "from-surface to-surface/0",   border: "border-hairline",   icon: "text-ink-60",   chip: "bg-surface-2 text-ink-60",     ring: "ring-hairline" },
 };
 
 function CoachCard({
@@ -258,19 +258,19 @@ function CoachCard({
     <div
       className={`rounded-2xl bg-gradient-to-br ${cfg.bg} border ${cfg.border} p-4 mt-4`}
       style={{
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+        boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-start gap-3">
         <div
-          className={`w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 ring-1 ${cfg.ring}`}
-          style={{ boxShadow: "0 2px 8px -2px rgba(15,23,42,0.1)" }}
+          className={`w-8 h-8 rounded-xl bg-elevated flex items-center justify-center flex-shrink-0 ring-1 ${cfg.ring}`}
+          style={{ boxShadow: "0 2px 8px -2px rgba(28,27,24,0.1)" }}
         >
           <Lightbulb size={15} className={cfg.icon} strokeWidth={2.2} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h4 className="text-[13px] font-bold text-slate-900 tracking-tight">
+            <h4 className="text-[13px] font-bold text-ink tracking-tight">
               {headline}
             </h4>
             <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${cfg.chip}`}>
@@ -280,13 +280,13 @@ function CoachCard({
           <div className="mt-3 space-y-2">
             {essentials.map((s, i) => (
               <div key={i} className="flex items-start gap-2.5 text-[12px]">
-                <div className={`w-4 h-4 rounded-full bg-white ring-1 ${cfg.ring} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                <div className={`w-4 h-4 rounded-full bg-elevated ring-1 ${cfg.ring} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                   <span className={`text-[10px] font-bold tabular-nums ${cfg.icon}`}>{i + 1}</span>
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-slate-800 leading-snug">{s.title}</div>
+                  <div className="font-semibold text-ink leading-snug">{s.title}</div>
                   {s.detail && (
-                    <div className="text-[11px] text-slate-600 leading-relaxed mt-0.5">{s.detail}</div>
+                    <div className="text-[11px] text-ink-60 leading-relaxed mt-0.5">{s.detail}</div>
                   )}
                 </div>
               </div>
@@ -317,9 +317,9 @@ function CoachCard({
                     <div key={i} className="flex items-start gap-2.5 text-[12px]">
                       <CheckCircle2 size={13} className={`${cfg.icon} flex-shrink-0 mt-0.5`} strokeWidth={2.2} />
                       <div className="flex-1">
-                        <div className="font-semibold text-slate-800 leading-snug">{s.title}</div>
+                        <div className="font-semibold text-ink leading-snug">{s.title}</div>
                         {s.detail && (
-                          <div className="text-[11px] text-slate-600 leading-relaxed mt-0.5">{s.detail}</div>
+                          <div className="text-[11px] text-ink-60 leading-relaxed mt-0.5">{s.detail}</div>
                         )}
                       </div>
                     </div>
@@ -406,7 +406,7 @@ function AurumText({ text }: { text: string }) {
     const parts = s.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((p, i) => {
       if (p.startsWith("**") && p.endsWith("**")) {
-        return <strong key={i} className="font-semibold text-slate-900">{p.slice(2, -2)}</strong>;
+        return <strong key={i} className="font-semibold text-ink">{p.slice(2, -2)}</strong>;
       }
       return <span key={i}>{p}</span>;
     });
@@ -416,7 +416,7 @@ function AurumText({ text }: { text: string }) {
     if (buffer.length > 0) {
       const joined = buffer.join(" ");
       blocks.push(
-        <p key={`p-${blocks.length}`} className="text-[13px] text-slate-700 leading-relaxed">
+        <p key={`p-${blocks.length}`} className="text-[13px] text-ink-60 leading-relaxed">
           {renderInline(joined)}
         </p>
       );
@@ -451,7 +451,7 @@ function AurumText({ text }: { text: string }) {
       inList = true;
       const content = line.slice(2);
       listItems.push(
-        <li className="flex items-start gap-2 text-[13px] text-slate-700 leading-relaxed">
+        <li className="flex items-start gap-2 text-[13px] text-ink-60 leading-relaxed">
           <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#d97706" }} />
           <span>{renderInline(content)}</span>
         </li>
@@ -948,15 +948,15 @@ export default function SEOPage() {
 
 function PageSkeleton() {
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <div className="max-w-[1400px] mx-auto animate-pulse space-y-4">
-        <div className="h-8 w-64 bg-slate-200 rounded" />
+        <div className="h-8 w-64 bg-surface-2 rounded" />
         <div className="grid grid-cols-4 gap-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-white rounded-2xl" />
+            <div key={i} className="h-32 bg-elevated rounded-2xl" />
           ))}
         </div>
-        <div className="h-64 bg-white rounded-2xl" />
+        <div className="h-64 bg-elevated rounded-2xl" />
       </div>
     </div>
   );
@@ -1191,13 +1191,7 @@ function SEOPageInner() {
      RENDER
      ════════════════════════════════════════════════ */
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background:
-          "radial-gradient(1200px 600px at 15% 0%, rgba(59,130,246,0.06), transparent 60%), radial-gradient(1000px 500px at 85% 10%, rgba(16,185,129,0.05), transparent 65%), linear-gradient(180deg, #FAFBFC 0%, #F5F7FA 100%)",
-      }}
-    >
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[1400px] mx-auto px-6 py-6 lg:py-8">
         {/* ═══ 1. COMMAND BAR ═══ */}
         <CommandBar
@@ -1397,7 +1391,7 @@ function SEOPageInner() {
         </section>
 
         {/* ═══ FOOTER ═══ */}
-        <div className="mt-10 mb-4 text-center text-[11px] text-slate-400">
+        <div className="mt-10 mb-4 text-center text-[11px] text-ink-40">
           Datos desde Google Search Console · Actualización diaria automática
         </div>
       </div>
@@ -1435,13 +1429,13 @@ function SEOPageInner() {
         .nitro-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .nitro-scroll::-webkit-scrollbar-track { background: transparent; }
         .nitro-scroll::-webkit-scrollbar-thumb {
-          background: rgba(15,23,42,0.12);
+          background: rgba(28,27,24,0.12);
           border-radius: 4px;
         }
         .nitro-scroll::-webkit-scrollbar-thumb:hover {
-          background: rgba(15,23,42,0.22);
+          background: rgba(28,27,24,0.22);
         }
-        .nitro-scroll { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.12) transparent; }
+        .nitro-scroll { scrollbar-width: thin; scrollbar-color: rgba(28,27,24,0.12) transparent; }
       `}</style>
     </div>
   );
@@ -1473,14 +1467,14 @@ function CommandBar({
           >
             <Search size={18} className="text-blue-600" strokeWidth={2.2} />
           </div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-40">
             Posicionamiento Orgánico
           </div>
         </div>
-        <h1 className="mt-2 text-3xl lg:text-4xl font-bold tracking-tight text-slate-900">
+        <h1 className="mt-2 text-3xl lg:text-4xl font-bold tracking-tight text-ink">
           SEO · Google Search Console
         </h1>
-        <p className="mt-1.5 text-sm text-slate-500 max-w-2xl">
+        <p className="mt-1.5 text-sm text-ink-40 max-w-2xl">
           Todo el tráfico gratis que te manda Google, explicado simple. Cómo te encuentran, qué buscan, y dónde podés crecer.
         </p>
       </div>
@@ -1490,9 +1484,9 @@ function CommandBar({
         <button
           onClick={() => onSync && onSync()}
           disabled={isSyncing}
-          className="inline-flex items-center gap-2 text-[11px] text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-2 text-[11px] text-ink-60 bg-elevated border border-hairline px-3 py-1.5 rounded-lg hover:bg-surface transition-colors disabled:opacity-60"
           style={{
-            boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 4px 10px -4px rgba(15,23,42,0.06)",
+            boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 4px 10px -4px rgba(28,27,24,0.06)",
           }}
         >
           <RefreshCw size={12} className={isSyncing ? "animate-spin" : ""} />
@@ -1501,36 +1495,36 @@ function CommandBar({
 
         {/* Date range */}
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1"
-               style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04)" }}>
+          <div className="flex items-center gap-1 bg-elevated border border-hairline rounded-lg p-1"
+               style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04)" }}>
             {QUICK_RANGES.map((r) => (
               <button
                 key={r.days}
                 onClick={() => onQuickRange(r.days)}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
                   activeQuickRange === r.days
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    ? "bg-ink text-white"
+                    : "text-ink-60 hover:text-ink hover:bg-surface-2"
                 }`}
               >
                 {r.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1"
-               style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04)" }}>
+          <div className="flex items-center gap-1 bg-elevated border border-hairline rounded-lg px-2 py-1"
+               style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04)" }}>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => onDateChange("from", e.target.value)}
-              className="text-[11px] text-slate-700 bg-transparent outline-none tabular-nums"
+              className="text-[11px] text-ink-60 bg-transparent outline-none tabular-nums"
             />
-            <span className="text-slate-300">→</span>
+            <span className="text-ink-40">→</span>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => onDateChange("to", e.target.value)}
-              className="text-[11px] text-slate-700 bg-transparent outline-none tabular-nums"
+              className="text-[11px] text-ink-60 bg-transparent outline-none tabular-nums"
             />
           </div>
         </div>
@@ -1548,10 +1542,10 @@ function HeroKPI({
 }: any) {
   return (
     <div
-      className="rounded-2xl bg-white p-4 border border-slate-100 transition-all duration-300 hover:-translate-y-0.5"
+      className="rounded-2xl bg-elevated p-4 border border-hairline transition-all duration-300 hover:-translate-y-0.5"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
         transition: `all 300ms ${ES_TRANSITION}`,
       }}
     >
@@ -1561,17 +1555,17 @@ function HeroKPI({
         </div>
         <InfoTip text={tooltip} />
       </div>
-      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-ink-40 font-medium">
         {label}
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
-        <div className="text-2xl font-bold tracking-tight text-slate-900">
-          {loading ? <span className="text-slate-300">—</span> : value}
+        <div className="text-2xl font-bold tracking-tight text-ink">
+          {loading ? <span className="text-ink-40">—</span> : value}
         </div>
         {delta !== undefined && !loading && <DeltaPill value={delta} inverse={inverse} />}
       </div>
       {subtitle && (
-        <div className="mt-1 text-[11px] text-slate-400">{subtitle}</div>
+        <div className="mt-1 text-[11px] text-ink-40">{subtitle}</div>
       )}
     </div>
   );
@@ -1600,9 +1594,9 @@ function SectionHeader({
           </div>
         )}
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-slate-900">{title}</h2>
+          <h2 className="text-lg font-bold tracking-tight text-ink">{title}</h2>
           {subtitle && (
-            <p className="text-[13px] text-slate-500 mt-0.5 max-w-2xl">{subtitle}</p>
+            <p className="text-[13px] text-ink-40 mt-0.5 max-w-2xl">{subtitle}</p>
           )}
         </div>
       </div>
@@ -1634,10 +1628,10 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, bre
 
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100 relative overflow-hidden"
+      className="rounded-2xl bg-elevated p-5 border border-hairline relative overflow-hidden"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className={`absolute inset-0 bg-gradient-to-br ${cfg.soft} opacity-60 pointer-events-none`} />
@@ -1646,7 +1640,7 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, bre
           <div className={`w-7 h-7 rounded-lg ${cfg.bg} flex items-center justify-center`}>
             <Award size={14} className={cfg.text} strokeWidth={2.2} />
           </div>
-          <h3 className="text-[13px] font-semibold text-slate-800">Salud SEO general</h3>
+          <h3 className="text-[13px] font-semibold text-ink">Salud SEO general</h3>
           <InfoTip text="Un puntaje único de 0 a 100 que combina cuántas keywords tenés en el top 3, tu CTR promedio y tu posición general. Más es mejor." />
         </div>
         <div className="mt-4 flex items-center gap-4">
@@ -1662,7 +1656,7 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, bre
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
+              <div className="text-3xl font-bold tracking-tight text-ink tabular-nums">
                 {loading ? "—" : Math.round(displayScore)}
               </div>
               <div className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.text}`}>
@@ -1676,9 +1670,9 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, bre
             <ScoreBar label="Posición" detail="qué tan arriba aparecés" points={bars.pos} max={30} color="#f59e0b" />
           </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+        <div className="mt-3 pt-3 border-t border-hairline flex items-center justify-between text-[11px] text-ink-40">
           <span>Keywords totales</span>
-          <span className="font-semibold text-slate-900 tabular-nums">{fmtNum(totalKws)}</span>
+          <span className="font-semibold text-ink tabular-nums">{fmtNum(totalKws)}</span>
         </div>
       </div>
     </div>
@@ -1691,15 +1685,15 @@ function ScoreBar({ label, detail, points, max, color }: any) {
     <div>
       <div className="flex items-center justify-between mb-0.5">
         <div className="flex items-baseline gap-1.5">
-          <span className="font-semibold text-slate-700">{label}</span>
-          <span className="text-[9px] text-slate-400">{detail}</span>
+          <span className="font-semibold text-ink-60">{label}</span>
+          <span className="text-[9px] text-ink-40">{detail}</span>
         </div>
-        <span className="font-semibold tabular-nums text-slate-900">
+        <span className="font-semibold tabular-nums text-ink">
           <span style={{ color }}>{Math.round(points)}</span>
-          <span className="text-slate-300"> / {max}</span>
+          <span className="text-ink-40"> / {max}</span>
         </span>
       </div>
-      <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-1 bg-surface-2 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full"
           style={{
@@ -1722,22 +1716,22 @@ function PositionDistCard({ dist, total, loading }: any) {
     { key: "pos1_3", label: "Top 3", desc: "Primeros lugares", color: "#10b981", softBg: "bg-emerald-50" },
     { key: "pos4_10", label: "4–10", desc: "Primera página", color: "#3b82f6", softBg: "bg-blue-50" },
     { key: "pos11_20", label: "11–20", desc: "Segunda página", color: "#f59e0b", softBg: "bg-amber-50" },
-    { key: "pos20plus", label: "20+", desc: "Fuera del top 20", color: "#94a3b8", softBg: "bg-slate-100" },
+    { key: "pos20plus", label: "20+", desc: "Fuera del top 20", color: "#94a3b8", softBg: "bg-surface-2" },
   ];
 
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100"
+      className="rounded-2xl bg-elevated p-5 border border-hairline"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-center gap-2 mb-1">
         <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
           <BarChart3 size={14} className="text-violet-600" strokeWidth={2.2} />
         </div>
-        <h3 className="text-[13px] font-semibold text-slate-800">Dónde aparecés en Google</h3>
+        <h3 className="text-[13px] font-semibold text-ink">Dónde aparecés en Google</h3>
         <InfoTip text="Google te muestra 10 resultados por página. El Top 3 se lleva el 75% de los clicks. Pasar de página 2 (puesto 11+) a página 1 multiplica el tráfico." />
       </div>
       <div className="mt-4 space-y-2.5">
@@ -1751,14 +1745,14 @@ function PositionDistCard({ dist, total, loading }: any) {
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${b.softBg}`} style={{ color: b.color }}>
                     {b.label}
                   </span>
-                  <span className="text-slate-500">{b.desc}</span>
+                  <span className="text-ink-40">{b.desc}</span>
                 </div>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="font-semibold text-slate-900 tabular-nums">{fmtNum(count)}</span>
-                  <span className="text-[10px] text-slate-400 tabular-nums">({pct.toFixed(1)}%)</span>
+                  <span className="font-semibold text-ink tabular-nums">{fmtNum(count)}</span>
+                  <span className="text-[10px] text-ink-40 tabular-nums">({pct.toFixed(1)}%)</span>
                 </div>
               </div>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full"
                   style={{
@@ -1783,24 +1777,24 @@ function PositionDistCard({ dist, total, loading }: any) {
 function KeywordsBreakdownCard({ kwTop3, kwTop10, totalKeywords, loading }: any) {
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100"
+      className="rounded-2xl bg-elevated p-5 border border-hairline"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-center gap-2 mb-1">
         <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
           <Trophy size={14} className="text-emerald-600" strokeWidth={2.2} />
         </div>
-        <h3 className="text-[13px] font-semibold text-slate-800">Tus palabras ganadoras</h3>
+        <h3 className="text-[13px] font-semibold text-ink">Tus palabras ganadoras</h3>
         <InfoTip text="Las keywords son las búsquedas que la gente escribe en Google. Aparecer en el top 3 para muchas de ellas significa que Google te considera una fuente confiable." />
       </div>
       <div className="mt-4 space-y-3">
         <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-50/30 border border-emerald-100">
           <div>
             <div className="text-[11px] text-emerald-700 font-semibold">Top 3 — Primeros puestos</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Ganan el 75% de los clicks</div>
+            <div className="text-[10px] text-ink-40 mt-0.5">Ganan el 75% de los clicks</div>
           </div>
           <div className="text-2xl font-bold text-emerald-700 tabular-nums">
             {loading ? "—" : <CountNum value={kwTop3} />}
@@ -1809,18 +1803,18 @@ function KeywordsBreakdownCard({ kwTop3, kwTop10, totalKeywords, loading }: any)
         <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-50/30 border border-blue-100">
           <div>
             <div className="text-[11px] text-blue-700 font-semibold">Top 10 — Primera página</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Donde casi todos buscan</div>
+            <div className="text-[10px] text-ink-40 mt-0.5">Donde casi todos buscan</div>
           </div>
           <div className="text-2xl font-bold text-blue-700 tabular-nums">
             {loading ? "—" : <CountNum value={kwTop10} />}
           </div>
         </div>
-        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-surface border border-hairline">
           <div>
-            <div className="text-[11px] text-slate-700 font-semibold">Total keywords únicas</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Búsquedas donde aparecés alguna vez</div>
+            <div className="text-[11px] text-ink-60 font-semibold">Total keywords únicas</div>
+            <div className="text-[10px] text-ink-40 mt-0.5">Búsquedas donde aparecés alguna vez</div>
           </div>
-          <div className="text-2xl font-bold text-slate-700 tabular-nums">
+          <div className="text-2xl font-bold text-ink-60 tabular-nums">
             {loading ? "—" : <CountNum value={totalKeywords} />}
           </div>
         </div>
@@ -1843,19 +1837,19 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
 
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100"
+      className="rounded-2xl bg-elevated p-5 border border-hairline"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-[13px] font-semibold text-slate-800">{title}</h3>
+        <h3 className="text-[13px] font-semibold text-ink">{title}</h3>
         <InfoTip text={tooltip} />
       </div>
       <div style={{ height: 220 }}>
         {loading || data.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-[12px] text-slate-400">
+          <div className="h-full flex items-center justify-center text-[12px] text-ink-40">
             {loading ? "Cargando…" : "Sin datos para este período"}
           </div>
         ) : metric === "clicksImpressions" ? (
@@ -1878,8 +1872,8 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   return (
-                    <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-2.5 text-[11px]">
-                      <div className="font-semibold text-slate-800 mb-1">{fmtDateShort(label)}</div>
+                    <div className="bg-elevated rounded-lg border border-hairline shadow-lg p-2.5 text-[11px]">
+                      <div className="font-semibold text-ink mb-1">{fmtDateShort(label)}</div>
                       <div className="flex items-center gap-2 text-blue-600">
                         <div className="w-2 h-2 rounded-full bg-blue-500" />
                         Clicks: <span className="font-semibold tabular-nums">{fmtNum(payload[0]?.value)}</span>
@@ -1905,8 +1899,8 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   return (
-                    <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-2.5 text-[11px]">
-                      <div className="font-semibold text-slate-800 mb-1">{fmtDateShort(label)}</div>
+                    <div className="bg-elevated rounded-lg border border-hairline shadow-lg p-2.5 text-[11px]">
+                      <div className="font-semibold text-ink mb-1">{fmtDateShort(label)}</div>
                       <div className="flex items-center gap-2 text-amber-600">
                         <div className="w-2 h-2 rounded-full bg-amber-500" />
                         Posición: <span className="font-semibold tabular-nums">{payload[0]?.value?.toFixed(1)}</span>
@@ -1931,13 +1925,13 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
 
 function OpportunitiesCard({ opportunities, loading }: any) {
   if (loading) {
-    return <div className="mt-4 rounded-2xl bg-white p-6 border border-slate-100 text-center text-[12px] text-slate-400">Cargando oportunidades…</div>;
+    return <div className="mt-4 rounded-2xl bg-elevated p-6 border border-hairline text-center text-[12px] text-ink-40">Cargando oportunidades…</div>;
   }
   if (!opportunities || opportunities.length === 0) {
     return (
       <div
-        className="mt-4 rounded-2xl bg-white p-6 border border-slate-100 text-center text-[13px] text-slate-500"
-        style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10)" }}
+        className="mt-4 rounded-2xl bg-elevated p-6 border border-hairline text-center text-[13px] text-ink-40"
+        style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10)" }}
       >
         <Sparkles size={28} className="mx-auto mb-2 text-amber-400" strokeWidth={1.5} />
         No detectamos oportunidades grandes en este período. Eso es buena señal: las keywords con muchas impresiones ya están bien posicionadas.
@@ -1949,23 +1943,23 @@ function OpportunitiesCard({ opportunities, loading }: any) {
 
   return (
     <div
-      className="mt-4 rounded-2xl bg-white border border-slate-100 overflow-hidden"
+      className="mt-4 rounded-2xl bg-elevated border border-hairline overflow-hidden"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="p-4 bg-gradient-to-br from-amber-50 to-transparent border-b border-amber-100 flex items-start gap-3">
         <Info size={14} className="text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2.2} />
-        <div className="text-[12px] text-slate-700 leading-relaxed">
+        <div className="text-[12px] text-ink-60 leading-relaxed">
           Estas keywords tienen <strong>muchas impresiones</strong> (mucha gente las busca y te ven) pero tu <strong>posición es baja</strong>.
           Si lográs mejorar el contenido de esas páginas y subís al top 3, podés ganar todos esos clicks extras sin pagar nada.
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50/60 border-b border-slate-100">
-            <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface border-b border-hairline">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-ink-40">
               <th className="px-4 py-2.5 font-semibold">Keyword</th>
               <th className="px-3 py-2.5 font-semibold text-right">Impresiones</th>
               <th className="px-3 py-2.5 font-semibold text-right">Posición actual</th>
@@ -1982,14 +1976,14 @@ function OpportunitiesCard({ opportunities, loading }: any) {
             {top.map((o: any, i: number) => (
               <tr
                 key={i}
-                className="border-b border-slate-100 last:border-0 hover:bg-amber-50/30 transition-colors"
+                className="border-b border-hairline last:border-0 hover:bg-amber-50/30 transition-colors"
               >
                 <td className="px-4 py-2.5">
-                  <div className="font-medium text-slate-900 truncate max-w-[280px]" title={o.keyword}>
+                  <div className="font-medium text-ink truncate max-w-[280px]" title={o.keyword}>
                     {o.keyword}
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                <td className="px-3 py-2.5 text-right tabular-nums text-ink-60">
                   {fmtCompact(o.impressions)}
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums">
@@ -1998,7 +1992,7 @@ function OpportunitiesCard({ opportunities, loading }: any) {
                     {o.position > 10 && <span className="text-[10px] text-amber-600 font-medium">pág. 2+</span>}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                <td className="px-3 py-2.5 text-right tabular-nums text-ink-60">
                   {fmtPct(o.ctr)}
                 </td>
                 <td className="px-3 py-2.5 text-right">
@@ -2025,7 +2019,7 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
     { id: "up", label: "Subiendo", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", count: movers.up?.length || 0 },
     { id: "down", label: "Bajando", icon: TrendingDown, color: "text-rose-600", bg: "bg-rose-50", count: movers.down?.length || 0 },
     { id: "new", label: "Nuevas", icon: Sparkles, color: "text-blue-600", bg: "bg-blue-50", count: movers.new?.length || 0 },
-    { id: "lost", label: "Perdidas", icon: Minus, color: "text-slate-600", bg: "bg-slate-100", count: movers.lost?.length || 0 },
+    { id: "lost", label: "Perdidas", icon: Minus, color: "text-ink-60", bg: "bg-surface-2", count: movers.lost?.length || 0 },
   ];
 
   const tabExplain: Record<string, string> = {
@@ -2104,14 +2098,14 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
 
   return (
     <div
-      className="mt-4 rounded-2xl bg-white border border-slate-100 overflow-hidden"
+      className="mt-4 rounded-2xl bg-elevated border border-hairline overflow-hidden"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       {/* Tabs */}
-      <div className="flex items-center border-b border-slate-100 overflow-x-auto">
+      <div className="flex items-center border-b border-hairline overflow-x-auto">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.id;
@@ -2120,19 +2114,19 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
               key={t.id}
               onClick={() => onTabChange(t.id)}
               className={`flex items-center gap-2 px-5 py-3 text-[12px] font-semibold transition-colors whitespace-nowrap relative ${
-                active ? "text-slate-900" : "text-slate-500 hover:text-slate-800"
+                active ? "text-ink" : "text-ink-40 hover:text-ink"
               }`}
             >
               <div className={`w-5 h-5 rounded-md flex items-center justify-center ${t.bg}`}>
                 <Icon size={12} className={t.color} strokeWidth={2.5} />
               </div>
               {t.label}
-              <span className={`text-[10px] font-bold tabular-nums ${active ? "text-slate-900" : "text-slate-400"}`}>
+              <span className={`text-[10px] font-bold tabular-nums ${active ? "text-ink" : "text-ink-40"}`}>
                 {t.count}
               </span>
               {active && (
                 <span
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-900"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-ink"
                   style={{ animation: `fadeInUp 200ms ${ES_TRANSITION}` }}
                 />
               )}
@@ -2141,7 +2135,7 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
         })}
       </div>
 
-      <div className="p-3 bg-slate-50/40 border-b border-slate-100 text-[12px] text-slate-600">
+      <div className="p-3 bg-surface border-b border-hairline text-[12px] text-ink-60">
         {tabExplain[activeTab]}
       </div>
 
@@ -2151,13 +2145,13 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
         style={{ maxHeight: list.length === 0 ? undefined : 380 }}
       >
         {list.length === 0 ? (
-          <div className="p-6 text-center text-[12px] text-slate-400">
+          <div className="p-6 text-center text-[12px] text-ink-40">
             Sin movimientos en esta categoría para el período
           </div>
         ) : (
           <table className="w-full text-[12px]">
-            <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-              <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+            <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-ink-40">
                 <th className="px-4 py-2 font-semibold">Keyword</th>
                 <th className="px-3 py-2 font-semibold text-right">Posición</th>
                 <th className="px-3 py-2 font-semibold text-right">Cambio</th>
@@ -2167,18 +2161,18 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
             </thead>
             <tbody>
               {list.slice(0, 50).map((k: any, i: number) => (
-                <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                <tr key={i} className="border-b border-hairline last:border-0 hover:bg-surface transition-colors">
                   <td className="px-4 py-2">
-                    <div className="font-medium text-slate-900 truncate max-w-[320px]" title={k.keyword}>
+                    <div className="font-medium text-ink truncate max-w-[320px]" title={k.keyword}>
                       {k.keyword}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-700">
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-60">
                     {activeTab === "down" || activeTab === "up" ? (
                       <span className="inline-flex flex-col items-end leading-tight">
                         <span>{fmtPos(k.position)}</span>
                         {k.prevPosition != null && (
-                          <span className="text-[10px] text-slate-400">antes: {fmtPos(k.prevPosition)}</span>
+                          <span className="text-[10px] text-ink-40">antes: {fmtPos(k.prevPosition)}</span>
                         )}
                       </span>
                     ) : (
@@ -2188,7 +2182,7 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
                   <td className="px-3 py-2 text-right tabular-nums">
                     {k.change != null ? (
                       <span className={`inline-flex items-center gap-0.5 font-semibold ${
-                        k.change > 0 ? "text-emerald-600" : k.change < 0 ? "text-rose-600" : "text-slate-400"
+                        k.change > 0 ? "text-emerald-600" : k.change < 0 ? "text-rose-600" : "text-ink-40"
                       }`}>
                         {k.change > 0 ? <ArrowUpRight size={11} strokeWidth={2.5} /> : <ArrowDownRight size={11} strokeWidth={2.5} />}
                         {Math.abs(k.change).toFixed(1)}
@@ -2196,11 +2190,11 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
                     ) : activeTab === "new" ? (
                       <span className="text-[10px] text-blue-600 font-semibold">Nueva</span>
                     ) : activeTab === "lost" ? (
-                      <span className="text-[10px] text-slate-500 font-semibold">Perdida</span>
+                      <span className="text-[10px] text-ink-40 font-semibold">Perdida</span>
                     ) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(k.clicks)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtCompact(k.impressions)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtNum(k.clicks)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-40">{fmtCompact(k.impressions)}</td>
                 </tr>
               ))}
             </tbody>
@@ -2219,19 +2213,19 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
 function SearchInput({ value, onChange, placeholder }: any) {
   return (
     <div
-      className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 min-w-[220px]"
-      style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04)" }}
+      className="flex items-center gap-2 bg-elevated border border-hairline rounded-lg px-3 py-1.5 min-w-[220px]"
+      style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04)" }}
     >
-      <Search size={13} className="text-slate-400" />
+      <Search size={13} className="text-ink-40" />
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 text-[12px] text-slate-700 bg-transparent outline-none placeholder:text-slate-400"
+        className="flex-1 text-[12px] text-ink-60 bg-transparent outline-none placeholder:text-ink-40"
       />
       {value && (
-        <button onClick={() => onChange("")} className="text-slate-400 hover:text-slate-600">
+        <button onClick={() => onChange("")} className="text-ink-40 hover:text-ink-60">
           <X size={12} />
         </button>
       )}
@@ -2247,10 +2241,10 @@ function KeywordsTable({ keywords, loading }: any) {
   const rows = keywords.slice(0, 50);
   return (
     <div
-      className="mt-4 rounded-2xl bg-white border border-slate-100 overflow-hidden"
+      className="mt-4 rounded-2xl bg-elevated border border-hairline overflow-hidden"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div
@@ -2258,8 +2252,8 @@ function KeywordsTable({ keywords, loading }: any) {
         style={{ maxHeight: 420 }}
       >
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-            <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-ink-40">
               <th className="px-4 py-2 font-semibold">Keyword</th>
               <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
@@ -2291,11 +2285,11 @@ function KeywordsTable({ keywords, loading }: any) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Cargando keywords…</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-ink-40">Cargando keywords…</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin keywords para mostrar</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-ink-40">Sin keywords para mostrar</td>
               </tr>
             ) : (
               rows.map((k: any, i: number) => {
@@ -2304,18 +2298,18 @@ function KeywordsTable({ keywords, loading }: any) {
                   emerald: "bg-emerald-50 text-emerald-700",
                   blue: "bg-blue-50 text-blue-700",
                   amber: "bg-amber-50 text-amber-700",
-                  slate: "bg-slate-100 text-slate-600",
+                  slate: "bg-surface-2 text-ink-60",
                 };
                 return (
-                  <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                  <tr key={i} className="border-b border-hairline last:border-0 hover:bg-surface transition-colors">
                     <td className="px-4 py-2">
-                      <div className="font-medium text-slate-900 truncate max-w-[320px]" title={k.keyword}>
+                      <div className="font-medium text-ink truncate max-w-[320px]" title={k.keyword}>
                         {k.keyword}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-800 font-semibold">{fmtNum(k.clicks)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtCompact(k.impressions)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtPct(k.ctr)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink font-semibold">{fmtNum(k.clicks)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtCompact(k.impressions)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtPct(k.ctr)}</td>
                     <td className="px-3 py-2 text-right">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold tabular-nums ${bucketColor[posBucket]}`}>
                         {fmtPos(k.position)}
@@ -2330,7 +2324,7 @@ function KeywordsTable({ keywords, loading }: any) {
                           {Math.abs(k.positionChange).toFixed(1)}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-slate-300">—</span>
+                        <span className="text-[11px] text-ink-40">—</span>
                       )}
                     </td>
                   </tr>
@@ -2341,7 +2335,7 @@ function KeywordsTable({ keywords, loading }: any) {
         </table>
       </div>
       {rows.length > 0 && (
-        <div className="px-4 py-2 bg-slate-50/40 border-t border-slate-100 text-[10px] text-slate-400 text-right">
+        <div className="px-4 py-2 bg-surface border-t border-hairline text-[10px] text-ink-40 text-right">
           Mostrando las top {rows.length} keywords por clicks
         </div>
       )}
@@ -2357,10 +2351,10 @@ function PagesTable({ pages, loading }: any) {
   const rows = pages.slice(0, 30);
   return (
     <div
-      className="mt-4 rounded-2xl bg-white border border-slate-100 overflow-hidden"
+      className="mt-4 rounded-2xl bg-elevated border border-hairline overflow-hidden"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div
@@ -2368,8 +2362,8 @@ function PagesTable({ pages, loading }: any) {
         style={{ maxHeight: 420 }}
       >
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-            <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-ink-40">
               <th className="px-4 py-2 font-semibold">Página</th>
               <th className="px-3 py-2 font-semibold text-right">Clicks</th>
               <th className="px-3 py-2 font-semibold text-right">Impresiones</th>
@@ -2384,9 +2378,9 @@ function PagesTable({ pages, loading }: any) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Cargando páginas…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-ink-40">Cargando páginas…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin páginas para mostrar</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-ink-40">Sin páginas para mostrar</td></tr>
             ) : rows.map((p: any, i: number) => {
               const path = (() => {
                 try {
@@ -2397,7 +2391,7 @@ function PagesTable({ pages, loading }: any) {
                 }
               })();
               return (
-                <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                <tr key={i} className="border-b border-hairline last:border-0 hover:bg-surface transition-colors">
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <a
@@ -2409,14 +2403,14 @@ function PagesTable({ pages, loading }: any) {
                       >
                         {path === "/" ? "Home" : path}
                       </a>
-                      <ExternalLink size={11} className="text-slate-400 flex-shrink-0" />
+                      <ExternalLink size={11} className="text-ink-40 flex-shrink-0" />
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-800 font-semibold">{fmtNum(p.clicks)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtCompact(p.impressions)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtPct(p.ctr)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtPos(p.avgPosition)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(p.keywordCount)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink font-semibold">{fmtNum(p.clicks)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtCompact(p.impressions)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtPct(p.ctr)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtPos(p.avgPosition)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtNum(p.keywordCount)}</td>
                 </tr>
               );
             })}
@@ -2434,7 +2428,7 @@ function PagesTable({ pages, loading }: any) {
 function CannibalizationCard({ items, loading }: any) {
   return (
     <div
-      className="mt-4 rounded-2xl bg-white border border-amber-200 overflow-hidden"
+      className="mt-4 rounded-2xl bg-elevated border border-amber-200 overflow-hidden"
       style={{
         boxShadow:
           "0 1px 0 rgba(245,158,11,0.08), 0 8px 24px -12px rgba(245,158,11,0.18), 0 22px 40px -28px rgba(245,158,11,0.12)",
@@ -2442,7 +2436,7 @@ function CannibalizationCard({ items, loading }: any) {
     >
       <div className="p-4 bg-gradient-to-br from-amber-50 to-transparent border-b border-amber-100 flex items-start gap-3">
         <AlertTriangle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2.2} />
-        <div className="text-[12px] text-slate-700 leading-relaxed">
+        <div className="text-[12px] text-ink-60 leading-relaxed">
           <strong>Qué hacer:</strong> elegí una sola página principal para cada búsqueda,
           mejorá el contenido de esa, y del resto redirigí a la principal o diferenciá el
           contenido para que apunten a búsquedas distintas.
@@ -2453,8 +2447,8 @@ function CannibalizationCard({ items, loading }: any) {
         style={{ maxHeight: 380 }}
       >
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-            <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-ink-40">
               <th className="px-4 py-2 font-semibold">Keyword</th>
               <th className="px-3 py-2 font-semibold text-center">Páginas compitiendo</th>
               <th className="px-3 py-2 font-semibold text-right">Clicks totales</th>
@@ -2463,20 +2457,20 @@ function CannibalizationCard({ items, loading }: any) {
           </thead>
           <tbody>
             {items.slice(0, 50).map((c: any, i: number) => (
-              <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-amber-50/30 transition-colors">
+              <tr key={i} className="border-b border-hairline last:border-0 hover:bg-amber-50/30 transition-colors">
                 <td className="px-4 py-2">
-                  <div className="font-medium text-slate-900 truncate max-w-[240px]" title={c.keyword}>
+                  <div className="font-medium text-ink truncate max-w-[240px]" title={c.keyword}>
                     {c.keyword}
                   </div>
                   {c.pages && c.pages.length > 0 && (
                     <div className="mt-0.5 space-y-0.5">
                       {c.pages.slice(0, 2).map((pg: string, j: number) => (
-                        <div key={j} className="text-[10px] text-slate-500 truncate max-w-[360px]" title={pg}>
+                        <div key={j} className="text-[10px] text-ink-40 truncate max-w-[360px]" title={pg}>
                           · {pg}
                         </div>
                       ))}
                       {c.pages.length > 2 && (
-                        <div className="text-[10px] text-slate-400">+{c.pages.length - 2} más</div>
+                        <div className="text-[10px] text-ink-40">+{c.pages.length - 2} más</div>
                       )}
                     </div>
                   )}
@@ -2487,15 +2481,15 @@ function CannibalizationCard({ items, loading }: any) {
                     {c.pageCount}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(c.clicks)}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtCompact(c.impressions)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-ink-60">{fmtNum(c.clicks)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-ink-40">{fmtCompact(c.impressions)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {items.length > 0 && (
-        <div className="px-4 py-2 bg-slate-50/40 border-t border-slate-100 text-[10px] text-slate-400 text-right">
+        <div className="px-4 py-2 bg-surface border-t border-hairline text-[10px] text-ink-40 text-right">
           {items.length} caso{items.length === 1 ? "" : "s"} · scroll para ver más
         </div>
       )}
@@ -2516,23 +2510,23 @@ function DeviceSplitCard({ deviceSplit, totalClicks, pctMobile, loading }: any) 
 
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100"
+      className="rounded-2xl bg-elevated p-5 border border-hairline"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-center gap-2 mb-1">
         <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
           <Smartphone size={14} className="text-blue-600" strokeWidth={2.2} />
         </div>
-        <h3 className="text-[13px] font-semibold text-slate-800">Desde qué dispositivo te encuentran</h3>
+        <h3 className="text-[13px] font-semibold text-ink">Desde qué dispositivo te encuentran</h3>
         <InfoTip text="Saber esto te ayuda a priorizar: si el 80% viene de móvil, asegurate que tu sitio cargue rápido y se vea bien en celular." />
       </div>
       {loading ? (
-        <div className="mt-4 text-[12px] text-slate-400">Cargando…</div>
+        <div className="mt-4 text-[12px] text-ink-40">Cargando…</div>
       ) : deviceSplit.length === 0 ? (
-        <div className="mt-4 text-[12px] text-slate-400">Sin datos</div>
+        <div className="mt-4 text-[12px] text-ink-40">Sin datos</div>
       ) : (
         <div className="mt-4 space-y-3">
           {devices.map((d) => {
@@ -2546,14 +2540,14 @@ function DeviceSplitCard({ deviceSplit, totalClicks, pctMobile, loading }: any) 
                     <div className={`w-5 h-5 rounded-md ${d.bg} flex items-center justify-center`}>
                       <d.Icon size={11} style={{ color: d.color }} strokeWidth={2.5} />
                     </div>
-                    <span className="font-medium text-slate-700">{d.label}</span>
+                    <span className="font-medium text-ink-60">{d.label}</span>
                   </div>
                   <div className="flex items-baseline gap-2 tabular-nums">
-                    <span className="font-semibold text-slate-900">{fmtNum(row.clicks)}</span>
-                    <span className="text-[10px] text-slate-400">{pct.toFixed(1)}%</span>
+                    <span className="font-semibold text-ink">{fmtNum(row.clicks)}</span>
+                    <span className="text-[10px] text-ink-40">{pct.toFixed(1)}%</span>
                   </div>
                 </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -2563,7 +2557,7 @@ function DeviceSplitCard({ deviceSplit, totalClicks, pctMobile, loading }: any) 
                     }}
                   />
                 </div>
-                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                <div className="mt-1 flex items-center justify-between text-[10px] text-ink-40">
                   <span>CTR: {fmtPct(row.ctr)}</span>
                   <span>Pos: {fmtPos(row.avgPosition)}</span>
                 </div>
@@ -2592,23 +2586,23 @@ function CountrySplitCard({ countries, loading }: any) {
 
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100"
+      className="rounded-2xl bg-elevated p-5 border border-hairline"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-center gap-2 mb-1">
         <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
           <Globe size={14} className="text-emerald-600" strokeWidth={2.2} />
         </div>
-        <h3 className="text-[13px] font-semibold text-slate-800">De dónde viene tu tráfico</h3>
+        <h3 className="text-[13px] font-semibold text-ink">De dónde viene tu tráfico</h3>
         <InfoTip text="Los países desde donde Google está mostrando tu sitio. Útil para confirmar que estás capturando el mercado correcto." />
       </div>
       {loading ? (
-        <div className="mt-4 text-[12px] text-slate-400">Cargando…</div>
+        <div className="mt-4 text-[12px] text-ink-40">Cargando…</div>
       ) : top.length === 0 ? (
-        <div className="mt-4 text-[12px] text-slate-400">Sin datos de países</div>
+        <div className="mt-4 text-[12px] text-ink-40">Sin datos de países</div>
       ) : (
         <div className="mt-4 space-y-2">
           {top.map((c: any, i: number) => {
@@ -2617,13 +2611,13 @@ function CountrySplitCard({ countries, loading }: any) {
             return (
               <div key={i}>
                 <div className="flex items-center justify-between text-[12px] mb-1">
-                  <span className="font-medium text-slate-700 capitalize">{name}</span>
+                  <span className="font-medium text-ink-60 capitalize">{name}</span>
                   <div className="flex items-baseline gap-2 tabular-nums">
-                    <span className="font-semibold text-slate-900">{fmtNum(c.clicks)}</span>
-                    <span className="text-[10px] text-slate-400">{pct.toFixed(1)}%</span>
+                    <span className="font-semibold text-ink">{fmtNum(c.clicks)}</span>
+                    <span className="text-[10px] text-ink-40">{pct.toFixed(1)}%</span>
                   </div>
                 </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
                     style={{

@@ -169,7 +169,7 @@ export default function VtexIntegrationPage() {
     <div className="max-w-3xl mx-auto p-6">
       <Link
         href="/settings/integraciones"
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-900 mb-4"
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-60 hover:text-ink mb-4"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Volver a integraciones
@@ -181,13 +181,13 @@ export default function VtexIntegrationPage() {
           V
         </div>
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">VTEX</h1>
-          <p className="text-[13px] text-slate-500">Órdenes, productos, stock y precios desde tu tienda VTEX.</p>
+          <h1 className="text-[20px] font-bold text-ink">VTEX</h1>
+          <p className="text-[13px] text-ink-40">Órdenes, productos, stock y precios desde tu tienda VTEX.</p>
         </div>
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+        <div className="rounded-xl border border-hairline bg-elevated p-6 text-center text-ink-40">
           <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
           Cargando estado…
         </div>
@@ -196,18 +196,18 @@ export default function VtexIntegrationPage() {
       {!loading && (
         <>
           {/* Estado actual: badge arriba */}
-          <div className={`rounded-xl border p-4 mb-4 ${isConnected ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+          <div className={`rounded-xl border p-4 mb-4 ${isConnected ? "border-emerald-200 bg-emerald-50" : "border-hairline bg-surface"}`}>
             <div className="flex items-center gap-2">
               {isConnected ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               ) : (
-                <AlertCircle className="h-5 w-5 text-slate-500" />
+                <AlertCircle className="h-5 w-5 text-ink-40" />
               )}
-              <div className={`text-[14px] font-semibold ${isConnected ? "text-emerald-900" : "text-slate-700"}`}>
+              <div className={`text-[14px] font-semibold ${isConnected ? "text-emerald-900" : "text-ink-60"}`}>
                 {isConnected ? "Conectado" : "No conectado"}
               </div>
             </div>
-            <div className={`mt-1.5 text-[12px] leading-relaxed ${isConnected ? "text-emerald-800" : "text-slate-600"}`}>
+            <div className={`mt-1.5 text-[12px] leading-relaxed ${isConnected ? "text-emerald-800" : "text-ink-60"}`}>
               {isConnected
                 ? `Tienda: ${status?.accountName}.vtexcommercestable.com.br`
                 : "Cargá las credenciales abajo para conectar tu tienda VTEX."}
@@ -223,33 +223,33 @@ export default function VtexIntegrationPage() {
           </div>
 
           {/* Form siempre editable, pre-rellenado */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <div className="text-[14px] font-semibold text-slate-900 mb-4">Configuración</div>
+          <div className="rounded-xl border border-hairline bg-elevated p-5">
+            <div className="text-[14px] font-semibold text-ink mb-4">Configuración</div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Account Name</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">Account Name</label>
                 <input
                   value={accountName}
                   onChange={(e) => { setAccountName(e.target.value.replace(/[^a-zA-Z0-9-]/g, "")); setError(null); }}
                   placeholder="mitienda"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                  className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                 />
-                <p className="mt-1 text-[10px] text-slate-500">El subdominio de tu admin: <strong>{accountName || "mitienda"}</strong>.vtexcommercestable.com.br</p>
+                <p className="mt-1 text-[10px] text-ink-40">El subdominio de tu admin: <strong>{accountName || "mitienda"}</strong>.vtexcommercestable.com.br</p>
               </div>
 
               {/* App Key: protegido si ya hay uno cargado */}
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">App Key</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">App Key</label>
                 {status?.hasKey && !editingAppKey ? (
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-[13px] font-mono text-slate-500 flex items-center gap-2">
+                    <div className="flex-1 rounded-lg border border-hairline-2 bg-surface px-3 py-2 text-[13px] font-mono text-ink-40 flex items-center gap-2">
                       <Lock className="h-3.5 w-3.5" /> •••••••••••••••••••••• (configurado)
                     </div>
                     <button
                       type="button"
                       onClick={() => { setEditingAppKey(true); setAppKey(""); }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[12px] font-semibold text-ink-60 hover:bg-surface"
                     >
                       <Edit3 className="h-3.5 w-3.5" /> Cambiar
                     </button>
@@ -259,7 +259,7 @@ export default function VtexIntegrationPage() {
                     value={appKey}
                     onChange={(e) => { setAppKey(e.target.value); setError(null); }}
                     placeholder="vtexappkey-mitienda-XXXXXX"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                    className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                     autoFocus={editingAppKey}
                   />
                 )}
@@ -267,16 +267,16 @@ export default function VtexIntegrationPage() {
 
               {/* App Token: protegido si ya hay uno cargado */}
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">App Token</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">App Token</label>
                 {status?.hasToken && !editingAppToken ? (
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-[13px] font-mono text-slate-500 flex items-center gap-2">
+                    <div className="flex-1 rounded-lg border border-hairline-2 bg-surface px-3 py-2 text-[13px] font-mono text-ink-40 flex items-center gap-2">
                       <Lock className="h-3.5 w-3.5" /> •••••••••••••••••••••• (configurado)
                     </div>
                     <button
                       type="button"
                       onClick={() => { setEditingAppToken(true); setAppToken(""); }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[12px] font-semibold text-ink-60 hover:bg-surface"
                     >
                       <Edit3 className="h-3.5 w-3.5" /> Cambiar
                     </button>
@@ -287,7 +287,7 @@ export default function VtexIntegrationPage() {
                       value={appToken}
                       onChange={(e) => { setAppToken(e.target.value); setError(null); }}
                       placeholder="60+ caracteres, NO lo cortes al copiar"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                      className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                       autoFocus={editingAppToken}
                     />
                     {appToken && appToken.length < 40 && (
@@ -301,21 +301,21 @@ export default function VtexIntegrationPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-semibold text-slate-700 mb-1">Store URL (opcional)</label>
+                  <label className="block text-[12px] font-semibold text-ink-60 mb-1">Store URL (opcional)</label>
                   <input
                     value={storeUrl}
                     onChange={(e) => setStoreUrl(e.target.value)}
                     placeholder="https://www.mitienda.com.ar"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px]"
+                    className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[12px]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-slate-700 mb-1">Sales Channel</label>
+                  <label className="block text-[12px] font-semibold text-ink-60 mb-1">Sales Channel</label>
                   <input
                     value={salesChannelId}
                     onChange={(e) => setSalesChannelId(e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="1"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px] font-mono"
+                    className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[12px] font-mono"
                   />
                 </div>
               </div>
@@ -348,21 +348,21 @@ export default function VtexIntegrationPage() {
               <button
                 onClick={handleTest}
                 disabled={testing || !accountName}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 disabled:opacity-50"
+                className="rounded-lg border border-hairline-2 bg-elevated px-4 py-2 text-[12px] font-semibold text-ink-60 disabled:opacity-50"
               >
                 {testing ? "Probando…" : "Probar credenciales"}
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !accountName}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
               {(editingAppKey || editingAppToken) && (
                 <button
                   onClick={() => { setEditingAppKey(false); setEditingAppToken(false); setAppKey(""); setAppToken(""); setError(null); }}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700"
+                  className="rounded-lg border border-hairline-2 bg-elevated px-4 py-2 text-[12px] font-semibold text-ink-60"
                 >
                   Cancelar cambio de secretos
                 </button>
@@ -400,11 +400,11 @@ function VtexAffiliateStep({ enabled }: { enabled: boolean }) {
 
   if (!enabled) {
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
-        <div className="flex items-center gap-2 text-[14px] font-semibold text-slate-700">
+      <div className="mt-4 rounded-xl border border-hairline bg-surface p-5">
+        <div className="flex items-center gap-2 text-[14px] font-semibold text-ink-60">
           <Lock className="h-4 w-4" /> Paso 2 — Afiliado VTEX
         </div>
-        <p className="mt-2 text-[12px] text-slate-500">
+        <p className="mt-2 text-[12px] text-ink-40">
           Conectá las credenciales arriba primero. Después te mostramos el segundo paso obligatorio.
         </p>
       </div>

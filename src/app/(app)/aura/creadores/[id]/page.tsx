@@ -1394,7 +1394,7 @@ function ActivityRow({
   };
   return (
     <div
-      className={`flex gap-3 py-2.5 ${clickable ? "cursor-pointer rounded-lg -mx-2 px-2 transition-colors hover:bg-white/[0.03]" : ""}`}
+      className={`flex gap-3 py-2.5 ${clickable ? "cursor-pointer rounded-lg -mx-2 px-2 transition-colors hover:bg-elevated/[0.03]" : ""}`}
       onClick={clickable ? handleClick : undefined}
       role={clickable ? "button" : undefined}
       title={clickable ? "Ver detalle de la transacción" : undefined}>
@@ -1575,7 +1575,7 @@ function OrderDetailModal({
               </div>
             ) : null}
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5" style={{ color: THEME.textSecondary }}>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-elevated/5" style={{ color: THEME.textSecondary }}>
             <X size={16} />
           </button>
         </div>

@@ -44,13 +44,13 @@ const QUICK_RANGES = [
   { label: "90 días", days: 90 },
 ];
 
+// Funnel secuencial monocromo (se oscurece hacia la conversión, la "meta" va en
+// accent) — no arcoíris por etapa, ver receta "funnels-como-UI → ink/neutral".
 const FUNNEL_STAGES: Array<{
   key: "TOF" | "MOF" | "BOF";
   label: string;
   sublabel: string;
   hex: string;
-  glow: string;
-  ring: string;
   text: string;
   soft: string;
 }> = [
@@ -58,31 +58,25 @@ const FUNNEL_STAGES: Array<{
     key: "TOF",
     label: "Top of Funnel",
     sublabel: "Awareness",
-    hex: "#8b5cf6",
-    glow: "from-violet-500/15 to-violet-500/0",
-    ring: "ring-violet-200",
-    text: "text-violet-700",
-    soft: "bg-violet-50",
+    hex: "#9A978D",
+    text: "text-ink-40",
+    soft: "bg-surface",
   },
   {
     key: "MOF",
     label: "Mid Funnel",
     sublabel: "Consideration",
-    hex: "#3b82f6",
-    glow: "from-blue-500/15 to-blue-500/0",
-    ring: "ring-blue-200",
-    text: "text-blue-700",
-    soft: "bg-blue-50",
+    hex: "#6B685F",
+    text: "text-ink-60",
+    soft: "bg-surface-2",
   },
   {
     key: "BOF",
     label: "Bottom of Funnel",
     sublabel: "Conversión",
-    hex: "#10b981",
-    glow: "from-emerald-500/15 to-emerald-500/0",
-    ring: "ring-emerald-200",
-    text: "text-emerald-700",
-    soft: "bg-emerald-50",
+    hex: "#2F9153",
+    text: "text-accent",
+    soft: "bg-accent/10",
   },
 ];
 
@@ -147,7 +141,7 @@ function CountNum({ value }: { value: number }) {
 
 function DeltaPill({ value, inverse = false }: { value: number; inverse?: boolean }) {
   if (!isFinite(value) || value === 0) {
-    return <span className="text-[11px] text-slate-400 tabular-nums">—</span>;
+    return <span className="text-[11px] text-ink-40 tabular-nums">—</span>;
   }
   const good = inverse ? value < 0 : value > 0;
   const Icon = value > 0 ? ArrowUpRight : ArrowDownRight;
@@ -171,10 +165,10 @@ function StatusDot({ status }: { status: string }) {
       : s === "PAUSED"
       ? { bg: "bg-amber-400", label: "Pausada", ring: "ring-amber-200" }
       : s === "ARCHIVED"
-      ? { bg: "bg-slate-400", label: "Archivada", ring: "ring-slate-200" }
-      : { bg: "bg-slate-300", label: s || "Sin estado", ring: "ring-slate-200" };
+      ? { bg: "bg-ink-40", label: "Archivada", ring: "ring-hairline" }
+      : { bg: "bg-ink-40", label: s || "Sin estado", ring: "ring-hairline" };
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-60">
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.bg} ring-2 ${cfg.ring}`} />
       {cfg.label}
     </span>
@@ -185,7 +179,7 @@ function StageChip({ stage }: { stage: string }) {
   const cfg = FUNNEL_STAGES.find((f) => f.key === stage);
   if (!cfg) {
     return (
-      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-surface-2 text-ink-40">
         —
       </span>
     );
@@ -242,8 +236,8 @@ function classifyCampaign(c: {
       label: "En aprendizaje",
       kind: "learn",
       Icon: Hourglass,
-      soft: "bg-blue-50",
-      text: "text-blue-700",
+      soft: "bg-surface-2",
+      text: "text-ink-60",
     };
   }
 
@@ -289,7 +283,7 @@ function Badge({
  */
 function Sparkline({ points, color = "#3b82f6" }: { points: number[]; color?: string }) {
   if (!points || points.length < 2) {
-    return <span className="text-[11px] text-slate-300">—</span>;
+    return <span className="text-[11px] text-ink-40">—</span>;
   }
   const max = Math.max(...points, 1);
   const min = Math.min(...points);
@@ -324,15 +318,15 @@ export default function MetaCampaignsPage() {
 
 function PageSkeleton() {
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <div className="max-w-[1400px] mx-auto animate-pulse space-y-4">
-        <div className="h-8 w-64 bg-slate-200 rounded" />
+        <div className="h-8 w-64 bg-surface-2 rounded" />
         <div className="grid grid-cols-4 gap-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-white rounded-2xl" />
+            <div key={i} className="h-32 bg-elevated rounded-2xl" />
           ))}
         </div>
-        <div className="h-64 bg-white rounded-2xl" />
+        <div className="h-64 bg-elevated rounded-2xl" />
       </div>
     </div>
   );
@@ -608,17 +602,7 @@ function MetaCampaignsInner() {
   const hasData = metaCampaigns.length > 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
-      {/* ── Aurora background ── */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(1100px 600px at 15% -10%, rgba(139,92,246,0.12), transparent 60%), radial-gradient(900px 500px at 95% 10%, rgba(59,130,246,0.10), transparent 60%), radial-gradient(800px 400px at 50% 100%, rgba(16,185,129,0.06), transparent 65%)",
-        }}
-      />
-
+    <div className="min-h-screen bg-canvas relative overflow-x-hidden">
       <div className="max-w-[1400px] mx-auto p-5 lg:p-8 space-y-6">
         {/* ── Header ── */}
         <div
@@ -626,18 +610,18 @@ function MetaCampaignsInner() {
           style={{ animation: `meta-enter 500ms ${ES_TRANSITION}` }}
         >
           <div>
-            <div className="text-xs text-slate-500 tracking-tight flex items-center gap-1.5">
+            <div className="text-xs text-ink-40 tracking-tight flex items-center gap-1.5">
               <span>Campañas</span>
-              <ChevronRight size={12} className="text-slate-300" />
-              <span className="text-slate-700 font-medium">Meta Ads</span>
+              <ChevronRight size={12} className="text-ink-40" />
+              <span className="text-ink-60 font-medium">Meta Ads</span>
             </div>
-            <h1 className="mt-1 text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+            <h1 className="mt-1 text-2xl lg:text-3xl font-bold text-ink tracking-tight flex items-center gap-3">
               Meta Ads
-              <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
+              <span className="text-[11px] font-medium uppercase tracking-widest text-ink-40">
                 Facebook · Instagram
               </span>
             </h1>
-            <p className="mt-1 text-sm text-slate-500 tracking-tight">
+            <p className="mt-1 text-sm text-ink-40 tracking-tight">
               Visión unificada de performance, funnel y diagnóstico para tus campañas Meta.
             </p>
           </div>
@@ -675,8 +659,8 @@ function MetaCampaignsInner() {
           style={{ animation: `meta-enter 500ms ${ES_TRANSITION} 120ms both` }}
         >
           <HeroKpi
-            icon={<DollarSign size={16} className="text-slate-700" />}
-            iconBg="bg-slate-100"
+            icon={<DollarSign size={16} className="text-ink-60" />}
+            iconBg="bg-surface-2"
             label="Gasto"
             value={<CountARS value={metaTotals.spend} />}
             delta={changes?.spend}
@@ -721,7 +705,7 @@ function MetaCampaignsInner() {
             BLOCK 2 — Funnel Map
            ══════════════════════════════════════════════ */}
         <section
-          className="rounded-2xl bg-white/90 backdrop-blur p-5 lg:p-6 border border-slate-100"
+          className="rounded-2xl bg-elevated/90 backdrop-blur p-5 lg:p-6 border border-hairline"
           style={{
             boxShadow:
               "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
@@ -730,15 +714,15 @@ function MetaCampaignsInner() {
         >
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                <Layers size={15} className="text-slate-500" />
+              <h2 className="text-sm font-semibold text-ink tracking-tight flex items-center gap-2">
+                <Layers size={15} className="text-ink-40" />
                 Mapa del funnel
               </h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-ink-40 mt-0.5">
                 Distribución de gasto y retorno por etapa
               </p>
             </div>
-            <span className="text-[11px] text-slate-400 tabular-nums">
+            <span className="text-[11px] text-ink-40 tabular-nums">
               Total: {formatARS(metaTotals.spend)}
             </span>
           </div>
@@ -751,26 +735,22 @@ function MetaCampaignsInner() {
               return (
                 <div key={f.key} className="relative">
                   <div
-                    className="rounded-2xl p-4 lg:p-5 bg-white ring-1 ring-slate-100 relative overflow-hidden"
+                    className="rounded-2xl p-4 lg:p-5 bg-elevated ring-1 ring-hairline relative overflow-hidden"
                     style={{
                       boxShadow:
                         "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
                     }}
                   >
-                    <div
-                      aria-hidden
-                      className={`absolute inset-0 bg-gradient-to-br ${f.glow} pointer-events-none`}
-                    />
                     <div className="relative">
                       <div className="flex items-center justify-between">
                         <div>
                           <div className={`text-[10px] font-bold uppercase tracking-widest ${f.text}`}>
                             {f.key}
                           </div>
-                          <div className="text-sm font-semibold text-slate-900 mt-0.5 tracking-tight">
+                          <div className="text-sm font-semibold text-ink mt-0.5 tracking-tight">
                             {f.label}
                           </div>
-                          <div className="text-[11px] text-slate-500">{f.sublabel}</div>
+                          <div className="text-[11px] text-ink-40">{f.sublabel}</div>
                         </div>
                         <span className={`text-[10px] font-semibold ${f.text} ${f.soft} px-2 py-0.5 rounded-md`}>
                           {v.count} camp
@@ -778,15 +758,15 @@ function MetaCampaignsInner() {
                       </div>
 
                       <div className="mt-4">
-                        <div className="text-2xl font-bold text-slate-900 tabular-nums tracking-tight">
+                        <div className="text-2xl font-bold text-ink tabular-nums tracking-tight">
                           {formatARS(v.spend)}
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                        <div className="text-[11px] text-ink-40 mt-0.5 tabular-nums">
                           {pct.toFixed(1)}% del gasto
                         </div>
                       </div>
 
-                      <div className="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
                         <div
                           className="h-full rounded-full transition-[width]"
                           style={{
@@ -806,8 +786,8 @@ function MetaCampaignsInner() {
 
                   {idx < FUNNEL_STAGES.length - 1 && (
                     <div className="hidden lg:flex absolute -right-2.5 top-1/2 -translate-y-1/2 items-center justify-center z-10">
-                      <div className="w-5 h-5 rounded-full bg-white ring-1 ring-slate-200 flex items-center justify-center shadow-sm">
-                        <ArrowRight size={12} className="text-slate-400" />
+                      <div className="w-5 h-5 rounded-full bg-elevated ring-1 ring-hairline flex items-center justify-center shadow-sm">
+                        <ArrowRight size={12} className="text-ink-40" />
                       </div>
                     </div>
                   )}
@@ -821,7 +801,7 @@ function MetaCampaignsInner() {
             BLOCK 3 — Diagnósticos
            ══════════════════════════════════════════════ */}
         <section
-          className="rounded-2xl bg-white/90 backdrop-blur p-5 lg:p-6 border border-slate-100"
+          className="rounded-2xl bg-elevated/90 backdrop-blur p-5 lg:p-6 border border-hairline"
           style={{
             boxShadow:
               "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
@@ -830,15 +810,15 @@ function MetaCampaignsInner() {
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                <Sparkles size={15} className="text-slate-500" />
+              <h2 className="text-sm font-semibold text-ink tracking-tight flex items-center gap-2">
+                <Sparkles size={15} className="text-ink-40" />
                 Diagnósticos automáticos
               </h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-ink-40 mt-0.5">
                 Insights generados de tus campañas Meta
               </p>
             </div>
-            <span className="text-[11px] text-slate-400 tabular-nums">
+            <span className="text-[11px] text-ink-40 tabular-nums">
               {diagnostics.length} {diagnostics.length === 1 ? "insight" : "insights"}
             </span>
           </div>
@@ -865,7 +845,7 @@ function MetaCampaignsInner() {
             BLOCK 4 — Campaign Table (hierarchical)
            ══════════════════════════════════════════════ */}
         <section
-          className="rounded-2xl bg-white border border-slate-100 overflow-hidden"
+          className="rounded-2xl bg-elevated border border-hairline overflow-hidden"
           style={{
             boxShadow:
               "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
@@ -873,39 +853,39 @@ function MetaCampaignsInner() {
           }}
         >
           {/* Table header bar */}
-          <div className="p-4 lg:p-5 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="p-4 lg:p-5 border-b border-hairline flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                <BarChart3 size={15} className="text-slate-500" />
+              <h2 className="text-sm font-semibold text-ink tracking-tight flex items-center gap-2">
+                <BarChart3 size={15} className="text-ink-40" />
                 Campañas
               </h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-ink-40 mt-0.5">
                 {displayCampaigns.length} de {metaCampaigns.length} — clic para ver detalle
               </p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-40" />
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar campaña…"
-                  className="pl-7.5 pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-52 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-[border,box-shadow] tracking-tight"
+                  className="pl-7.5 pl-8 pr-3 py-1.5 text-xs border border-hairline rounded-lg w-52 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition-[border,box-shadow] tracking-tight"
                   style={{ transition: `border-color 180ms ${ES_TRANSITION}, box-shadow 180ms ${ES_TRANSITION}` }}
                 />
               </div>
 
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
+              <div className="inline-flex rounded-lg bg-surface-2 p-0.5">
                 {(["ALL", "TOF", "MOF", "BOF"] as const).map((s) => (
                   <button
                     key={s}
                     onClick={() => setStageFilter(s)}
                     className={`px-2.5 py-1 text-[11px] font-semibold rounded-md tracking-tight ${
                       stageFilter === s
-                        ? "bg-white text-slate-900 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
+                        ? "bg-elevated text-ink shadow-sm"
+                        : "text-ink-40 hover:text-ink-60"
                     }`}
                     style={{ transition: `background-color 180ms ${ES_TRANSITION}, color 180ms ${ES_TRANSITION}` }}
                   >
@@ -925,7 +905,7 @@ function MetaCampaignsInner() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-b border-slate-100">
+                  <tr className="text-[10px] font-semibold uppercase tracking-widest text-ink-40 border-b border-hairline">
                     <th className="text-left py-3 px-4 lg:px-6">Campaña</th>
                     <th className="text-left py-3 px-2">Stage</th>
                     <th className="text-left py-3 px-2">Estado</th>
@@ -953,7 +933,7 @@ function MetaCampaignsInner() {
                     return (
                       <React.Fragment key={c.id}>
                         <tr
-                          className="border-b border-slate-50 hover:bg-slate-50/60 cursor-pointer group"
+                          className="border-b border-hairline hover:bg-surface/60 cursor-pointer group"
                           style={{ transition: `background-color 180ms ${ES_TRANSITION}` }}
                           onClick={() => setDrawerId(c.id)}
                         >
@@ -964,17 +944,17 @@ function MetaCampaignsInner() {
                                   e.stopPropagation();
                                   setExpandedId(expanded ? null : c.id);
                                 }}
-                                className="p-0.5 rounded hover:bg-slate-100 text-slate-400"
+                                className="p-0.5 rounded hover:bg-surface-2 text-ink-40"
                                 style={{ transition: `transform 200ms ${ES_TRANSITION}` }}
                                 aria-label={expanded ? "Colapsar" : "Expandir"}
                               >
                                 {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                               </button>
                               <div className="min-w-0">
-                                <div className="text-[13px] font-medium text-slate-900 truncate max-w-[280px] tracking-tight">
+                                <div className="text-[13px] font-medium text-ink truncate max-w-[280px] tracking-tight">
                                   {c.name}
                                 </div>
-                                <div className="text-[10px] text-slate-400 tabular-nums">
+                                <div className="text-[10px] text-ink-40 tabular-nums">
                                   {c.daysWithData} día{c.daysWithData === 1 ? "" : "s"} con data
                                 </div>
                               </div>
@@ -986,16 +966,16 @@ function MetaCampaignsInner() {
                           <td className="py-3 px-2">
                             <StatusDot status={c.status} />
                           </td>
-                          <td className="py-3 px-2 text-right text-[13px] text-slate-900 tabular-nums font-medium">
+                          <td className="py-3 px-2 text-right text-[13px] text-ink tabular-nums font-medium">
                             {formatARS(c.spend)}
                           </td>
-                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                          <td className="py-3 px-2 text-right text-[12px] text-ink-60 tabular-nums">
                             {c.ctr.toFixed(2)}%
                           </td>
-                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                          <td className="py-3 px-2 text-right text-[12px] text-ink-60 tabular-nums">
                             {c.costPerConversion > 0 ? formatARS(c.costPerConversion) : "—"}
                           </td>
-                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                          <td className="py-3 px-2 text-right text-[12px] text-ink-60 tabular-nums">
                             {c.conversions.toLocaleString("es-AR")}
                           </td>
                           <td className="py-3 px-2 text-right text-[13px] font-bold tabular-nums">
@@ -1007,21 +987,21 @@ function MetaCampaignsInner() {
                             {badge ? (
                               <Badge Icon={badge.Icon} label={badge.label} soft={badge.soft} text={badge.text} />
                             ) : (
-                              <span className="text-[11px] text-slate-300">—</span>
+                              <span className="text-[11px] text-ink-40">—</span>
                             )}
                           </td>
                           <td className="py-3 px-2">
-                            <ExternalLink size={12} className="text-slate-300 group-hover:text-slate-500" />
+                            <ExternalLink size={12} className="text-ink-40 group-hover:text-ink-40" />
                           </td>
                         </tr>
 
                         {expanded && (
-                          <tr className="bg-slate-50/70 border-b border-slate-100">
+                          <tr className="bg-surface/70 border-b border-hairline">
                             <td colSpan={10} className="p-4 lg:p-5">
                               {structureLoading && adsets.length === 0 ? (
-                                <div className="text-[11px] text-slate-500">Cargando ad sets…</div>
+                                <div className="text-[11px] text-ink-40">Cargando ad sets…</div>
                               ) : adsets.length === 0 ? (
-                                <div className="text-[11px] text-slate-500">Sin ad sets en este período.</div>
+                                <div className="text-[11px] text-ink-40">Sin ad sets en este período.</div>
                               ) : (
                                 <AdsetsMini
                                   adsets={adsets}
@@ -1043,7 +1023,7 @@ function MetaCampaignsInner() {
         {/* Footer mini chart */}
         {spendByDay.length > 0 && (
           <section
-            className="rounded-2xl bg-white border border-slate-100 p-5 lg:p-6"
+            className="rounded-2xl bg-elevated border border-hairline p-5 lg:p-6"
             style={{
               boxShadow:
                 "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
@@ -1052,10 +1032,10 @@ function MetaCampaignsInner() {
           >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
+                <h2 className="text-sm font-semibold text-ink tracking-tight">
                   Gasto diario Meta · 14 días
                 </h2>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[11px] text-ink-40 mt-0.5">
                   Tendencia de inversión en la plataforma
                 </p>
               </div>
@@ -1071,13 +1051,13 @@ function MetaCampaignsInner() {
                 <XAxis
                   dataKey="date"
                   tickFormatter={(d) => (d || "").slice(5)}
-                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tick={{ fontSize: 10, fill: "#9A978D" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(n) => formatCompact(n)}
-                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tick={{ fontSize: 10, fill: "#9A978D" }}
                   axisLine={false}
                   tickLine={false}
                   width={40}
@@ -1085,12 +1065,12 @@ function MetaCampaignsInner() {
                 <Tooltip
                   contentStyle={{
                     background: "white",
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid #E5E1D8",
                     borderRadius: 10,
                     fontSize: 11,
                     boxShadow: "0 8px 24px -12px rgba(15,23,42,0.12)",
                   }}
-                  labelStyle={{ color: "#64748b" }}
+                  labelStyle={{ color: "#6B685F" }}
                   formatter={(v: any) => [formatARS(v), "Gasto"]}
                 />
                 <Area
@@ -1177,7 +1157,7 @@ function SyncPill({
     <button
       onClick={onTrigger}
       disabled={isSyncing}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white ring-1 ring-slate-200 text-[11px] text-slate-600 hover:ring-slate-300 disabled:opacity-60 tracking-tight"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-elevated ring-1 ring-hairline text-[11px] text-ink-60 hover:ring-hairline-2 disabled:opacity-60 tracking-tight"
       style={{ transition: `box-shadow 180ms ${ES_TRANSITION}` }}
       title={lastSyncAt ? `Última sync: ${new Date(lastSyncAt).toLocaleString("es-AR")}` : "Nunca sincronizado"}
     >
@@ -1206,7 +1186,7 @@ function HeroKpi({
 }) {
   return (
     <div
-      className="rounded-2xl bg-white p-5 border border-slate-100 relative overflow-hidden"
+      className="rounded-2xl bg-elevated p-5 border border-hairline relative overflow-hidden"
       style={{
         boxShadow:
           "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
@@ -1214,14 +1194,14 @@ function HeroKpi({
     >
       <div className="flex items-center gap-2 mb-3">
         <div className={`p-2 rounded-xl ${iconBg}`}>{icon}</div>
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-40">{label}</span>
       </div>
-      <div className={`text-2xl lg:text-[28px] font-bold tracking-tight ${valueClass || "text-slate-900"}`}>
+      <div className={`text-2xl lg:text-[28px] font-bold tracking-tight ${valueClass || "text-ink"}`}>
         {value}
       </div>
       <div className="mt-1.5 flex items-center gap-2">
         {delta !== null && delta !== undefined ? <DeltaPill value={Number(delta)} /> : null}
-        <span className="text-[11px] text-slate-500 tabular-nums">{sub}</span>
+        <span className="text-[11px] text-ink-40 tabular-nums">{sub}</span>
       </div>
     </div>
   );
@@ -1235,8 +1215,8 @@ function CountUpPct({ value }: { value: number }) {
 function Mini({ label, value, valueClass = "" }: { label: string; value: React.ReactNode; valueClass?: string }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</div>
-      <div className={`text-[14px] font-bold mt-0.5 tabular-nums ${valueClass || "text-slate-900"}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-ink-40">{label}</div>
+      <div className={`text-[14px] font-bold mt-0.5 tabular-nums ${valueClass || "text-ink"}`}>
         {value}
       </div>
     </div>
@@ -1267,7 +1247,7 @@ function DiagnosticCard({
   return (
     <Component
       onClick={onClick}
-      className={`text-left rounded-xl bg-white p-4 border ${cfg.border} group ${
+      className={`text-left rounded-xl bg-elevated p-4 border ${cfg.border} group ${
         onClick ? "hover:shadow-md cursor-pointer" : ""
       }`}
       style={{ transition: `box-shadow 220ms ${ES_TRANSITION}, transform 220ms ${ES_TRANSITION}` }}
@@ -1282,13 +1262,13 @@ function DiagnosticCard({
             {onClick && (
               <ChevronRight
                 size={13}
-                className="text-slate-300 group-hover:text-slate-500 ml-auto"
+                className="text-ink-40 group-hover:text-ink-40 ml-auto"
                 style={{ transition: `transform 220ms ${ES_TRANSITION}` }}
               />
             )}
           </div>
-          <div className="text-[13px] font-semibold text-slate-900 mt-1 tracking-tight">{title}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{detail}</div>
+          <div className="text-[13px] font-semibold text-ink mt-1 tracking-tight">{title}</div>
+          <div className="text-[11px] text-ink-40 mt-0.5 leading-relaxed">{detail}</div>
         </div>
       </div>
     </Component>
@@ -1297,9 +1277,9 @@ function DiagnosticCard({
 
 function EmptyInsight() {
   return (
-    <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
-      <Gauge size={18} className="mx-auto text-slate-300 mb-1.5" />
-      <div className="text-[12px] text-slate-500 tracking-tight">
+    <div className="rounded-xl border border-dashed border-hairline p-6 text-center">
+      <Gauge size={18} className="mx-auto text-ink-40 mb-1.5" />
+      <div className="text-[12px] text-ink-40 tracking-tight">
         Todo en orden — sin alertas para este rango.
       </div>
     </div>
@@ -1314,10 +1294,10 @@ function AdsetsMini({
   breakevenRoas: number;
 }) {
   return (
-    <div className="rounded-xl bg-white border border-slate-100 overflow-hidden">
+    <div className="rounded-xl bg-elevated border border-hairline overflow-hidden">
       <table className="w-full text-[12px]">
         <thead>
-          <tr className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-b border-slate-100">
+          <tr className="text-[10px] font-semibold uppercase tracking-widest text-ink-40 border-b border-hairline">
             <th className="text-left py-2 px-3">Ad Set</th>
             <th className="text-left py-2 px-2">Estado</th>
             <th className="text-right py-2 px-2">Gasto</th>
@@ -1333,24 +1313,24 @@ function AdsetsMini({
             .slice()
             .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
             .map((a: any) => (
-              <tr key={a.id} className="border-b border-slate-50 last:border-0">
+              <tr key={a.id} className="border-b border-hairline last:border-0">
                 <td className="py-2 px-3">
-                  <div className="text-[12px] text-slate-800 truncate max-w-[260px] tracking-tight">{a.name}</div>
-                  <div className="text-[10px] text-slate-400">{a.optimizationGoal || "—"}</div>
+                  <div className="text-[12px] text-ink-60 truncate max-w-[260px] tracking-tight">{a.name}</div>
+                  <div className="text-[10px] text-ink-40">{a.optimizationGoal || "—"}</div>
                 </td>
                 <td className="py-2 px-2">
                   <StatusDot status={a.status} />
                 </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-700 font-medium">
+                <td className="py-2 px-2 text-right tabular-nums text-ink-60 font-medium">
                   {formatARS(a.spend || 0)}
                 </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                <td className="py-2 px-2 text-right tabular-nums text-ink-60">
                   {(a.ctr || 0).toFixed(2)}%
                 </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                <td className="py-2 px-2 text-right tabular-nums text-ink-60">
                   {a.cpa > 0 ? formatARS(a.cpa) : "—"}
                 </td>
-                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                <td className="py-2 px-2 text-right tabular-nums text-ink-60">
                   {(a.conversions || 0).toLocaleString("es-AR")}
                 </td>
                 <td className="py-2 px-2 text-right tabular-nums font-bold">
@@ -1358,7 +1338,7 @@ function AdsetsMini({
                     {(a.roas || 0).toFixed(2)}x
                   </span>
                 </td>
-                <td className="py-2 px-3 text-right tabular-nums text-slate-500">
+                <td className="py-2 px-3 text-right tabular-nums text-ink-40">
                   {a.adsCount || 0}
                 </td>
               </tr>
@@ -1372,11 +1352,11 @@ function AdsetsMini({
 function EmptyTable({ hasData }: { hasData: boolean }) {
   return (
     <div className="p-12 text-center">
-      <BarChart3 size={28} className="mx-auto text-slate-300 mb-2" />
-      <div className="text-sm text-slate-600 font-medium tracking-tight">
+      <BarChart3 size={28} className="mx-auto text-ink-40 mb-2" />
+      <div className="text-sm text-ink-60 font-medium tracking-tight">
         {hasData ? "Sin resultados con los filtros actuales" : "Sin campañas Meta en el rango"}
       </div>
-      <div className="text-[11px] text-slate-400 mt-1">
+      <div className="text-[11px] text-ink-40 mt-1">
         {hasData ? "Probá ampliar el filtro o buscar otra campaña." : "Ampliá el rango de fechas o verificá la conexión Meta."}
       </div>
     </div>
@@ -1387,7 +1367,7 @@ function TableSkeleton() {
   return (
     <div className="p-5 space-y-2">
       {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-10 bg-slate-50 rounded animate-pulse" />
+        <div key={i} className="h-10 bg-surface rounded animate-pulse" />
       ))}
     </div>
   );
@@ -1442,20 +1422,20 @@ function CampaignDrawer({
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px]"
+        className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]"
         onClick={onClose}
         style={{ animation: `meta-enter 240ms ${ES_TRANSITION}` }}
       />
       {/* Drawer */}
       <aside
-        className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-[580px] bg-white shadow-2xl overflow-y-auto"
+        className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-[580px] bg-elevated shadow-2xl overflow-y-auto"
         style={{
           animation: `meta-slide-in 360ms ${ES_TRANSITION}`,
           boxShadow: "0 0 0 1px rgba(15,23,42,0.06), -20px 0 60px -30px rgba(15,23,42,0.30)",
         }}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-100 p-5 z-10">
+        <div className="sticky top-0 bg-elevated/95 backdrop-blur border-b border-hairline p-5 z-10">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -1465,14 +1445,14 @@ function CampaignDrawer({
                   <Badge Icon={badge.Icon} label={badge.label} soft={badge.soft} text={badge.text} />
                 )}
               </div>
-              <h3 className="text-lg font-bold text-slate-900 tracking-tight">{campaign.name}</h3>
-              <div className="text-[11px] text-slate-500 mt-0.5">
+              <h3 className="text-lg font-bold text-ink tracking-tight">{campaign.name}</h3>
+              <div className="text-[11px] text-ink-40 mt-0.5">
                 {campaign.objective || "Sin objetivo"}
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+              className="p-1.5 rounded-lg hover:bg-surface-2 text-ink-40"
               aria-label="Cerrar"
               style={{ transition: `background-color 180ms ${ES_TRANSITION}` }}
             >
@@ -1484,8 +1464,8 @@ function CampaignDrawer({
         {/* KPIs */}
         <div className="p-5 grid grid-cols-2 gap-3">
           <DrawerKpi
-            icon={<DollarSign size={14} className="text-slate-700" />}
-            iconBg="bg-slate-100"
+            icon={<DollarSign size={14} className="text-ink-60" />}
+            iconBg="bg-surface-2"
             label="Gasto"
             value={formatARS(campaign.spend)}
           />
@@ -1515,8 +1495,8 @@ function CampaignDrawer({
             value={campaign.costPerConversion > 0 ? formatARS(campaign.costPerConversion) : "—"}
           />
           <DrawerKpi
-            icon={<Clock size={14} className="text-slate-700" />}
-            iconBg="bg-slate-100"
+            icon={<Clock size={14} className="text-ink-60" />}
+            iconBg="bg-surface-2"
             label="Días con data"
             value={(campaign.daysWithData || 0).toString()}
           />
@@ -1525,14 +1505,14 @@ function CampaignDrawer({
         {/* Adsets */}
         <div className="px-5 pb-6">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-[12px] font-semibold uppercase tracking-widest text-slate-500">
+            <h4 className="text-[12px] font-semibold uppercase tracking-widest text-ink-40">
               Ad sets ({adsets.length})
             </h4>
           </div>
           {loadingStructure && adsets.length === 0 ? (
-            <div className="text-[12px] text-slate-500">Cargando ad sets…</div>
+            <div className="text-[12px] text-ink-40">Cargando ad sets…</div>
           ) : adsets.length === 0 ? (
-            <div className="text-[12px] text-slate-500 rounded-xl border border-dashed border-slate-200 p-6 text-center">
+            <div className="text-[12px] text-ink-40 rounded-xl border border-dashed border-hairline p-6 text-center">
               Sin ad sets en este período.
             </div>
           ) : (
@@ -1543,14 +1523,14 @@ function CampaignDrawer({
                 .map((a: any) => (
                   <div
                     key={a.id}
-                    className="rounded-xl border border-slate-100 p-3 bg-slate-50/40"
+                    className="rounded-xl border border-hairline p-3 bg-surface/40"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-[13px] font-medium text-slate-900 truncate tracking-tight">
+                        <div className="text-[13px] font-medium text-ink truncate tracking-tight">
                           {a.name}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[10px] text-ink-40">
                           {a.optimizationGoal || "—"} · {a.adsCount || 0} ads
                         </div>
                       </div>
@@ -1558,7 +1538,7 @@ function CampaignDrawer({
                         <div className={`text-[14px] font-bold tabular-nums ${roasColorClass(a.roas || 0, breakevenRoas)}`}>
                           {(a.roas || 0).toFixed(2)}x
                         </div>
-                        <div className="text-[10px] text-slate-500 tabular-nums">{formatARS(a.spend || 0)}</div>
+                        <div className="text-[10px] text-ink-40 tabular-nums">{formatARS(a.spend || 0)}</div>
                       </div>
                     </div>
                   </div>
@@ -1569,7 +1549,7 @@ function CampaignDrawer({
           {/* Link to Creativos Lab */}
           <a
             href={`/campaigns/creatives?platform=META&campaign=${encodeURIComponent(campaign.id)}`}
-            className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700"
+            className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink hover:text-ink-60"
             style={{ transition: `color 180ms ${ES_TRANSITION}` }}
           >
             Ver creativos en Creativos Lab
@@ -1595,12 +1575,12 @@ function DrawerKpi({
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-xl bg-slate-50/60 p-3 border border-slate-100">
+    <div className="rounded-xl bg-surface/60 p-3 border border-hairline">
       <div className="flex items-center gap-1.5 mb-1.5">
         <div className={`p-1.5 rounded-lg ${iconBg}`}>{icon}</div>
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-ink-40">{label}</span>
       </div>
-      <div className={`text-[15px] font-bold tabular-nums tracking-tight ${valueClass || "text-slate-900"}`}>
+      <div className={`text-[15px] font-bold tabular-nums tracking-tight ${valueClass || "text-ink"}`}>
         {value}
       </div>
     </div>

@@ -48,35 +48,29 @@ import {
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  purple: "#a855f7",
-  purpleSoft: "rgba(168, 85, 247, 0.10)",
-  purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "#00d4ff",
-  cyanSoft: "rgba(0, 212, 255, 0.10)",
-  cyanBorder: "rgba(0, 212, 255, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  gray: "#9ca3af",
-  graySoft: "rgba(156, 163, 175, 0.08)",
-  grayBorder: "rgba(156, 163, 175, 0.22)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  ink: "rgb(var(--ent-ink))",
+  inkSoft: "rgba(28,27,24,0.06)",
+  inkBorder: "rgba(28,27,24,0.16)",
+  accent: "rgb(var(--ent-accent))",
+  accentSoft: "rgba(47,145,83,0.10)",
+  accentBorder: "rgba(47,145,83,0.28)",
+  amber: "rgb(var(--ent-amber))",
+  amberSoft: "rgba(201,138,26,0.10)",
+  amberBorder: "rgba(201,138,26,0.28)",
+  danger: "#b91c1c",
+  dangerSoft: "rgba(185,28,28,0.08)",
+  dangerBorder: "rgba(185,28,28,0.24)",
+  gray: "rgb(var(--ent-ink-40))",
+  graySoft: "rgb(var(--ent-surface))",
+  grayBorder: "rgb(var(--ent-hairline))",
 };
 
 type ProgressStatus =
@@ -192,37 +186,37 @@ const PROGRESS_CONFIG: Record<
 > = {
   unlocked: {
     label: "Bono desbloqueado",
-    color: THEME.green,
-    bg: THEME.greenSoft,
-    border: THEME.greenBorder,
+    color: THEME.accent,
+    bg: THEME.accentSoft,
+    border: THEME.accentBorder,
     icon: <Trophy size={12} strokeWidth={2.4} />,
   },
   ahead: {
     label: "Adelante del ritmo",
-    color: THEME.cyan,
-    bg: THEME.cyanSoft,
-    border: THEME.cyanBorder,
+    color: THEME.textSecondary,
+    bg: THEME.graySoft,
+    border: THEME.grayBorder,
     icon: <Rocket size={12} strokeWidth={2.4} />,
   },
   on_track: {
     label: "En ritmo",
-    color: THEME.purple,
-    bg: THEME.purpleSoft,
-    border: THEME.purpleBorder,
+    color: THEME.textSecondary,
+    bg: THEME.graySoft,
+    border: THEME.grayBorder,
     icon: <TrendingUp size={12} strokeWidth={2.4} />,
   },
   behind: {
     label: "Atrás del ritmo",
-    color: THEME.rose,
-    bg: THEME.roseSoft,
-    border: THEME.roseBorder,
+    color: THEME.amber,
+    bg: THEME.amberSoft,
+    border: THEME.amberBorder,
     icon: <Hourglass size={12} strokeWidth={2.4} />,
   },
   at_risk: {
     label: "En riesgo",
-    color: THEME.gold,
-    bg: THEME.goldSoft,
-    border: THEME.goldBorder,
+    color: THEME.danger,
+    bg: THEME.dangerSoft,
+    border: THEME.dangerBorder,
     icon: <AlertTriangle size={12} strokeWidth={2.4} />,
   },
   no_target: {
@@ -247,9 +241,9 @@ const STATUS_DB_CONFIG: Record<
 > = {
   ACTIVE: {
     label: "Activa",
-    color: THEME.green,
-    bg: THEME.greenSoft,
-    border: THEME.greenBorder,
+    color: THEME.accent,
+    bg: THEME.accentSoft,
+    border: THEME.accentBorder,
   },
   PAUSED: {
     label: "Pausada",
@@ -259,9 +253,9 @@ const STATUS_DB_CONFIG: Record<
   },
   COMPLETED: {
     label: "Completada",
-    color: THEME.purple,
-    bg: THEME.purpleSoft,
-    border: THEME.purpleBorder,
+    color: THEME.textSecondary,
+    bg: THEME.graySoft,
+    border: THEME.grayBorder,
   },
 };
 
@@ -304,10 +298,10 @@ function Avatar({
       style={{
         width: size,
         height: size,
-        background: THEME.goldSoft,
-        color: THEME.gold,
+        background: THEME.inkSoft,
+        color: THEME.ink,
         fontSize: size * 0.36,
-        border: `2px solid ${THEME.goldBorder}`,
+        border: `2px solid ${THEME.inkBorder}`,
       }}
     >
       {initials}
@@ -339,21 +333,16 @@ function Sparkline({
       preserveAspectRatio="none"
     >
       <defs>
-        <linearGradient id="sparkGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#ff0080" />
-          <stop offset="50%" stopColor="#a855f7" />
-          <stop offset="100%" stopColor="#00d4ff" />
-        </linearGradient>
         <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ff0080" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#00d4ff" stopOpacity="0" />
+          <stop offset="0%" stopColor="#1C1B18" stopOpacity="0.16" />
+          <stop offset="100%" stopColor="#1C1B18" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill="url(#sparkFill)" />
       <polyline
         points={points}
         fill="none"
-        stroke="url(#sparkGrad)"
+        stroke="#1C1B18"
         strokeWidth="1.5"
         strokeLinejoin="round"
         strokeLinecap="round"
@@ -450,7 +439,7 @@ export default function CampaignDetailPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: THEME.bgPage }}>
+      <div className="min-h-screen bg-canvas">
         <div className="max-w-[1120px] mx-auto px-6 md:px-10 py-8 md:py-10">
           <div
             className="h-[160px] rounded-2xl mb-4"
@@ -478,7 +467,7 @@ export default function CampaignDetailPage({
 
   if (error || !data) {
     return (
-      <div className="min-h-screen" style={{ background: THEME.bgPage }}>
+      <div className="min-h-screen bg-canvas">
         <div className="max-w-[1120px] mx-auto px-6 md:px-10 py-10">
           <Link
             href="/aura/campanas"
@@ -491,9 +480,9 @@ export default function CampaignDetailPage({
           <div
             className="p-6 rounded-2xl"
             style={{
-              background: THEME.roseSoft,
-              border: `1px solid ${THEME.roseBorder}`,
-              color: THEME.rose,
+              background: THEME.dangerSoft,
+              border: `1px solid ${THEME.dangerBorder}`,
+              color: THEME.danger,
             }}
           >
             {error || "No se pudo cargar la campaña"}
@@ -511,20 +500,7 @@ export default function CampaignDetailPage({
     data.status === "ACTIVE";
 
   return (
-    <div className="min-h-screen" style={{ background: THEME.bgPage }}>
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
-
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[1120px] mx-auto px-6 md:px-10 py-8 md:py-10">
         <Link
           href="/aura/campanas"
@@ -541,18 +517,8 @@ export default function CampaignDetailPage({
           style={{
             background: THEME.bgCard,
             border: `1px solid ${THEME.border}`,
-            animation: `fadeIn 460ms ${ES}`,
           }}
         >
-          {/* Halo decorativo */}
-          <div
-            aria-hidden
-            className="absolute -top-24 -right-24 w-80 h-80 pointer-events-none"
-            style={{
-              background:
-                "radial-gradient(circle at 30% 30%, rgba(255, 0, 128, 0.22) 0%, rgba(121, 40, 202, 0.12) 35%, transparent 70%)",
-            }}
-          />
           <div className="relative">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <span
@@ -580,9 +546,9 @@ export default function CampaignDetailPage({
                 <span
                   className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[10.5px] font-semibold"
                   style={{
-                    color: THEME.rose,
-                    background: THEME.roseSoft,
-                    border: `1px solid ${THEME.roseBorder}`,
+                    color: THEME.amber,
+                    background: THEME.amberSoft,
+                    border: `1px solid ${THEME.amberBorder}`,
                   }}
                 >
                   <Flame size={10} strokeWidth={2.4} />
@@ -594,13 +560,7 @@ export default function CampaignDetailPage({
             <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
               <div className="flex-1 min-w-0">
                 <h1
-                  className="text-[26px] md:text-[30px] font-semibold tracking-tight leading-tight mb-1"
-                  style={{
-                    background: THEME.gradientText,
-                    WebkitBackgroundClip: "text",
-                    backgroundClip: "text",
-                    color: "transparent",
-                  }}
+                  className="text-[26px] md:text-[30px] font-semibold tracking-tight leading-tight mb-1 text-ink"
                 >
                   {data.name}
                 </h1>
@@ -637,9 +597,9 @@ export default function CampaignDetailPage({
                     onClick={() => updateStatus("ACTIVE")}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12.5px] font-medium tracking-tight disabled:opacity-50"
                     style={{
-                      background: THEME.greenSoft,
-                      border: `1px solid ${THEME.greenBorder}`,
-                      color: THEME.green,
+                      background: THEME.accentSoft,
+                      border: `1px solid ${THEME.accentBorder}`,
+                      color: THEME.accent,
                     }}
                   >
                     <Play size={13} strokeWidth={2.2} />
@@ -654,9 +614,9 @@ export default function CampaignDetailPage({
                     onClick={() => updateStatus("COMPLETED")}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12.5px] font-medium tracking-tight disabled:opacity-50"
                     style={{
-                      background: THEME.purpleSoft,
-                      border: `1px solid ${THEME.purpleBorder}`,
-                      color: THEME.purple,
+                      background: THEME.inkSoft,
+                      border: `1px solid ${THEME.inkBorder}`,
+                      color: THEME.ink,
                     }}
                   >
                     <CheckCircle2 size={13} strokeWidth={2.2} />
@@ -762,7 +722,7 @@ export default function CampaignDetailPage({
                   ? "Sin target"
                   : "Sin bono"
             }
-            accent={data.progressStatus === "unlocked" ? THEME.green : THEME.textPrimary}
+            accent={data.progressStatus === "unlocked" ? THEME.accent : THEME.textPrimary}
             icon={<Gift size={13} strokeWidth={2.2} color={THEME.textTertiary} />}
           />
         </div>
@@ -810,7 +770,7 @@ export default function CampaignDetailPage({
                 <div className="relative">
                   <div
                     className="w-full h-2.5 rounded-full overflow-hidden"
-                    style={{ background: "rgba(255, 255, 255, 0.05)" }}
+                    style={{ background: THEME.bgSoft }}
                   >
                     <div
                       className="h-full"
@@ -818,8 +778,8 @@ export default function CampaignDetailPage({
                         width: `${Math.max(0.5, (data.revenuePct || 0) * 100)}%`,
                         background:
                           data.progressStatus === "unlocked"
-                            ? THEME.green
-                            : THEME.gradient,
+                            ? THEME.accent
+                            : THEME.ink,
                         transition: `width 800ms ${ES}`,
                       }}
                     />
@@ -829,7 +789,7 @@ export default function CampaignDetailPage({
                       className="absolute top-[-3px] bottom-[-3px] w-[2px]"
                       style={{
                         left: `${data.timePct * 100}%`,
-                        background: "rgba(255, 255, 255, 0.4)",
+                        background: THEME.borderStrong,
                       }}
                       title="Progreso de tiempo"
                     />
@@ -852,11 +812,11 @@ export default function CampaignDetailPage({
                   <div
                     className="mt-4 p-3 rounded-xl flex items-center gap-3"
                     style={{
-                      background: THEME.goldSoft,
-                      border: `1px solid ${THEME.goldBorder}`,
+                      background: THEME.inkSoft,
+                      border: `1px solid ${THEME.inkBorder}`,
                     }}
                   >
-                    <Gift size={16} color={THEME.gold} strokeWidth={2.2} />
+                    <Gift size={16} color={THEME.ink} strokeWidth={2.2} />
                     <div className="flex-1">
                       <div
                         className="text-[12.5px] font-semibold tracking-tight"
@@ -1076,7 +1036,7 @@ export default function CampaignDetailPage({
                     </div>
                     <div
                       className="text-[11px] font-medium tabular-nums"
-                      style={{ color: THEME.gold }}
+                      style={{ color: THEME.accent }}
                     >
                       +{fmtARSCompact(a.commissionAmount)}
                     </div>
@@ -1150,20 +1110,20 @@ export default function CampaignDetailPage({
       {showDelete ? (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{ background: "rgba(0, 0, 0, 0.7)", backdropFilter: "blur(6px)" }}
+          style={{ background: "rgba(28,27,24,0.45)" }}
         >
           <div
-            className="max-w-md w-full rounded-2xl p-6"
+            className="max-w-md w-full rounded-2xl p-6 shadow-ent-soft"
             style={{
-              background: "#18182a",
+              background: THEME.bgCard,
               border: `1px solid ${THEME.borderStrong}`,
             }}
           >
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-              style={{ background: THEME.roseSoft }}
+              style={{ background: THEME.dangerSoft }}
             >
-              <AlertTriangle size={22} color={THEME.rose} strokeWidth={2.2} />
+              <AlertTriangle size={22} color={THEME.danger} strokeWidth={2.2} />
             </div>
             <h3
               className="text-[18px] font-semibold tracking-tight mb-2"
@@ -1200,7 +1160,7 @@ export default function CampaignDetailPage({
                 disabled={actionLoading}
                 className="px-4 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight disabled:opacity-50"
                 style={{
-                  background: THEME.rose,
+                  background: THEME.danger,
                   color: "#fff",
                 }}
               >

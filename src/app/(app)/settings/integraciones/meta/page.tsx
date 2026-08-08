@@ -157,7 +157,7 @@ export default function MetaIntegrationPage() {
     <div className="max-w-3xl mx-auto p-6">
       <Link
         href="/settings/integraciones"
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-900 mb-4"
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-60 hover:text-ink mb-4"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Volver a integraciones
@@ -169,13 +169,13 @@ export default function MetaIntegrationPage() {
           M
         </div>
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">Meta Ads + Pixel</h1>
-          <p className="text-[13px] text-slate-500">Facebook + Instagram Ads y Conversions API.</p>
+          <h1 className="text-[20px] font-bold text-ink">Meta Ads + Pixel</h1>
+          <p className="text-[13px] text-ink-40">Facebook + Instagram Ads y Conversions API.</p>
         </div>
       </div>
 
       {authState === "LOADING" && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+        <div className="rounded-xl border border-hairline bg-elevated p-6 text-center text-ink-40">
           Cargando estado…
         </div>
       )}
@@ -200,18 +200,18 @@ export default function MetaIntegrationPage() {
           </div>
 
           {/* Form Meta Ads */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 mb-4">
-            <div className="text-[14px] font-semibold text-slate-900 mb-1">Meta Ads</div>
-            <div className="text-[11px] text-slate-500 mb-4">Datos para sync de campañas, insights y audiencias.</div>
+          <div className="rounded-xl border border-hairline bg-elevated p-5 mb-4">
+            <div className="text-[14px] font-semibold text-ink mb-1">Meta Ads</div>
+            <div className="text-[11px] text-ink-40 mb-4">Datos para sync de campañas, insights y audiencias.</div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Ad Account</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">Ad Account</label>
                 {accounts.length > 0 ? (
                   <select
                     value={adAccountId ? `act_${adAccountId}` : ""}
                     onChange={(e) => { setAdAccountId(e.target.value.replace(/^act_/, "")); setError(null); }}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px]"
+                    className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px]"
                   >
                     <option value="">Elegir cuenta…</option>
                     {accounts.map((acc) => (
@@ -225,57 +225,57 @@ export default function MetaIntegrationPage() {
                     value={adAccountId}
                     onChange={(e) => { setAdAccountId(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
                     placeholder="123456789"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                    className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                   />
                 )}
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Business ID (opcional)</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">Business ID (opcional)</label>
                 <input
                   value={businessId}
                   onChange={(e) => { setBusinessId(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
                   placeholder="1234567890123456"
                   maxLength={20}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                  className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                 />
-                <p className="mt-1 text-[10px] text-slate-500">ID de tu Business Manager. Sirve para audiencias custom y conversiones avanzadas.</p>
+                <p className="mt-1 text-[10px] text-ink-40">ID de tu Business Manager. Sirve para audiencias custom y conversiones avanzadas.</p>
               </div>
             </div>
           </div>
 
           {/* Form Meta Pixel + CAPI */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 mb-4">
-            <div className="text-[14px] font-semibold text-slate-900 mb-1">Meta Pixel + Conversions API</div>
-            <div className="text-[11px] text-slate-500 mb-4">
+          <div className="rounded-xl border border-hairline bg-elevated p-5 mb-4">
+            <div className="text-[14px] font-semibold text-ink mb-1">Meta Pixel + Conversions API</div>
+            <div className="text-[11px] text-ink-40 mb-4">
               Opcional. Para enviar conversiones server-side y mejorar la atribución post-iOS14.
               Si no usás Meta Pixel, dejá los campos vacíos.
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Pixel ID</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">Pixel ID</label>
                 <input
                   value={pixelId}
                   onChange={(e) => { setPixelId(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
                   placeholder="1234567890123456"
                   maxLength={20}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                  className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                 />
-                <p className="mt-1 text-[10px] text-slate-500">15-16 dígitos. Lo encontrás en business.facebook.com/events_manager.</p>
+                <p className="mt-1 text-[10px] text-ink-40">15-16 dígitos. Lo encontrás en business.facebook.com/events_manager.</p>
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Access Token CAPI (opcional)</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">Access Token CAPI (opcional)</label>
                 {hasPixelAccessToken && !editingPixelToken ? (
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-[13px] font-mono text-slate-500 flex items-center gap-2">
+                    <div className="flex-1 rounded-lg border border-hairline-2 bg-surface px-3 py-2 text-[13px] font-mono text-ink-40 flex items-center gap-2">
                       <Lock className="h-3.5 w-3.5" /> •••••••••••••••••••• (configurado)
                     </div>
                     <button
                       type="button"
                       onClick={() => { setEditingPixelToken(true); setPixelAccessToken(""); }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[12px] font-semibold text-ink-60 hover:bg-surface"
                     >
                       <Edit3 className="h-3.5 w-3.5" /> Cambiar
                     </button>
@@ -285,11 +285,11 @@ export default function MetaIntegrationPage() {
                     value={pixelAccessToken}
                     onChange={(e) => { setPixelAccessToken(e.target.value); setError(null); }}
                     placeholder="EAA... (opcional, dejá vacío para reusar el de Meta Ads)"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                    className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                     autoFocus={editingPixelToken}
                   />
                 )}
-                <p className="mt-1 text-[10px] text-slate-500">
+                <p className="mt-1 text-[10px] text-ink-40">
                   Si lo dejás vacío, NitroSales usa el token de Meta Ads (válido si tiene los permisos correctos y está asignado al pixel).
                 </p>
               </div>
@@ -314,20 +314,20 @@ export default function MetaIntegrationPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+              className="rounded-lg bg-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
             >
               {saving ? "Guardando…" : "Guardar cambios"}
             </button>
             <button
               onClick={handleConnect}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-hairline-2 bg-elevated px-4 py-2 text-[12px] font-semibold text-ink-60 hover:bg-surface"
             >
               Reconectar Meta
             </button>
             {editingPixelToken && (
               <button
                 onClick={() => { setEditingPixelToken(false); setPixelAccessToken(""); setError(null); }}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700"
+                className="rounded-lg border border-hairline-2 bg-elevated px-4 py-2 text-[12px] font-semibold text-ink-60"
               >
                 Cancelar cambio
               </button>
@@ -371,7 +371,7 @@ export default function MetaIntegrationPage() {
             Te avisamos por mail cuando estés autorizado (~1 día hábil).
             {fbEmail && (
               <div className="mt-2">
-                Email Facebook: <code className="bg-white px-2 py-0.5 rounded border border-amber-200">{fbEmail}</code>
+                Email Facebook: <code className="bg-elevated px-2 py-0.5 rounded border border-amber-200">{fbEmail}</code>
               </div>
             )}
           </div>
@@ -379,19 +379,19 @@ export default function MetaIntegrationPage() {
       )}
 
       {authState === "NONE" && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="text-[14px] font-semibold text-slate-900 mb-2">Antes de conectar Meta</div>
-          <div className="text-[12px] text-slate-600 leading-relaxed mb-4">
+        <div className="rounded-xl border border-hairline bg-elevated p-5">
+          <div className="text-[14px] font-semibold text-ink mb-2">Antes de conectar Meta</div>
+          <div className="text-[12px] text-ink-60 leading-relaxed mb-4">
             Necesitamos autorizarte como usuario de prueba (1 paso de nuestro lado, ~1 día).
             Pasanos el <strong>email con el que entrás a Facebook</strong> (no el del trabajo, el personal).
           </div>
-          <label className="block text-[12px] font-semibold text-slate-700 mb-1">Email de Facebook</label>
+          <label className="block text-[12px] font-semibold text-ink-60 mb-1">Email de Facebook</label>
           <input
             type="email"
             value={fbEmailInput}
             onChange={(e) => { setFbEmailInput(e.target.value); setError(null); }}
             placeholder="tu@email.com"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] mb-3"
+            className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] mb-3"
           />
           {error && (
             <div className="flex items-center gap-1.5 text-[11px] text-rose-600 mb-3">
@@ -403,7 +403,7 @@ export default function MetaIntegrationPage() {
             onClick={handleRequest}
             disabled={submitting || !fbEmailInput}
             className="w-full rounded-lg px-4 py-2.5 text-white font-semibold text-[13px] disabled:opacity-50"
-            style={{ background: submitting || !fbEmailInput ? "#94a3b8" : "linear-gradient(135deg, #1877F2, #166fe5)" }}
+            style={{ background: submitting || !fbEmailInput ? "#9A978D" : "linear-gradient(135deg, #1877F2, #166fe5)" }}
           >
             {submitting ? "Enviando…" : "Pedir autorización"}
           </button>

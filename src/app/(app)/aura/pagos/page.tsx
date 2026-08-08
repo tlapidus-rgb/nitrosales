@@ -381,7 +381,7 @@ export default function PagosPage() {
 // ─── Fila de afiliado con saldo pendiente (Bloque D3) ─────────────
 function PendingAffiliateRow({ affiliate, onSettle }: { affiliate: PendingAffiliate; onSettle: () => void }) {
   return (
-    <div className="p-4 flex items-center gap-4 hover:bg-white/[0.02] transition-colors">
+    <div className="p-4 flex items-center gap-4 hover:bg-elevated/[0.02] transition-colors">
       <div
         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
         style={{ background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))", color: "#fff" }}
@@ -432,7 +432,7 @@ function AffiliateSelectorModal({
             <div className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: THEME.purple }}>Registrar pago</div>
             <h2 className="text-lg font-semibold">Elegí un afiliado</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X size={16} style={{ color: THEME.textSecondary }} /></button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-elevated/5"><X size={16} style={{ color: THEME.textSecondary }} /></button>
         </div>
         <div className="p-3 border-b" style={{ borderColor: THEME.border }}>
           <div className="relative">
@@ -457,7 +457,7 @@ function AffiliateSelectorModal({
                 <button
                   key={a.id}
                   onClick={() => onSelect(a.id)}
-                  className="w-full p-4 flex items-center gap-3 text-left hover:bg-white/[0.03] transition-colors"
+                  className="w-full p-4 flex items-center gap-3 text-left hover:bg-elevated/[0.03] transition-colors"
                 >
                   <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))", color: "#fff" }}>
                     {a.name.slice(0, 1).toUpperCase()}
@@ -531,7 +531,7 @@ function PayoutRow({
     payout.status === "PAID" ? "Pagado" : payout.status === "CANCELLED" ? "Cancelado" : "Pendiente";
 
   return (
-    <div className="p-4 hover:bg-white/[0.02] transition-colors">
+    <div className="p-4 hover:bg-elevated/[0.02] transition-colors">
       <div className="flex items-center gap-4">
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
@@ -625,7 +625,7 @@ function PayoutRow({
                         setMenu(false);
                         onCancel();
                       }}
-                      className="w-full px-3 py-2 text-left hover:bg-white/5"
+                      className="w-full px-3 py-2 text-left hover:bg-elevated/5"
                       style={{ color: THEME.textSecondary }}
                     >
                       Cancelar pago
@@ -637,7 +637,7 @@ function PayoutRow({
                       setMenu(false);
                       onDelete();
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-white/5"
+                    className="w-full px-3 py-2 text-left hover:bg-elevated/5"
                     style={{ color: THEME.rose }}
                   >
                     Eliminar
@@ -647,7 +647,7 @@ function PayoutRow({
                       href={payout.proofUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="block w-full px-3 py-2 text-left hover:bg-white/5"
+                      className="block w-full px-3 py-2 text-left hover:bg-elevated/5"
                       style={{ color: THEME.textSecondary }}
                     >
                       Ver comprobante
@@ -749,7 +749,7 @@ function CreatePayoutModal({ onClose, onCreated }: { onClose: () => void; onCrea
             </div>
             <h2 className="text-lg font-semibold">Registrar pago</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-elevated/5">
             <X size={16} style={{ color: THEME.textSecondary }} />
           </button>
         </div>
@@ -958,7 +958,7 @@ function MarkPaidModal({
               {payout.concept}
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-elevated/5">
             <X size={16} style={{ color: THEME.textSecondary }} />
           </button>
         </div>

@@ -142,7 +142,7 @@ function ProductThumb({
 
   return (
     <div
-      className={`${rounded} flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100 ${
+      className={`${rounded} flex-shrink-0 overflow-hidden bg-surface border border-hairline ${
         onClickZoom ? "cursor-pointer" : ""
       }`}
       style={{ width: size, height: size, boxShadow: "0 1px 4px rgba(28,27,24,0.06)" }}
@@ -480,9 +480,9 @@ function OrdersPageInner() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center max-w-md mx-auto px-6">
           <XCircle size={40} className="text-amber-400 mx-auto mb-3" />
-          <h2 className="text-base font-semibold text-slate-700 mb-2">No se pudieron cargar los pedidos</h2>
-          <p className="text-sm text-slate-500 mb-1">{error}</p>
-          <p className="text-xs text-slate-400 mb-5">Puede ser una conexion lenta o el servidor ocupado. Proba de nuevo.</p>
+          <h2 className="text-base font-semibold text-ink-60 mb-2">No se pudieron cargar los pedidos</h2>
+          <p className="text-sm text-ink-40 mb-1">{error}</p>
+          <p className="text-xs text-ink-40 mb-5">Puede ser una conexion lenta o el servidor ocupado. Proba de nuevo.</p>
           <button
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-ink hover:bg-ink/90 text-white text-sm font-medium transition-colors"
@@ -500,11 +500,11 @@ function OrdersPageInner() {
       <div className="space-y-6 dash-stagger">
         <div className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-slate-500">Cargando pedidos...</p>
+            <div className="w-6 h-6 border-2 border-ink border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-ink-40">Cargando pedidos...</p>
             <button
               onClick={() => window.location.reload()}
-              className="mt-4 text-xs text-indigo-500 hover:text-indigo-400 underline"
+              className="mt-4 text-xs text-ink-60 hover:text-ink underline"
             >
               Si tarda mucho, toca aca para recargar
             </button>
@@ -548,9 +548,9 @@ function OrdersPageInner() {
         {/* Row 1: Title + View tabs + Source tabs (Resumen) + Date filters */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Pedidos</h1>
+            <h1 className="text-lg font-bold text-ink tracking-tight">Pedidos</h1>
             {/* View tabs — inline with title */}
-            <div className="flex items-center gap-0.5 bg-slate-100/80 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-surface-2/80 rounded-lg p-0.5">
               {([
                 { key: "pedidos", label: "Pedidos", icon: <ListOrdered size={13} /> },
                 { key: "dashboard", label: "Resumen", icon: <LayoutDashboard size={13} /> },
@@ -560,8 +560,8 @@ function OrdersPageInner() {
                   onClick={() => setPageView(key)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide ${
                     pageView === key
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
+                      ? "bg-elevated text-ink shadow-sm"
+                      : "text-ink-40 hover:text-ink-60"
                   }`}
                   style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
                 >
@@ -720,11 +720,11 @@ function OrdersPageInner() {
       <div className="dash-card dash-chart-card p-6">
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Ventas por dia</h2>
+            <h2 className="text-sm font-semibold text-ink-60 tracking-tight">Ventas por dia</h2>
             <div className="flex gap-1.5">
               {(["revenue", "orders"] as const).map((m) => (
                 <button key={m} onClick={() => setDailyMetric(m)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dailyMetric === m ? "bg-ink text-white shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dailyMetric === m ? "bg-ink text-white shadow-sm" : "text-ink-40 hover:text-ink hover:bg-surface-2"}`}
                   style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                   {m === "revenue" ? "Facturacion" : "Ordenes"}
                 </button>
@@ -734,7 +734,7 @@ function OrdersPageInner() {
           {/* Comparison mode selector */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-500 mr-1">Comparar:</span>
+              <span className="text-[11px] text-ink-40 mr-1">Comparar:</span>
               {([
                 { key: "off", label: "Sin" },
                 { key: "wow", label: "Semanal" },
@@ -746,7 +746,7 @@ function OrdersPageInner() {
                   className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-200 ${
                     compMode === key
                       ? "bg-ink text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200"
+                      : "text-ink-40 hover:text-ink-60 hover:bg-surface-2 border border-hairline"
                   }`}>
                   {label}
                 </button>
@@ -756,18 +756,18 @@ function OrdersPageInner() {
             {showComparison && (
               <div className="flex items-center gap-1">
                 <button onClick={() => setCompOffset(o => o - 1)}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 transition-colors"
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-ink-40 hover:bg-surface-2 hover:text-ink-60 border border-hairline transition-colors"
                   title="Mover período atrás">
                   <ChevronLeft size={14} />
                 </button>
                 {compOffset !== 0 && (
                   <button onClick={() => setCompOffset(0)}
-                    className="px-2 py-1 rounded-md text-[10px] font-medium text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-colors">
+                    className="px-2 py-1 rounded-md text-[10px] font-medium text-accent hover:bg-accent-soft border border-accent/20 transition-colors">
                     Reset
                   </button>
                 )}
                 <button onClick={() => setCompOffset(o => o + 1)}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 transition-colors"
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-ink-40 hover:bg-surface-2 hover:text-ink-60 border border-hairline transition-colors"
                   title="Mover período adelante">
                   <ChevronRight size={14} />
                 </button>
@@ -776,11 +776,11 @@ function OrdersPageInner() {
           </div>
           {/* Show comparison date range when active */}
           {showComparison && data?.meta?.compFrom && (
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-ink-40">
               Comparando con: {new Date(data.meta.compFrom).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
               {" — "}
               {new Date(data.meta.compTo!).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
-              {compOffset !== 0 && <span className="ml-1 text-indigo-500 font-medium">({compOffset > 0 ? "+" : ""}{compOffset} sem)</span>}
+              {compOffset !== 0 && <span className="ml-1 text-accent font-medium">({compOffset > 0 ? "+" : ""}{compOffset} sem)</span>}
             </p>
           )}
         </div>
@@ -804,15 +804,15 @@ function OrdersPageInner() {
                 <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
+            <CartesianGrid strokeDasharray="4 4" stroke="#E5E1D8" strokeOpacity={0.6} />
             <XAxis
               dataKey="day"
               tickFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return `${date.getDate()}/${date.getMonth() + 1}`; } catch { return d; } }}
-              tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
+              tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false}
             />
             <YAxis
               tickFormatter={(v) => dailyMetric === "revenue" ? formatCompact(v) : v.toLocaleString()}
-              tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={60}
+              tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={60}
             />
             <Tooltip
               formatter={(value: number, name: string) => {
@@ -864,7 +864,7 @@ function OrdersPageInner() {
       {/* DAY OF WEEK + HOUR CHARTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="dash-card dash-chart-card p-6">
-          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Promedio de ordenes por dia de la semana</h2>
+          <h2 className="text-sm font-semibold text-ink-60 tracking-tight mb-4">Promedio de ordenes por dia de la semana</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.salesByDayOfWeek}>
               <defs>
@@ -873,9 +873,9 @@ function OrdersPageInner() {
                   <stop offset="100%" stopColor="#818cf8" />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
-              <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
+              <CartesianGrid strokeDasharray="4 4" stroke="#E5E1D8" strokeOpacity={0.6} />
+              <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
                 contentStyle={{ background: "rgba(245,243,238,0.98)", border: "1px solid #E5E1D8", borderRadius: "12px", fontSize: "12px", color: "#1C1B18", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.18)" }}
                 labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500 }}
@@ -883,11 +883,11 @@ function OrdersPageInner() {
               <Bar dataKey="avgOrders" fill="url(#barGradientIndigo)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-slate-400 mt-2 text-center">Promedio diario - util para saber cuando pautar ads</p>
+          <p className="text-[10px] text-ink-40 mt-2 text-center">Promedio diario - util para saber cuando pautar ads</p>
         </div>
 
         <div className="dash-card dash-chart-card p-6">
-          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Promedio de ordenes por hora del dia</h2>
+          <h2 className="text-sm font-semibold text-ink-60 tracking-tight mb-4">Promedio de ordenes por hora del dia</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.salesByHour}>
               <defs>
@@ -896,9 +896,9 @@ function OrdersPageInner() {
                   <stop offset="100%" stopColor="#34d399" />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} interval={2} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
+              <CartesianGrid strokeDasharray="4 4" stroke="#E5E1D8" strokeOpacity={0.6} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9A978D" }} axisLine={false} tickLine={false} interval={2} />
+              <YAxis tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
                 contentStyle={{ background: "rgba(245,243,238,0.98)", border: "1px solid #E5E1D8", borderRadius: "12px", fontSize: "12px", color: "#1C1B18", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.18)" }}
                 labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500 }}
@@ -906,7 +906,7 @@ function OrdersPageInner() {
               <Bar dataKey="avgOrders" fill="url(#barGradientEmerald)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-slate-400 mt-2 text-center">Horas pico para WhatsApp, emails y ofertas</p>
+          <p className="text-[10px] text-ink-40 mt-2 text-center">Horas pico para WhatsApp, emails y ofertas</p>
         </div>
       </div>
 
@@ -921,7 +921,7 @@ function OrdersPageInner() {
       {/* PAYMENT + PROMOTIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="dash-card dash-chart-card p-6">
-          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Metodos de pago</h2>
+          <h2 className="text-sm font-semibold text-ink-60 tracking-tight mb-4">Metodos de pago</h2>
           <div className="flex gap-4">
             <div className="w-1/2">
               <ResponsiveContainer width="100%" height={200}>
@@ -929,7 +929,7 @@ function OrdersPageInner() {
                   <Pie data={data.paymentMethods} dataKey="revenue" nameKey="method" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
                     {data.paymentMethods.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }} itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
+                  <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ background: "rgba(28,27,24,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.5)" }} itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -937,8 +937,8 @@ function OrdersPageInner() {
               {data.paymentMethods.slice(0, 5).map((pm, i) => (
                 <div key={pm.method} className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  <span className="text-xs text-slate-600 truncate flex-1">{pm.method}</span>
-                  <span className="text-xs font-medium text-slate-800">{pm.orders.toLocaleString("es-AR")}</span>
+                  <span className="text-xs text-ink-60 truncate flex-1">{pm.method}</span>
+                  <span className="text-xs font-medium text-ink-60">{pm.orders.toLocaleString("es-AR")}</span>
                 </div>
               ))}
             </div>
@@ -953,7 +953,7 @@ function OrdersPageInner() {
         {/* Non-MELI: Promotion breakdown */}
         {data.promotionBreakdown && data.promotionBreakdown.length > 0 && source !== "MELI" && (
           <div className="dash-card dash-chart-card p-6">
-            <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Ventas por promocion</h2>
+            <h2 className="text-sm font-semibold text-ink-60 tracking-tight mb-4">Ventas por promocion</h2>
             <div className="flex gap-4">
               <div className="w-1/2">
                 <ResponsiveContainer width="100%" height={200}>
@@ -961,7 +961,7 @@ function OrdersPageInner() {
                     <Pie data={data.promotionBreakdown} dataKey="revenue" nameKey="promo" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
                       {data.promotionBreakdown.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }} itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
+                    <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ background: "rgba(28,27,24,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.5)" }} itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -969,8 +969,8 @@ function OrdersPageInner() {
                 {data.promotionBreakdown.map((p: any, i: number) => (
                   <div key={p.promo} className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-xs text-slate-600 truncate flex-1">{p.promo}</span>
-                    <span className="text-xs font-medium text-slate-800">{p.orders.toLocaleString("es-AR")}</span>
+                    <span className="text-xs text-ink-60 truncate flex-1">{p.promo}</span>
+                    <span className="text-xs font-medium text-ink-60">{p.orders.toLocaleString("es-AR")}</span>
                   </div>
                 ))}
               </div>
@@ -990,11 +990,11 @@ function OrdersPageInner() {
       {/* TOP PRODUCTS + CUSTOMERS (Tanda 9: Top Clientes oculto para MELI — no hay datos de clientes) */}
       <div className={`grid grid-cols-1 ${source !== "MELI" ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className="dash-card p-6">
-          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Top productos vendidos</h2>
+          <h2 className="text-sm font-semibold text-ink-60 tracking-tight mb-4">Top productos vendidos</h2>
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
             {data.topProducts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-xs font-bold text-slate-400 w-5 text-right">{i + 1}</span>
+                <span className="text-xs font-bold text-ink-40 w-5 text-right">{i + 1}</span>
                 <ProductThumb
                   src={p.imageUrl}
                   source="VTEX"
@@ -1003,17 +1003,17 @@ function OrdersPageInner() {
                   onClickZoom={(s) => setZoomedImage(s)}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
-                  <p className="text-[10px] text-slate-400">{p.brand} - {p.category}</p>
+                  <p className="text-xs font-medium text-ink-60 truncate">{p.name}</p>
+                  <p className="text-[10px] text-ink-40">{p.brand} - {p.category}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-semibold text-slate-800">{formatARS(p.revenue)}</p>
-                  <p className="text-[10px] text-slate-400">{p.unitsSold} uds - {p.orders} ord</p>
+                  <p className="text-xs font-semibold text-ink-60">{formatARS(p.revenue)}</p>
+                  <p className="text-[10px] text-ink-40">{p.unitsSold} uds - {p.orders} ord</p>
                 </div>
               </div>
             ))}
             {data.topProducts.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4">Sin datos para este periodo</p>
+              <p className="text-xs text-ink-40 text-center py-4">Sin datos para este periodo</p>
             )}
           </div>
         </div>
@@ -1021,25 +1021,25 @@ function OrdersPageInner() {
         {source !== "MELI" && (
         <div className="dash-card p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Users size={14} className="text-slate-400" />
-            <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Top clientes</h2>
+            <Users size={14} className="text-ink-40" />
+            <h2 className="text-sm font-semibold text-ink-60 tracking-tight">Top clientes</h2>
           </div>
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
             {data.topCustomers.map((c, i) => (
               <div key={c.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-xs font-bold text-slate-400 w-5 text-right">{i + 1}</span>
+                <span className="text-xs font-bold text-ink-40 w-5 text-right">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 truncate">{c.name}</p>
-                  <p className="text-[10px] text-slate-400 truncate">{c.email}</p>
+                  <p className="text-xs font-medium text-ink-60 truncate">{c.name}</p>
+                  <p className="text-[10px] text-ink-40 truncate">{c.email}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-semibold text-slate-800">{formatARS(c.totalSpent)}</p>
-                  <p className="text-[10px] text-slate-400">{c.totalOrders} orden{c.totalOrders !== 1 ? "es" : ""}</p>
+                  <p className="text-xs font-semibold text-ink-60">{formatARS(c.totalSpent)}</p>
+                  <p className="text-[10px] text-ink-40">{c.totalOrders} orden{c.totalOrders !== 1 ? "es" : ""}</p>
                 </div>
               </div>
             ))}
             {data.topCustomers.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4">Sin datos para este periodo</p>
+              <p className="text-xs text-ink-40 text-center py-4">Sin datos para este periodo</p>
             )}
           </div>
         </div>
@@ -1062,27 +1062,27 @@ function OrdersPageInner() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Pedidos recientes</h2>
+                <h2 className="text-lg font-semibold text-ink tracking-tight">Pedidos recientes</h2>
                 {data.pagination && (
-                  <span className="text-xs text-slate-400 tabular-nums">{data.pagination.totalCount.toLocaleString("es-AR")} ordenes</span>
+                  <span className="text-xs text-ink-40 tabular-nums">{data.pagination.totalCount.toLocaleString("es-AR")} ordenes</span>
                 )}
               </div>
               <div className="flex items-center gap-3">
                 {/* Source filter pills */}
-                <div className="flex items-center bg-slate-100/80 rounded-xl p-0.5">
+                <div className="flex items-center bg-surface-2/80 rounded-xl p-0.5">
                   {(["ALL", "VTEX", "MELI"] as const).map((s) => (
                     <button key={s} onClick={() => setTableSourceFilter(s)}
-                      className={`px-3.5 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide ${tableSourceFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      className={`px-3.5 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide ${tableSourceFilter === s ? "bg-elevated text-ink shadow-sm" : "text-ink-40 hover:text-ink-60"}`}
                       style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                       {s === "ALL" ? "Todos" : s}
                     </button>
                   ))}
                 </div>
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-40" />
                   <input type="text" placeholder="Buscar orden, cliente o pago..."
                     value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white/80 w-72 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                    className="pl-9 pr-4 py-2 border border-hairline rounded-xl text-xs text-ink-60 bg-elevated/80 w-72 focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
                     style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
                 </div>
               </div>
@@ -1121,12 +1121,12 @@ function OrdersPageInner() {
 
             return (
               <div key={order.id}
-                className="group relative rounded-2xl bg-white overflow-hidden cursor-pointer"
+                className="group relative rounded-2xl bg-elevated overflow-hidden cursor-pointer"
                 style={{
                   boxShadow: isExpanded
-                    ? "0 1px 0 rgba(15,23,42,0.06), 0 12px 32px -8px rgba(15,23,42,0.14), 0 24px 48px -16px rgba(15,23,42,0.1)"
-                    : "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
-                  border: "1px solid rgba(15,23,42,0.06)",
+                    ? "0 1px 0 rgba(28,27,24,0.06), 0 12px 32px -8px rgba(28,27,24,0.14), 0 24px 48px -16px rgba(28,27,24,0.1)"
+                    : "0 1px 0 rgba(28,27,24,0.04), 0 4px 12px -6px rgba(28,27,24,0.08)",
+                  border: "1px solid rgba(28,27,24,0.06)",
                   transition: "box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1), transform 280ms cubic-bezier(0.16, 1, 0.3, 1)",
                   animationDelay: `${orderIdx * 40}ms`,
                 }}
@@ -1148,25 +1148,25 @@ function OrdersPageInner() {
                   <div className="flex-1 min-w-0">
                     {order.items && order.items.length > 0 ? (
                       <>
-                        <p className="text-sm font-semibold text-slate-800 truncate leading-tight tracking-tight">
+                        <p className="text-sm font-semibold text-ink-60 truncate leading-tight tracking-tight">
                           {order.items[0].name || "Producto sin nombre"}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className="text-xs text-slate-500 tabular-nums">
+                          <span className="text-xs text-ink-40 tabular-nums">
                             {order.items[0].quantity} × {formatARS(order.items[0].unitPrice)}
                           </span>
                           {order.items[0].sku && (
                             <>
-                              <span className="text-slate-300">·</span>
-                              <span className="text-[10px] font-mono font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                              <span className="text-ink-40">·</span>
+                              <span className="text-[10px] font-mono font-medium text-ink-40 bg-surface px-1.5 py-0.5 rounded">
                                 SKU {order.items[0].sku}
                               </span>
                             </>
                           )}
                           {order.items.length > 1 && (
                             <>
-                              <span className="text-slate-300">·</span>
-                              <span className="text-[11px] text-slate-400">
+                              <span className="text-ink-40">·</span>
+                              <span className="text-[11px] text-ink-40">
                                 +{order.items.length - 1} producto{order.items.length - 1 > 1 ? "s" : ""}
                               </span>
                             </>
@@ -1175,17 +1175,17 @@ function OrdersPageInner() {
                       </>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-slate-500 italic truncate">Sin detalle de productos</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{order.itemCount} item{order.itemCount !== 1 ? "s" : ""}</p>
+                        <p className="text-sm font-medium text-ink-40 italic truncate">Sin detalle de productos</p>
+                        <p className="text-[11px] text-ink-40 mt-0.5">{order.itemCount} item{order.itemCount !== 1 ? "s" : ""}</p>
                       </>
                     )}
                     {/* Secondary metadata row */}
-                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-ink-40">
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${isMeli ? "bg-yellow-50 text-yellow-600" : "bg-indigo-50 text-indigo-500"}`}>
                         {isMeli ? "ML" : "VTX"}
                       </span>
                       <span className="tabular-nums">{dateFormatted}</span>
-                      <span className="text-slate-200">·</span>
+                      <span className="text-ink-40">·</span>
                       <span className="truncate max-w-[120px]">
                         {isMeliAnon ? "Cliente ML" : order.customerName}
                       </span>
@@ -1197,7 +1197,7 @@ function OrdersPageInner() {
 
                   {/* Amount — hero number */}
                   <div className="text-right flex-shrink-0 mr-3">
-                    <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">{formatARS(order.totalValue)}</p>
+                    <p className="text-lg font-bold text-ink tabular-nums tracking-tight">{formatARS(order.totalValue)}</p>
                     {order.promotionNames && (
                       <p className="text-[10px] text-purple-500 font-medium truncate max-w-[120px] text-right">{order.promotionNames}</p>
                     )}
@@ -1212,7 +1212,7 @@ function OrdersPageInner() {
                   </div>
 
                   {/* Chevron */}
-                  <ChevronDown size={16} className={`text-slate-300 group-hover:text-slate-500 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                  <ChevronDown size={16} className={`text-ink-40 group-hover:text-ink-40 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
                     style={{ transition: "transform 280ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
                 </div>
 
@@ -1222,17 +1222,17 @@ function OrdersPageInner() {
                     <div className="flex -space-x-1.5">
                       {order.items.slice(1, 6).map((item: any, idx: number) => (
                         <div key={idx} className="border-2 border-white rounded-lg flex-shrink-0"
-                          style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}>
+                          style={{ boxShadow: "0 1px 3px rgba(28,27,24,0.08)" }}>
                           <ProductThumb src={item.imageUrl} source={order.source} size={24} rounded="rounded-md" />
                         </div>
                       ))}
                       {order.items.length > 6 && (
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 border-2 border-white flex items-center justify-center flex-shrink-0">
-                          <span className="text-[9px] font-semibold text-slate-400">+{order.items.length - 6}</span>
+                        <div className="w-7 h-7 rounded-lg bg-surface-2 border-2 border-white flex items-center justify-center flex-shrink-0">
+                          <span className="text-[9px] font-semibold text-ink-40">+{order.items.length - 6}</span>
                         </div>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-400 ml-1">
+                    <span className="text-[10px] text-ink-40 ml-1">
                       {order.items.slice(1, 3).map((it: any) => it.name?.split(" ").slice(0, 3).join(" ") || "").filter(Boolean).join(", ")}
                       {order.items.length > 3 ? ` y ${order.items.length - 3} mas` : ""}
                     </span>
@@ -1241,16 +1241,16 @@ function OrdersPageInner() {
 
                 {/* ─── Expanded detail panel ─── */}
                 {isExpanded && (
-                  <div className="border-t border-slate-100/80" onClick={(e) => e.stopPropagation()}>
+                  <div className="border-t border-hairline/80" onClick={(e) => e.stopPropagation()}>
                     <div className="bg-gradient-to-b from-slate-50/50 to-white px-6 py-5">
 
                       {/* ─── PRODUCTS FIRST (hero section of expanded card) ─── */}
                       <div className="space-y-3 mb-6">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <div className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider flex items-center gap-1.5">
                           <Package size={10} />
                           Productos ({order.items?.length || 0})
                           {order.items && order.items.length > 0 && (
-                            <span className="ml-auto text-xs font-bold text-slate-800 tabular-nums tracking-tight normal-case">
+                            <span className="ml-auto text-xs font-bold text-ink-60 tabular-nums tracking-tight normal-case">
                               Total: {formatARS(order.totalValue)}
                             </span>
                           )}
@@ -1258,8 +1258,8 @@ function OrdersPageInner() {
                         {order.items && order.items.length > 0 ? (
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                             {order.items.map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200/60 hover:border-slate-300/80 group/item"
-                                style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                              <div key={idx} className="flex items-center gap-3 bg-elevated rounded-xl px-3.5 py-3 border border-hairline/60 hover:border-hairline-2/80 group/item"
+                                style={{ boxShadow: "0 1px 4px rgba(28,27,24,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                                 <ProductThumb
                                   src={item.imageUrl}
                                   source={order.source}
@@ -1267,26 +1267,26 @@ function OrdersPageInner() {
                                   onClickZoom={(s) => setZoomedImage(s)}
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-slate-800 font-semibold truncate leading-tight">{item.name || "Producto sin nombre"}</p>
+                                  <p className="text-xs text-ink-60 font-semibold truncate leading-tight">{item.name || "Producto sin nombre"}</p>
                                   {item.sku && (
-                                    <p className="text-[10px] font-mono text-slate-400 mt-0.5 truncate">SKU {item.sku}</p>
+                                    <p className="text-[10px] font-mono text-ink-40 mt-0.5 truncate">SKU {item.sku}</p>
                                   )}
                                   <div className="flex items-center gap-2 mt-1.5">
-                                    <span className="text-[11px] text-slate-500 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
+                                    <span className="text-[11px] text-ink-40 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
                                   </div>
-                                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight mt-1">{formatARS(item.totalPrice)}</p>
+                                  <p className="text-sm font-bold text-ink tabular-nums tracking-tight mt-1">{formatARS(item.totalPrice)}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <div className="bg-slate-50/80 rounded-xl px-4 py-4 border border-slate-200/40 flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                              <Package size={14} className="text-slate-300" />
+                          <div className="bg-surface/80 rounded-xl px-4 py-4 border border-hairline/40 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-surface-2 flex items-center justify-center flex-shrink-0">
+                              <Package size={14} className="text-ink-40" />
                             </div>
                             <div>
-                              <p className="text-xs text-slate-500 font-medium">Sin detalle de productos</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">El detalle se genera en la proxima sincronizacion</p>
+                              <p className="text-xs text-ink-40 font-medium">Sin detalle de productos</p>
+                              <p className="text-[10px] text-ink-40 mt-0.5">El detalle se genera en la proxima sincronizacion</p>
                             </div>
                           </div>
                         )}
@@ -1296,30 +1296,30 @@ function OrdersPageInner() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Col 1: Financiero (most important secondary) */}
                         <div className="space-y-3">
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <div className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider flex items-center gap-1.5">
                             <DollarSign size={10} />
                             Financiero
                           </div>
-                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                          <div className="bg-elevated rounded-xl border border-hairline/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(28,27,24,0.04)" }}>
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">Pago</span>
-                              <span className="text-xs text-slate-700 font-medium">{order.paymentMethod}</span>
+                              <span className="text-[10px] text-ink-40 font-medium">Pago</span>
+                              <span className="text-xs text-ink-60 font-medium">{order.paymentMethod}</span>
                             </div>
                             {(order.discountValue ?? 0) > 0 && (
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Descuento</span>
+                                <span className="text-[10px] text-ink-40 font-medium">Descuento</span>
                                 <span className="text-xs text-emerald-600 font-semibold tabular-nums">-{formatARS(order.discountValue || 0)}</span>
                               </div>
                             )}
                             {(order.shippingCost ?? 0) > 0 && (
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Envio</span>
-                                <span className="text-xs text-slate-700 tabular-nums">{formatARS(order.shippingCost || 0)}</span>
+                                <span className="text-[10px] text-ink-40 font-medium">Envio</span>
+                                <span className="text-xs text-ink-60 tabular-nums">{formatARS(order.shippingCost || 0)}</span>
                               </div>
                             )}
                             {order.promotionNames && (
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Promo</span>
+                                <span className="text-[10px] text-ink-40 font-medium">Promo</span>
                                 <span className="text-xs text-purple-600 font-medium truncate max-w-[150px]">{order.promotionNames}</span>
                               </div>
                             )}
@@ -1328,7 +1328,7 @@ function OrdersPageInner() {
 
                         {/* Col 2: Cliente */}
                         <div className="space-y-3">
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <div className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider flex items-center gap-1.5">
                             <Users size={10} />
                             Cliente
                           </div>
@@ -1345,16 +1345,16 @@ function OrdersPageInner() {
                               </div>
                             </div>
                           ) : (
-                            <div className="bg-white rounded-xl border border-slate-200/60 p-3.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                            <div className="bg-elevated rounded-xl border border-hairline/60 p-3.5" style={{ boxShadow: "0 1px 4px rgba(28,27,24,0.04)" }}>
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200/60">
-                                  <span className="text-[10px] font-bold text-slate-500">
+                                <div className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center border border-hairline/60">
+                                  <span className="text-[10px] font-bold text-ink-40">
                                     {order.customerName.charAt(0).toUpperCase()}
                                   </span>
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-xs font-medium text-slate-800 truncate">{order.customerName}</p>
-                                  {order.customerEmail && <p className="text-[10px] text-slate-400 truncate">{order.customerEmail}</p>}
+                                  <p className="text-xs font-medium text-ink-60 truncate">{order.customerName}</p>
+                                  {order.customerEmail && <p className="text-[10px] text-ink-40 truncate">{order.customerEmail}</p>}
                                 </div>
                               </div>
                             </div>
@@ -1363,29 +1363,29 @@ function OrdersPageInner() {
 
                         {/* Col 3: Detalles del pedido */}
                         <div className="space-y-3">
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <div className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider flex items-center gap-1.5">
                             <ShoppingCart size={10} />
                             Pedido
                           </div>
-                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                          <div className="bg-elevated rounded-xl border border-hairline/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(28,27,24,0.04)" }}>
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">ID</span>
-                              <span className="text-xs font-mono text-indigo-600">{order.externalId}</span>
+                              <span className="text-[10px] text-ink-40 font-medium">ID</span>
+                              <span className="text-xs font-mono text-ink">{order.externalId}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">Fecha</span>
-                              <span className="text-xs text-slate-700 tabular-nums">{order.orderDate}</span>
+                              <span className="text-[10px] text-ink-40 font-medium">Fecha</span>
+                              <span className="text-xs text-ink-60 tabular-nums">{order.orderDate}</span>
                             </div>
                             {order.deliveryType && (
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Envio</span>
-                                <span className="text-xs text-slate-600">{order.deliveryType}</span>
+                                <span className="text-[10px] text-ink-40 font-medium">Envio</span>
+                                <span className="text-xs text-ink-60">{order.deliveryType}</span>
                               </div>
                             )}
                             {order.shippingCarrier && (
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Transporte</span>
-                                <span className="text-xs text-slate-600">{order.shippingCarrier}</span>
+                                <span className="text-[10px] text-ink-40 font-medium">Transporte</span>
+                                <span className="text-xs text-ink-60">{order.shippingCarrier}</span>
                               </div>
                             )}
                           </div>
@@ -1394,8 +1394,8 @@ function OrdersPageInner() {
 
                       {/* Anomaly badges */}
                       {flags.length > 0 && (
-                        <div className="mt-5 pt-4 border-t border-slate-100/80">
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        <div className="mt-5 pt-4 border-t border-hairline/80">
+                          <div className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                             <Info size={10} />
                             Señales detectadas
                           </div>
@@ -1412,11 +1412,11 @@ function OrdersPageInner() {
           {/* Empty state */}
           {filteredOrders.length === 0 && (
             <div className="dash-card flex flex-col items-center justify-center py-16">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                <Search size={20} className="text-slate-300" />
+              <div className="w-14 h-14 rounded-2xl bg-surface-2 flex items-center justify-center mb-4">
+                <Search size={20} className="text-ink-40" />
               </div>
-              <p className="text-sm font-medium text-slate-500 mb-1">No se encontraron ordenes</p>
-              <p className="text-xs text-slate-400">Intenta con otros filtros o un periodo distinto</p>
+              <p className="text-sm font-medium text-ink-40 mb-1">No se encontraron ordenes</p>
+              <p className="text-xs text-ink-40">Intenta con otros filtros o un periodo distinto</p>
             </div>
           )}
         </div>
@@ -1424,12 +1424,12 @@ function OrdersPageInner() {
         {/* Pagination bar */}
         {data.pagination && data.pagination.totalPages > 1 && (
           <div className="dash-card px-6 py-3.5 flex items-center justify-between">
-            <div className="text-xs text-slate-500 tabular-nums">
+            <div className="text-xs text-ink-40 tabular-nums">
               Pagina {currentPage} de {data.pagination.totalPages || 0}
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
-                className="px-4 py-2 rounded-xl text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-elevated border border-hairline text-ink-60 hover:bg-surface hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                 Anterior
               </button>
@@ -1448,7 +1448,7 @@ function OrdersPageInner() {
         <div
           className="fixed inset-0 flex items-center justify-center z-50 p-4"
           style={{
-            backgroundColor: "rgba(15,23,42,0.4)",
+            backgroundColor: "rgba(28,27,24,0.4)",
             backdropFilter: "blur(8px)",
             animation: "fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
@@ -1460,13 +1460,13 @@ function OrdersPageInner() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-slate-800 tracking-tight">Imagen ampliada</h3>
-              <button onClick={() => setZoomedImage(null)} className="text-slate-400 hover:text-slate-900 text-lg" style={{ transition: "color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>&times;</button>
+              <h3 className="text-sm font-semibold text-ink-60 tracking-tight">Imagen ampliada</h3>
+              <button onClick={() => setZoomedImage(null)} className="text-ink-40 hover:text-ink text-lg" style={{ transition: "color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>&times;</button>
             </div>
-            <div className="bg-slate-50 rounded-xl w-full aspect-square flex items-center justify-center overflow-hidden relative">
+            <div className="bg-surface rounded-xl w-full aspect-square flex items-center justify-center overflow-hidden relative">
               {/* Spinner while image loads */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-500 rounded-full" style={{ animation: "spin 0.8s linear infinite" }} />
+                <div className="w-6 h-6 border-2 border-hairline border-t-slate-500 rounded-full" style={{ animation: "spin 0.8s linear infinite" }} />
               </div>
               <img
                 src={(() => {

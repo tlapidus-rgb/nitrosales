@@ -77,8 +77,8 @@ export default function ReputacionPage() {
   if (!data || !data.current) return (
     <PageShell>
       <Breadcrumb />
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, color: "#94a3b8" }}>
-        <Award size={36} style={{ marginBottom: 12, color: "#cbd5e1" }} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, color: "#9A978D" }}>
+        <Award size={36} style={{ marginBottom: 12, color: "#9A978D" }} />
         <div style={{ fontSize: 14 }}>Sin datos de reputación. Sincronizá MELI desde el dashboard.</div>
       </div>
     </PageShell>
@@ -96,9 +96,9 @@ export default function ReputacionPage() {
       {/* LEVEL BANNER PREMIUM */}
       <div
         style={{
-          background: "white", borderRadius: 16, border: "1px solid rgba(15,23,42,.05)",
+          background: "white", borderRadius: 16, border: "1px solid rgba(28,27,24,.05)",
           padding: 24, marginBottom: 16, position: "relative", overflow: "hidden",
-          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         }}
       >
         {/* Accent bar lateral grande */}
@@ -118,13 +118,13 @@ export default function ReputacionPage() {
               <Award size={32} />
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
                 Nivel actual
               </div>
               <div style={{ fontSize: 28, fontWeight: 700, color: current.levelColor, letterSpacing: "-0.02em", lineHeight: 1 }}>
                 {current.levelLabel}
               </div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+              <div style={{ fontSize: 12, color: "#9A978D", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
                 {current.powerSeller && (
                   <span style={{ marginRight: 8, padding: "2px 8px", background: ML_GRADIENT, color: "white", fontSize: 10, fontWeight: 700, borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     ⚡ MercadoLíder
@@ -137,7 +137,7 @@ export default function ReputacionPage() {
 
           <div style={{ display: "flex", gap: 24, marginLeft: "auto", flexWrap: "wrap", alignItems: "center" }}>
             <RatingBlock Icon={ThumbsUp} value={current.positiveRatings} label={`Positivas · ${current.positiveRate}%`} tone="#10b981" />
-            <RatingBlock Icon={Minus} value={current.neutralRatings} label="Neutras" tone="#94a3b8" />
+            <RatingBlock Icon={Minus} value={current.neutralRatings} label="Neutras" tone="#9A978D" />
             <RatingBlock Icon={ThumbsDown} value={current.negativeRatings} label="Negativas" tone="#ef4444" />
           </div>
         </div>
@@ -167,7 +167,7 @@ export default function ReputacionPage() {
             <div style={{ fontSize: 11, fontWeight: 700, color: nextLevelInfo.next.color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>
               Próximo nivel
             </div>
-            <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: "#6B685F", lineHeight: 1.5 }}>
               Para subir a <b style={{ color: nextLevelInfo.next.color }}>{nextLevelInfo.next.label}</b> tenés que mantener tasa de reclamos baja, envíos a tiempo y completar más ventas. Mantené el ritmo y revisá las métricas debajo para identificar qué mejorar primero.
             </div>
           </div>
@@ -187,16 +187,16 @@ export default function ReputacionPage() {
       {/* TERMÓMETRO PREMIUM */}
       <div
         style={{
-          background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+          background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)",
           padding: 22, marginBottom: 16,
-          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <div style={{ width: 28, height: 28, borderRadius: 7, background: `${ML_PRIMARY}12`, color: ML_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <Activity size={14} />
           </div>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
             Termómetro de reputación MercadoLibre
           </h2>
         </div>
@@ -215,11 +215,11 @@ export default function ReputacionPage() {
                   boxShadow: isCurrent ? `0 4px 14px ${seg.color}40` : "none",
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 700, color: isCurrent ? "white" : "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: isCurrent ? "white" : "#9A978D", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   {seg.label}
                 </span>
                 {isCurrent && (
-                  <div style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "7px solid transparent", borderRight: "7px solid transparent", borderTop: "8px solid #0f172a" }} />
+                  <div style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "7px solid transparent", borderRight: "7px solid transparent", borderTop: "8px solid #1C1B18" }} />
                 )}
               </div>
             );
@@ -230,9 +230,9 @@ export default function ReputacionPage() {
       {/* PERFORMANCE BARS premium con thresholds REALES desde MELI live */}
       <div
         style={{
-          background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+          background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)",
           padding: 22, marginBottom: 16,
-          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
@@ -240,7 +240,7 @@ export default function ReputacionPage() {
             <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <Target size={14} />
             </div>
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
               Performance vs umbrales actuales de MELI
             </h2>
           </div>
@@ -251,7 +251,7 @@ export default function ReputacionPage() {
             </span>
           )}
           {current.thresholdsError && (
-            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: "#9A978D", fontWeight: 600 }}>
               Umbrales no disponibles ahora
             </span>
           )}
@@ -280,7 +280,7 @@ export default function ReputacionPage() {
             return items.map((m) => {
               const hasThreshold = m.thresholdPct != null;
               const isGood = hasThreshold ? m.value < (m.thresholdPct as number) : true;
-              const tone = !hasThreshold ? "#94a3b8" : isGood ? "#10b981" : "#ef4444";
+              const tone = !hasThreshold ? "#9A978D" : isGood ? "#10b981" : "#ef4444";
               // El bar va de 0 a 2x threshold (o, si no hay threshold, de 0 a max(value, 1))
               const range = hasThreshold ? (m.thresholdPct as number) * 2 : Math.max(m.value, 1);
               const pct = Math.min((m.value / range) * 100, 100);
@@ -288,17 +288,17 @@ export default function ReputacionPage() {
               return (
                 <div key={m.label}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{m.label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#6B685F" }}>{m.label}</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums" }}>
                         {m.value.toFixed(2)}%
                       </span>
-                      <span style={{ fontSize: 10, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontSize: 10, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
                         {hasThreshold ? `umbral ${(m.thresholdPct as number).toFixed(2)}%` : "umbral —"}
                       </span>
                     </div>
                   </div>
-                  <div style={{ position: "relative", width: "100%", background: "#f1f5f9", borderRadius: 999, height: 8, overflow: "hidden" }}>
+                  <div style={{ position: "relative", width: "100%", background: "#EDEAE3", borderRadius: 999, height: 8, overflow: "hidden" }}>
                     <div
                       style={{
                         height: "100%", borderRadius: 999, width: `${pct}%`,
@@ -318,7 +318,7 @@ export default function ReputacionPage() {
                           width: 0, height: 0,
                           borderLeft: "4px solid transparent",
                           borderRight: "4px solid transparent",
-                          borderTop: "4px solid #94a3b8",
+                          borderTop: "4px solid #9A978D",
                         }}
                       />
                     )}
@@ -328,7 +328,7 @@ export default function ReputacionPage() {
             });
           })()}
         </div>
-        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: "#9A978D", marginTop: 10, lineHeight: 1.5 }}>
           {current.thresholdsError
             ? `⚠ Los umbrales reales no se pudieron traer ahora (${current.thresholdsError}). Solo se muestran los valores actuales del seller.`
             : "▼ Umbrales oficiales de MELI traídos en vivo en cada carga. Si tu valor supera el umbral te bajan de nivel."}
@@ -339,16 +339,16 @@ export default function ReputacionPage() {
       {data.history.length > 1 ? (
         <div
           style={{
-            background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+            background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)",
             padding: 22, marginBottom: 16,
-            boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+            boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <TrendingUp size={14} />
             </div>
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
               Evolución histórica de ventas
             </h2>
           </div>
@@ -360,14 +360,14 @@ export default function ReputacionPage() {
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={(d) => { try { return new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "short" }); } catch { return d; } }}
-                tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
+                tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false}
               />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={50} />
-              <Tooltip contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", boxShadow: "0 4px 14px rgba(15,23,42,.08)" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip contentStyle={{ borderRadius: "10px", border: "1px solid #E5E1D8", fontSize: "12px", boxShadow: "0 4px 14px rgba(28,27,24,.08)" }} />
               <Area type="monotone" dataKey="totalSales" stroke="#6366f1" strokeWidth={2.5} fill="url(#histGrad)" name="Ventas acumuladas" />
             </AreaChart>
           </ResponsiveContainer>
@@ -415,7 +415,7 @@ function RatingBlock({ Icon, value, label, tone }: { Icon: any; value: number; l
           {value.toLocaleString("es-AR")}
         </span>
       </div>
-      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+      <div style={{ fontSize: 10, color: "#9A978D", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
     </div>
   );
 }
@@ -427,8 +427,8 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
         padding: "20px 22px",
         background: "white",
         borderRadius: 14,
-        border: "1px solid rgba(15,23,42,.05)",
-        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        border: "1px solid rgba(28,27,24,.05)",
+        boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         position: "relative",
         overflow: "hidden",
       }}
@@ -436,11 +436,11 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: `${tone}12`, color: tone, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={15} />
@@ -454,9 +454,9 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
   return (
     <div
       style={{
-        background: "white", borderRadius: 18, border: "1px solid rgba(15,23,42,.05)",
+        background: "white", borderRadius: 18, border: "1px solid rgba(28,27,24,.05)",
         padding: "26px 30px", marginBottom: 24,
-        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 8px 24px rgba(15,23,42,.04)",
+        boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 8px 24px rgba(28,27,24,.04)",
         display: "flex", alignItems: "center", gap: 18,
       }}
     >
@@ -472,8 +472,8 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
         <Icon size={26} />
       </div>
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a", margin: 0, marginBottom: 4 }}>{title}</h1>
-        <div style={{ fontSize: 13, color: "#64748b", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>{title}</h1>
+        <div style={{ fontSize: 13, color: "#9A978D", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
       </div>
     </div>
   );
@@ -483,9 +483,9 @@ function Breadcrumb() {
   return (
     <Link
       href="/mercadolibre"
-      style={{ fontSize: 12, color: "#94a3b8", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
-      onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+      style={{ fontSize: 12, color: "#9A978D", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = "#6B685F")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#9A978D")}
     >
       <ArrowLeft size={13} /> MercadoLibre
     </Link>
@@ -494,7 +494,7 @@ function Breadcrumb() {
 
 function LoadingState({ text }: { text: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#94a3b8" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>{text}</span>
       <style jsx>{`
@@ -507,16 +507,7 @@ function LoadingState({ text }: { text: string }) {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ position: "relative", minHeight: "100%", padding: "32px 40px 64px", background: "#fafafa" }}>
-      <div
-        style={{
-          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-          background:
-            "radial-gradient(900px 500px at 85% -10%, rgba(245,158,11,.08), transparent 60%)," +
-            "radial-gradient(700px 400px at 5% 30%, rgba(251,191,36,.05), transparent 60%)," +
-            "radial-gradient(600px 400px at 50% 110%, rgba(249,115,22,.04), transparent 60%)",
-        }}
-      />
+    <div style={{ position: "relative", minHeight: "100%", padding: "32px 40px 64px", background: "#FBFAF7" }}>
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1240, margin: "0 auto" }}>{children}</div>
     </div>
   );

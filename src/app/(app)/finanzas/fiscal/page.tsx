@@ -320,25 +320,7 @@ function Hero({
     : "Responsable Inscripto";
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at 85% 0%, rgba(16,185,129,0.10) 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(251,191,36,0.06) 0%, transparent 55%)",
-        }}
-      />
-      {/* prism delimiter bottom */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(16,185,129,0.35) 25%, rgba(14,165,233,0.35) 50%, rgba(139,92,246,0.35) 75%, transparent 100%)",
-        }}
-      />
-
+    <div className="relative overflow-hidden rounded-3xl border border-hairline bg-elevated shadow-sm">
       <div className="relative p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -353,10 +335,10 @@ function Hero({
                 </span>
               )}
             </div>
-            <h1 className="mt-5 text-[28px] font-semibold tracking-tight text-slate-900">
+            <h1 className="mt-5 text-[28px] font-semibold tracking-tight text-ink">
               Fiscal
             </h1>
-            <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-slate-600">
+            <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-ink-60">
               Tu relación con AFIP organizada: calendario automático según tu
               régimen, tablero de retenciones recibidas por marketplace, y
               obligaciones custom cuando necesites.
@@ -367,7 +349,7 @@ function Hero({
             <button
               type="button"
               onClick={onReload}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-sm transition hover:border-hairline-2 hover:bg-surface"
               style={{ transition: `all 180ms ${ES}` }}
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -377,7 +359,7 @@ function Hero({
               href="/print/fiscal"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-sm transition hover:border-hairline-2 hover:bg-surface"
               style={{ transition: `all 180ms ${ES}` }}
             >
               <Download className="h-3.5 w-3.5" />
@@ -452,10 +434,10 @@ function KPICard({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur-sm"
+      className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated/70 p-4 backdrop-blur-sm"
       style={{
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
         transition: `all 180ms ${ES}`,
       }}
     >
@@ -465,23 +447,23 @@ function KPICard({
         style={{ background: accent }}
       />
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
           {label}
         </div>
         {icon && (
-          <div className="text-slate-300" style={{ color: accent }}>
+          <div className="text-ink-40" style={{ color: accent }}>
             {icon}
           </div>
         )}
       </div>
       <div
-        className="mt-2 text-[17px] font-semibold tracking-tight tabular-nums text-slate-900"
+        className="mt-2 text-[17px] font-semibold tracking-tight tabular-nums text-ink"
         style={{ lineHeight: 1.15 }}
       >
         {value}
       </div>
       {subvalue && (
-        <div className="mt-1 text-[11px] text-slate-500">{subvalue}</div>
+        <div className="mt-1 text-[11px] text-ink-40">{subvalue}</div>
       )}
     </div>
   );
@@ -519,12 +501,12 @@ function CalendarCard({
 
   if (obligations.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <CalendarDays className="mx-auto h-10 w-10 text-slate-300" />
-        <h3 className="mt-3 text-sm font-semibold text-slate-700">
+      <div className="rounded-2xl border border-hairline bg-elevated p-8 text-center">
+        <CalendarDays className="mx-auto h-10 w-10 text-ink-40" />
+        <h3 className="mt-3 text-sm font-semibold text-ink-60">
           Sin obligaciones derivadas
         </h3>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-40">
           Completá tu perfil fiscal en Costos para ver el calendario.
         </p>
       </div>
@@ -532,20 +514,20 @@ function CalendarCard({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">
+    <div className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated shadow-sm">
+      <div className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-emerald-600" />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">
             Calendario fiscal · próximos 12 meses
           </h2>
         </div>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-ink-40">
           {obligations.length} vencimientos
         </span>
       </div>
 
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-hairline">
         {byMonth.map(({ month, items }) => {
           const isOpen = expanded === month;
           const monthLabel = new Date(month + "-01T00:00:00").toLocaleDateString(
@@ -558,22 +540,22 @@ function CalendarCard({
               <button
                 type="button"
                 onClick={() => setExpanded(isOpen ? null : month)}
-                className="flex w-full items-center justify-between px-6 py-3.5 text-left transition hover:bg-slate-50"
+                className="flex w-full items-center justify-between px-6 py-3.5 text-left transition hover:bg-surface"
                 style={{ transition: `background 120ms ${ES}` }}
               >
                 <div className="flex items-center gap-3">
                   <ChevronRight
-                    className="h-4 w-4 text-slate-400 transition-transform"
+                    className="h-4 w-4 text-ink-40 transition-transform"
                     style={{
                       transform: isOpen ? "rotate(90deg)" : "rotate(0)",
                       transition: `transform 160ms ${ES}`,
                     }}
                   />
                   <div>
-                    <div className="text-sm font-semibold capitalize tracking-tight text-slate-900">
+                    <div className="text-sm font-semibold capitalize tracking-tight text-ink">
                       {monthLabel}
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-[11px] text-ink-40">
                       {items.length} vencimiento{items.length !== 1 ? "s" : ""}
                       {totalMonth > 0 ? ` · ${fm(totalMonth)}` : ""}
                     </div>
@@ -590,7 +572,7 @@ function CalendarCard({
                     />
                   ))}
                   {items.length > 5 && (
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-ink-40">
                       +{items.length - 5}
                     </span>
                   )}
@@ -598,7 +580,7 @@ function CalendarCard({
               </button>
 
               {isOpen && (
-                <div className="border-t border-slate-100 bg-slate-50/40 px-6 py-3">
+                <div className="border-t border-hairline bg-surface px-6 py-3">
                   <div className="space-y-2">
                     {items.map((o, idx) => (
                       <ObligationRow
@@ -632,17 +614,17 @@ function ObligationRow({
 
   return (
     <div
-      className="flex items-center gap-3 rounded-xl border bg-white p-3"
+      className="flex items-center gap-3 rounded-xl border bg-elevated p-3"
       style={{
         borderColor: urgent
           ? "rgba(245,158,11,0.35)"
           : overdue
           ? "rgba(239,68,68,0.35)"
-          : "rgba(226,232,240,1)",
+          : "rgba(229,225,216,1)",
         boxShadow:
           urgent || overdue
             ? "0 1px 0 rgba(245,158,11,0.08)"
-            : "0 1px 2px rgba(15,23,42,0.03)",
+            : "0 1px 2px rgba(28,27,24,0.03)",
       }}
     >
       <div
@@ -659,10 +641,10 @@ function ObligationRow({
         </div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="truncate text-[13px] font-semibold tracking-tight text-slate-900">
+        <div className="truncate text-[13px] font-semibold tracking-tight text-ink">
           {o.name}
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-slate-500">
+        <div className="mt-0.5 truncate text-[11px] text-ink-40">
           {o.note ?? meta.label}
         </div>
       </div>
@@ -674,11 +656,11 @@ function ObligationRow({
           {formatDueLabel(o.dueDate)}
         </div>
         {o.amount ? (
-          <div className="text-[11px] font-medium tabular-nums text-slate-700">
+          <div className="text-[11px] font-medium tabular-nums text-ink-60">
             {fm(o.amount)}
           </div>
         ) : (
-          <div className="text-[10px] italic text-slate-400">
+          <div className="text-[10px] italic text-ink-40">
             Monto a calcular
           </div>
         )}
@@ -703,17 +685,17 @@ function RetentionsCard({
   const hasML = obligations.some((o) => o.category === "PERCEPCION_ML");
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">
+    <div className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated shadow-sm">
+      <div className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <div className="flex items-center gap-2">
           <TrendingDown className="h-4 w-4 text-rose-600" />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">
             Retenciones MercadoLibre · últimos 12 meses
           </h2>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-ink-40">
               Total 12m
             </div>
             <div className="text-[13px] font-semibold tabular-nums text-rose-600">
@@ -721,10 +703,10 @@ function RetentionsCard({
             </div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-ink-40">
               Lifetime
             </div>
-            <div className="text-[13px] font-semibold tabular-nums text-slate-900">
+            <div className="text-[13px] font-semibold tabular-nums text-ink">
               {fm(retentions.totalLifetime)}
             </div>
           </div>
@@ -754,11 +736,11 @@ function RetentionsCard({
                     background:
                       r.total > 0
                         ? "linear-gradient(180deg, #fb7185 0%, #f43f5e 100%)"
-                        : "rgba(226,232,240,0.5)",
+                        : "rgba(229,225,216,0.5)",
                     transition: `height 320ms ${ES}`,
                   }}
                 />
-                <div className="text-[9px] uppercase tracking-wider text-slate-400">
+                <div className="text-[9px] uppercase tracking-wider text-ink-40">
                   {month}
                 </div>
               </div>
@@ -816,7 +798,7 @@ function CategoryBreakdown({ byCategory }: { byCategory: any }) {
             <div className="mt-1 text-[18px] font-semibold tabular-nums" style={{ color: meta.color }}>
               {count}
             </div>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-[10px] text-ink-40">
               {count === 1 ? "vencimiento" : "vencimientos"} 12m
             </div>
           </div>
@@ -848,21 +830,21 @@ function MonotributoAlertCard({
       color: "#dc2626",
       bg: "rgba(239,68,68,0.06)",
       border: "rgba(239,68,68,0.25)",
-      glow: "0 0 0 1px rgba(239,68,68,0.12), 0 10px 40px -12px rgba(239,68,68,0.25)",
+      glow: "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
       label: "Acción requerida",
     },
     warning: {
       color: "#d97706",
       bg: "rgba(245,158,11,0.06)",
       border: "rgba(245,158,11,0.25)",
-      glow: "0 0 0 1px rgba(245,158,11,0.12), 0 10px 30px -12px rgba(245,158,11,0.20)",
+      glow: "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
       label: "Atención",
     },
     info: {
       color: "#0ea5e9",
       bg: "rgba(14,165,233,0.05)",
       border: "rgba(14,165,233,0.22)",
-      glow: "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+      glow: "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
       label: "Estado",
     },
   };
@@ -870,17 +852,9 @@ function MonotributoAlertCard({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border bg-white p-6"
+      className="relative overflow-hidden rounded-2xl border bg-elevated p-6"
       style={{ borderColor: m.border, boxShadow: m.glow }}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `radial-gradient(ellipse at 85% 0%, ${m.bg.replace("0.06", "0.12").replace("0.05", "0.10")} 0%, transparent 55%)`,
-        }}
-      />
-
       <div className="relative flex items-start gap-4">
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
@@ -900,17 +874,17 @@ function MonotributoAlertCard({
               {m.label}
             </span>
             {isMonotributo && (
-              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-ink-40">
                 Cat. {alert.currentCategory}
               </span>
             )}
           </div>
-          <h3 className="mt-2 text-[16px] font-semibold tracking-tight text-slate-900">
+          <h3 className="mt-2 text-[16px] font-semibold tracking-tight text-ink">
             {alert.headline}
           </h3>
 
           {primaryAlert && (
-            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-60">
               {primaryAlert.body}
             </p>
           )}
@@ -919,12 +893,12 @@ function MonotributoAlertCard({
           {isMonotributo && alert.utilizationPct != null && (
             <div className="mt-4">
               <div className="flex items-baseline justify-between text-[11px]">
-                <span className="text-slate-500">Utilización de cat. {alert.currentCategory}</span>
+                <span className="text-ink-40">Utilización de cat. {alert.currentCategory}</span>
                 <span className="font-semibold tabular-nums" style={{ color: m.color }}>
                   {Math.round(alert.utilizationPct)}%
                 </span>
               </div>
-              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
                 <div
                   className="h-full rounded-full"
                   style={{
@@ -941,26 +915,26 @@ function MonotributoAlertCard({
               </div>
               <div className="mt-3 grid grid-cols-3 gap-3 text-[11px]">
                 <div>
-                  <div className="text-slate-400 uppercase tracking-wider">
+                  <div className="text-ink-40 uppercase tracking-wider">
                     Últimos 12m
                   </div>
-                  <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                  <div className="mt-0.5 font-semibold tabular-nums text-ink">
                     {fm(alert.actualRevenueLast12m)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-400 uppercase tracking-wider">
+                  <div className="text-ink-40 uppercase tracking-wider">
                     Proyectado 12m
                   </div>
-                  <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                  <div className="mt-0.5 font-semibold tabular-nums text-ink">
                     {fm(alert.projectedRevenue12m)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-400 uppercase tracking-wider">
+                  <div className="text-ink-40 uppercase tracking-wider">
                     Tope cat. {alert.currentCategory}
                   </div>
-                  <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                  <div className="mt-0.5 font-semibold tabular-nums text-ink">
                     {fm(alert.currentLimit)}
                   </div>
                 </div>
@@ -969,9 +943,9 @@ function MonotributoAlertCard({
           )}
 
           {primaryAlert?.cta && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <Sparkles className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-[12px] font-medium text-slate-700">
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-hairline bg-surface px-3 py-2">
+              <Sparkles className="h-3.5 w-3.5 text-ink-40" />
+              <span className="text-[12px] font-medium text-ink-60">
                 Sugerencia: {primaryAlert.cta}
               </span>
             </div>
@@ -989,15 +963,7 @@ type AlertSeverityStr = "info" | "warning" | "critical";
 // ─────────────────────────────────────────────────────────────
 function MissingProfile() {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-10 shadow-sm">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at 80% 0%, rgba(251,191,36,0.10) 0%, transparent 55%)",
-        }}
-      />
+    <div className="relative overflow-hidden rounded-3xl border border-hairline bg-elevated p-10 shadow-sm">
       <div className="relative">
         <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
@@ -1005,10 +971,10 @@ function MissingProfile() {
             Perfil fiscal requerido
           </span>
         </div>
-        <h1 className="mt-5 text-[28px] font-semibold tracking-tight text-slate-900">
+        <h1 className="mt-5 text-[28px] font-semibold tracking-tight text-ink">
           Completá tu perfil fiscal
         </h1>
-        <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-slate-600">
+        <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-ink-60">
           Para armar tu calendario fiscal automáticamente necesitamos saber si
           sos Monotributo o Responsable Inscripto, tu provincia y si vendés en
           marketplace. Todo esto se carga desde{" "}
@@ -1022,7 +988,7 @@ function MissingProfile() {
         </p>
         <Link
           href="/finanzas/costos"
-          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90"
         >
           <Sparkles className="h-3.5 w-3.5" />
           Ir a configurar perfil fiscal
@@ -1036,8 +1002,8 @@ function MissingProfile() {
 function SkeletonLoading() {
   return (
     <div className="space-y-6">
-      <div className="h-56 rounded-3xl border border-slate-200 bg-slate-100/50 shimmer-bg" />
-      <div className="h-96 rounded-2xl border border-slate-200 bg-slate-100/50 shimmer-bg" />
+      <div className="h-56 rounded-3xl border border-hairline bg-surface-2/50 shimmer-bg" />
+      <div className="h-96 rounded-2xl border border-hairline bg-surface-2/50 shimmer-bg" />
       <style jsx>{`
         .shimmer-bg {
           position: relative;

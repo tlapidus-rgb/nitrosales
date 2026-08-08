@@ -210,11 +210,11 @@ export default function IntegracionesPage() {
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
+        <div className="h-24 animate-pulse rounded-2xl border border-hairline bg-surface-2/50" />
         {[...Array(4)].map((_, i) => (
           <div
             key={i}
-            className="h-20 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50"
+            className="h-20 animate-pulse rounded-2xl border border-hairline bg-surface-2/50"
           />
         ))}
       </div>
@@ -224,16 +224,16 @@ export default function IntegracionesPage() {
   return (
     <div className="space-y-4">
       {/* Header + summary */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Plug className="h-4 w-4 text-emerald-600" />
-              <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+              <Plug className="h-4 w-4 text-ink" />
+              <h2 className="text-sm font-semibold tracking-tight text-ink">
                 Integraciones
               </h2>
             </div>
-            <p className="mt-1 text-[12px] text-slate-500">
+            <p className="mt-1 text-[12px] text-ink-40">
               Conectá VTEX, MercadoLibre, Google Ads, Meta Ads y más para que
               NitroSales sincronice tu data automáticamente.
             </p>
@@ -241,7 +241,7 @@ export default function IntegracionesPage() {
           <button
             type="button"
             onClick={load}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-sm transition hover:border-hairline-2 hover:bg-surface"
             style={{ transition: `all 160ms ${ES}` }}
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -282,11 +282,11 @@ export default function IntegracionesPage() {
         ))}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+      <div className="rounded-xl border border-hairline bg-surface p-3">
         <div className="flex items-start gap-2">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <div className="text-[11px] text-slate-600 leading-relaxed">
-            <strong className="text-slate-700">Sync automático:</strong> VTEX y
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-40" />
+          <div className="text-[11px] text-ink-60 leading-relaxed">
+            <strong className="text-ink-60">Sync automático:</strong> VTEX y
             MercadoLibre vía webhooks en tiempo real con cron de seguridad 1×/día.
             Google/Meta Ads on-demand al abrir sus dashboards. GA4 y GSC cron
             diario.
@@ -308,7 +308,7 @@ function SummaryChip({
 }) {
   return (
     <div
-      className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2"
+      className="flex items-center gap-2.5 rounded-xl border bg-elevated px-3 py-2"
       style={{ borderColor: `${color}30` }}
     >
       <div
@@ -321,7 +321,7 @@ function SummaryChip({
       >
         {value}
       </div>
-      <div className="text-[11px] font-medium text-slate-600">{label}</div>
+      <div className="text-[11px] font-medium text-ink-60">{label}</div>
     </div>
   );
 }
@@ -341,12 +341,12 @@ function ConnectorRow({ connector }: { connector: Connector }) {
 
   return (
     <div
-      className="rounded-2xl border bg-white p-4 transition"
+      className="rounded-2xl border bg-elevated p-4 transition"
       style={{
-        borderColor: isError ? "rgba(239,68,68,0.25)" : "rgba(226,232,240,1)",
+        borderColor: isError ? "rgba(239,68,68,0.25)" : "rgba(229,225,216,1)",
         boxShadow: isError
           ? "0 1px 2px rgba(239,68,68,0.05), 0 4px 12px rgba(239,68,68,0.03)"
-          : "0 1px 2px rgba(15,23,42,0.03)",
+          : "0 1px 2px rgba(28,27,24,0.03)",
       }}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -363,7 +363,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[13px] font-semibold tracking-tight text-slate-900">
+              <span className="text-[13px] font-semibold tracking-tight text-ink">
                 {meta.label}
               </span>
               <span
@@ -382,21 +382,21 @@ function ConnectorRow({ connector }: { connector: Connector }) {
                 {statusMeta.label}
               </span>
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500 leading-relaxed">
+            <p className="mt-0.5 text-[11px] text-ink-40 leading-relaxed">
               {meta.description}
             </p>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-ink-40">
               <span>
                 Último sync:{" "}
-                <span className="font-medium text-slate-700">
+                <span className="font-medium text-ink-60">
                   {formatRelativeDate(connector.lastSyncAt)}
                 </span>
               </span>
               {connector.latestDataAt && (
                 <span>
                   Datos al:{" "}
-                  <span className="font-medium text-slate-700">
+                  <span className="font-medium text-ink-60">
                     {formatRelativeDate(connector.latestDataAt)}
                   </span>
                 </span>
@@ -410,7 +410,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           {connector.platform === "META_ADS" && (
             <a
               href="/settings/integraciones/meta"
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
@@ -418,7 +418,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           {connector.platform === "GOOGLE_ADS" && (
             <a
               href="/settings/integraciones/google-ads"
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
@@ -426,7 +426,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           {connector.platform === "VTEX" && (
             <a
               href="/settings/integraciones/vtex"
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
@@ -434,7 +434,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           {connector.platform === "MERCADOLIBRE" && (
             <a
               href="/settings/integraciones/mercadolibre"
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
@@ -442,7 +442,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           {connector.platform === "GOOGLE_SEARCH_CONSOLE" && (
             <a
               href="/settings/integraciones/google-search-console"
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
@@ -450,7 +450,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
           {connector.platform === "NITROPIXEL" && (
             <a
               href="/settings/integraciones/nitropixel"
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               {connector.status === "CONNECTED" ? "Gestionar" : "Configurar"}
             </a>
@@ -461,7 +461,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
                 meta.connectHref ??
                 `/api/auth/connect/${connector.platform.toLowerCase()}`
               }
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-ink/90"
             >
               <RefreshCw className="h-3 w-3" />
               {isError ? "Reconectar" : "Conectar"}

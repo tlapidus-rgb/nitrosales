@@ -23,30 +23,25 @@ import {
 } from "lucide-react";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  purple: "#a855f7",
-  purpleSoft: "rgba(168, 85, 247, 0.10)",
-  purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "#00d4ff",
-  cyanSoft: "rgba(0, 212, 255, 0.10)",
-  cyanBorder: "rgba(0, 212, 255, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  bgCard: "rgb(var(--ent-elevated))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  ink: "rgb(var(--ent-ink))",
+  inkSoft: "rgba(28,27,24,0.06)",
+  inkBorder: "rgba(28,27,24,0.16)",
+  accent: "rgb(var(--ent-accent))",
+  accentSoft: "rgba(47,145,83,0.10)",
+  accentBorder: "rgba(47,145,83,0.28)",
+  amber: "rgb(var(--ent-amber))",
+  amberSoft: "rgba(201,138,26,0.10)",
+  amberBorder: "rgba(201,138,26,0.28)",
+  danger: "#b91c1c",
+  dangerSoft: "rgba(185,28,28,0.08)",
+  dangerBorder: "rgba(185,28,28,0.24)",
 };
 
 type Sub = {
@@ -70,10 +65,10 @@ type Sub = {
 type Totals = { count: number; pending: number; approved: number; revision: number; rejected: number };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  PENDING: { label: "Por revisar", color: THEME.gold, bg: THEME.goldSoft, border: THEME.goldBorder },
-  APPROVED: { label: "Aprobado", color: THEME.green, bg: THEME.greenSoft, border: THEME.greenBorder },
-  REVISION: { label: "Revisión", color: THEME.cyan, bg: THEME.cyanSoft, border: THEME.cyanBorder },
-  REJECTED: { label: "Rechazado", color: THEME.rose, bg: THEME.roseSoft, border: THEME.roseBorder },
+  PENDING: { label: "Por revisar", color: THEME.amber, bg: THEME.amberSoft, border: THEME.amberBorder },
+  APPROVED: { label: "Aprobado", color: THEME.accent, bg: THEME.accentSoft, border: THEME.accentBorder },
+  REVISION: { label: "Revisión", color: THEME.amber, bg: THEME.amberSoft, border: THEME.amberBorder },
+  REJECTED: { label: "Rechazado", color: THEME.danger, bg: THEME.dangerSoft, border: THEME.dangerBorder },
 };
 
 function fmtDateTime(iso: string) {
@@ -118,7 +113,7 @@ export default function AprobacionesPage() {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: THEME.bgPage }}>
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[1320px] mx-auto px-6 md:px-10 py-8 md:py-10">
         {/* BREADCRUMB */}
         <div className="mb-3 flex items-center gap-1.5 text-[11px]" style={{ color: THEME.textMuted }}>
@@ -132,15 +127,7 @@ export default function AprobacionesPage() {
           <div className="text-[11px] tracking-[0.18em] uppercase font-medium mb-2" style={{ color: THEME.textMuted }}>
             Aura · Contenido
           </div>
-          <h1
-            className="text-[32px] font-semibold tracking-tight leading-none mb-2"
-            style={{
-              background: THEME.gradientText,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
+          <h1 className="text-[32px] font-semibold tracking-tight leading-none mb-2 text-ink">
             Aprobaciones
           </h1>
           <p className="text-[13px]" style={{ color: THEME.textSecondary }}>
@@ -150,10 +137,10 @@ export default function AprobacionesPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-4 gap-3 mb-6">
-          <MiniKpi label="Por revisar" value={totals?.pending ?? 0} color={THEME.gold} />
-          <MiniKpi label="Aprobados" value={totals?.approved ?? 0} color={THEME.green} />
-          <MiniKpi label="En revisión" value={totals?.revision ?? 0} color={THEME.cyan} />
-          <MiniKpi label="Rechazados" value={totals?.rejected ?? 0} color={THEME.rose} />
+          <MiniKpi label="Por revisar" value={totals?.pending ?? 0} color={THEME.amber} />
+          <MiniKpi label="Aprobados" value={totals?.approved ?? 0} color={THEME.accent} />
+          <MiniKpi label="En revisión" value={totals?.revision ?? 0} color={THEME.amber} />
+          <MiniKpi label="Rechazados" value={totals?.rejected ?? 0} color={THEME.danger} />
         </div>
 
         {/* FILTROS */}
@@ -177,9 +164,9 @@ export default function AprobacionesPage() {
               onClick={() => setStatusFilter(s)}
               className="px-3 py-2 rounded-xl text-[12px] font-medium tracking-tight"
               style={{
-                background: statusFilter === s ? THEME.purpleSoft : THEME.bgCard,
-                color: statusFilter === s ? THEME.purple : THEME.textSecondary,
-                border: `1px solid ${statusFilter === s ? THEME.purpleBorder : THEME.border}`,
+                background: statusFilter === s ? THEME.inkSoft : THEME.bgCard,
+                color: statusFilter === s ? THEME.ink : THEME.textSecondary,
+                border: `1px solid ${statusFilter === s ? THEME.inkBorder : THEME.border}`,
               }}
             >
               {s === "all" ? "Todos" : STATUS_CFG[s]?.label ?? s}
@@ -255,7 +242,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
     <div className="p-4 rounded-2xl" style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}` }}>
       <div className="flex items-start gap-4">
         <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0"
-          style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${THEME.border}` }}>
+          style={{ background: "rgb(var(--ent-surface))", border: `1px solid ${THEME.border}` }}>
           {s.thumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={s.thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -276,12 +263,12 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
             </span>
             <span
               className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[10px]"
-              style={{ color: THEME.textSecondary, background: "rgba(255,255,255,0.04)", border: `1px solid ${THEME.border}` }}
+              style={{ color: THEME.textSecondary, background: "rgb(var(--ent-surface))", border: `1px solid ${THEME.border}` }}
             >
               {s.platform} · {s.type}
             </span>
             {s.isUGC ? (
-              <span className="text-[10px] px-2 py-[2px] rounded-full" style={{ color: THEME.cyan, background: THEME.cyanSoft }}>
+              <span className="text-[10px] px-2 py-[2px] rounded-full" style={{ color: THEME.ink, background: THEME.inkSoft }}>
                 UGC
               </span>
             ) : null}
@@ -289,7 +276,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
               <Link
                 href={`/aura/contenido/briefings/${s.briefing.id}`}
                 className="text-[10.5px] px-2 py-[2px] rounded-full hover:underline"
-                style={{ color: THEME.purple, background: THEME.purpleSoft, border: `1px solid ${THEME.purpleBorder}` }}
+                style={{ color: THEME.ink, background: THEME.inkSoft, border: `1px solid ${THEME.inkBorder}` }}
               >
                 {s.briefing.title}
               </Link>
@@ -316,7 +303,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
           {s.reviewNotes ? (
             <div
               className="text-[11.5px] mt-2 p-2 rounded-lg"
-              style={{ color: THEME.textSecondary, background: "rgba(255,255,255,0.03)", border: `1px solid ${THEME.border}` }}
+              style={{ color: THEME.textSecondary, background: "rgb(var(--ent-surface))", border: `1px solid ${THEME.border}` }}
             >
               💬 {s.reviewNotes}
             </div>
@@ -329,7 +316,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
             target="_blank"
             rel="noreferrer"
             className="p-2 rounded-lg flex-shrink-0"
-            style={{ color: THEME.textSecondary, background: "rgba(255,255,255,0.04)" }}
+            style={{ color: THEME.textSecondary, background: "rgb(var(--ent-surface))" }}
             title="Ver contenido"
           >
             <ExternalLink size={14} />
@@ -342,7 +329,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
           <button
             onClick={() => handleAction("APPROVED")}
             className="px-3 py-1.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5"
-            style={{ color: THEME.green, background: THEME.greenSoft, border: `1px solid ${THEME.greenBorder}` }}
+            style={{ color: THEME.accent, background: THEME.accentSoft, border: `1px solid ${THEME.accentBorder}` }}
           >
             <CheckCircle2 size={12} strokeWidth={2.4} />
             Aprobar
@@ -350,7 +337,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
           <button
             onClick={() => handleAction("REVISION")}
             className="px-3 py-1.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5"
-            style={{ color: THEME.cyan, background: THEME.cyanSoft, border: `1px solid ${THEME.cyanBorder}` }}
+            style={{ color: THEME.amber, background: THEME.amberSoft, border: `1px solid ${THEME.amberBorder}` }}
           >
             <RotateCw size={12} strokeWidth={2.4} />
             Pedir cambios
@@ -358,7 +345,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
           <button
             onClick={() => handleAction("REJECTED")}
             className="px-3 py-1.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5"
-            style={{ color: THEME.rose, background: THEME.roseSoft, border: `1px solid ${THEME.roseBorder}` }}
+            style={{ color: THEME.danger, background: THEME.dangerSoft, border: `1px solid ${THEME.dangerBorder}` }}
           >
             <XCircle size={12} strokeWidth={2.4} />
             Rechazar
@@ -369,12 +356,12 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
       {notesOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+          style={{ background: "rgba(28,27,24,0.45)" }}
           onClick={() => setNotesOpen(false)}
         >
           <div
             className="w-full max-w-md rounded-2xl p-5"
-            style={{ background: "#14141f", border: `1px solid ${THEME.borderStrong}` }}
+            style={{ background: THEME.bgCard, border: `1px solid ${THEME.borderStrong}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-4">
@@ -397,7 +384,7 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
               <button
                 onClick={() => setNotesOpen(false)}
                 className="px-3 py-2 rounded-xl text-[12px]"
-                style={{ color: THEME.textSecondary, background: "rgba(255,255,255,0.04)" }}
+                style={{ color: THEME.textSecondary, background: "rgb(var(--ent-surface))" }}
               >
                 Cancelar
               </button>
@@ -405,9 +392,9 @@ function SubRow({ s, onReview }: { s: Sub; onReview: (id: string, status: string
                 onClick={submitWithNotes}
                 className="px-3 py-2 rounded-xl text-[12px] font-semibold"
                 style={{
-                  color: pendingAction === "REVISION" ? THEME.cyan : THEME.rose,
-                  background: pendingAction === "REVISION" ? THEME.cyanSoft : THEME.roseSoft,
-                  border: `1px solid ${pendingAction === "REVISION" ? THEME.cyanBorder : THEME.roseBorder}`,
+                  color: pendingAction === "REVISION" ? THEME.amber : THEME.danger,
+                  background: pendingAction === "REVISION" ? THEME.amberSoft : THEME.dangerSoft,
+                  border: `1px solid ${pendingAction === "REVISION" ? THEME.amberBorder : THEME.dangerBorder}`,
                 }}
               >
                 Confirmar
@@ -441,10 +428,10 @@ function Avatar({ name, url, size = 20 }: { name: string; url: string | null; si
       style={{
         width: size,
         height: size,
-        background: THEME.purpleSoft,
-        color: THEME.purple,
+        background: THEME.inkSoft,
+        color: THEME.ink,
         fontSize: size * 0.45,
-        border: `1px solid ${THEME.purpleBorder}`,
+        border: `1px solid ${THEME.inkBorder}`,
       }}
     >
       {initials}

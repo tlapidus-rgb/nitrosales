@@ -91,6 +91,10 @@ interface UnifiedAlert {
 // ─────────────────────────────────────────────────────────────
 // Módulos del sidebar (orden jerárquico)
 // ─────────────────────────────────────────────────────────────
+// Chrome neutro (ink) para el sidebar de módulos — antes cada fila tenía un color
+// de acento distinto ("badges de icono" arcoíris en CHROME → ink/neutral, ver
+// receta). Excepciones: MercadoLibre conserva su ámbar de marca (plataforma
+// externa real) y Favoritas usa el ámbar "activo" del sistema (--ent-amber).
 const MODULES: Array<{
   key: string;                              // clave de filtro (source o category)
   filterType: "all" | "favorites" | "source" | "category";
@@ -101,21 +105,21 @@ const MODULES: Array<{
   bg: string;
   comingSoon?: boolean;
 }> = [
-  { key: "all",            filterType: "all",        label: "Todas",          Icon: Inbox,         color: "#475569", bg: "#f1f5f9" },
-  { key: "favorites",      filterType: "favorites",  label: "Favoritas",      Icon: Star,          color: "#d97706", bg: "#fef3c7" },
+  { key: "all",            filterType: "all",        label: "Todas",          Icon: Inbox,         color: "#6B685F", bg: "#EDEAE3" },
+  { key: "favorites",      filterType: "favorites",  label: "Favoritas",      Icon: Star,          color: "#C98A1A", bg: "rgba(201,138,26,.12)" },
   // Separador
-  { key: "finanzas",       filterType: "category",   filterValue: "finanzas",    label: "Finanzas",       Icon: DollarSign,    color: "#1d4ed8", bg: "#dbeafe" },
-  { key: "fiscal",         filterType: "category",   filterValue: "fiscal",      label: "Fiscal",         Icon: Receipt,       color: "#6d28d9", bg: "#ede9fe" },
-  { key: "sistema",        filterType: "category",   filterValue: "sistema",     label: "Sistema",        Icon: RefreshCw,     color: "#475569", bg: "#f1f5f9" },
+  { key: "finanzas",       filterType: "category",   filterValue: "finanzas",    label: "Finanzas",       Icon: DollarSign,    color: "#6B685F", bg: "#EDEAE3" },
+  { key: "fiscal",         filterType: "category",   filterValue: "fiscal",      label: "Fiscal",         Icon: Receipt,       color: "#6B685F", bg: "#EDEAE3" },
+  { key: "sistema",        filterType: "category",   filterValue: "sistema",     label: "Sistema",        Icon: RefreshCw,     color: "#6B685F", bg: "#EDEAE3" },
   { key: "mercadolibre",   filterType: "source",     filterValue: "mercadolibre",label: "MercadoLibre",   Icon: ShoppingBag,   color: "#a16207", bg: "#fef3c7" },
-  { key: "ventas",         filterType: "category",   filterValue: "ventas",      label: "Ventas",         Icon: Target,        color: "#047857", bg: "#d1fae5" },
-  { key: "marketing",      filterType: "category",   filterValue: "marketing",   label: "Marketing",      Icon: TrendingUp,    color: "#be185d", bg: "#fce7f3" },
-  { key: "operaciones",    filterType: "category",   filterValue: "operaciones", label: "Operaciones",    Icon: Package,       color: "#c2410c", bg: "#fed7aa" },
+  { key: "ventas",         filterType: "category",   filterValue: "ventas",      label: "Ventas",         Icon: Target,        color: "#6B685F", bg: "#EDEAE3" },
+  { key: "marketing",      filterType: "category",   filterValue: "marketing",   label: "Marketing",      Icon: TrendingUp,    color: "#6B685F", bg: "#EDEAE3" },
+  { key: "operaciones",    filterType: "category",   filterValue: "operaciones", label: "Operaciones",    Icon: Package,       color: "#6B685F", bg: "#EDEAE3" },
   // Productos
-  { key: "aurum",          filterType: "source",     filterValue: "aurum",       label: "Aurum",          Icon: Sparkles,      color: "#0284c7", bg: "#e0f2fe" },
-  { key: "bondly",         filterType: "source",     filterValue: "bondly",      label: "Bondly",         Icon: Heart,         color: "#9333ea", bg: "#f3e8ff", comingSoon: true },
-  { key: "aura",           filterType: "source",     filterValue: "aura",        label: "Aura",           Icon: Wand2,         color: "#be123c", bg: "#ffe4e6", comingSoon: true },
-  { key: "nitropixel",     filterType: "source",     filterValue: "nitropixel",  label: "Nitropixel",     Icon: Zap,           color: "#4f46e5", bg: "#e0e7ff", comingSoon: true },
+  { key: "aurum",          filterType: "source",     filterValue: "aurum",       label: "Aurum",          Icon: Sparkles,      color: "#6B685F", bg: "#EDEAE3" },
+  { key: "bondly",         filterType: "source",     filterValue: "bondly",      label: "Bondly",         Icon: Heart,         color: "#9A978D", bg: "#EDEAE3", comingSoon: true },
+  { key: "aura",           filterType: "source",     filterValue: "aura",        label: "Aura",           Icon: Wand2,         color: "#9A978D", bg: "#EDEAE3", comingSoon: true },
+  { key: "nitropixel",     filterType: "source",     filterValue: "nitropixel",  label: "Nitropixel",     Icon: Zap,           color: "#9A978D", bg: "#EDEAE3", comingSoon: true },
 ];
 
 const SEV_META: Record<AlertSeverity, { label: string; color: string; bg: string; Icon: any }> = {
@@ -419,28 +423,18 @@ export default function AlertasPage() {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: "#fafafa",
+        background: "#FBFAF7",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* Aurora subtle */}
-      <div
-        style={{
-          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-          background:
-            "radial-gradient(800px 400px at 80% -10%, rgba(244, 63, 94, 0.05), transparent 60%)," +
-            "radial-gradient(700px 400px at 10% 110%, rgba(245, 158, 11, 0.04), transparent 60%)",
-        }}
-      />
-
       {/* Header */}
       <div
         style={{
           position: "relative",
           zIndex: 1,
           padding: "16px 24px",
-          borderBottom: "1px solid rgba(15, 23, 42, 0.06)",
+          borderBottom: "1px solid rgba(28, 27, 24, 0.06)",
           background: "rgba(255, 255, 255, 0.75)",
           backdropFilter: "blur(8px)",
           display: "flex",
@@ -453,14 +447,12 @@ export default function AlertasPage() {
             fontSize: 22,
             fontWeight: 700,
             letterSpacing: "-0.02em",
-            background: "linear-gradient(90deg, #f43f5e, #f59e0b)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            color: "#1C1B18",
           }}
         >
           Alertas
         </div>
-        <div style={{ fontSize: 13, color: "#64748b" }}>
+        <div style={{ fontSize: 13, color: "#9A978D" }}>
           {loading ? "Cargando…" : `${alerts.length} · ${unreadCount} sin leer`}
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
@@ -471,9 +463,9 @@ export default function AlertasPage() {
               fontSize: 13,
               fontWeight: 500,
               borderRadius: 8,
-              border: "1px solid rgba(15, 23, 42, 0.1)",
+              border: "1px solid rgba(28, 27, 24, 0.1)",
               background: "white",
-              color: "#475569",
+              color: "#6B685F",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -489,9 +481,9 @@ export default function AlertasPage() {
               fontSize: 13,
               fontWeight: 500,
               borderRadius: 8,
-              border: "1px solid rgba(15, 23, 42, 0.1)",
+              border: "1px solid rgba(28, 27, 24, 0.1)",
               background: "white",
-              color: "#475569",
+              color: "#6B685F",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -507,7 +499,7 @@ export default function AlertasPage() {
               fontSize: 13,
               fontWeight: 500,
               borderRadius: 8,
-              background: "#0f172a",
+              background: "#1C1B18",
               color: "white",
               cursor: "pointer",
               display: "inline-flex",
@@ -561,7 +553,7 @@ export default function AlertasPage() {
           style={{
             width: 230,
             padding: "20px 10px",
-            borderRight: "1px solid rgba(15, 23, 42, 0.06)",
+            borderRight: "1px solid rgba(28, 27, 24, 0.06)",
             background: "rgba(255, 255, 255, 0.5)",
             overflowY: "auto",
           }}
@@ -571,7 +563,7 @@ export default function AlertasPage() {
               padding: "0 12px 10px",
               fontSize: 10,
               fontWeight: 700,
-              color: "#94a3b8",
+              color: "#9A978D",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -593,7 +585,7 @@ export default function AlertasPage() {
           <div
             style={{
               height: 1,
-              background: "rgba(15, 23, 42, 0.06)",
+              background: "rgba(28, 27, 24, 0.06)",
               margin: "12px 12px",
             }}
           />
@@ -603,7 +595,7 @@ export default function AlertasPage() {
               padding: "0 12px 10px",
               fontSize: 10,
               fontWeight: 700,
-              color: "#94a3b8",
+              color: "#9A978D",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -625,7 +617,7 @@ export default function AlertasPage() {
           <div
             style={{
               height: 1,
-              background: "rgba(15, 23, 42, 0.06)",
+              background: "rgba(28, 27, 24, 0.06)",
               margin: "12px 12px",
             }}
           />
@@ -635,7 +627,7 @@ export default function AlertasPage() {
               padding: "0 12px 10px",
               fontSize: 10,
               fontWeight: 700,
-              color: "#94a3b8",
+              color: "#9A978D",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -659,7 +651,7 @@ export default function AlertasPage() {
         <div
           style={{
             width: 440,
-            borderRight: "1px solid rgba(15, 23, 42, 0.06)",
+            borderRight: "1px solid rgba(28, 27, 24, 0.06)",
             background: "white",
             display: "flex",
             flexDirection: "column",
@@ -669,14 +661,14 @@ export default function AlertasPage() {
           <div
             style={{
               padding: "14px 18px 12px",
-              borderBottom: "1px solid rgba(15, 23, 42, 0.06)",
+              borderBottom: "1px solid rgba(28, 27, 24, 0.06)",
             }}
           >
             <div
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: "#94a3b8",
+                color: "#9A978D",
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 marginBottom: 8,
@@ -688,7 +680,7 @@ export default function AlertasPage() {
             <div
               style={{
                 display: "flex",
-                background: "#f1f5f9",
+                background: "#EDEAE3",
                 borderRadius: 8,
                 padding: 3,
                 gap: 2,
@@ -724,9 +716,9 @@ export default function AlertasPage() {
                       borderRadius: 6,
                       cursor: "pointer",
                       background: isActive ? "white" : "transparent",
-                      color: isActive ? "#0f172a" : "#64748b",
+                      color: isActive ? "#1C1B18" : "#9A978D",
                       boxShadow: isActive
-                        ? "0 1px 2px rgba(15, 23, 42, 0.08)"
+                        ? "0 1px 2px rgba(28, 27, 24, 0.08)"
                         : "none",
                       border: "none",
                       display: "inline-flex",
@@ -749,7 +741,7 @@ export default function AlertasPage() {
                     <span
                       style={{
                         fontSize: 10,
-                        color: isActive ? "#64748b" : "#94a3b8",
+                        color: isActive ? "#9A978D" : "#9A978D",
                       }}
                     >
                       {count}
@@ -773,7 +765,7 @@ export default function AlertasPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  color: "#64748b",
+                  color: "#9A978D",
                   cursor: "pointer",
                 }}
               >
@@ -791,7 +783,7 @@ export default function AlertasPage() {
           {/* Lista */}
           <div style={{ flex: 1, overflowY: "auto" }}>
             {loading ? (
-              <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+              <div style={{ padding: 40, textAlign: "center", color: "#9A978D", fontSize: 13 }}>
                 Cargando…
               </div>
             ) : error ? (
@@ -808,14 +800,14 @@ export default function AlertasPage() {
                       padding: "14px 18px 6px",
                       fontSize: 10,
                       fontWeight: 700,
-                      color: "#94a3b8",
+                      color: "#9A978D",
                       textTransform: "uppercase",
                       letterSpacing: "0.08em",
-                      background: "#fafafa",
+                      background: "#F5F3EE",
                       position: "sticky",
                       top: 0,
                       zIndex: 1,
-                      borderBottom: "1px solid rgba(15, 23, 42, 0.04)",
+                      borderBottom: "1px solid rgba(28, 27, 24, 0.04)",
                     }}
                   >
                     {group.label}
@@ -884,9 +876,9 @@ function ModuleButton({
         padding: "9px 12px",
         borderRadius: 8,
         fontSize: 13,
-        color: active ? "white" : isComingSoon ? "#cbd5e1" : "#475569",
+        color: active ? "white" : isComingSoon ? "#9A978D" : "#6B685F",
         marginBottom: 2,
-        background: active ? "#0f172a" : "transparent",
+        background: active ? "#1C1B18" : "transparent",
         border: "none",
         cursor: isComingSoon ? "not-allowed" : "pointer",
         textAlign: "left",
@@ -894,14 +886,14 @@ function ModuleButton({
       }}
       onMouseEnter={(e) => {
         if (!active && !isComingSoon) {
-          (e.currentTarget as HTMLElement).style.background = "rgba(15, 23, 42, 0.04)";
-          (e.currentTarget as HTMLElement).style.color = "#0f172a";
+          (e.currentTarget as HTMLElement).style.background = "rgba(28, 27, 24, 0.04)";
+          (e.currentTarget as HTMLElement).style.color = "#1C1B18";
         }
       }}
       onMouseLeave={(e) => {
         if (!active && !isComingSoon) {
           (e.currentTarget as HTMLElement).style.background = "transparent";
-          (e.currentTarget as HTMLElement).style.color = "#475569";
+          (e.currentTarget as HTMLElement).style.color = "#6B685F";
         }
       }}
     >
@@ -928,8 +920,8 @@ function ModuleButton({
             fontWeight: 600,
             padding: "2px 6px",
             borderRadius: 10,
-            background: "#f1f5f9",
-            color: "#94a3b8",
+            background: "#EDEAE3",
+            color: "#9A978D",
             textTransform: "uppercase",
             letterSpacing: "0.04em",
           }}
@@ -953,7 +945,7 @@ function ModuleButton({
             style={{
               fontSize: 11,
               fontWeight: 600,
-              color: active ? "rgba(255, 255, 255, 0.8)" : "#94a3b8",
+              color: active ? "rgba(255, 255, 255, 0.8)" : "#9A978D",
               fontVariantNumeric: "tabular-nums",
             }}
           >
@@ -986,17 +978,17 @@ function AlertRow({
       onClick={onClick}
       style={{
         padding: "14px 18px",
-        borderBottom: "1px solid rgba(15, 23, 42, 0.04)",
+        borderBottom: "1px solid rgba(28, 27, 24, 0.04)",
         cursor: "pointer",
         position: "relative",
         display: "flex",
         gap: 10,
         alignItems: "flex-start",
-        background: selected ? "#fef2f2" : "transparent",
+        background: selected ? "#EDEAE3" : "transparent",
         transition: "background .1s",
       }}
       onMouseEnter={(e) => {
-        if (!selected) (e.currentTarget as HTMLElement).style.background = "#f8fafc";
+        if (!selected) (e.currentTarget as HTMLElement).style.background = "#F5F3EE";
       }}
       onMouseLeave={(e) => {
         if (!selected) (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -1010,7 +1002,7 @@ function AlertRow({
             top: 0,
             bottom: 0,
             width: 3,
-            background: "linear-gradient(180deg, #dc2626, #f59e0b)",
+            background: "#1C1B18",
           }}
         />
       )}
@@ -1037,7 +1029,7 @@ function AlertRow({
             lineHeight: 1.4,
             marginBottom: 4,
             fontWeight: isRead ? 400 : 600,
-            color: isRead ? "#64748b" : "#0f172a",
+            color: isRead ? "#9A978D" : "#1C1B18",
             display: "flex",
             alignItems: "flex-start",
             gap: 6,
@@ -1059,7 +1051,7 @@ function AlertRow({
             gap: 6,
             alignItems: "center",
             fontSize: 11,
-            color: "#94a3b8",
+            color: "#9A978D",
           }}
         >
           <span
@@ -1068,8 +1060,8 @@ function AlertRow({
               borderRadius: 4,
               fontSize: 10,
               fontWeight: 500,
-              background: "#f1f5f9",
-              color: "#475569",
+              background: "#EDEAE3",
+              color: "#6B685F",
             }}
           >
             {alert.category}
@@ -1088,7 +1080,7 @@ function AlertRow({
             border: "none",
             background: "transparent",
             cursor: "pointer",
-            color: alert.favorited ? "#f59e0b" : "#cbd5e1",
+            color: alert.favorited ? "#f59e0b" : "#9A978D",
             padding: 4,
             borderRadius: 4,
             display: "inline-flex",
@@ -1109,7 +1101,7 @@ function AlertRow({
             border: "none",
             background: "transparent",
             cursor: "pointer",
-            color: isRead ? "#cbd5e1" : "#2563eb",
+            color: isRead ? "#9A978D" : "#2563eb",
             padding: 4,
             borderRadius: 4,
             display: "inline-flex",
@@ -1154,7 +1146,7 @@ function AlertDetail({
               border: "none",
               background: "transparent",
               cursor: "pointer",
-              color: alert.favorited ? "#f59e0b" : "#cbd5e1",
+              color: alert.favorited ? "#f59e0b" : "#9A978D",
               padding: 4,
               marginTop: 2,
             }}
@@ -1168,7 +1160,7 @@ function AlertDetail({
               fontWeight: 700,
               letterSpacing: "-0.01em",
               lineHeight: 1.3,
-              color: "#0f172a",
+              color: "#1C1B18",
               margin: 0,
               flex: 1,
             }}
@@ -1225,23 +1217,23 @@ function AlertDetail({
           display: "flex",
           gap: 16,
           fontSize: 13,
-          color: "#64748b",
+          color: "#9A978D",
           marginBottom: 24,
           paddingBottom: 20,
-          borderBottom: "1px solid rgba(15, 23, 42, 0.06)",
+          borderBottom: "1px solid rgba(28, 27, 24, 0.06)",
           flexWrap: "wrap",
         }}
       >
         <span>
-          <b style={{ color: "#0f172a", fontWeight: 500 }}>Origen:</b>{" "}
+          <b style={{ color: "#1C1B18", fontWeight: 500 }}>Origen:</b>{" "}
           {alert.source.replace(/_/g, " ")}
         </span>
         <span>
-          <b style={{ color: "#0f172a", fontWeight: 500 }}>Detectado:</b>{" "}
+          <b style={{ color: "#1C1B18", fontWeight: 500 }}>Detectado:</b>{" "}
           {timeAgo(alert.createdAt)}
         </span>
         <span>
-          <b style={{ color: "#0f172a", fontWeight: 500 }}>Categoría:</b>{" "}
+          <b style={{ color: "#1C1B18", fontWeight: 500 }}>Categoría:</b>{" "}
           {alert.category}
         </span>
       </div>
@@ -1250,7 +1242,7 @@ function AlertDetail({
         style={{
           fontSize: 14,
           lineHeight: 1.7,
-          color: "#334155",
+          color: "#6B685F",
           marginBottom: 28,
           whiteSpace: "pre-wrap",
         }}
@@ -1275,14 +1267,14 @@ function AlertDetail({
                 style={{
                   padding: 14,
                   background: "white",
-                  border: "1px solid rgba(15, 23, 42, 0.06)",
+                  border: "1px solid rgba(28, 27, 24, 0.06)",
                   borderRadius: 10,
                 }}
               >
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#94a3b8",
+                    color: "#9A978D",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: 6,
@@ -1294,7 +1286,7 @@ function AlertDetail({
                   style={{
                     fontSize: 15,
                     fontWeight: 600,
-                    color: "#0f172a",
+                    color: "#1C1B18",
                     wordBreak: "break-all",
                   }}
                 >
@@ -1314,7 +1306,7 @@ function AlertDetail({
               borderRadius: 8,
               fontSize: 13,
               fontWeight: 500,
-              background: "#0f172a",
+              background: "#1C1B18",
               color: "white",
               textDecoration: "none",
               display: "inline-flex",
@@ -1332,9 +1324,8 @@ function AlertDetail({
         style={{
           marginTop: 32,
           padding: 16,
-          background:
-            "linear-gradient(135deg, rgba(244, 63, 94, 0.04), rgba(245, 158, 11, 0.04))",
-          border: "1px dashed rgba(244, 63, 94, 0.3)",
+          background: "#F5F3EE",
+          border: "1px dashed #DCD8CD",
           borderRadius: 10,
         }}
       >
@@ -1343,7 +1334,7 @@ function AlertDetail({
             fontSize: 13,
             fontWeight: 600,
             marginBottom: 6,
-            color: "#0f172a",
+            color: "#1C1B18",
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
@@ -1352,12 +1343,12 @@ function AlertDetail({
           <Lightbulb size={14} />
           ¿Querés que te avisemos antes la próxima vez?
         </div>
-        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "#9A978D", lineHeight: 1.5 }}>
           Crear una regla personalizada para esta situación y recibir
           notificación por mail o in-app.{" "}
           <Link
             href="/alertas/reglas"
-            style={{ color: "#f43f5e", fontWeight: 500, textDecoration: "none" }}
+            style={{ color: "#1C1B18", fontWeight: 500, textDecoration: "none" }}
           >
             Configurar regla →
           </Link>
@@ -1373,7 +1364,7 @@ function EmptyList() {
       style={{
         padding: 40,
         textAlign: "center",
-        color: "#94a3b8",
+        color: "#9A978D",
         fontSize: 13,
         display: "flex",
         flexDirection: "column",
@@ -1387,7 +1378,7 @@ function EmptyList() {
           style={{
             fontSize: 14,
             fontWeight: 600,
-            color: "#0f172a",
+            color: "#1C1B18",
             marginBottom: 4,
           }}
         >
@@ -1408,7 +1399,7 @@ function EmptyDetail() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        color: "#94a3b8",
+        color: "#9A978D",
         fontSize: 13,
         gap: 10,
       }}

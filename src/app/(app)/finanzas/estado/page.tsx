@@ -108,10 +108,10 @@ interface PaymentFeeDetail {
 function InfoTip({ text }: { text: string }) {
   return (
     <span className="relative group inline-flex ml-1 cursor-help">
-      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold leading-none hover:bg-gray-300 transition-colors">?</span>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed">
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface-2 text-ink-40 text-[10px] font-bold leading-none hover:bg-hairline-2 transition-colors">?</span>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 text-xs text-white bg-ink rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed">
         {text}
-        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-ink" />
       </span>
     </span>
   );
@@ -120,15 +120,30 @@ function InfoTip({ text }: { text: string }) {
 function ChangeIndicator({ value, inverse }: { value: number | null | undefined; inverse?: boolean }) {
   if (value === null || value === undefined) return null;
   const isPositive = inverse ? value < 0 : value > 0;
-  const color = isPositive ? "text-green-600" : value === 0 ? "text-gray-400" : "text-red-500";
+  const color = isPositive ? "text-green-600" : value === 0 ? "text-ink-40" : "text-red-500";
   const arrow = value > 0 ? "\u2191" : value < 0 ? "\u2193" : "";
   return <span className={`text-xs font-medium ${color}`}>{arrow}{Math.abs(value)}%</span>;
+}
+
+/**
+ * Color de display para una fila del P&L statement — desacoplado del campo
+ * `row.color` (que sigue siendo el arcoíris original: blue/red/orange/purple/...)
+ * porque ese campo también alimenta el mapeo semántico del export a Excel
+ * (ver handleExcel más abajo, que hace row.color?.includes("blue") etc).
+ * Acá solo dejamos pasar el color real cuando es status genuino (verde/rojo
+ * condicional al signo del valor); el resto de la paleta arcoíris decorativa
+ * se neutraliza a tonos ink del design system.
+ */
+function pnlDisplayColor(row: { color?: string; small?: boolean; bold?: boolean }): string {
+  if (row.small) return "text-ink-40";
+  if (row.color && /text-(green|red)-/.test(row.color)) return row.color;
+  return row.bold ? "text-ink" : "text-ink-60";
 }
 
 function MarginBar({ value, color }: { value: number; color: string }) {
   const width = Math.min(Math.max(value, 0), 100);
   return (
-    <div className="w-full bg-gray-100 rounded-full h-2">
+    <div className="w-full bg-surface-2 rounded-full h-2">
       <div className={`h-2 rounded-full ${color}`} style={{ width: `${width}%` }} />
     </div>
   );
@@ -256,25 +271,25 @@ function ExecutiveView({
                 {health.label}
               </span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mt-2">
+            <p className="text-3xl font-bold text-ink mt-2">
               {fm(netProfit)}
             </p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-ink-40 mt-1">
               Beneficio neto — {netMargin}% de margen
               <InfoTip text="El beneficio neto es lo que te queda despues de restar TODOS los costos: mercaderia, publicidad, envios, comisiones y gastos operativos. El margen indica que porcentaje de cada peso facturado es ganancia real." />
             </p>
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-ink-40 mt-2">
               De {fm(summary.revenue)} facturados, te quedan {fm(netProfit)} despues de todos los costos
             </p>
           </div>
           <div className="text-right">
             {changes && (
               <div className="flex items-center gap-1 justify-end">
-                <span className="text-xs text-gray-400">vs periodo anterior</span>
+                <span className="text-xs text-ink-40">vs periodo anterior</span>
                 <ChangeIndicator value={changes.operatingProfit} />
               </div>
             )}
-            <p className="text-xs text-gray-400 mt-1">{summary.orders.toLocaleString("es-AR")} ordenes</p>
+            <p className="text-xs text-ink-40 mt-1">{summary.orders.toLocaleString("es-AR")} ordenes</p>
           </div>
         </div>
       </div>
@@ -282,10 +297,10 @@ function ExecutiveView({
       {/* ── Section 2: Cascada simplificada (3 cards) ─── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Facturación */}
-        <div className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-blue-500">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Facturacion <InfoTip text="Total cobrado por tus ventas, incluyendo IVA. Es el dinero bruto que entra antes de descontar cualquier costo." /></span>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{fm(summary.revenue)}</p>
-          <p className="text-sm text-gray-500 mt-1">{summary.orders.toLocaleString("es-AR")} ordenes</p>
+        <div className="bg-elevated rounded-xl p-5 shadow-sm border border-hairline">
+          <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Facturacion <InfoTip text="Total cobrado por tus ventas, incluyendo IVA. Es el dinero bruto que entra antes de descontar cualquier costo." /></span>
+          <p className="text-2xl font-bold text-ink mt-2">{fm(summary.revenue)}</p>
+          <p className="text-sm text-ink-40 mt-1">{summary.orders.toLocaleString("es-AR")} ordenes</p>
           {changes && (
             <div className="mt-2">
               <ChangeIndicator value={changes.revenue} />
@@ -294,22 +309,22 @@ function ExecutiveView({
         </div>
 
         {/* Costos totales */}
-        <div className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-red-400">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Totales <InfoTip text="Suma de todo lo que gastas para operar: costo de productos (COGS), publicidad, envios, comisiones de plataformas, medios de pago y gastos fijos." /></span>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{fm(totalCosts)}</p>
-          <p className="text-sm text-gray-500 mt-1">{costPct.toFixed(1)}% del revenue</p>
+        <div className="bg-elevated rounded-xl p-5 shadow-sm border border-hairline">
+          <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Costos Totales <InfoTip text="Suma de todo lo que gastas para operar: costo de productos (COGS), publicidad, envios, comisiones de plataformas, medios de pago y gastos fijos." /></span>
+          <p className="text-2xl font-bold text-ink mt-2">{fm(totalCosts)}</p>
+          <p className="text-sm text-ink-40 mt-1">{costPct.toFixed(1)}% del revenue</p>
           <div className="mt-3 space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-gray-400">COGS <InfoTip text="Cost of Goods Sold: lo que te cuesta comprar o fabricar los productos que vendiste." /></span>
-              <span className="text-gray-600 font-mono">{fm(summary.cogs)}</span>
+              <span className="text-ink-40">COGS <InfoTip text="Cost of Goods Sold: lo que te cuesta comprar o fabricar los productos que vendiste." /></span>
+              <span className="text-ink-60 font-mono">{fm(summary.cogs)}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-gray-400">Publicidad</span>
-              <span className="text-gray-600 font-mono">{fm(summary.adSpend)}</span>
+              <span className="text-ink-40">Publicidad</span>
+              <span className="text-ink-60 font-mono">{fm(summary.adSpend)}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-gray-400">Envios + Comisiones + Otros</span>
-              <span className="text-gray-600 font-mono">
+              <span className="text-ink-40">Envios + Comisiones + Otros</span>
+              <span className="text-ink-60 font-mono">
                 {fm(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
               </span>
             </div>
@@ -317,12 +332,12 @@ function ExecutiveView({
         </div>
 
         {/* Resultado */}
-        <div className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${netProfit >= 0 ? "border-green-500" : "border-red-500"}`}>
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultado <InfoTip text="Lo que realmente ganas (o perdes) despues de pagar todos los costos. Si es verde, tu negocio es rentable. Si es rojo, estas operando a perdida." /></span>
+        <div className={`bg-elevated rounded-xl p-5 shadow-sm border ${netProfit >= 0 ? "border-green-200" : "border-red-200"}`}>
+          <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Resultado <InfoTip text="Lo que realmente ganas (o perdes) despues de pagar todos los costos. Si es verde, tu negocio es rentable. Si es rojo, estas operando a perdida." /></span>
           <p className={`text-2xl font-bold mt-2 ${netProfit >= 0 ? "text-green-700" : "text-red-600"}`}>
             {fm(netProfit)}
           </p>
-          <p className="text-sm text-gray-500 mt-1">{netMargin}% margen neto <InfoTip text="El porcentaje de cada peso de facturacion que queda como ganancia neta. Ej: 18% significa que de cada $100 facturados, te quedan $18." /></p>
+          <p className="text-sm text-ink-40 mt-1">{netMargin}% margen neto <InfoTip text="El porcentaje de cada peso de facturacion que queda como ganancia neta. Ej: 18% significa que de cada $100 facturados, te quedan $18." /></p>
           {changes && (
             <div className="mt-2">
               <ChangeIndicator value={changes.operatingProfit} />
@@ -337,8 +352,8 @@ function ExecutiveView({
 
       {/* ── Section 3: Mini sparkline ─── */}
       {dailyTrend.length > 2 && (
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
-          <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Tendencia del periodo</h3>
+        <div className="bg-elevated rounded-xl p-4 shadow-sm mb-6">
+          <h3 className="text-xs font-medium text-ink-40 uppercase tracking-wide mb-3">Tendencia del periodo</h3>
           <ResponsiveContainer width="100%" height={120}>
             <AreaChart data={dailyTrend} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
               <Area
@@ -357,10 +372,10 @@ function ExecutiveView({
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex gap-4 mt-1">
-            <span className="text-xs text-gray-400 flex items-center gap-1">
+            <span className="text-xs text-ink-40 flex items-center gap-1">
               <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" /> Revenue
             </span>
-            <span className="text-xs text-gray-400 flex items-center gap-1">
+            <span className="text-xs text-ink-40 flex items-center gap-1">
               <span className="w-3 h-0.5 bg-green-500 inline-block rounded" /> Beneficio
             </span>
           </div>
@@ -374,24 +389,24 @@ function ExecutiveView({
             const channelHealth = getHealthStatus(s.operatingMargin);
             const revPct = summary.revenue > 0 ? ((s.revenue / summary.revenue) * 100).toFixed(0) : 0;
             return (
-              <div key={s.source} className="bg-white rounded-xl p-5 shadow-sm">
+              <div key={s.source} className="bg-elevated rounded-xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-700">
+                  <h4 className="text-sm font-semibold text-ink-60">
                     {s.source === "MELI" ? "MercadoLibre" : s.source}
                   </h4>
-                  <span className="text-xs text-gray-400">{revPct}% del total</span>
+                  <span className="text-xs text-ink-40">{revPct}% del total</span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div>
-                    <span className="text-xs text-gray-400 block">Revenue</span>
-                    <span className="text-sm font-bold text-gray-800">{fm(s.revenue)}</span>
+                    <span className="text-xs text-ink-40 block">Revenue</span>
+                    <span className="text-sm font-bold text-ink">{fm(s.revenue)}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-400 block">Ordenes</span>
-                    <span className="text-sm font-bold text-gray-800">{s.orders.toLocaleString("es-AR")}</span>
+                    <span className="text-xs text-ink-40 block">Ordenes</span>
+                    <span className="text-sm font-bold text-ink">{s.orders.toLocaleString("es-AR")}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-400 block">Margen Op. <InfoTip text="Margen operativo: porcentaje de ganancia del canal despues de descontar costos directos (COGS, envios, comisiones). Cuanto mas alto, mas rentable es ese canal." /></span>
+                    <span className="text-xs text-ink-40 block">Margen Op. <InfoTip text="Margen operativo: porcentaje de ganancia del canal despues de descontar costos directos (COGS, envios, comisiones). Cuanto mas alto, mas rentable es ese canal." /></span>
                     <span className={`text-sm font-bold ${channelHealth.color}`}>{s.operatingMargin}%</span>
                   </div>
                 </div>
@@ -463,20 +478,20 @@ function DetailedView({
     { label: "Facturacion (Revenue)", value: summary.revenue, bold: true, color: "text-blue-600", tip: "Todo lo que cobraste por ventas en el periodo. Incluye IVA si sos Responsable Inscripto." },
     // IVA rows for Responsable Inscripto
     ...(summary.isRI && summary.ivaDebitoFiscal ? [
-      { label: "    IVA Debito Fiscal (21%)", value: -(summary.ivaDebitoFiscal), color: "text-gray-400", indent: true, small: true, tip: "El IVA que cobras en tus ventas y debes pagar a AFIP. No es ingreso tuyo, sino un impuesto que el cliente paga a traves tuyo." },
+      { label: "    IVA Debito Fiscal (21%)", value: -(summary.ivaDebitoFiscal), color: "text-ink-40", indent: true, small: true, tip: "El IVA que cobras en tus ventas y debes pagar a AFIP. No es ingreso tuyo, sino un impuesto que el cliente paga a traves tuyo." },
       { label: "    Revenue Neto IVA", value: summary.revenueNetoIVA || 0, color: "text-blue-400", indent: true, small: true, tip: "Tu facturacion real sin el IVA. Este es el verdadero ingreso de tu negocio si sos Responsable Inscripto." },
     ] : []),
     { label: "(-) Costo de Mercaderia (COGS)", value: -summary.cogs, color: "text-red-500", behavior: "VARIABLE" as CostBehavior, tip: "Lo que te costo comprar todos los productos que vendiste. Es tu costo mas grande y el que mas impacta en la rentabilidad." },
     { label: "= Ganancia Bruta", value: summary.grossProfit, bold: true, color: summary.grossProfit >= 0 ? "text-green-600" : "text-red-600", pct: summary.grossMargin, tip: "Revenue menos COGS. Muestra cuanto ganas solo por la diferencia entre precio de venta y costo del producto, sin considerar otros gastos." },
     { label: "(-) Inversion Publicitaria", value: -summary.adSpend, color: "text-orange-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que invertiste en publicidad paga (Meta Ads + Google Ads). Es un costo variable: mientras mas invertis, mas ventas generas (idealmente)." },
-    { label: "    Meta Ads", value: -summary.metaSpend, color: "text-gray-400", indent: true, small: true },
-    { label: "    Google Ads", value: -summary.googleSpend, color: "text-gray-400", indent: true, small: true },
+    { label: "    Meta Ads", value: -summary.metaSpend, color: "text-ink-40", indent: true, small: true },
+    { label: "    Google Ads", value: -summary.googleSpend, color: "text-ink-40", indent: true, small: true },
     { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que pagaste en logistica para enviar los pedidos. Incluye envios gratis que absorbes vos y el costo real del flete." },
     { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que te cobran los marketplaces por vender ahi. MercadoLibre cobra un porcentaje por venta, y VTEX puede tener un fee fijo o variable." },
     ...(bySource.map(s => ({
       label: `    ${s.source === "MELI" ? "MercadoLibre" : s.source}: ${s.platformFeeLabel}`,
       value: -s.platformFee,
-      color: "text-gray-400",
+      color: "text-ink-40",
       indent: true,
       small: true,
     }))),
@@ -486,7 +501,7 @@ function DetailedView({
       ...(paymentFeeDetails.filter(pf => pf.fee > 0).map(pf => ({
         label: `    ${pf.method} (${pf.source}): ${pf.feeRate}%`,
         value: -pf.fee,
-        color: "text-gray-400",
+        color: "text-ink-40",
         indent: true,
         small: true,
       }))),
@@ -504,7 +519,7 @@ function DetailedView({
         return {
           label: `    ${cat?.label || mc.category}`,
           value: -mc.total,
-          color: "text-gray-400",
+          color: "text-ink-40",
           indent: true,
           small: true,
           behavior,
@@ -798,86 +813,86 @@ function DetailedView({
       {/* ── KPI Cards (5 consolidadas) ─── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         {/* Revenue */}
-        <div className="bg-white rounded-xl p-4 border-l-4 border-blue-500 shadow-sm">
+        <div className="bg-elevated rounded-xl p-4 border border-hairline shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Revenue <InfoTip text="Facturacion total: todo lo que cobraste por tus ventas en el periodo seleccionado, incluyendo IVA." /></span>
+            <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Revenue <InfoTip text="Facturacion total: todo lo que cobraste por tus ventas en el periodo seleccionado, incluyendo IVA." /></span>
             {changes && <ChangeIndicator value={changes.revenue} />}
           </div>
-          <p className="text-lg font-bold text-gray-800">{fm(summary.revenue)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{summary.orders} ordenes | AOV {fm(summary.aov)} <InfoTip text="AOV (Average Order Value) es el ticket promedio: cuanto gasta en promedio cada cliente por pedido." /></p>
+          <p className="text-lg font-bold text-ink">{fm(summary.revenue)}</p>
+          <p className="text-xs text-ink-40 mt-0.5">{summary.orders} ordenes | AOV {fm(summary.aov)} <InfoTip text="AOV (Average Order Value) es el ticket promedio: cuanto gasta en promedio cada cliente por pedido." /></p>
         </div>
         {/* COGS / Margen Bruto */}
-        <div className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm">
+        <div className="bg-elevated rounded-xl p-4 border border-hairline shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Margen Bruto <InfoTip text="Lo que queda despues de restar solo el costo de la mercaderia (COGS). Es tu primer indicador de rentabilidad: si es bajo, estas vendiendo con poco margen sobre el costo del producto." /></span>
+            <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Margen Bruto <InfoTip text="Lo que queda despues de restar solo el costo de la mercaderia (COGS). Es tu primer indicador de rentabilidad: si es bajo, estas vendiendo con poco margen sobre el costo del producto." /></span>
             {changes && <ChangeIndicator value={changes.grossProfit} />}
           </div>
-          <p className="text-lg font-bold text-gray-800">{fm(summary.grossProfit)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{summary.grossMargin}% | COGS: {fm(summary.cogs)}</p>
+          <p className="text-lg font-bold text-ink">{fm(summary.grossProfit)}</p>
+          <p className="text-xs text-ink-40 mt-0.5">{summary.grossMargin}% | COGS: {fm(summary.cogs)}</p>
         </div>
         {/* Ads */}
-        <div className="bg-white rounded-xl p-4 border-l-4 border-orange-400 shadow-sm">
+        <div className="bg-elevated rounded-xl p-4 border border-hairline shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Publicidad <InfoTip text="Inversion total en anuncios pagos: Meta (Facebook/Instagram) y Google (Search/Shopping/Display). A diferencia de otros costos, la flecha verde aca significa que gastaste MENOS." /></span>
+            <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Publicidad <InfoTip text="Inversion total en anuncios pagos: Meta (Facebook/Instagram) y Google (Search/Shopping/Display). A diferencia de otros costos, la flecha verde aca significa que gastaste MENOS." /></span>
             {changes && <ChangeIndicator value={changes.adSpend} inverse />}
           </div>
-          <p className="text-lg font-bold text-gray-800">{fm(summary.adSpend)}</p>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">Meta {fm(summary.metaSpend)} | Google {fm(summary.googleSpend)}</p>
+          <p className="text-lg font-bold text-ink">{fm(summary.adSpend)}</p>
+          <p className="text-xs text-ink-40 mt-0.5 truncate">Meta {fm(summary.metaSpend)} | Google {fm(summary.googleSpend)}</p>
         </div>
         {/* Costos operativos (envíos + comisiones + payment + otros) */}
-        <div className="bg-white rounded-xl p-4 border-l-4 border-indigo-400 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Operativos <InfoTip text="Todos los costos de operar ademas de productos y publicidad: envios, comisiones de MercadoLibre/VTEX, comisiones de medios de pago (tarjetas, MercadoPago), y gastos fijos que cargaste manualmente." /></span>
-          <p className="text-lg font-bold text-gray-800 mt-1">
+        <div className="bg-elevated rounded-xl p-4 border border-hairline shadow-sm">
+          <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Costos Operativos <InfoTip text="Todos los costos de operar ademas de productos y publicidad: envios, comisiones de MercadoLibre/VTEX, comisiones de medios de pago (tarjetas, MercadoPago), y gastos fijos que cargaste manualmente." /></span>
+          <p className="text-lg font-bold text-ink mt-1">
             {fm(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
           </p>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">
+          <p className="text-xs text-ink-40 mt-0.5 truncate">
             Envios {fm(summary.shipping)} | Comis. {fm((summary.platformFees || 0) + (summary.paymentFees || 0))}
           </p>
         </div>
         {/* Beneficio Neto */}
-        <div className={`bg-white rounded-xl p-4 border-l-4 shadow-sm ${netOp >= 0 ? "border-green-600" : "border-red-600"}`}>
+        <div className={`bg-elevated rounded-xl p-4 border shadow-sm ${netOp >= 0 ? "border-green-200" : "border-red-200"}`}>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Beneficio Neto <InfoTip text="La linea final: lo que realmente te queda despues de TODOS los costos. Es el numero mas importante del P&L — indica si tu negocio es rentable o no." /></span>
+            <span className="text-xs font-medium text-ink-40 uppercase tracking-wide">Beneficio Neto <InfoTip text="La linea final: lo que realmente te queda despues de TODOS los costos. Es el numero mas importante del P&L — indica si tu negocio es rentable o no." /></span>
             {changes && <ChangeIndicator value={changes.operatingProfit} />}
           </div>
           <p className={`text-lg font-bold ${netOp >= 0 ? "text-green-700" : "text-red-600"}`}>{fm(netOp)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{summary.netOperatingMargin ?? summary.operatingMargin}% margen neto</p>
+          <p className="text-xs text-ink-40 mt-0.5">{summary.netOperatingMargin ?? summary.operatingMargin}% margen neto</p>
         </div>
       </div>
 
       {/* ── Unit Economics ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Ticket Promedio <InfoTip text="Cuanto gasta en promedio cada cliente por pedido. Un ticket mas alto generalmente mejora tu rentabilidad porque los costos fijos se diluyen." /></span>
-          <p className="text-lg font-bold text-gray-800 mt-1">{fm(summary.aov)}</p>
+        <div className="bg-elevated rounded-xl p-4 shadow-sm">
+          <span className="text-xs font-medium text-ink-40 uppercase">Ticket Promedio <InfoTip text="Cuanto gasta en promedio cada cliente por pedido. Un ticket mas alto generalmente mejora tu rentabilidad porque los costos fijos se diluyen." /></span>
+          <p className="text-lg font-bold text-ink mt-1">{fm(summary.aov)}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Unidades</span>
-          <p className="text-lg font-bold text-gray-800 mt-1">{summary.units.toLocaleString("es-AR")}</p>
+        <div className="bg-elevated rounded-xl p-4 shadow-sm">
+          <span className="text-xs font-medium text-ink-40 uppercase">Unidades</span>
+          <p className="text-lg font-bold text-ink mt-1">{summary.units.toLocaleString("es-AR")}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Costo x Unidad <InfoTip text="Cuanto te cuesta en promedio cada producto vendido. Se calcula dividiendo el COGS total por la cantidad de unidades." /></span>
-          <p className="text-lg font-bold text-gray-800 mt-1">
+        <div className="bg-elevated rounded-xl p-4 shadow-sm">
+          <span className="text-xs font-medium text-ink-40 uppercase">Costo x Unidad <InfoTip text="Cuanto te cuesta en promedio cada producto vendido. Se calcula dividiendo el COGS total por la cantidad de unidades." /></span>
+          <p className="text-lg font-bold text-ink mt-1">
             {summary.units > 0 ? fm(summary.cogs / summary.units) : "\u2014"}
           </p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Margen x Unidad <InfoTip text="Cuanto ganas en promedio por cada unidad vendida (precio de venta menos costo del producto). Sirve para comparar rentabilidad entre productos." /></span>
-          <p className="text-lg font-bold text-gray-800 mt-1">
+        <div className="bg-elevated rounded-xl p-4 shadow-sm">
+          <span className="text-xs font-medium text-ink-40 uppercase">Margen x Unidad <InfoTip text="Cuanto ganas en promedio por cada unidad vendida (precio de venta menos costo del producto). Sirve para comparar rentabilidad entre productos." /></span>
+          <p className="text-lg font-bold text-ink mt-1">
             {summary.units > 0 ? fm(summary.grossProfit / summary.units) : "\u2014"}
           </p>
         </div>
       </div>
 
       {/* ── P&L Chart ─── */}
-      <div className="bg-white rounded-xl p-5 shadow-sm mb-6 print:hidden">
+      <div className="bg-elevated rounded-xl p-5 shadow-sm mb-6 print:hidden">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados <InfoTip text="Grafico visual del P&L. 'Cascada' muestra como cada costo reduce tu facturacion hasta llegar al beneficio neto. 'Tendencia' muestra la evolucion dia a dia." /></h3>
+          <h3 className="text-sm font-semibold text-ink-60">Estado de Resultados <InfoTip text="Grafico visual del P&L. 'Cascada' muestra como cada costo reduce tu facturacion hasta llegar al beneficio neto. 'Tendencia' muestra la evolucion dia a dia." /></h3>
           <div className="flex items-center gap-3">
             {/* Sub-fase 2c: toggle $ vs % — solo visible en modo Cascada */}
             {chartMode === "waterfall" && (
               <div
-                className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs"
+                className="inline-flex items-center rounded-lg border border-hairline bg-surface p-0.5 text-xs"
                 role="group"
                 aria-label="Tipo de visualización"
               >
@@ -886,8 +901,8 @@ function DetailedView({
                   onClick={() => setDisplayMode("abs")}
                   className={`px-2.5 py-1 rounded-md font-medium transition ${
                     displayMode === "abs"
-                      ? "bg-white text-gray-800 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-elevated text-ink shadow-sm"
+                      : "text-ink-40 hover:text-ink-60"
                   }`}
                   aria-pressed={displayMode === "abs"}
                 >$</button>
@@ -896,8 +911,8 @@ function DetailedView({
                   onClick={() => setDisplayMode("pct")}
                   className={`px-2.5 py-1 rounded-md font-medium transition ${
                     displayMode === "pct"
-                      ? "bg-white text-gray-800 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-elevated text-ink shadow-sm"
+                      : "text-ink-40 hover:text-ink-60"
                   }`}
                   aria-pressed={displayMode === "pct"}
                 >%</button>
@@ -907,13 +922,13 @@ function DetailedView({
               <button
                 onClick={() => setChartMode("waterfall")}
                 className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                  chartMode === "waterfall" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-100"
+                  chartMode === "waterfall" ? "bg-ink text-white" : "text-ink-40 hover:bg-surface-2"
                 }`}
               >Cascada</button>
               <button
                 onClick={() => setChartMode("trend")}
                 className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                  chartMode === "trend" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-100"
+                  chartMode === "trend" ? "bg-ink text-white" : "text-ink-40 hover:bg-surface-2"
                 }`}
               >Tendencia</button>
             </div>
@@ -945,33 +960,33 @@ function DetailedView({
       </div>
 
       {/* ── P&L Table (Statement) ─── */}
-      <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden pnl-statement-block">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center">
+      <div className="bg-elevated rounded-xl shadow-sm mb-6 overflow-hidden pnl-statement-block">
+        <div className="px-5 py-3 border-b border-hairline flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-ink-60 flex items-center">
             Estado de Resultados Detallado
             <InfoTip text="El P&L (Profit & Loss) muestra paso a paso como se compone tu resultado: arranca con lo que facturaste y va restando cada tipo de costo hasta llegar a lo que realmente ganas. Los numeros negativos (-) son costos." />
           </h3>
           <ExportMenu onPDF={handlePrint} onExcel={handleExcel} />
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-hairline">
           {pnlRows.map((row, i) => (
             <div
               key={i}
               className={`flex items-center justify-between px-5 py-2.5 ${
-                row.highlight ? "bg-gray-50" : ""
+                row.highlight ? "bg-surface" : ""
               } ${row.indent ? "pl-8" : ""}`}
             >
-              <span className={`${row.small ? "text-xs" : "text-sm"} ${row.bold ? "font-semibold text-gray-800" : "text-gray-600"} flex items-center`}>
+              <span className={`${row.small ? "text-xs" : "text-sm"} ${row.bold ? "font-semibold text-ink" : "text-ink-60"} flex items-center`}>
                 {row.label}
                 {row.tip && <InfoTip text={row.tip} />}
                 {row.behavior && <BehaviorBadge type={row.behavior as CostBehavior} />}
               </span>
               <div className="flex items-center gap-3">
-                <span className={`${row.small ? "text-xs" : "text-sm"} font-mono ${row.bold ? "font-bold" : "font-medium"} ${row.color}`}>
+                <span className={`${row.small ? "text-xs" : "text-sm"} font-mono ${row.bold ? "font-bold" : "font-medium"} ${pnlDisplayColor(row)}`}>
                   {row.value < 0 ? "-" : ""}{fm(Math.abs(row.value))}
                 </span>
                 {row.pct !== undefined && (
-                  <span className="text-xs text-gray-400 font-mono w-14 text-right">{row.pct}%</span>
+                  <span className="text-xs text-ink-40 font-mono w-14 text-right">{row.pct}%</span>
                 )}
               </div>
             </div>
@@ -979,37 +994,37 @@ function DetailedView({
         </div>
         {/* Sub-fase 2d — ratio Variables / Fijos / Semifijos */}
         {totalOpsCosts > 0 && (
-          <div className="border-t border-gray-100 bg-slate-50/50 px-5 py-3">
+          <div className="border-t border-hairline bg-surface px-5 py-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Composición</span>
+                <span className="text-[10px] font-bold tracking-wider text-ink-40 uppercase">Composición</span>
                 <InfoTip text="Separación de los costos según cómo se comportan: Variables escalan con las ventas, Fijos son recurrentes mensuales, y Semifijos tienen parte fija y parte que escala por tramos." />
               </div>
               <div className="flex items-center gap-4 text-xs tabular-nums" style={{ fontFeatureSettings: '"tnum" 1' }}>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-2 h-2 rounded-full bg-cyan-500" aria-hidden="true" />
-                  <span className="text-slate-500">Variables</span>
-                  <span className="font-semibold text-slate-700">{fm(variableTotal)}</span>
-                  <span className="text-slate-400">({vfRatio.v}%)</span>
+                  <span className="text-ink-40">Variables</span>
+                  <span className="font-semibold text-ink-60">{fm(variableTotal)}</span>
+                  <span className="text-ink-40">({vfRatio.v}%)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-2 h-2 rounded-full bg-violet-500" aria-hidden="true" />
-                  <span className="text-slate-500">Fijos</span>
-                  <span className="font-semibold text-slate-700">{fm(fixedTotal)}</span>
-                  <span className="text-slate-400">({vfRatio.f}%)</span>
+                  <span className="text-ink-40">Fijos</span>
+                  <span className="font-semibold text-ink-60">{fm(fixedTotal)}</span>
+                  <span className="text-ink-40">({vfRatio.f}%)</span>
                 </div>
                 {semiFixedTotal > 0 && (
                   <div className="flex items-center gap-1.5">
                     <span className="inline-block w-2 h-2 rounded-full bg-amber-500" aria-hidden="true" />
-                    <span className="text-slate-500">Semi-fijos</span>
-                    <span className="font-semibold text-slate-700">{fm(semiFixedTotal)}</span>
-                    <span className="text-slate-400">({vfRatio.sf}%)</span>
+                    <span className="text-ink-40">Semi-fijos</span>
+                    <span className="font-semibold text-ink-60">{fm(semiFixedTotal)}</span>
+                    <span className="text-ink-40">({vfRatio.sf}%)</span>
                   </div>
                 )}
               </div>
             </div>
             {/* Barra de ratio visual */}
-            <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+            <div className="mt-2 h-1.5 w-full bg-surface-2 rounded-full overflow-hidden flex">
               <div className="bg-cyan-500 h-full" style={{ width: `${vfRatio.v}%` }} title={`Variables ${vfRatio.v}%`} />
               <div className="bg-violet-500 h-full" style={{ width: `${vfRatio.f}%` }} title={`Fijos ${vfRatio.f}%`} />
               <div className="bg-amber-500 h-full" style={{ width: `${vfRatio.sf}%` }} title={`Semifijos ${vfRatio.sf}%`} />
@@ -1020,37 +1035,37 @@ function DetailedView({
 
       {/* ── P&L por Canal ─── */}
       {bySource.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">P&L por Canal <InfoTip text="Mismos numeros del P&L pero separados por canal de venta (VTEX = tu tienda online, MercadoLibre = marketplace). Te permite ver cual canal es mas rentable." /></h3>
+        <div className="bg-elevated rounded-xl shadow-sm mb-6 overflow-hidden">
+          <div className="px-5 py-3 border-b border-hairline">
+            <h3 className="text-sm font-semibold text-ink-60">P&L por Canal <InfoTip text="Mismos numeros del P&L pero separados por canal de venta (VTEX = tu tienda online, MercadoLibre = marketplace). Te permite ver cual canal es mas rentable." /></h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500 uppercase">Concepto</th>
+                <tr className="border-b border-hairline">
+                  <th className="text-left px-5 py-2.5 text-xs font-medium text-ink-40 uppercase">Concepto</th>
                   {bySource.map(s => (
-                    <th key={s.source} className="text-right px-5 py-2.5 text-xs font-medium text-gray-500 uppercase">
+                    <th key={s.source} className="text-right px-5 py-2.5 text-xs font-medium text-ink-40 uppercase">
                       {s.source === "MELI" ? "MercadoLibre" : s.source}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-hairline">
                 {[
-                  { label: "Revenue", key: "revenue", bold: true, color: "text-blue-600" },
+                  { label: "Revenue", key: "revenue", bold: true },
                   { label: "Ordenes", key: "orders", format: "num" },
                   { label: "Ticket Promedio", key: "aov" },
                   { label: "COGS", key: "cogs", negative: true },
                   { label: "Margen Bruto", key: "grossProfit", bold: true },
                   { label: "Margen Bruto %", key: "grossMargin", format: "pct" },
                   { label: "Envios", key: "shipping", negative: true },
-                  { label: "Comisiones Plataforma", key: "platformFee", negative: true, color: "text-indigo-500" },
+                  { label: "Comisiones Plataforma", key: "platformFee", negative: true },
                   { label: "Beneficio Operativo", key: "operatingProfit", bold: true },
                   { label: "Margen Operativo %", key: "operatingMargin", format: "pct", bold: true },
                 ].map((row) => (
-                  <tr key={row.key} className={row.bold ? "bg-gray-50/50" : ""}>
-                    <td className={`px-5 py-2 ${row.bold ? "font-semibold text-gray-800" : "text-gray-600"}`}>
+                  <tr key={row.key} className={row.bold ? "bg-surface" : ""}>
+                    <td className={`px-5 py-2 ${row.bold ? "font-semibold text-ink" : "text-ink-60"}`}>
                       {row.label}
                     </td>
                     {bySource.map(s => {
@@ -1064,7 +1079,7 @@ function DetailedView({
                         <td key={s.source} className={`px-5 py-2 text-right font-mono ${row.bold ? "font-bold" : "font-medium"} ${
                           row.color || (row.bold && row.key === "operatingProfit"
                             ? (val >= 0 ? "text-green-600" : "text-red-600")
-                            : "text-gray-700")
+                            : "text-ink-60")
                         }`}>
                           {isNeg ? "-" : ""}{display}
                         </td>
@@ -1074,7 +1089,7 @@ function DetailedView({
                 ))}
                 {bySource.some(s => s.platformFeeLabel) && (
                   <tr>
-                    <td className="px-5 py-1.5 text-xs text-gray-400 pl-8" colSpan={bySource.length + 1}>
+                    <td className="px-5 py-1.5 text-xs text-ink-40 pl-8" colSpan={bySource.length + 1}>
                       {bySource.map(s => (
                         <span key={s.source} className="mr-6">
                           {s.source === "MELI" ? "ML" : s.source}: {s.platformFeeLabel}
@@ -1091,19 +1106,19 @@ function DetailedView({
 
       {/* ── Category + Brand Margins ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Margen por Categoria <InfoTip text="Muestra que tan rentable es cada categoria de productos. Un margen alto (verde) significa buena diferencia entre precio de venta y costo. Rojo indica categorias donde casi no ganas." /></h3>
+        <div className="bg-elevated rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-hairline">
+            <h3 className="text-sm font-semibold text-ink-60">Margen por Categoria <InfoTip text="Muestra que tan rentable es cada categoria de productos. Un margen alto (verde) significa buena diferencia entre precio de venta y costo. Rojo indica categorias donde casi no ganas." /></h3>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-hairline">
             {categories.length === 0 ? (
-              <div className="px-5 py-8 text-center text-gray-400 text-sm">Sin datos de categorias</div>
+              <div className="px-5 py-8 text-center text-ink-40 text-sm">Sin datos de categorias</div>
             ) : (
               categories.slice(0, 10).map((cat, i) => (
                 <div key={i} className="px-5 py-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-gray-700 font-medium truncate max-w-[60%]">{cat.category}</span>
-                    <span className="text-xs text-gray-500">{fm(cat.revenue)} | {cat.grossMargin}%</span>
+                    <span className="text-sm text-ink-60 font-medium truncate max-w-[60%]">{cat.category}</span>
+                    <span className="text-xs text-ink-40">{fm(cat.revenue)} | {cat.grossMargin}%</span>
                   </div>
                   <MarginBar value={cat.grossMargin} color={cat.grossMargin >= 40 ? "bg-green-400" : cat.grossMargin >= 25 ? "bg-yellow-400" : "bg-red-400"} />
                 </div>
@@ -1111,19 +1126,19 @@ function DetailedView({
             )}
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Margen por Marca <InfoTip text="Rentabilidad de cada marca que vendes. Te ayuda a identificar que marcas te dejan mas ganancia y cuales conviene renegociar o dejar de vender." /></h3>
+        <div className="bg-elevated rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-hairline">
+            <h3 className="text-sm font-semibold text-ink-60">Margen por Marca <InfoTip text="Rentabilidad de cada marca que vendes. Te ayuda a identificar que marcas te dejan mas ganancia y cuales conviene renegociar o dejar de vender." /></h3>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-hairline">
             {brands.length === 0 ? (
-              <div className="px-5 py-8 text-center text-gray-400 text-sm">Sin datos de marcas</div>
+              <div className="px-5 py-8 text-center text-ink-40 text-sm">Sin datos de marcas</div>
             ) : (
               brands.slice(0, 10).map((brand, i) => (
                 <div key={i} className="px-5 py-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-gray-700 font-medium truncate max-w-[60%]">{brand.brand}</span>
-                    <span className="text-xs text-gray-500">{fm(brand.revenue)} | {brand.grossMargin}%</span>
+                    <span className="text-sm text-ink-60 font-medium truncate max-w-[60%]">{brand.brand}</span>
+                    <span className="text-xs text-ink-40">{fm(brand.revenue)} | {brand.grossMargin}%</span>
                   </div>
                   <MarginBar value={brand.grossMargin} color={brand.grossMargin >= 40 ? "bg-green-400" : brand.grossMargin >= 25 ? "bg-yellow-400" : "bg-red-400"} />
                 </div>
@@ -1228,10 +1243,10 @@ export default function FinanzasPage() {
 
   if (loading) {
     return (
-      <div className="light-canvas min-h-screen flex items-center justify-center">
+      <div className="bg-canvas min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          <p className="text-gray-500 text-sm">Calculando P&L...</p>
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
+          <p className="text-ink-40 text-sm">Calculando P&L...</p>
         </div>
       </div>
     );
@@ -1239,7 +1254,7 @@ export default function FinanzasPage() {
 
   if (error) {
     return (
-      <div className="light-canvas min-h-screen p-6">
+      <div className="bg-canvas min-h-screen p-6">
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
       </div>
     );
@@ -1255,22 +1270,22 @@ export default function FinanzasPage() {
   const midDate = new Date(midMs).toISOString().split("T")[0];
 
   return (
-    <div className="light-canvas min-h-screen">
+    <div className="bg-canvas min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Finanzas</h2>
-            <p className="text-sm text-gray-500 mt-0.5">P&L — Estado de Resultados</p>
+            <h2 className="text-2xl font-bold text-ink">Finanzas</h2>
+            <p className="text-sm text-ink-40 mt-0.5">P&L — Estado de Resultados</p>
           </div>
           {/* View Mode Toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5 print:hidden">
+          <div className="flex bg-surface-2 rounded-lg p-0.5 print:hidden">
             <button
               onClick={() => setViewMode("executive")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 viewMode === "executive"
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-elevated text-ink shadow-sm"
+                  : "text-ink-40 hover:text-ink-60"
               }`}
             >
               Ejecutivo
@@ -1279,8 +1294,8 @@ export default function FinanzasPage() {
               onClick={() => setViewMode("detailed")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 viewMode === "detailed"
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-elevated text-ink shadow-sm"
+                  : "text-ink-40 hover:text-ink-60"
               }`}
             >
               Detallado
@@ -1306,8 +1321,8 @@ export default function FinanzasPage() {
       </div>
 
       {/* Header visible solo en impresion — compact print meta */}
-      <div className="hidden print:block mb-4 pb-3 border-b border-slate-200">
-        <p className="text-[11px] text-slate-500">
+      <div className="hidden print:block mb-4 pb-3 border-b border-hairline">
+        <p className="text-[11px] text-ink-40">
           <strong>Periodo:</strong> {dateFrom} → {dateTo}
         </p>
       </div>
@@ -1364,7 +1379,7 @@ export default function FinanzasPage() {
           html, body {
             background: #ffffff !important;
           }
-          .bg-nitro-bg, .light-canvas, .bg-gray-50, .bg-slate-50 {
+          .bg-nitro-bg, .bg-canvas, .bg-surface, .bg-surface-2 {
             background: #ffffff !important;
           }
           /* Remover sombras */
@@ -1372,8 +1387,8 @@ export default function FinanzasPage() {
             box-shadow: none !important;
           }
           /* Tarjetas con borde sutil para imprimir */
-          .bg-white {
-            border: 1px solid #e2e8f0 !important;
+          .bg-elevated {
+            border: 1px solid #E5E1D8 !important;
           }
           /* Forzar margen cero en containers */
           main, [class*="p-6"], [class*="p-8"] {

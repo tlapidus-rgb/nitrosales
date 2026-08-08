@@ -89,13 +89,13 @@ const MOMENT_CONFIG: Record<MomentType, { icon: any; accent: string; label: stri
 };
 
 const EVENT_ICONS: Record<string, { icon: any; color: string }> = {
-  PAGE_VIEW:     { icon: Eye,                color: "#64748b" },
+  PAGE_VIEW:     { icon: Eye,                color: "#9A978D" },
   VIEW_PRODUCT:  { icon: Eye,                color: "#6366f1" },
   ADD_TO_CART:   { icon: ShoppingCart,       color: "#f97316" },
   PURCHASE:      { icon: Check,              color: "#10b981" },
   IDENTIFY:      { icon: UserCheck,          color: "#2F9153" },
   CHECKOUT:      { icon: CreditCard,         color: "#0891b2" },
-  CUSTOM:        { icon: MousePointerClick,  color: "#94a3b8" },
+  CUSTOM:        { icon: MousePointerClick,  color: "#9A978D" },
 };
 
 function eventLabel(type: string): string {
@@ -237,13 +237,13 @@ export default function SenalesPage() {
               {/* Eyebrow + live dot */}
               <LivePulse status="LIVE" label="Señales · Live" />
 
-              <h1 className="mt-4 text-[34px] lg:text-[42px] font-semibold tracking-tight text-slate-900 leading-[1.08]">
+              <h1 className="mt-4 text-[34px] lg:text-[42px] font-semibold tracking-tight text-ink leading-[1.08]">
                 Lo que está pasando
                 <br/>
                 ahora mismo
               </h1>
 
-              <p className="mt-3 text-[15px] text-slate-600 leading-relaxed max-w-2xl">
+              <p className="mt-3 text-[15px] text-ink-60 leading-relaxed max-w-2xl">
                 Cada señal es una oportunidad de activar a un cliente en el momento exacto.
                 Bondly detecta los momentos que importan y te muestra exactamente qué hacer con cada uno.
               </p>
@@ -251,12 +251,12 @@ export default function SenalesPage() {
 
             {/* Quick-glance aside */}
             <div className="shrink-0 flex items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 backdrop-blur-sm px-3 py-2 shadow-sm">
-                <Radio size={14} className="text-slate-500" />
-                <span className="text-[11px] font-medium text-slate-600">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-hairline bg-elevated/70 backdrop-blur-sm px-3 py-2 shadow-sm">
+                <Radio size={14} className="text-ink-40" />
+                <span className="text-[11px] font-medium text-ink-60">
                   Actualización cada 7s
                 </span>
-                {loading && <Loader2 size={12} className="animate-spin text-slate-400" />}
+                {loading && <Loader2 size={12} className="animate-spin text-ink-40" />}
               </div>
             </div>
           </div>
@@ -306,14 +306,14 @@ export default function SenalesPage() {
       <section className="max-w-7xl mx-auto px-6 lg:px-10">
         <div className="flex items-end justify-between mb-4">
           <div>
-            <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500 flex items-center gap-2">
+            <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-ink-40 flex items-center gap-2">
               <Flame size={12} className="text-orange-500" />
               Moments · Oportunidades activas
             </p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
               {data?.moments.length ? `${data.moments.length} momentos accionables` : "Esperando señales..."}
             </h2>
-            <p className="mt-1 text-[13px] text-slate-500">
+            <p className="mt-1 text-[13px] text-ink-40">
               Eventos curados con alto valor de negocio y acción sugerida
             </p>
           </div>
@@ -340,20 +340,20 @@ export default function SenalesPage() {
       <section className="max-w-7xl mx-auto px-6 lg:px-10">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
           <div>
-            <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500 flex items-center gap-2">
-              <Radio size={12} className="text-slate-400" />
+            <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-ink-40 flex items-center gap-2">
+              <Radio size={12} className="text-ink-40" />
               Live Feed · Todos los eventos
             </p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
               Stream en tiempo real
             </h2>
-            <p className="mt-1 text-[13px] text-slate-500">
+            <p className="mt-1 text-[13px] text-ink-40">
               Últimos eventos · identificados y anónimos · últimas 24h
             </p>
           </div>
 
           {/* Filter chips */}
-          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="inline-flex rounded-xl border border-hairline bg-elevated p-1 shadow-sm">
             {([
               { k: "all",         label: "Todos" },
               { k: "identified",  label: "Identificados" },
@@ -364,8 +364,8 @@ export default function SenalesPage() {
                 onClick={() => setFeedFilter(opt.k)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                   feedFilter === opt.k
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-50"
+                    ? "bg-ink text-white shadow-sm"
+                    : "text-ink-60 hover:bg-surface"
                 }`}
                 style={{ transitionTimingFunction: ES }}
               >
@@ -394,7 +394,7 @@ function KpiTile({
 }) {
   const animatedValue = useCountUp(value);
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-4 shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated/80 backdrop-blur-sm p-4 shadow-sm">
       <div className="relative flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -404,14 +404,14 @@ function KpiTile({
             >
               <Icon size={14} />
             </div>
-            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-500">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-ink-40">
               {label}
             </span>
           </div>
-          <p className="mt-2 text-[26px] font-semibold tracking-tight text-slate-900 tabular-nums">
+          <p className="mt-2 text-[26px] font-semibold tracking-tight text-ink tabular-nums">
             {animatedValue.toLocaleString("es-AR")}
           </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">{helper}</p>
+          <p className="text-[11px] text-ink-40 mt-0.5">{helper}</p>
         </div>
         {live && (
           <span
@@ -441,7 +441,7 @@ function MomentCard({ moment }: { moment: Moment }) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all"
+      className="relative overflow-hidden rounded-2xl border bg-elevated shadow-sm hover:shadow-md transition-all"
       style={{
         borderColor: isHigh ? `${config.accent}40` : "rgb(226 232 240)",
         transitionTimingFunction: ES,
@@ -491,44 +491,44 @@ function MomentCard({ moment }: { moment: Moment }) {
               </div>
             </div>
           </div>
-          <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+          <span className="text-[11px] text-ink-40 tabular-nums shrink-0">
             {formatRelative(moment.when, now)}
           </span>
         </div>
 
         {/* Title + subtitle */}
         <div className="mt-3">
-          <h3 className="text-[17px] font-semibold text-slate-900 leading-snug">
+          <h3 className="text-[17px] font-semibold text-ink leading-snug">
             {moment.title}
           </h3>
-          <p className="mt-1 text-[13px] text-slate-600 leading-relaxed">
+          <p className="mt-1 text-[13px] text-ink-60 leading-relaxed">
             {moment.subtitle}
           </p>
         </div>
 
         {/* Identity + metadata */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-40">
           {moment.visitor.email && (
             <span className="inline-flex items-center gap-1">
-              <Mail size={10} className="text-slate-400" />
-              <span className="text-slate-700 font-medium">{moment.visitor.email}</span>
+              <Mail size={10} className="text-ink-40" />
+              <span className="text-ink-60 font-medium">{moment.visitor.email}</span>
             </span>
           )}
           {moment.visitor.phone && (
             <span className="inline-flex items-center gap-1">
-              <MessageCircle size={10} className="text-slate-400" />
-              <span className="text-slate-700 font-medium">{moment.visitor.phone}</span>
+              <MessageCircle size={10} className="text-ink-40" />
+              <span className="text-ink-60 font-medium">{moment.visitor.phone}</span>
             </span>
           )}
           {moment.visitor.city && (
             <span className="inline-flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-slate-300" />
+              <span className="w-1 h-1 rounded-full bg-ink-40" />
               {moment.visitor.city}
             </span>
           )}
           {moment.visitor.deviceType && (
             <span className="inline-flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-slate-300" />
+              <span className="w-1 h-1 rounded-full bg-ink-40" />
               {moment.visitor.deviceType}
             </span>
           )}
@@ -558,7 +558,7 @@ function MomentCard({ moment }: { moment: Moment }) {
                   <a
                     key={i}
                     href={a.href}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition-all"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated hover:bg-surface px-3 py-1.5 text-xs font-medium text-ink-60 transition-all"
                     style={{ transitionTimingFunction: ES }}
                   >
                     <Mail size={12} />
@@ -571,7 +571,7 @@ function MomentCard({ moment }: { moment: Moment }) {
                   <Link
                     key={i}
                     href={a.href ?? "#"}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-medium text-white transition-all shadow-sm"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-ink hover:bg-ink/90 px-3 py-1.5 text-xs font-medium text-white transition-all shadow-sm"
                     style={{ transitionTimingFunction: ES }}
                   >
                     <UserIcon size={12} />
@@ -585,7 +585,7 @@ function MomentCard({ moment }: { moment: Moment }) {
                   <button
                     key={i}
                     onClick={handleCopyEmail}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition-all"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated hover:bg-surface px-3 py-1.5 text-xs font-medium text-ink-60 transition-all"
                     style={{ transitionTimingFunction: ES }}
                   >
                     {copiedEmail ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
@@ -604,13 +604,13 @@ function MomentCard({ moment }: { moment: Moment }) {
 
 function MomentSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="h-4 w-20 bg-slate-100 rounded mb-3 senales-shimmer" />
-      <div className="h-5 w-3/4 bg-slate-100 rounded mb-2 senales-shimmer" />
-      <div className="h-3 w-1/2 bg-slate-100 rounded mb-4 senales-shimmer" />
+    <div className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated p-5 shadow-sm">
+      <div className="h-4 w-20 bg-surface-2 rounded mb-3 senales-shimmer" />
+      <div className="h-5 w-3/4 bg-surface-2 rounded mb-2 senales-shimmer" />
+      <div className="h-3 w-1/2 bg-surface-2 rounded mb-4 senales-shimmer" />
       <div className="flex gap-2">
-        <div className="h-7 w-24 bg-slate-100 rounded-lg senales-shimmer" />
-        <div className="h-7 w-20 bg-slate-100 rounded-lg senales-shimmer" />
+        <div className="h-7 w-24 bg-surface-2 rounded-lg senales-shimmer" />
+        <div className="h-7 w-20 bg-surface-2 rounded-lg senales-shimmer" />
       </div>
     </div>
   );
@@ -622,15 +622,15 @@ function FeedList({ items, loading }: { items: FeedItem[]; loading: boolean }) {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-sm divide-y divide-slate-50">
+      <div className="rounded-2xl border border-hairline bg-elevated overflow-hidden shadow-sm divide-y divide-hairline">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="px-5 py-3 flex items-center gap-3">
-            <div className="h-7 w-7 rounded-lg bg-slate-100 senales-shimmer" />
+            <div className="h-7 w-7 rounded-lg bg-surface-2 senales-shimmer" />
             <div className="flex-1">
-              <div className="h-3 w-40 bg-slate-100 rounded senales-shimmer" />
-              <div className="mt-1 h-3 w-72 bg-slate-100 rounded senales-shimmer" />
+              <div className="h-3 w-40 bg-surface-2 rounded senales-shimmer" />
+              <div className="mt-1 h-3 w-72 bg-surface-2 rounded senales-shimmer" />
             </div>
-            <div className="h-3 w-16 bg-slate-100 rounded senales-shimmer" />
+            <div className="h-3 w-16 bg-surface-2 rounded senales-shimmer" />
           </div>
         ))}
       </div>
@@ -648,8 +648,8 @@ function FeedList({ items, loading }: { items: FeedItem[]; loading: boolean }) {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-      <div className="max-h-[700px] overflow-y-auto divide-y divide-slate-50">
+    <div className="rounded-2xl border border-hairline bg-elevated overflow-hidden shadow-sm">
+      <div className="max-h-[700px] overflow-y-auto divide-y divide-hairline">
         {items.map((it) => <FeedRow key={it.id} item={it} now={now} />)}
       </div>
     </div>
@@ -664,7 +664,7 @@ function FeedRow({ item, now }: { item: FeedItem; now: number }) {
   return (
     <div
       className={`relative px-5 py-3 flex items-center gap-3 transition-colors ${
-        isIdentified ? "hover:bg-slate-50/70" : "hover:bg-slate-50/50 opacity-80"
+        isIdentified ? "hover:bg-surface/70" : "hover:bg-surface/50 opacity-80"
       }`}
       style={{
         transitionTimingFunction: ES,
@@ -684,7 +684,7 @@ function FeedRow({ item, now }: { item: FeedItem; now: number }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span
             className={`text-[13px] truncate ${
-              isIdentified ? "text-slate-900 font-medium" : "text-slate-500"
+              isIdentified ? "text-ink font-medium" : "text-ink-40"
             }`}
           >
             {item.visitor.displayName}
@@ -695,19 +695,19 @@ function FeedRow({ item, now }: { item: FeedItem; now: number }) {
               ident.
             </span>
           )}
-          <span className="text-[12px] text-slate-500">{eventLabel(item.eventType)}</span>
+          <span className="text-[12px] text-ink-40">{eventLabel(item.eventType)}</span>
           {item.productName && (
-            <span className="text-[12px] text-slate-700 font-medium truncate max-w-[280px]">
+            <span className="text-[12px] text-ink-60 font-medium truncate max-w-[280px]">
               · {item.productName}
             </span>
           )}
           {item.value != null && item.value > 0 && (
-            <span className="text-[11px] text-slate-500 tabular-nums">
+            <span className="text-[11px] text-ink-40 tabular-nums">
               · ${Math.round(item.value).toLocaleString("es-AR")}
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400">
+        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-40">
           {item.visitor.city && <span>{item.visitor.city}</span>}
           {item.visitor.city && item.visitor.deviceType && <span>·</span>}
           {item.visitor.deviceType && <span>{item.visitor.deviceType}</span>}
@@ -723,7 +723,7 @@ function FeedRow({ item, now }: { item: FeedItem; now: number }) {
       </div>
 
       {/* Time */}
-      <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+      <span className="text-[11px] text-ink-40 tabular-nums shrink-0">
         {formatRelative(item.timestamp, now)}
       </span>
     </div>
@@ -743,12 +743,12 @@ function shortenUrl(url: string): string {
 // ─── EmptyState ─────────────────────────────────────────────────────
 function EmptyState({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 backdrop-blur-sm p-10 text-center">
-      <div className="inline-flex w-12 h-12 rounded-full bg-slate-100 items-center justify-center text-slate-400 mb-3">
+    <div className="rounded-2xl border border-dashed border-hairline bg-elevated/60 backdrop-blur-sm p-10 text-center">
+      <div className="inline-flex w-12 h-12 rounded-full bg-surface-2 items-center justify-center text-ink-40 mb-3">
         <Icon size={20} />
       </div>
-      <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-      <p className="mt-1 text-[12px] text-slate-500 max-w-md mx-auto leading-relaxed">{subtitle}</p>
+      <h3 className="text-sm font-semibold text-ink-60">{title}</h3>
+      <p className="mt-1 text-[12px] text-ink-40 max-w-md mx-auto leading-relaxed">{subtitle}</p>
     </div>
   );
 }

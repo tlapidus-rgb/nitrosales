@@ -255,7 +255,7 @@ export default function ClientesPage() {
       <div
         className="relative overflow-hidden rounded-3xl"
         style={{
-          background: "linear-gradient(180deg, #ffffff 0%, #fafbfd 100%)",
+          background: "linear-gradient(180deg, #ffffff 0%, #F5F3EE 100%)",
           boxShadow:
             "0 1px 0 rgba(245,243,238,0.06), 0 14px 38px -18px rgba(245,243,238,0.18), 0 34px 60px -40px rgba(245,243,238,0.18)",
         }}
@@ -267,8 +267,8 @@ export default function ClientesPage() {
               <div
                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]"
                 style={{
-                  background: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(99,102,241,0.10))",
-                  color: "#0f172a",
+                  background: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(47,145,83,0.10))",
+                  color: "#1C1B18",
                   border: "1px solid rgba(245,243,238,0.08)",
                 }}
               >
@@ -284,16 +284,16 @@ export default function ClientesPage() {
                 VTEX · Tienda propia
               </span>
             </div>
-            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-ink-40">
               UPDATED {data?.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "—"}
             </span>
           </div>
 
           {/* Titulo */}
-          <h1 className="text-3xl md:text-[40px] font-semibold tracking-tight text-slate-900 mb-2 leading-[1.05]">
+          <h1 className="text-3xl md:text-[40px] font-semibold tracking-tight text-ink mb-2 leading-[1.05]">
             Clientes
           </h1>
-          <p className="text-sm text-slate-500 max-w-2xl mb-7">
+          <p className="text-sm text-ink-40 max-w-2xl mb-7">
             Cada persona que compró o interactuó con tu tienda. Filtra, ordena y explora perfiles 360.
           </p>
 
@@ -315,15 +315,15 @@ export default function ClientesPage() {
       {/*  PERIOD PICKER · presets + custom range                       */}
       {/* ═══════════════════════════════════════════════════════════ */}
       <div
-        className="rounded-2xl bg-white px-3 py-2.5 flex flex-col lg:flex-row lg:items-center gap-3"
+        className="rounded-2xl bg-elevated px-3 py-2.5 flex flex-col lg:flex-row lg:items-center gap-3"
         style={{
           border: "1px solid rgba(245,243,238,0.06)",
           boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 12px 30px -18px rgba(245,243,238,0.12)",
         }}
       >
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Calendar size={14} className="text-slate-500" />
-          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-500">
+          <Calendar size={14} className="text-ink-40" />
+          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-ink-40">
             PERÍODO · Última actividad
           </span>
         </div>
@@ -339,8 +339,8 @@ export default function ClientesPage() {
                 onClick={() => applyPreset(p.key)}
                 className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold whitespace-nowrap"
                 style={{
-                  background: active ? "#0f172a" : "#f8fafc",
-                  color: active ? "#ffffff" : "#475569",
+                  background: active ? "#1C1B18" : "#F5F3EE",
+                  color: active ? "#ffffff" : "#6B685F",
                   border: active ? "1px solid transparent" : "1px solid rgba(245,243,238,0.06)",
                   transition: `all 200ms ${ES}`,
                 }}
@@ -357,17 +357,17 @@ export default function ClientesPage() {
               value={dateFrom}
               max={dateTo}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg px-2 py-1.5 text-[12px] bg-slate-50 text-slate-900 outline-none"
+              className="rounded-lg px-2 py-1.5 text-[12px] bg-surface text-ink outline-none"
               style={{ border: "1px solid rgba(245,243,238,0.08)" }}
             />
-            <span className="text-slate-400 text-xs">→</span>
+            <span className="text-ink-40 text-xs">→</span>
             <input
               type="date"
               value={dateTo}
               min={dateFrom}
               max={toDateInputValue(new Date())}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg px-2 py-1.5 text-[12px] bg-slate-50 text-slate-900 outline-none"
+              className="rounded-lg px-2 py-1.5 text-[12px] bg-surface text-ink outline-none"
               style={{ border: "1px solid rgba(245,243,238,0.08)" }}
             />
           </div>
@@ -393,7 +393,7 @@ export default function ClientesPage() {
                 className="group relative flex items-center gap-2 rounded-xl px-3 py-2 whitespace-nowrap"
                 style={{
                   background: active ? cfg.gradient : "#ffffff",
-                  color: active ? "#ffffff" : "#0f172a",
+                  color: active ? "#ffffff" : "#1C1B18",
                   border: active ? "1px solid transparent" : "1px solid rgba(245,243,238,0.08)",
                   boxShadow: active
                     ? `0 8px 24px -10px ${cfg.solid}80, 0 2px 0 rgba(255,255,255,0.2) inset`
@@ -408,7 +408,7 @@ export default function ClientesPage() {
                   className="text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-md"
                   style={{
                     background: active ? "rgba(255,255,255,0.22)" : "rgba(245,243,238,0.04)",
-                    color: active ? "#ffffff" : "#475569",
+                    color: active ? "#ffffff" : "#6B685F",
                   }}
                 >
                   {seg.count.toLocaleString("es-AR")}
@@ -431,7 +431,7 @@ export default function ClientesPage() {
       {/*  FILTER BAR                                                   */}
       {/* ═══════════════════════════════════════════════════════════ */}
       <div
-        className="rounded-2xl bg-white p-3 flex flex-col md:flex-row md:items-center gap-3"
+        className="rounded-2xl bg-elevated p-3 flex flex-col md:flex-row md:items-center gap-3"
         style={{
           border: "1px solid rgba(245,243,238,0.06)",
           boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 12px 30px -18px rgba(245,243,238,0.12)",
@@ -439,13 +439,13 @@ export default function ClientesPage() {
       >
         {/* Search */}
         <div className="relative flex-1 min-w-0">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-40" />
           <input
             type="text"
             placeholder="Buscar por nombre, email o teléfono…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-slate-50 text-slate-900 placeholder-slate-400 outline-none"
+            className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-surface text-ink placeholder-ink-40 outline-none"
             style={{
               border: "1px solid rgba(245,243,238,0.06)",
               transition: `all 200ms ${ES}`,
@@ -453,10 +453,10 @@ export default function ClientesPage() {
             onFocus={(e) => {
               e.currentTarget.style.background = "#ffffff";
               e.currentTarget.style.borderColor = "rgba(245,243,238,0.16)";
-              e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99,102,241,0.10)";
+              e.currentTarget.style.boxShadow = "0 0 0 4px rgba(47,145,83,0.10)";
             }}
             onBlur={(e) => {
-              e.currentTarget.style.background = "#f8fafc";
+              e.currentTarget.style.background = "#F5F3EE";
               e.currentTarget.style.borderColor = "rgba(245,243,238,0.06)";
               e.currentTarget.style.boxShadow = "none";
             }}
@@ -464,7 +464,7 @@ export default function ClientesPage() {
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-ink-40 hover:text-ink-60 hover:bg-surface-2"
             >
               <X size={14} />
             </button>
@@ -497,8 +497,8 @@ export default function ClientesPage() {
           onClick={() => setIsFiltersOpen(!isFiltersOpen)}
           className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
           style={{
-            background: activeFiltersCount > 0 ? "#0f172a" : "#ffffff",
-            color: activeFiltersCount > 0 ? "#ffffff" : "#0f172a",
+            background: activeFiltersCount > 0 ? "#1C1B18" : "#ffffff",
+            color: activeFiltersCount > 0 ? "#ffffff" : "#1C1B18",
             border: "1px solid rgba(245,243,238,0.08)",
             transition: `all 200ms ${ES}`,
           }}
@@ -506,7 +506,7 @@ export default function ClientesPage() {
           <FilterIcon size={14} />
           <span>Más filtros</span>
           {activeFiltersCount > 0 && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-elevated/20">
               {activeFiltersCount}
             </span>
           )}
@@ -516,7 +516,7 @@ export default function ClientesPage() {
         <button
           onClick={exportCsv}
           disabled={!customers.length}
-          className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-ink-60 bg-elevated disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface"
           style={{
             border: "1px solid rgba(245,243,238,0.08)",
             transition: `all 200ms ${ES}`,
@@ -531,7 +531,7 @@ export default function ClientesPage() {
       {/* Expanded filters row */}
       {isFiltersOpen && (
         <div
-          className="rounded-2xl bg-white p-4 grid grid-cols-1 md:grid-cols-3 gap-3"
+          className="rounded-2xl bg-elevated p-4 grid grid-cols-1 md:grid-cols-3 gap-3"
           style={{
             border: "1px solid rgba(245,243,238,0.06)",
             boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
@@ -565,7 +565,7 @@ export default function ClientesPage() {
           <div className="flex items-end gap-2">
             <button
               onClick={() => { setChannel(null); setSegment(null); setCity(null); setSearch(""); setQuickSegment("all"); }}
-              className="text-xs font-medium text-slate-500 hover:text-slate-900 underline underline-offset-2"
+              className="text-xs font-medium text-ink-40 hover:text-ink underline underline-offset-2"
             >
               Limpiar filtros
             </button>
@@ -577,18 +577,18 @@ export default function ClientesPage() {
       {/*  RESULTS META                                                 */}
       {/* ═══════════════════════════════════════════════════════════ */}
       <div className="flex items-center justify-between px-1">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-40">
           {loading ? (
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-slate-400 animate-pulse" />
+              <span className="w-1 h-1 rounded-full bg-ink-40 animate-pulse" />
               Cargando…
             </span>
           ) : (
             <>
-              Mostrando <span className="font-semibold text-slate-900 tabular-nums">{customers.length.toLocaleString("es-AR")}</span>
+              Mostrando <span className="font-semibold text-ink tabular-nums">{customers.length.toLocaleString("es-AR")}</span>
               {pagination && (
                 <>
-                  {" "}de <span className="font-semibold text-slate-900 tabular-nums">{pagination.totalFiltered.toLocaleString("es-AR")}</span> clientes
+                  {" "}de <span className="font-semibold text-ink tabular-nums">{pagination.totalFiltered.toLocaleString("es-AR")}</span> clientes
                 </>
               )}
               {quickSegment !== "all" && (
@@ -602,9 +602,9 @@ export default function ClientesPage() {
             </>
           )}
         </p>
-        <div className="flex items-center gap-1 text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">
+        <div className="flex items-center gap-1 text-[10px] font-mono tracking-[0.2em] uppercase text-ink-40">
           <span>SORT:</span>
-          <span className="text-slate-700 font-medium normal-case tracking-normal">
+          <span className="text-ink-60 font-medium normal-case tracking-normal">
             {SORT_OPTIONS.find(o => o.value === sort)?.label}
           </span>
         </div>
@@ -618,10 +618,10 @@ export default function ClientesPage() {
           {Array.from({ length: 6 }).map((_, i) => <CustomerSkeleton key={i} />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl bg-white p-10 text-center" style={{ border: "1px solid rgba(245,243,238,0.06)" }}>
+        <div className="rounded-2xl bg-elevated p-10 text-center" style={{ border: "1px solid rgba(245,243,238,0.06)" }}>
           <AlertTriangle size={32} className="text-amber-500 mx-auto mb-2" />
-          <p className="text-sm font-medium text-slate-900">Error al cargar clientes</p>
-          <p className="text-xs text-slate-500 mt-1">{error}</p>
+          <p className="text-sm font-medium text-ink">Error al cargar clientes</p>
+          <p className="text-xs text-ink-40 mt-1">{error}</p>
           <button onClick={() => fetchData()} className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800">
             <RefreshCw size={12} /> Reintentar
           </button>
@@ -649,22 +649,22 @@ export default function ClientesPage() {
       {/* ═══════════════════════════════════════════════════════════ */}
       {pagination && pagination.totalPages > 1 && (
         <div
-          className="rounded-2xl bg-white px-4 py-3 flex items-center justify-between flex-wrap gap-3"
+          className="rounded-2xl bg-elevated px-4 py-3 flex items-center justify-between flex-wrap gap-3"
           style={{
             border: "1px solid rgba(245,243,238,0.06)",
             boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
           }}
         >
-          <p className="text-xs text-slate-500 tabular-nums">
-            Página <span className="font-semibold text-slate-900">{page}</span> de <span className="font-semibold text-slate-900">{pagination.totalPages}</span>
-            <span className="hidden sm:inline"> · <span className="font-semibold text-slate-900">{pagination.totalFiltered.toLocaleString("es-AR")}</span> clientes</span>
+          <p className="text-xs text-ink-40 tabular-nums">
+            Página <span className="font-semibold text-ink">{page}</span> de <span className="font-semibold text-ink">{pagination.totalPages}</span>
+            <span className="hidden sm:inline"> · <span className="font-semibold text-ink">{pagination.totalFiltered.toLocaleString("es-AR")}</span> clientes</span>
           </p>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
               aria-label="Página anterior"
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface"
               style={{ border: "1px solid rgba(245,243,238,0.08)", transition: `all 200ms ${ES}` }}
             >
               ‹
@@ -689,7 +689,7 @@ export default function ClientesPage() {
               return pages.map((p, idx) => {
                 if (p === "ellipsis") {
                   return (
-                    <span key={`e-${idx}`} className="h-8 w-8 flex items-center justify-center text-xs text-slate-400 select-none">
+                    <span key={`e-${idx}`} className="h-8 w-8 flex items-center justify-center text-xs text-ink-40 select-none">
                       …
                     </span>
                   );
@@ -704,11 +704,11 @@ export default function ClientesPage() {
                     className="h-8 min-w-[32px] px-2 flex items-center justify-center rounded-lg text-xs font-medium tabular-nums"
                     style={{
                       border: "1px solid rgba(245,243,238,0.08)",
-                      background: isActive ? "#0f172a" : "transparent",
-                      color: isActive ? "#ffffff" : "#0f172a",
+                      background: isActive ? "#1C1B18" : "transparent",
+                      color: isActive ? "#ffffff" : "#1C1B18",
                       transition: `all 200ms ${ES}`,
                     }}
-                    onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
+                    onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#F5F3EE"; }}
                     onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                   >
                     {p}
@@ -720,7 +720,7 @@ export default function ClientesPage() {
               onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
               disabled={page >= pagination.totalPages}
               aria-label="Página siguiente"
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface"
               style={{ border: "1px solid rgba(245,243,238,0.08)", transition: `all 200ms ${ES}` }}
             >
               ›
@@ -743,7 +743,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
   const tier = TIER_CONFIG[c.tier] || TIER_CONFIG.Regular;
   const TierIcon = tier.icon;
   const avatarGrad = isAnon
-    ? "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)"
+    ? "linear-gradient(135deg, #9A978D 0%, #9A978D 100%)"
     : avatarGradientFor(c.id);
 
   const primaryFlag = c.flags?.find((f: string) => ["vip", "browsing_now", "cart_abandoned", "reappeared", "new_7d"].includes(f));
@@ -761,7 +761,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
     <button
       onClick={isAnon ? undefined : onClick}
       disabled={isAnon}
-      className="group relative text-left w-full rounded-2xl bg-white p-4 overflow-hidden"
+      className="group relative text-left w-full rounded-2xl bg-elevated p-4 overflow-hidden"
       style={{
         border: `1px solid rgba(245,243,238,0.06)`,
         boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 10px 30px -22px rgba(245,243,238,0.20)",
@@ -820,7 +820,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
         <div className="flex-1 min-w-0">
           {/* Name + segment chip */}
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-slate-900 truncate">
+            <h3 className="text-sm font-semibold text-ink truncate">
               {isAnon ? "Visitante anónimo" : c.name}
             </h3>
             <span
@@ -837,20 +837,20 @@ function CustomerCard({ customer: c, index, onClick }: any) {
           </div>
 
           {/* Email + city / anon tag */}
-          <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-2.5">
+          <div className="flex items-center gap-2 text-[11px] text-ink-40 mb-2.5">
             {isAnon ? (
-              <span className="inline-flex items-center gap-1 font-mono tracking-[0.12em] text-slate-400">
+              <span className="inline-flex items-center gap-1 font-mono tracking-[0.12em] text-ink-40">
                 <UserX size={10} />
                 {anonTag}
-                <span className="text-slate-300">·</span>
-                <span className="normal-case tracking-normal text-slate-500">Sin identificar (sólo pixel)</span>
+                <span className="text-ink-40">·</span>
+                <span className="normal-case tracking-normal text-ink-40">Sin identificar (sólo pixel)</span>
               </span>
             ) : (
               <>
                 {c.email && <span className="truncate">{c.email}</span>}
                 {c.city && (
                   <>
-                    <span className="text-slate-300">·</span>
+                    <span className="text-ink-40">·</span>
                     <span className="inline-flex items-center gap-0.5 flex-shrink-0">
                       <MapPin size={10} />
                       {c.city}
@@ -864,13 +864,13 @@ function CustomerCard({ customer: c, index, onClick }: any) {
           {/* Commerce metrics row */}
           {isAnon ? (
             <div
-              className="rounded-lg px-2.5 py-2 mb-2.5 text-[11px] text-slate-500"
+              className="rounded-lg px-2.5 py-2 mb-2.5 text-[11px] text-ink-40"
               style={{
-                background: "#f8fafc",
+                background: "#F5F3EE",
                 border: "1px dashed rgba(245,243,238,0.08)",
               }}
             >
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-slate-400">COMMERCE</span>
+              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-40">COMMERCE</span>
               <span className="ml-2">Sin compras — sólo tracking de pixel</span>
             </div>
           ) : (
@@ -883,17 +883,17 @@ function CustomerCard({ customer: c, index, onClick }: any) {
 
           {/* Footer: dates + channel logo */}
           <div className="flex items-center justify-between gap-2 text-[10px]">
-            <div className="flex items-center gap-3 text-slate-500">
+            <div className="flex items-center gap-3 text-ink-40">
               {!isAnon && (
                 <span className="inline-flex items-center gap-1" title="Última compra">
                   <ShoppingCart size={10} />
-                  <span className="font-medium text-slate-700">{formatRelative(c.lastOrderAt)}</span>
+                  <span className="font-medium text-ink-60">{formatRelative(c.lastOrderAt)}</span>
                 </span>
               )}
               {c.lastVisitAt && (
                 <span className="inline-flex items-center gap-1" title="Última visita al sitio">
                   <Eye size={10} />
-                  <span className="font-medium text-slate-700">{formatRelative(c.lastVisitAt)}</span>
+                  <span className="font-medium text-ink-60">{formatRelative(c.lastVisitAt)}</span>
                 </span>
               )}
             </div>
@@ -902,7 +902,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
                 <SourceLogo channel={c.acquisitionChannel} size={12} withLabel dense />
               )}
               {!isAnon && (
-                <ArrowRight size={12} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5"
+                <ArrowRight size={12} className="text-ink-40 group-hover:text-ink-60 group-hover:translate-x-0.5"
                   style={{ transition: `all 220ms ${ES}` }} />
               )}
             </div>
@@ -934,7 +934,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
 function Metric({ label, value, accent }: any) {
   return (
     <div>
-      <p className="text-[9px] font-mono tracking-[0.18em] uppercase text-slate-400 mb-0.5">{label}</p>
+      <p className="text-[9px] font-mono tracking-[0.18em] uppercase text-ink-40 mb-0.5">{label}</p>
       <p className="text-sm font-semibold tabular-nums tracking-tight" style={{ color: accent }}>
         {value}
       </p>
@@ -961,7 +961,7 @@ function FlagChip({ icon: Icon, label, color }: any) {
 function CustomerSkeleton() {
   return (
     <div
-      className="rounded-2xl bg-white p-4"
+      className="rounded-2xl bg-elevated p-4"
       style={{
         border: "1px solid rgba(245,243,238,0.06)",
         boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
@@ -969,25 +969,25 @@ function CustomerSkeleton() {
     >
       <div className="flex gap-3">
         <div className="w-12 h-12 rounded-xl" style={{
-          backgroundImage: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
+          backgroundImage: "linear-gradient(90deg, #F5F3EE 0%, #EDEAE3 50%, #F5F3EE 100%)",
           backgroundSize: "200% 100%",
           animation: `bondlyShimmer 1.6s ease-in-out infinite`,
         }} />
         <div className="flex-1 space-y-2">
           <div className="h-3.5 w-1/2 rounded" style={{
-            backgroundImage: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
+            backgroundImage: "linear-gradient(90deg, #F5F3EE 0%, #EDEAE3 50%, #F5F3EE 100%)",
             backgroundSize: "200% 100%",
             animation: `bondlyShimmer 1.6s ease-in-out infinite`,
           }} />
           <div className="h-2.5 w-3/4 rounded" style={{
-            backgroundImage: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
+            backgroundImage: "linear-gradient(90deg, #F5F3EE 0%, #EDEAE3 50%, #F5F3EE 100%)",
             backgroundSize: "200% 100%",
             animation: `bondlyShimmer 1.6s ease-in-out infinite`,
           }} />
           <div className="grid grid-cols-3 gap-2 pt-1">
             {[0, 1, 2].map(i => (
               <div key={i} className="h-5 rounded" style={{
-                backgroundImage: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
+                backgroundImage: "linear-gradient(90deg, #F5F3EE 0%, #EDEAE3 50%, #F5F3EE 100%)",
                 backgroundSize: "200% 100%",
                 animation: `bondlyShimmer 1.6s ease-in-out infinite`,
               }} />
@@ -1002,7 +1002,7 @@ function CustomerSkeleton() {
 function EmptyState({ quickSegment, onReset }: any) {
   return (
     <div
-      className="rounded-2xl bg-white p-12 text-center"
+      className="rounded-2xl bg-elevated p-12 text-center"
       style={{
         border: "1px solid rgba(245,243,238,0.06)",
         boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
@@ -1010,17 +1010,17 @@ function EmptyState({ quickSegment, onReset }: any) {
     >
       <div
         className="w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center"
-        style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.10), rgba(229,225,216,0.10))" }}
+        style={{ background: "linear-gradient(135deg, rgba(47,145,83,0.10), rgba(229,225,216,0.10))" }}
       >
-        <Users size={22} className="text-slate-400" />
+        <Users size={22} className="text-ink-40" />
       </div>
-      <p className="text-sm font-semibold text-slate-900 mb-1">No encontramos clientes con estos filtros</p>
-      <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+      <p className="text-sm font-semibold text-ink mb-1">No encontramos clientes con estos filtros</p>
+      <p className="text-xs text-ink-40 max-w-sm mx-auto mb-4">
         Probá reducir los filtros o cambiar el segmento rápido. Bondly sólo trabaja con VTEX (tienda propia), los marketplaces no comparten identidad del cliente.
       </p>
       <button
         onClick={onReset}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-ink hover:bg-ink/90 px-3 py-1.5 rounded-lg"
         style={{ transition: `all 200ms ${ES}` }}
       >
         <RefreshCw size={12} />
@@ -1036,11 +1036,11 @@ function EmptyState({ quickSegment, onReset }: any) {
 function SelectDropdown({ icon: Icon, label, value, options, onChange }: any) {
   return (
     <div className="relative">
-      <Icon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      <Icon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-40 pointer-events-none" />
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none pl-7 pr-7 py-2 rounded-xl text-sm font-medium text-slate-900 bg-white min-w-[160px] cursor-pointer"
+        className="appearance-none pl-7 pr-7 py-2 rounded-xl text-sm font-medium text-ink bg-elevated min-w-[160px] cursor-pointer"
         style={{
           border: "1px solid rgba(245,243,238,0.08)",
           transition: `all 200ms ${ES}`,
@@ -1050,7 +1050,7 @@ function SelectDropdown({ icon: Icon, label, value, options, onChange }: any) {
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-40 pointer-events-none" />
     </div>
   );
 }
@@ -1058,12 +1058,12 @@ function SelectDropdown({ icon: Icon, label, value, options, onChange }: any) {
 function FieldSelect({ label, value, onChange, options }: any) {
   return (
     <div>
-      <p className="text-[10px] font-mono tracking-[0.18em] uppercase text-slate-400 mb-1.5">{label}</p>
+      <p className="text-[10px] font-mono tracking-[0.18em] uppercase text-ink-40 mb-1.5">{label}</p>
       <div className="relative">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="appearance-none w-full px-3 pr-8 py-2 rounded-xl text-sm text-slate-900 bg-slate-50 cursor-pointer"
+          className="appearance-none w-full px-3 pr-8 py-2 rounded-xl text-sm text-ink bg-surface cursor-pointer"
           style={{
             border: "1px solid rgba(245,243,238,0.06)",
             transition: `all 200ms ${ES}`,
@@ -1073,7 +1073,7 @@ function FieldSelect({ label, value, onChange, options }: any) {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-40 pointer-events-none" />
       </div>
     </div>
   );

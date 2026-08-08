@@ -36,35 +36,29 @@ import {
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  purple: "#a855f7",
-  purpleSoft: "rgba(168, 85, 247, 0.10)",
-  purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "#00d4ff",
-  cyanSoft: "rgba(0, 212, 255, 0.10)",
-  cyanBorder: "rgba(0, 212, 255, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  gray: "#9ca3af",
-  graySoft: "rgba(156, 163, 175, 0.08)",
-  grayBorder: "rgba(156, 163, 175, 0.22)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  ink: "rgb(var(--ent-ink))",
+  inkSoft: "rgba(28,27,24,0.06)",
+  inkBorder: "rgba(28,27,24,0.16)",
+  accent: "rgb(var(--ent-accent))",
+  accentSoft: "rgba(47,145,83,0.10)",
+  accentBorder: "rgba(47,145,83,0.28)",
+  amber: "rgb(var(--ent-amber))",
+  amberSoft: "rgba(201,138,26,0.10)",
+  amberBorder: "rgba(201,138,26,0.28)",
+  danger: "#b91c1c",
+  dangerSoft: "rgba(185,28,28,0.08)",
+  dangerBorder: "rgba(185,28,28,0.24)",
+  gray: "rgb(var(--ent-ink-40))",
+  graySoft: "rgb(var(--ent-surface))",
+  grayBorder: "rgb(var(--ent-hairline))",
 };
 
 // ────────────── TYPES ──────────────
@@ -144,37 +138,37 @@ const PROGRESS_CONFIG: Record<
 > = {
   unlocked: {
     label: "Bono desbloqueado",
-    color: THEME.green,
-    bg: THEME.greenSoft,
-    border: THEME.greenBorder,
+    color: THEME.accent,
+    bg: THEME.accentSoft,
+    border: THEME.accentBorder,
     icon: <Trophy size={11} strokeWidth={2.4} />,
   },
   ahead: {
     label: "Adelante del ritmo",
-    color: THEME.cyan,
-    bg: THEME.cyanSoft,
-    border: THEME.cyanBorder,
+    color: THEME.textSecondary,
+    bg: THEME.graySoft,
+    border: THEME.grayBorder,
     icon: <Rocket size={11} strokeWidth={2.4} />,
   },
   on_track: {
     label: "En ritmo",
-    color: THEME.purple,
-    bg: THEME.purpleSoft,
-    border: THEME.purpleBorder,
+    color: THEME.textSecondary,
+    bg: THEME.graySoft,
+    border: THEME.grayBorder,
     icon: <TrendingUp size={11} strokeWidth={2.4} />,
   },
   behind: {
     label: "Atrás del ritmo",
-    color: THEME.rose,
-    bg: THEME.roseSoft,
-    border: THEME.roseBorder,
+    color: THEME.amber,
+    bg: THEME.amberSoft,
+    border: THEME.amberBorder,
     icon: <Hourglass size={11} strokeWidth={2.4} />,
   },
   at_risk: {
     label: "En riesgo",
-    color: THEME.gold,
-    bg: THEME.goldSoft,
-    border: THEME.goldBorder,
+    color: THEME.danger,
+    bg: THEME.dangerSoft,
+    border: THEME.dangerBorder,
     icon: <AlertTriangle size={11} strokeWidth={2.4} />,
   },
   no_target: {
@@ -199,9 +193,9 @@ const STATUS_DB_CONFIG: Record<
 > = {
   ACTIVE: {
     label: "Activa",
-    color: THEME.green,
-    bg: THEME.greenSoft,
-    border: THEME.greenBorder,
+    color: THEME.accent,
+    bg: THEME.accentSoft,
+    border: THEME.accentBorder,
   },
   PAUSED: {
     label: "Pausada",
@@ -211,9 +205,9 @@ const STATUS_DB_CONFIG: Record<
   },
   COMPLETED: {
     label: "Completada",
-    color: THEME.purple,
-    bg: THEME.purpleSoft,
-    border: THEME.purpleBorder,
+    color: THEME.textSecondary,
+    bg: THEME.graySoft,
+    border: THEME.grayBorder,
   },
 };
 
@@ -257,10 +251,10 @@ function Avatar({
       style={{
         width: size,
         height: size,
-        background: THEME.goldSoft,
-        color: THEME.gold,
+        background: THEME.inkSoft,
+        color: THEME.ink,
         fontSize: size * 0.38,
-        border: `1.5px solid ${THEME.goldBorder}`,
+        border: `1.5px solid ${THEME.inkBorder}`,
       }}
     >
       {initials}
@@ -284,13 +278,13 @@ function ProgressBar({
     <div className="relative">
       <div
         className="w-full h-[6px] rounded-full overflow-hidden"
-        style={{ background: "rgba(255, 255, 255, 0.05)" }}
+        style={{ background: THEME.bgSoft }}
       >
         <div
           className="h-full rounded-full transition-all"
           style={{
             width: `${Math.max(0.5, pct * 100)}%`,
-            background: status === "unlocked" ? THEME.green : THEME.gradient,
+            background: status === "unlocked" ? THEME.accent : THEME.ink,
             transition: `width 600ms ${ES}`,
           }}
         />
@@ -300,7 +294,7 @@ function ProgressBar({
           className="absolute top-0 bottom-0 w-[2px]"
           style={{
             left: `${timeMark * 100}%`,
-            background: "rgba(255, 255, 255, 0.4)",
+            background: THEME.borderStrong,
           }}
           title="Progreso de tiempo"
         />
@@ -378,8 +372,8 @@ function FilterChip({
         <span
           className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full text-[10.5px] font-semibold tabular-nums"
           style={{
-            background: active ? THEME.goldSoft : THEME.bgSoft,
-            color: active ? THEME.gold : THEME.textTertiary,
+            background: active ? THEME.inkSoft : THEME.bgSoft,
+            color: active ? THEME.ink : THEME.textTertiary,
           }}
         >
           {count}
@@ -447,9 +441,9 @@ function CampaignCard({ c }: { c: Campaign }) {
           <div
             className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[10px] font-semibold"
             style={{
-              color: THEME.rose,
-              background: THEME.roseSoft,
-              border: `1px solid ${THEME.roseBorder}`,
+              color: THEME.amber,
+              background: THEME.amberSoft,
+              border: `1px solid ${THEME.amberBorder}`,
             }}
           >
             <Flame size={10} strokeWidth={2.4} />
@@ -620,20 +614,7 @@ export default function CampanasPage() {
   const empty = !loading && rows.length === 0;
 
   return (
-    <div className="min-h-screen" style={{ background: THEME.bgPage }}>
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
-
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[1320px] mx-auto px-6 md:px-10 py-8 md:py-10">
         {/* ─── HEADER ─── */}
         <header className="mb-8 flex items-end justify-between gap-4 flex-wrap">
@@ -645,13 +626,7 @@ export default function CampanasPage() {
               Aura · Campañas
             </div>
             <h1
-              className="text-[34px] font-semibold tracking-tight leading-none"
-              style={{
-                background: THEME.gradientText,
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                color: "transparent",
-              }}
+              className="text-[34px] font-semibold tracking-tight leading-none text-ink"
             >
               Campañas
             </h1>
@@ -669,11 +644,7 @@ export default function CampanasPage() {
 
           <Link
             href="/aura/campanas/nueva"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all"
-            style={{
-              background: THEME.gradient,
-              color: "#fff",
-            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all bg-ink text-white"
           >
             <Plus size={15} strokeWidth={2.4} />
             Nueva campaña
@@ -682,10 +653,7 @@ export default function CampanasPage() {
 
         {/* ─── SUMMARY BAR ─── */}
         {totals ? (
-          <div
-            className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6"
-            style={{ animation: `fadeIn 420ms ${ES}` }}
-          >
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             <SummaryPill label="Activas" value={totals.active} />
             <SummaryPill
               label="Revenue total"
@@ -695,12 +663,12 @@ export default function CampanasPage() {
             <SummaryPill
               label="Bonos desbloqueados"
               value={totals.unlocked}
-              accent={THEME.green}
+              accent={THEME.accent}
             />
             <SummaryPill
               label="En riesgo"
               value={totals.atRisk}
-              accent={totals.atRisk > 0 ? THEME.rose : undefined}
+              accent={totals.atRisk > 0 ? THEME.danger : undefined}
             />
           </div>
         ) : null}
@@ -786,9 +754,9 @@ export default function CampanasPage() {
           <div
             className="p-4 rounded-xl text-[13px] mb-4"
             style={{
-              background: THEME.roseSoft,
-              border: `1px solid ${THEME.roseBorder}`,
-              color: THEME.rose,
+              background: THEME.dangerSoft,
+              border: `1px solid ${THEME.dangerBorder}`,
+              color: THEME.danger,
             }}
           >
             {error}
@@ -820,9 +788,9 @@ export default function CampanasPage() {
           >
             <div
               className="w-14 h-14 mx-auto rounded-2xl mb-4 flex items-center justify-center"
-              style={{ background: THEME.goldSoft }}
+              style={{ background: THEME.inkSoft }}
             >
-              <Rocket size={26} color={THEME.gold} strokeWidth={2} />
+              <Rocket size={26} color={THEME.ink} strokeWidth={2} />
             </div>
             <div
               className="text-[16px] font-semibold tracking-tight mb-1"
@@ -840,18 +808,14 @@ export default function CampanasPage() {
             </p>
             <Link
               href="/aura/campanas/nueva"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12.5px] font-semibold"
-              style={{ background: THEME.gradient, color: "#fff" }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12.5px] font-semibold bg-ink text-white"
             >
               <Plus size={14} strokeWidth={2.4} />
               Crear primera campaña
             </Link>
           </div>
         ) : (
-          <div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-            style={{ animation: `fadeIn 480ms ${ES}` }}
-          >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {rows.map((c) => (
               <CampaignCard key={c.id} c={c} />
             ))}

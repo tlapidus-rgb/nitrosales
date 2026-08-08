@@ -30,29 +30,24 @@ import {
 } from "lucide-react";
 import { Suspense } from "react";
 
-const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
-
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  amber: "#f59e0b",
-  amberSoft: "rgba(245, 158, 11, 0.10)",
-  amberBorder: "rgba(245, 158, 11, 0.28)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  ink: "rgb(var(--ent-ink))",
+  inkSoft: "rgba(28,27,24,0.06)",
+  inkBorder: "rgba(28,27,24,0.16)",
+  danger: "#b91c1c",
+  dangerSoft: "rgba(185,28,28,0.08)",
+  dangerBorder: "rgba(185,28,28,0.24)",
+  amber: "rgb(var(--ent-amber))",
+  amberSoft: "rgba(201,138,26,0.10)",
+  amberBorder: "rgba(201,138,26,0.28)",
 };
 
 type Creator = {
@@ -90,7 +85,7 @@ function Avatar({ name, url, size = 28 }: { name: string; url: string | null; si
     return <img src={url} alt={name} width={size} height={size} className="rounded-full object-cover flex-shrink-0" style={{ width: size, height: size }} />;
   }
   return (
-    <div className="rounded-full flex items-center justify-center font-semibold flex-shrink-0" style={{ width: size, height: size, background: THEME.goldSoft, color: THEME.gold, fontSize: size * 0.38, border: `1px solid ${THEME.goldBorder}` }}>
+    <div className="rounded-full flex items-center justify-center font-semibold flex-shrink-0" style={{ width: size, height: size, background: THEME.inkSoft, color: THEME.ink, fontSize: size * 0.38, border: `1px solid ${THEME.inkBorder}` }}>
       {initials}
     </div>
   );
@@ -101,7 +96,7 @@ function Field({ label, children, hint, required }: { label: string; children: R
     <div>
       <label className="block text-[12px] tracking-tight font-medium mb-1.5" style={{ color: THEME.textSecondary }}>
         {label}
-        {required ? <span style={{ color: THEME.gold }}> *</span> : null}
+        {required ? <span style={{ color: THEME.danger }}> *</span> : null}
       </label>
       {children}
       {hint ? <div className="text-[11px] tracking-tight mt-1" style={{ color: THEME.textTertiary }}>{hint}</div> : null}
@@ -266,12 +261,7 @@ function NuevaCampanaInner() {
   const backTo = preselectedCreatorId ? `/aura/creadores/${preselectedCreatorId}` : "/aura/creadores";
 
   return (
-    <div className="min-h-screen" style={{ background: THEME.bgPage }}>
-      <style jsx>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
-      `}</style>
-
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[780px] mx-auto px-6 md:px-10 py-8 md:py-10">
         {/* La flecha "← Campañas" se sacó por completo (pedido de Tomy): la sección
             de campañas está deshabilitada (no está en el sidebar) y no debe ser
@@ -281,7 +271,7 @@ function NuevaCampanaInner() {
           <div className="text-[11px] tracking-[0.18em] uppercase font-medium mb-2" style={{ color: THEME.textMuted }}>
             Aura · Nueva campaña
           </div>
-          <h1 className="text-[30px] font-semibold tracking-tight leading-none" style={{ background: THEME.gradientText, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+          <h1 className="text-[30px] font-semibold tracking-tight leading-none text-ink">
             Armá una campaña
           </h1>
           <p className="mt-2 text-[14px] tracking-tight" style={{ color: THEME.textSecondary }}>
@@ -290,13 +280,13 @@ function NuevaCampanaInner() {
         </header>
 
         {error ? (
-          <div className="p-3 rounded-xl text-[12.5px] mb-5 flex items-start gap-2" style={{ background: THEME.roseSoft, border: `1px solid ${THEME.roseBorder}`, color: THEME.rose }}>
+          <div className="p-3 rounded-xl text-[12.5px] mb-5 flex items-start gap-2" style={{ background: THEME.dangerSoft, border: `1px solid ${THEME.dangerBorder}`, color: THEME.danger }}>
             <AlertCircle size={14} strokeWidth={2.2} className="mt-0.5 flex-shrink-0" />
             <span>{error}</span>
           </div>
         ) : null}
 
-        <form onSubmit={handleSubmit} className="rounded-2xl p-6 space-y-5" style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}`, animation: `fadeIn 420ms ${ES}` }}>
+        <form onSubmit={handleSubmit} className="rounded-2xl p-6 space-y-5" style={{ background: THEME.bgCard, border: `1px solid ${THEME.border}` }}>
 
           {/* ── Nombre ── */}
           <Field label="Nombre de la campaña" required hint="Ej: Día del Niño · Sofía M. · Lanzamiento verano">
@@ -306,13 +296,13 @@ function NuevaCampanaInner() {
           {/* ── Creador selector ── */}
           <Field label="Creador" required>
             {selectedCreator ? (
-              <div className="flex items-center gap-3 p-2.5 rounded-lg" style={{ background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}>
+              <div className="flex items-center gap-3 p-2.5 rounded-lg" style={{ background: THEME.inkSoft, border: `1px solid ${THEME.inkBorder}` }}>
                 <Avatar name={selectedCreator.name} url={selectedCreator.avatarUrl} size={32} />
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] font-semibold truncate" style={{ color: THEME.textPrimary }}>{selectedCreator.name}</div>
                   <div className="text-[11px] tracking-tight font-mono" style={{ color: THEME.textSecondary }}>{selectedCreator.code}</div>
                 </div>
-                <button type="button" onClick={() => { setSelectedCreator(null); setShowCreatorList(true); }} className="text-[11.5px] tracking-tight px-2.5 py-1 rounded-md" style={{ color: THEME.gold, background: "rgba(255, 0, 128, 0.12)" }}>
+                <button type="button" onClick={() => { setSelectedCreator(null); setShowCreatorList(true); }} className="text-[11.5px] tracking-tight px-2.5 py-1 rounded-md" style={{ color: THEME.ink, background: "rgba(28,27,24,0.08)" }}>
                   Cambiar
                 </button>
               </div>
@@ -328,7 +318,7 @@ function NuevaCampanaInner() {
                       <div className="p-4 text-center text-[12.5px]" style={{ color: THEME.textTertiary }}>No hay creadores que coincidan</div>
                     ) : (
                       filteredCreators.map((c) => (
-                        <button key={c.id} type="button" onClick={() => { setSelectedCreator(c); setShowCreatorList(false); setCreatorQ(""); }} className="w-full flex items-center gap-3 p-2.5 transition-colors text-left hover:bg-white/5" style={{ borderBottom: `1px solid ${THEME.border}` }}>
+                        <button key={c.id} type="button" onClick={() => { setSelectedCreator(c); setShowCreatorList(false); setCreatorQ(""); }} className="w-full flex items-center gap-3 p-2.5 transition-colors text-left hover:bg-surface" style={{ borderBottom: `1px solid ${THEME.border}` }}>
                           <Avatar name={c.name} url={c.avatarUrl} size={28} />
                           <div className="flex-1 min-w-0">
                             <div className="text-[13px] font-medium truncate" style={{ color: THEME.textPrimary }}>{c.name}</div>
@@ -381,7 +371,7 @@ function NuevaCampanaInner() {
               ══════════════════════════════════════════════════════════ */}
           <div className="rounded-xl p-4 mt-2" style={{ background: THEME.bgSoft, border: `1px solid ${THEME.borderStrong}` }}>
             <div className="flex items-center gap-2 mb-3">
-              <DollarSign size={14} color={THEME.gold} strokeWidth={2.2} />
+              <DollarSign size={14} color={THEME.ink} strokeWidth={2.2} />
               <span className="text-[13px] font-semibold tracking-tight" style={{ color: THEME.textPrimary }}>
                 ¿Cómo le vas a pagar al creador? *
               </span>
@@ -391,9 +381,9 @@ function NuevaCampanaInner() {
               {DEAL_TYPES.map((dt) => {
                 const sel = dealType === dt.value;
                 return (
-                  <button key={dt.value} type="button" onClick={() => setDealType(dt.value)} className="text-left rounded-xl px-3 py-2.5 transition-all" style={{ background: sel ? THEME.goldSoft : "transparent", border: `1px solid ${sel ? THEME.goldBorder : THEME.border}`, color: sel ? THEME.gold : THEME.textPrimary }}>
+                  <button key={dt.value} type="button" onClick={() => setDealType(dt.value)} className="text-left rounded-xl px-3 py-2.5 transition-all" style={{ background: sel ? THEME.inkSoft : "transparent", border: `1px solid ${sel ? THEME.inkBorder : THEME.border}`, color: sel ? THEME.ink : THEME.textPrimary }}>
                     <div className="flex items-center gap-1.5 text-[12px] font-semibold tracking-tight">{dt.icon} {dt.label}</div>
-                    <div className="text-[10.5px] tracking-tight mt-0.5" style={{ color: sel ? THEME.gold : THEME.textTertiary }}>{dt.desc}</div>
+                    <div className="text-[10.5px] tracking-tight mt-0.5" style={{ color: sel ? THEME.ink : THEME.textTertiary }}>{dt.desc}</div>
                   </button>
                 );
               })}
@@ -471,7 +461,7 @@ function NuevaCampanaInner() {
                         </div>
                       ))}
                     </div>
-                    <button type="button" onClick={() => setTiers([...tiers, { min: tiers.length > 0 ? tiers[tiers.length - 1].max || "" : "", max: "", pct: "" }])} className="mt-2 text-[11.5px] tracking-tight px-3 py-1.5 rounded-lg" style={{ color: THEME.gold, background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}>
+                    <button type="button" onClick={() => setTiers([...tiers, { min: tiers.length > 0 ? tiers[tiers.length - 1].max || "" : "", max: "", pct: "" }])} className="mt-2 text-[11.5px] tracking-tight px-3 py-1.5 rounded-lg" style={{ color: THEME.ink, background: THEME.inkSoft, border: `1px solid ${THEME.inkBorder}` }}>
                       + Agregar tramo
                     </button>
                   </div>
@@ -496,7 +486,7 @@ function NuevaCampanaInner() {
 
                 {/* Exclude from commission toggle */}
                 {showExcludeToggle ? (
-                  <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "rgba(245, 158, 11, 0.05)", border: `1px solid ${THEME.amberBorder}` }}>
+                  <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: THEME.amberSoft, border: `1px solid ${THEME.amberBorder}` }}>
                     <input type="checkbox" checked={excludeFromCommission} onChange={(e) => setExcludeFromCommission(e.target.checked)} className="mt-0.5 accent-amber-500" />
                     <div>
                       <div className="text-[12.5px] font-medium tracking-tight" style={{ color: THEME.textPrimary }}>
@@ -519,7 +509,7 @@ function NuevaCampanaInner() {
           {/* ── Bono por objetivo (campaña) ── */}
           <div className="rounded-xl p-4" style={{ background: THEME.bgSoft, border: `1px dashed ${THEME.border}` }}>
             <div className="flex items-center gap-2 mb-3">
-              <Gift size={14} color={THEME.gold} strokeWidth={2.2} />
+              <Gift size={14} color={THEME.ink} strokeWidth={2.2} />
               <span className="text-[12px] font-semibold tracking-tight" style={{ color: THEME.textPrimary }}>
                 Bono de campaña (opcional)
               </span>
@@ -545,7 +535,7 @@ function NuevaCampanaInner() {
             <Link href={backTo} className="px-4 py-2.5 rounded-xl text-[13px] font-medium tracking-tight" style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textSecondary }}>
               Cancelar
             </Link>
-            <button type="submit" disabled={!canSubmit} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: THEME.gradient, color: "#fff" }}>
+            <button type="submit" disabled={!canSubmit} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-ink text-white">
               {submitting ? <>Creando...</> : <><Rocket size={14} strokeWidth={2.4} />Lanzar campaña</>}
             </button>
           </div>

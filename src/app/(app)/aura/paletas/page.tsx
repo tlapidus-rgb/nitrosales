@@ -462,10 +462,9 @@ export default function PaletasPage() {
 
   return (
     <div
-      className="min-h-screen p-8"
+      className="min-h-screen p-8 bg-canvas"
       style={{
-        background: "#0a0a0a",
-        color: "#fff",
+        color: "rgb(var(--ent-ink))",
         fontFamily:
           "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif",
       }}
@@ -474,8 +473,7 @@ export default function PaletasPage() {
         {/* Header */}
         <header className="mb-8">
           <div
-            className="text-[11px] tracking-[0.2em] uppercase font-semibold mb-2"
-            style={{ color: "rgba(255,255,255,0.4)" }}
+            className="text-[11px] tracking-[0.2em] uppercase font-semibold mb-2 text-ink-40"
           >
             Aura · laboratorio visual
           </div>
@@ -483,10 +481,11 @@ export default function PaletasPage() {
             Elegí la dirección visual
           </h1>
           <p
-            className="mt-2 text-[14px] tracking-tight max-w-2xl"
-            style={{ color: "rgba(255,255,255,0.6)" }}
+            className="mt-2 text-[14px] tracking-tight max-w-2xl text-ink-60"
           >
-            Mismo mock del Inicio aplicado en 4 direcciones distintas. Todas tienen ADN creator economy (más jóvenes, más energéticas). Click en una card para ver en grande.
+            Mismo mock del Inicio aplicado en 4 direcciones distintas (cada mockup conserva su
+            paleta dark original a propósito — es lo que se está comparando). Todas tienen ADN
+            creator economy (más jóvenes, más energéticas). Click en una card para ver en grande.
           </p>
         </header>
 
@@ -502,8 +501,7 @@ export default function PaletasPage() {
               <div className="mb-3 flex items-end justify-between gap-2 flex-wrap">
                 <div>
                   <div
-                    className="text-[10px] tracking-[0.18em] uppercase font-semibold"
-                    style={{ color: "rgba(255,255,255,0.42)" }}
+                    className="text-[10px] tracking-[0.18em] uppercase font-semibold text-ink-40"
                   >
                     Opción · {p.id.toUpperCase()}
                   </div>
@@ -511,8 +509,7 @@ export default function PaletasPage() {
                     {p.name}
                   </h3>
                   <p
-                    className="text-[12.5px] tracking-tight mt-0.5"
-                    style={{ color: "rgba(255,255,255,0.55)" }}
+                    className="text-[12.5px] tracking-tight mt-0.5 text-ink-60"
                   >
                     {p.tagline} · <span style={{ color: p.accent }}>{p.mood}</span>
                   </p>
@@ -532,16 +529,12 @@ export default function PaletasPage() {
 
         {/* Guía de decisión al pie */}
         <div
-          className="mt-10 rounded-2xl p-6"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
+          className="mt-10 rounded-2xl p-6 bg-surface border border-hairline"
         >
           <h3 className="text-[14px] font-semibold tracking-tight mb-3">
             Ayuda para elegir
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[13px] leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[13px] leading-relaxed text-ink-60">
             <div>
               <b style={{ color: "#a78bfa" }}>Electric Violet</b> — El más "premium tech creator". Elegí esta si querés balance entre sofisticado y joven. Funciona genial con fotos de creators.
             </div>
@@ -564,12 +557,7 @@ export default function PaletasPage() {
 function Swatch({ color, label }: { color: string; label: string }) {
   return (
     <div
-      className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-mono tracking-tight"
-      style={{
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        color: "rgba(255,255,255,0.75)",
-      }}
+      className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-mono tracking-tight bg-surface border border-hairline text-ink-60"
       title={label}
     >
       <span

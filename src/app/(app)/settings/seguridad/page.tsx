@@ -146,14 +146,14 @@ export default function SeguridadPage() {
   return (
     <div className="space-y-5">
       {/* Card 1 — Cambiar password */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <div className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-rose-600" />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          <Lock className="h-4 w-4 text-ink" />
+          <h2 className="text-sm font-semibold tracking-tight text-ink">
             Cambiar password
           </h2>
         </div>
-        <p className="mt-1 text-[12px] text-slate-500">
+        <p className="mt-1 text-[12px] text-ink-40">
           Usá al menos 8 caracteres. Ideal: mezcla de letras, números y símbolos.
         </p>
 
@@ -163,7 +163,7 @@ export default function SeguridadPage() {
               type="password"
               value={currentPwd}
               onChange={(e) => setCurrentPwd(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               placeholder="••••••••"
               autoComplete="current-password"
             />
@@ -174,7 +174,7 @@ export default function SeguridadPage() {
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
               minLength={8}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               placeholder="••••••••"
               autoComplete="new-password"
             />
@@ -185,7 +185,7 @@ export default function SeguridadPage() {
               value={confirmPwd}
               onChange={(e) => setConfirmPwd(e.target.value)}
               minLength={8}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               placeholder="••••••••"
               autoComplete="new-password"
             />
@@ -197,7 +197,7 @@ export default function SeguridadPage() {
             type="button"
             disabled={!currentPwd || !newPwd || !confirmPwd || saving}
             onClick={submit}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ transition: `all 160ms ${ES}` }}
           >
             <Save className="h-3.5 w-3.5" />
@@ -207,29 +207,29 @@ export default function SeguridadPage() {
       </div>
 
       {/* Card 2 — Historial de logins */}
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-3">
+      <div className="rounded-2xl border border-hairline bg-elevated overflow-hidden">
+        <div className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-3">
           <div className="flex items-center gap-2">
-            <History className="h-4 w-4 text-slate-600" />
-            <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+            <History className="h-4 w-4 text-ink-60" />
+            <h2 className="text-sm font-semibold tracking-tight text-ink">
               Historial de logins
             </h2>
           </div>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-ink-40">
             Últimos {events.length} eventos
           </span>
         </div>
         {loadingEvents ? (
-          <div className="p-6 text-sm text-slate-400">Cargando historial…</div>
+          <div className="p-6 text-sm text-ink-40">Cargando historial…</div>
         ) : events.length === 0 ? (
           <div className="p-8 text-center">
-            <History className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-3 text-sm text-slate-500">
+            <History className="mx-auto h-8 w-8 text-ink-40" />
+            <p className="mt-3 text-sm text-ink-40">
               Sin historial todavía. Los próximos logins aparecerán aquí.
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-hairline">
             {events.map((e) => {
               const Icon = e.success ? CheckCircle2 : XCircle;
               const color = e.success ? "#10b981" : "#ef4444";
@@ -241,25 +241,25 @@ export default function SeguridadPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <Icon className="h-4 w-4 shrink-0" style={{ color }} />
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-slate-900">
+                      <div className="text-[12px] font-semibold text-ink">
                         {e.success ? "Login exitoso" : "Login fallido"}
                         {e.failureReason && (
                           <span
                             className="ml-2 text-[10px] font-normal"
-                            style={{ color: e.success ? "#64748b" : "#ef4444" }}
+                            style={{ color: e.success ? "#6B685F" : "#ef4444" }}
                           >
                             ({e.failureReason})
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-[10px] text-slate-500">
+                      <div className="mt-0.5 text-[10px] text-ink-40">
                         {shortUA(e.userAgent)}
                         {e.ip && ` · ${e.ip}`}
                         {e.location && ` · ${e.location}`}
                       </div>
                     </div>
                   </div>
-                  <div className="text-[10px] tabular-nums text-slate-500">
+                  <div className="text-[10px] tabular-nums text-ink-40">
                     {fmtRelative(e.createdAt)}
                   </div>
                 </div>
@@ -270,7 +270,7 @@ export default function SeguridadPage() {
       </div>
 
       {/* 2FA — placeholder interno */}
-      <div className="relative overflow-hidden rounded-2xl border border-amber-200 bg-white p-5">
+      <div className="relative overflow-hidden rounded-2xl border border-amber-200 bg-elevated p-5">
         <div className="flex items-start gap-3">
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
@@ -284,7 +284,7 @@ export default function SeguridadPage() {
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold tracking-tight text-slate-900">
+              <h3 className="text-sm font-semibold tracking-tight text-ink">
                 Two-Factor Authentication
               </h3>
               <span
@@ -294,7 +294,7 @@ export default function SeguridadPage() {
                 Próximamente
               </span>
             </div>
-            <p className="mt-1 text-[12px] text-slate-500">
+            <p className="mt-1 text-[12px] text-ink-40">
               Agregar una segunda capa de protección con apps como Google
               Authenticator o 1Password. Te avisamos cuando lo activemos.
             </p>
@@ -305,7 +305,7 @@ export default function SeguridadPage() {
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-medium text-white shadow-lg"
           role="status"
           aria-live="polite"
         >
@@ -348,7 +348,7 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="block text-[12px] font-semibold text-slate-700">
+      <label className="block text-[12px] font-semibold text-ink-60">
         {label}
       </label>
       <div className="mt-1.5">{children}</div>

@@ -118,16 +118,16 @@ export default function ApiKeysPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-slate-600" />
-              <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+              <KeyRound className="h-4 w-4 text-ink-60" />
+              <h2 className="text-sm font-semibold tracking-tight text-ink">
                 API Keys
               </h2>
             </div>
-            <p className="mt-1 text-[12px] text-slate-500">
+            <p className="mt-1 text-[12px] text-ink-40">
               Tokens para que Zapier, n8n o tus propios scripts consulten data
               de NitroSales. Cada token tiene scopes limitados.
             </p>
@@ -135,7 +135,7 @@ export default function ApiKeysPage() {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90"
             style={{ transition: `all 160ms ${ES}` }}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -143,9 +143,9 @@ export default function ApiKeysPage() {
           </button>
         </div>
 
-        <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-          <Gauge className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-          <div className="text-[11px] text-slate-600 leading-relaxed">
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-hairline bg-surface p-3">
+          <Gauge className="h-3.5 w-3.5 text-ink-40 shrink-0" />
+          <div className="text-[11px] text-ink-60 leading-relaxed">
             <strong>Rate limits:</strong> 1.000 requests/hora · 10K requests/día
             por token. Upgrade a Pro multiplica por 10.
           </div>
@@ -158,24 +158,24 @@ export default function ApiKeysPage() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className="h-20 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50"
+              className="h-20 animate-pulse rounded-2xl border border-hairline bg-surface-2/50"
             />
           ))}
         </div>
       ) : keys.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/30 p-10 text-center">
-          <KeyRound className="mx-auto h-10 w-10 text-slate-300" />
-          <h3 className="mt-4 text-sm font-semibold text-slate-700">
+        <div className="rounded-2xl border border-dashed border-hairline-2 bg-surface p-10 text-center">
+          <KeyRound className="mx-auto h-10 w-10 text-ink-40" />
+          <h3 className="mt-4 text-sm font-semibold text-ink-60">
             Sin API keys todavía
           </h3>
-          <p className="mt-1 text-[12px] text-slate-500">
+          <p className="mt-1 text-[12px] text-ink-40">
             Creá la primera para empezar a integrar NitroSales con otras
             herramientas.
           </p>
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90"
           >
             <Plus className="h-3.5 w-3.5" />
             Crear primera API Key
@@ -186,39 +186,39 @@ export default function ApiKeysPage() {
           {keys.map((k) => (
             <div
               key={k.id}
-              className="rounded-2xl border border-slate-200 bg-white p-4"
+              className="rounded-2xl border border-hairline bg-elevated p-4"
               style={{
-                boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
+                boxShadow: "0 1px 2px rgba(28,27,24,0.03)",
               }}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-[13px] font-semibold tracking-tight text-slate-900">
+                    <h3 className="text-[13px] font-semibold tracking-tight text-ink">
                       {k.name}
                     </h3>
-                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                    <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-60">
                       {k.prefix}…
                     </code>
                   </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-ink-40">
                     <span>
                       Creada:{" "}
-                      <span className="font-medium text-slate-700">
+                      <span className="font-medium text-ink-60">
                         {fmtDate(k.createdAt)}
                       </span>
                       {k.createdBy && ` por ${k.createdBy.name ?? k.createdBy.email}`}
                     </span>
                     <span>
                       Último uso:{" "}
-                      <span className="font-medium text-slate-700">
+                      <span className="font-medium text-ink-60">
                         {fmtDate(k.lastUsedAt)}
                       </span>
                     </span>
                     {k.expiresAt && (
                       <span>
                         Expira:{" "}
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-ink-60">
                           {new Date(k.expiresAt).toLocaleDateString("es-AR", {
                             day: "numeric",
                             month: "short",
@@ -233,7 +233,7 @@ export default function ApiKeysPage() {
                       {k.scopes.map((s) => (
                         <span
                           key={s}
-                          className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] text-slate-600"
+                          className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] text-ink-60"
                         >
                           {s}
                         </span>
@@ -244,7 +244,7 @@ export default function ApiKeysPage() {
                 <button
                   type="button"
                   onClick={() => handleRevoke(k)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-rose-200 hover:text-rose-600"
+                  className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-elevated px-2.5 py-1.5 text-[11px] font-medium text-ink-60 transition hover:border-rose-200 hover:text-rose-600"
                 >
                   <Trash2 className="h-3 w-3" />
                   Revocar
@@ -280,7 +280,7 @@ export default function ApiKeysPage() {
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-medium text-white shadow-lg"
           role="status"
           aria-live="polite"
         >
@@ -380,19 +380,19 @@ function CreateKeyModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-hairline bg-elevated shadow-2xl">
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-slate-700" />
-              <h3 className="text-sm font-semibold tracking-tight text-slate-900">
+              <KeyRound className="h-4 w-4 text-ink-60" />
+              <h3 className="text-sm font-semibold tracking-tight text-ink">
                 Crear API Key
               </h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-lg p-1 text-ink-40 hover:bg-surface-2 hover:text-ink-60"
             >
               <X className="h-4 w-4" />
             </button>
@@ -400,7 +400,7 @@ function CreateKeyModal({
 
           <div className="mt-5 space-y-4">
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink-60">
                 Nombre (para identificarla después)
               </label>
               <input
@@ -408,14 +408,14 @@ function CreateKeyModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={80}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                className="mt-1.5 w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
                 placeholder="Ej: Zapier producción"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink-60">
                 Permisos (scopes)
               </label>
               <div className="mt-1.5 grid grid-cols-1 gap-1.5">
@@ -427,21 +427,21 @@ function CreateKeyModal({
                       className="flex items-center gap-2 rounded-lg border p-2 cursor-pointer transition"
                       style={{
                         borderColor: active
-                          ? "rgba(15,23,42,0.25)"
-                          : "rgba(226,232,240,1)",
-                        background: active ? "rgba(15,23,42,0.02)" : "white",
+                          ? "rgba(28,27,24,0.25)"
+                          : "rgba(229,225,216,1)",
+                        background: active ? "rgba(28,27,24,0.02)" : "white",
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={active}
                         onChange={() => toggleScope(s.value)}
-                        className="h-3.5 w-3.5 rounded border-slate-300"
+                        className="h-3.5 w-3.5 rounded border-hairline-2"
                       />
-                      <span className="text-[11px] font-mono text-slate-600">
+                      <span className="text-[11px] font-mono text-ink-60">
                         {s.value}
                       </span>
-                      <span className="ml-auto text-[10px] text-slate-500">
+                      <span className="ml-auto text-[10px] text-ink-40">
                         {s.label}
                       </span>
                     </label>
@@ -451,13 +451,13 @@ function CreateKeyModal({
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink-60">
                 Expiración
               </label>
               <select
                 value={expiresInDays}
                 onChange={(e) => setExpiresInDays(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                className="mt-1.5 w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-40 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               >
                 <option value="0">Nunca expira</option>
                 <option value="30">30 días</option>
@@ -473,11 +473,11 @@ function CreateKeyModal({
             )}
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="mt-6 flex items-center justify-end gap-2 border-t border-hairline pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-semibold text-ink-60 hover:bg-surface"
             >
               Cancelar
             </button>
@@ -485,7 +485,7 @@ function CreateKeyModal({
               type="button"
               disabled={!name || scopes.length === 0 || submitting}
               onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="h-3.5 w-3.5" />
               {submitting ? "Creando…" : "Crear"}
@@ -529,7 +529,7 @@ function RevealedTokenModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-2xl">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-amber-200 bg-elevated shadow-2xl">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-px"
@@ -551,7 +551,7 @@ function RevealedTokenModal({
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold tracking-tight text-slate-900">
+              <h3 className="text-sm font-semibold tracking-tight text-ink">
                 Copiá tu token ahora
               </h3>
               <p className="mt-1 text-[12px] text-amber-700 leading-relaxed">
@@ -563,11 +563,11 @@ function RevealedTokenModal({
           </div>
 
           <div className="mt-5">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-40">
               {apiKey.name}
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <code className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 font-mono text-[12px] text-slate-900">
+              <code className="flex-1 truncate rounded-lg border border-hairline bg-surface px-3 py-2.5 font-mono text-[12px] text-ink">
                 {token}
               </code>
               <button
@@ -576,7 +576,7 @@ function RevealedTokenModal({
                 className={`inline-flex items-center gap-1 rounded-lg px-3 py-2.5 text-[11px] font-semibold shadow-sm transition ${
                   copied
                     ? "bg-emerald-600 text-white"
-                    : "bg-slate-900 text-white hover:bg-slate-800"
+                    : "bg-ink text-white hover:bg-ink/90"
                 }`}
               >
                 {copied ? (
@@ -589,11 +589,11 @@ function RevealedTokenModal({
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-end border-t border-slate-100 pt-4">
+          <div className="mt-6 flex items-center justify-end border-t border-hairline pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
+              className="rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-ink/90"
             >
               Ya lo guardé, cerrar
             </button>

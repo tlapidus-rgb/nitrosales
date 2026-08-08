@@ -55,16 +55,16 @@ const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gra
     label: "EN RIESGO",
   },
   Dormant: {
-    icon: Moon, accent: "#94a3b8", glow: "rgba(148,163,184,0.30)",
-    gradient: "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)",
-    bg: "linear-gradient(135deg, rgba(148,163,184,0.06), rgba(100,116,139,0.05))",
+    icon: Moon, accent: "#9A978D", glow: "rgba(154,151,141,0.30)",
+    gradient: "linear-gradient(135deg, #9A978D 0%, #6B685F 100%)",
+    bg: "linear-gradient(135deg, rgba(154,151,141,0.06), rgba(107,104,95,0.05))",
     label: "DORMIDO",
   },
 };
 
 const EVENT_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
   // Tipos reales que escribe el píxel de NitroSales
-  PAGE_VIEW:         { icon: Eye,               color: "#64748b", label: "Vio página" },
+  PAGE_VIEW:         { icon: Eye,               color: "#9A978D", label: "Vio página" },
   VIEW_PRODUCT:      { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
   ADD_TO_CART:       { icon: ShoppingCart,      color: "#f97316", label: "Agregó al carrito" },
   INITIATE_CHECKOUT: { icon: CreditCard,        color: "#9A978D", label: "Inició checkout" },
@@ -75,12 +75,12 @@ const EVENT_CONFIG: Record<string, { icon: any; color: string; label: string }> 
   // Variantes GA4-style (por si alguna integración las usa)
   VIEW_ITEM:         { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
   VIEW_ITEM_LIST:    { icon: Layers,            color: "#6366f1", label: "Exploró listado" },
-  REMOVE_FROM_CART:  { icon: ShoppingCart,      color: "#94a3b8", label: "Quitó del carrito" },
+  REMOVE_FROM_CART:  { icon: ShoppingCart,      color: "#9A978D", label: "Quitó del carrito" },
   BEGIN_CHECKOUT:    { icon: CreditCard,        color: "#9A978D", label: "Inició checkout" },
   SEARCH:            { icon: Compass,           color: "#0891b2", label: "Buscó" },
   SESSION_START:     { icon: CircleDot,         color: "#2F9153", label: "Sesión iniciada" },
   CLICK:             { icon: MousePointerClick, color: "#6366f1", label: "Click" },
-  default:           { icon: Activity,          color: "#64748b", label: "Actividad" },
+  default:           { icon: Activity,          color: "#9A978D", label: "Actividad" },
 };
 
 function eventMeta(type: string) {
@@ -331,11 +331,11 @@ export default function ClienteDetailPage() {
           {/* Back nav */}
           <button
             onClick={() => router.push("/bondly/clientes")}
-            className="group inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 mb-5"
+            className="group inline-flex items-center gap-2 text-sm font-medium text-ink-60 hover:text-ink mb-5"
             style={{ transition: `all 200ms ${ES}` }}
           >
             <span
-              className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 group-hover:border-slate-300 group-hover:-translate-x-0.5"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-elevated border border-hairline group-hover:border-hairline-2 group-hover:-translate-x-0.5"
               style={{ transition: `all 200ms ${ES}`, boxShadow: "0 1px 2px rgba(245,243,238,0.04)" }}
             >
               <ArrowLeft className="w-4 h-4" />
@@ -362,7 +362,7 @@ export default function ClienteDetailPage() {
                 {/* Active indicator */}
                 {activity.isActiveNow && (
                   <span
-                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white flex items-center justify-center"
+                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-elevated flex items-center justify-center"
                     style={{ boxShadow: "0 6px 18px rgba(16,185,129,0.45)" }}
                   >
                     <span
@@ -389,7 +389,7 @@ export default function ClienteDetailPage() {
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-start flex-wrap gap-x-3 gap-y-2">
-                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
+                <h1 className="text-3xl md:text-4xl font-bold text-ink tracking-tight">
                   {customer.name}
                 </h1>
                 {isVIP && (
@@ -406,38 +406,38 @@ export default function ClienteDetailPage() {
                 )}
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-600">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ink-60">
                 {customer.email && (
                   <button
                     onClick={() => handleCopy("email", customer.email)}
-                    className="inline-flex items-center gap-1.5 hover:text-slate-900"
+                    className="inline-flex items-center gap-1.5 hover:text-ink"
                     style={{ transition: `all 180ms ${ES}` }}
                     title="Copiar email"
                   >
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <Mail className="w-3.5 h-3.5 text-ink-40" />
                     <span className="font-medium">{customer.email}</span>
                     {copied === "email"
                       ? <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      : <Copy className="w-3 h-3 text-slate-300" />}
+                      : <Copy className="w-3 h-3 text-ink-40" />}
                   </button>
                 )}
                 {customer.phone && (
                   <button
                     onClick={() => handleCopy("phone", customer.phone)}
-                    className="inline-flex items-center gap-1.5 hover:text-slate-900"
+                    className="inline-flex items-center gap-1.5 hover:text-ink"
                     style={{ transition: `all 180ms ${ES}` }}
                     title="Copiar teléfono"
                   >
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <Phone className="w-3.5 h-3.5 text-ink-40" />
                     <span className="font-medium">{customer.phone}</span>
                     {copied === "phone"
                       ? <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      : <Copy className="w-3 h-3 text-slate-300" />}
+                      : <Copy className="w-3 h-3 text-ink-40" />}
                   </button>
                 )}
                 {(customer.city || customer.state) && (
                   <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <MapPin className="w-3.5 h-3.5 text-ink-40" />
                     <span>{[customer.city, customer.state].filter(Boolean).join(", ")}</span>
                   </span>
                 )}
@@ -451,14 +451,14 @@ export default function ClienteDetailPage() {
                 )}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-slate-500">
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-ink-40">
                 {stats.firstOrderAt && (
                   <span className="inline-flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
                     Primera compra {formatDateOnly(stats.firstOrderAt)}
                   </span>
                 )}
-                <span className="text-slate-300">·</span>
+                <span className="text-ink-40">·</span>
                 {activity.lastVisitAt && (
                   <span className="inline-flex items-center gap-1">
                     <Eye className="w-3 h-3" />
@@ -467,7 +467,7 @@ export default function ClienteDetailPage() {
                 )}
                 {stats.lastOrderAt && (
                   <>
-                    <span className="text-slate-300">·</span>
+                    <span className="text-ink-40">·</span>
                     <span className="inline-flex items-center gap-1">
                       <ShoppingCart className="w-3 h-3" />
                       Última compra {formatRelative(stats.lastOrderAt)}
@@ -500,13 +500,13 @@ export default function ClienteDetailPage() {
               {customer.email && (
                 <a
                   href={`mailto:${customer.email}`}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-60 bg-elevated border border-hairline"
                   style={{
                     boxShadow: "0 1px 2px rgba(245,243,238,0.04)",
                     transition: `all 220ms ${ES}`,
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.borderColor = "#DCD8CD"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.borderColor = "#EDEAE3"; }}
                 >
                   <Mail className="w-4 h-4" />
                   Enviar email
@@ -543,8 +543,8 @@ export default function ClienteDetailPage() {
               label="Recencia"
               value={
                 stats.recencyDays != null
-                  ? <><CountUpNum target={stats.recencyDays} /><span className="text-[11px] font-semibold text-slate-400 ml-1">días</span></>
-                  : <span className="text-slate-400 text-base">—</span>
+                  ? <><CountUpNum target={stats.recencyDays} /><span className="text-[11px] font-semibold text-ink-40 ml-1">días</span></>
+                  : <span className="text-ink-40 text-base">—</span>
               }
               accent="#f59e0b"
               delay={180}
@@ -601,10 +601,10 @@ export default function ClienteDetailPage() {
                     <TierIcon className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-40">
                       Tier · {segmentation.segment}
                     </div>
-                    <div className="text-lg font-bold text-slate-900">
+                    <div className="text-lg font-bold text-ink">
                       {tierCfg.label}
                     </div>
                   </div>
@@ -650,10 +650,10 @@ export default function ClienteDetailPage() {
                       border: "1px solid rgba(229,225,216,0.18)",
                     }}
                   >
-                    <Compass className="w-3.5 h-3.5 text-slate-500" />
-                    <div className="text-[11px] text-slate-600">
+                    <Compass className="w-3.5 h-3.5 text-ink-40" />
+                    <div className="text-[11px] text-ink-60">
                       Próximo probable:
-                      <span className="ml-1 font-semibold text-slate-900">{segmentation.nextCategory}</span>
+                      <span className="ml-1 font-semibold text-ink">{segmentation.nextCategory}</span>
                     </div>
                   </div>
                 )}
@@ -668,15 +668,15 @@ export default function ClienteDetailPage() {
                     <div
                       className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
                       style={{
-                        background: `${CHANNEL_TINT[acquisition.channel] || "#94a3b8"}14`,
-                        border: `1px solid ${CHANNEL_TINT[acquisition.channel] || "#94a3b8"}24`,
+                        background: `${CHANNEL_TINT[acquisition.channel] || "#9A978D"}14`,
+                        border: `1px solid ${CHANNEL_TINT[acquisition.channel] || "#9A978D"}24`,
                       }}
                     >
                       <SourceLogo channel={acquisition.channel as any} size={18} />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Primer canal</div>
-                      <div className="text-sm font-bold text-slate-900">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-40">Primer canal</div>
+                      <div className="text-sm font-bold text-ink">
                         {CHANNEL_LABEL[acquisition.channel] || acquisition.channel}
                       </div>
                     </div>
@@ -689,7 +689,7 @@ export default function ClienteDetailPage() {
                     </div>
                   )}
                   {acquisition.firstTouchAt && (
-                    <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                    <div className="text-[11px] text-ink-40 pt-2 border-t border-hairline">
                       Primer toque: {formatDateTime(acquisition.firstTouchAt)}
                     </div>
                   )}
@@ -727,8 +727,8 @@ export default function ClienteDetailPage() {
                 />
               </div>
               {Object.keys(activity.deviceBreakdown || {}).length > 0 && (
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Dispositivos</div>
+                <div className="mt-4 pt-3 border-t border-hairline">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-40 mb-2">Dispositivos</div>
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(activity.deviceBreakdown).map(([d, _n]) => (
                       <DeviceChip key={d} device={d} />
@@ -737,7 +737,7 @@ export default function ClienteDetailPage() {
                 </div>
               )}
               {activity.firstSeenAt && (
-                <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center gap-1.5">
+                <div className="mt-3 pt-3 border-t border-hairline text-[11px] text-ink-40 flex items-center gap-1.5">
                   <Calendar className="w-3 h-3" />
                   Primera visita {formatDateOnly(activity.firstSeenAt)}
                 </div>
@@ -759,7 +759,7 @@ function KpiTile({
 }: { icon: React.ReactNode; label: string; value: React.ReactNode; accent: string; delay?: number }) {
   return (
     <div
-      className="relative rounded-2xl bg-white border border-slate-200 p-4 overflow-hidden"
+      className="relative rounded-2xl bg-elevated border border-hairline p-4 overflow-hidden"
       style={{
         boxShadow: "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.10)",
         animation: `bondlyFadeSlideIn 500ms ${ES} ${delay}ms both`,
@@ -776,11 +776,11 @@ function KpiTile({
     >
       {/* Accent bar */}
       <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: accent }} />
-      <div className="relative flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+      <div className="relative flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-ink-40 mb-1.5">
         <span style={{ color: accent }}>{icon}</span>
         {label}
       </div>
-      <div className="relative text-xl font-bold text-slate-900 tabular-nums tracking-tight">
+      <div className="relative text-xl font-bold text-ink tabular-nums tracking-tight">
         {value}
       </div>
     </div>
@@ -792,15 +792,15 @@ function Card({
 }: { title: string; icon?: React.ReactNode; children: React.ReactNode; delay?: number; action?: React.ReactNode }) {
   return (
     <div
-      className="rounded-2xl bg-white border border-slate-200 overflow-hidden"
+      className="rounded-2xl bg-elevated border border-hairline overflow-hidden"
       style={{
         boxShadow: "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.08)",
         animation: `bondlyFadeSlideIn 500ms ${ES} ${delay}ms both`,
       }}
     >
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-          {icon && <span className="text-slate-400">{icon}</span>}
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-hairline">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ink-40">
+          {icon && <span className="text-ink-40">{icon}</span>}
           {title}
         </div>
         {action}
@@ -814,7 +814,7 @@ function Card({
 
 function EmptyInline({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+    <div className="flex flex-col items-center justify-center py-8 text-ink-40">
       <div className="mb-2">{icon}</div>
       <div className="text-sm">{text}</div>
     </div>
@@ -829,11 +829,11 @@ function ProbabilityBar({
   // Banner color: if inverted (churn), red at high values, green at low.
   const severity = inverted
     ? v >= 70 ? "#ef4444" : v >= 40 ? "#f59e0b" : "#10b981"
-    : v >= 60 ? "#10b981" : v >= 30 ? "#2F9153" : "#94a3b8";
+    : v >= 60 ? "#10b981" : v >= 30 ? "#2F9153" : "#9A978D";
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <div className="inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-600">
+        <div className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-60">
           <span style={{ color: severity }}>{icon}</span>
           {label}
         </div>
@@ -841,7 +841,7 @@ function ProbabilityBar({
           {Math.round(animated)}%
         </div>
       </div>
-      <div className="relative h-2 rounded-full bg-slate-100 overflow-hidden">
+      <div className="relative h-2 rounded-full bg-surface-2 overflow-hidden">
         <div
           className="absolute inset-y-0 left-0 rounded-full"
           style={{
@@ -870,10 +870,10 @@ function MiniStat({
       <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>
         {label}
       </div>
-      <div className="text-base font-bold text-slate-900 tabular-nums tracking-tight">
+      <div className="text-base font-bold text-ink tabular-nums tracking-tight">
         {value}
       </div>
-      {hint && <div className="text-[10px] text-slate-400">{hint}</div>}
+      {hint && <div className="text-[10px] text-ink-40">{hint}</div>}
     </div>
   );
 }
@@ -881,8 +881,8 @@ function MiniStat({
 function AttrRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-800 max-w-[160px] truncate" title={value}>{value}</span>
+      <span className="text-ink-40">{label}</span>
+      <span className="font-medium text-ink-60 max-w-[160px] truncate" title={value}>{value}</span>
     </div>
   );
 }
@@ -890,14 +890,14 @@ function AttrRow({ label, value }: { label: string; value: string }) {
 function ProductRow({ product, rank }: { product: any; rank: number }) {
   return (
     <div
-      className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-slate-50"
+      className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-surface"
       style={{ transition: `all 180ms ${ES}` }}
     >
       {/* Rank */}
       <div
         className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
         style={{
-          background: rank === 1 ? GOLD_GRAD : rank === 2 ? "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)" : "linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)",
+          background: rank === 1 ? GOLD_GRAD : rank === 2 ? "linear-gradient(135deg, #9A978D 0%, #6B685F 100%)" : "linear-gradient(135deg, #DCD8CD 0%, #9A978D 100%)",
         }}
       >
         {rank}
@@ -907,24 +907,24 @@ function ProductRow({ product, rank }: { product: any; rank: number }) {
         <img
           src={product.imageUrl}
           alt={product.name}
-          className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+          className="w-10 h-10 rounded-lg object-cover border border-hairline"
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
         />
       ) : (
-        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
-          <Package className="w-4 h-4 text-slate-400" />
+        <div className="w-10 h-10 rounded-lg bg-surface-2 border border-hairline flex items-center justify-center">
+          <Package className="w-4 h-4 text-ink-40" />
         </div>
       )}
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold text-slate-900 truncate" title={product.name}>
+        <div className="text-[13px] font-semibold text-ink truncate" title={product.name}>
           {product.name}
         </div>
-        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+        <div className="text-[11px] text-ink-40 flex items-center gap-1.5">
           {product.category && (
             <>
               <span className="truncate max-w-[120px]" title={product.category}>{product.category}</span>
-              <span className="text-slate-300">·</span>
+              <span className="text-ink-40">·</span>
             </>
           )}
           <span>{product.quantity}u</span>
@@ -932,7 +932,7 @@ function ProductRow({ product, rank }: { product: any; rank: number }) {
       </div>
       {/* Spent */}
       <div className="text-right flex-shrink-0">
-        <div className="text-[12px] font-bold text-slate-900 tabular-nums">
+        <div className="text-[12px] font-bold text-ink tabular-nums">
           {formatARS(product.totalSpent)}
         </div>
       </div>
@@ -943,7 +943,7 @@ function ProductRow({ product, rank }: { product: any; rank: number }) {
 function DeviceChip({ device }: { device: string }) {
   const cfg = device === "mobile" ? { icon: Smartphone, label: "Móvil", color: "#2F9153" }
             : device === "tablet" ? { icon: Tablet, label: "Tablet", color: "#6366f1" }
-            : { icon: Monitor, label: "Desktop", color: "#475569" };
+            : { icon: Monitor, label: "Desktop", color: "#6B685F" };
   const Icon = cfg.icon;
   return (
     <span
@@ -985,16 +985,16 @@ function TimelineList({ items }: { items: any[] }) {
       {/* Vertical line */}
       <div
         className="absolute left-[9px] top-2 bottom-2 w-px"
-        style={{ background: "linear-gradient(to bottom, #e2e8f0 0%, #e2e8f0 50%, transparent 100%)" }}
+        style={{ background: "linear-gradient(to bottom, #EDEAE3 0%, #EDEAE3 50%, transparent 100%)" }}
       />
       <div className="space-y-5">
         {groups.map((g, gi) => (
           <div key={gi}>
             <div
-              className="relative -ml-5 pl-5 mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-500"
+              className="relative -ml-5 pl-5 mb-3 text-[10px] font-bold uppercase tracking-wider text-ink-40"
               style={{ animation: `bondlyFadeSlideIn 400ms ${ES} ${gi * 40}ms both` }}
             >
-              <span className="inline-block w-3 h-3 rounded-full bg-slate-200 -ml-[23px] mr-3 border-2 border-white align-middle" />
+              <span className="inline-block w-3 h-3 rounded-full bg-surface-2 -ml-[23px] mr-3 border-2 border-white align-middle" />
               {g.day}
             </div>
             <div className="space-y-2">
@@ -1043,18 +1043,18 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
               <Zap className="w-2.5 h-2.5" />
               Compra
             </span>
-            <span className="text-[10px] text-slate-500">
+            <span className="text-[10px] text-ink-40">
               {new Date(item.timestamp).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>
-          <div className="text-[13px] font-semibold text-slate-900 truncate">
+          <div className="text-[13px] font-semibold text-ink truncate">
             Orden #{item.externalId}
-            <span className="ml-2 text-[11px] font-normal text-slate-500">
+            <span className="ml-2 text-[11px] font-normal text-ink-40">
               · {item.itemCount} {item.itemCount === 1 ? "producto" : "productos"}
             </span>
           </div>
           {(item.paymentMethod || item.trafficSource || item.prePixel) && (
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-40">
               {item.paymentMethod && (
                 <span className="inline-flex items-center gap-1">
                   <CreditCard className="w-3 h-3" />
@@ -1062,7 +1062,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
                 </span>
               )}
               {item.paymentMethod && (item.trafficSource || item.prePixel) && (
-                <span className="text-slate-300">·</span>
+                <span className="text-ink-40">·</span>
               )}
               {item.trafficSource ? (
                 <span className="inline-flex items-center gap-1">
@@ -1074,7 +1074,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
                   className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
                   style={{
                     background: "rgba(148,163,184,0.12)",
-                    color: "#64748b",
+                    color: "#9A978D",
                     border: "1px solid rgba(148,163,184,0.25)",
                   }}
                   title="Compra anterior a la instalación de NitroPixel. No hay datos de canal para estas órdenes."
@@ -1102,7 +1102,7 @@ function TimelineEvent({ item, delay }: { item: any; delay: number }) {
 
   return (
     <div
-      className="relative rounded-lg pl-3 pr-3 py-2 border border-slate-200 bg-white"
+      className="relative rounded-lg pl-3 pr-3 py-2 border border-hairline bg-elevated"
       style={{
         animation: `bondlyFadeSlideIn 380ms ${ES} ${delay}ms both`,
       }}
@@ -1125,10 +1125,10 @@ function TimelineEvent({ item, delay }: { item: any; delay: number }) {
           <Icon className="w-3 h-3" />
         </span>
         <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-[12px] font-semibold text-slate-800 flex-shrink-0">{cfg.label}</span>
+          <span className="text-[12px] font-semibold text-ink-60 flex-shrink-0">{cfg.label}</span>
           {subject && (
             <span
-              className="text-[12px] text-slate-600 truncate"
+              className="text-[12px] text-ink-60 truncate"
               title={subject}
             >
               · {subject}
@@ -1140,7 +1140,7 @@ function TimelineEvent({ item, delay }: { item: any; delay: number }) {
             </span>
           )}
         </div>
-        <span className="text-[10px] text-slate-400 flex-shrink-0 tabular-nums">
+        <span className="text-[10px] text-ink-40 flex-shrink-0 tabular-nums">
           {new Date(item.timestamp).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
@@ -1176,25 +1176,25 @@ function FormatCurrency({ value }: { value: number }) {
 function DetailSkeleton() {
   return (
     <div className="px-6 md:px-8 py-6 max-w-7xl mx-auto">
-      <div className="h-5 w-40 rounded bg-slate-100 mb-5 animate-pulse" />
+      <div className="h-5 w-40 rounded bg-surface-2 mb-5 animate-pulse" />
       <div className="flex flex-col lg:flex-row gap-6 mb-8">
-        <div className="w-32 h-32 rounded-3xl bg-slate-100 animate-pulse" />
+        <div className="w-32 h-32 rounded-3xl bg-surface-2 animate-pulse" />
         <div className="flex-1 space-y-3">
-          <div className="h-8 w-64 rounded bg-slate-100 animate-pulse" />
-          <div className="h-4 w-80 rounded bg-slate-100 animate-pulse" />
-          <div className="h-4 w-48 rounded bg-slate-100 animate-pulse" />
+          <div className="h-8 w-64 rounded bg-surface-2 animate-pulse" />
+          <div className="h-4 w-80 rounded bg-surface-2 animate-pulse" />
+          <div className="h-4 w-48 rounded bg-surface-2 animate-pulse" />
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-[86px] rounded-2xl bg-slate-100 animate-pulse" />
+          <div key={i} className="h-[86px] rounded-2xl bg-surface-2 animate-pulse" />
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 h-[500px] rounded-2xl bg-slate-100 animate-pulse" />
+        <div className="lg:col-span-2 h-[500px] rounded-2xl bg-surface-2 animate-pulse" />
         <div className="space-y-4">
-          <div className="h-[200px] rounded-2xl bg-slate-100 animate-pulse" />
-          <div className="h-[200px] rounded-2xl bg-slate-100 animate-pulse" />
+          <div className="h-[200px] rounded-2xl bg-surface-2 animate-pulse" />
+          <div className="h-[200px] rounded-2xl bg-surface-2 animate-pulse" />
         </div>
       </div>
     </div>

@@ -90,31 +90,27 @@ type Scenario = {
 // ─────────────────────────────────────────────────────────────
 const KIND_META: Record<
   ScenarioKind,
-  { label: string; color: string; ring: string; glow: string }
+  { label: string; color: string; ring: string }
 > = {
   CONSERVATIVE: {
     label: "Conservador",
     color: "#ef4444",
     ring: "rgba(239,68,68,0.35)",
-    glow: "0 0 0 1px rgba(239,68,68,0.18), 0 10px 30px -12px rgba(239,68,68,0.28)",
   },
   BASE: {
     label: "Base",
     color: "#0ea5e9",
     ring: "rgba(14,165,233,0.35)",
-    glow: "0 0 0 1px rgba(14,165,233,0.18), 0 10px 30px -12px rgba(14,165,233,0.28)",
   },
   OPTIMIST: {
     label: "Optimista",
     color: "#10b981",
     ring: "rgba(16,185,129,0.35)",
-    glow: "0 0 0 1px rgba(16,185,129,0.18), 0 10px 30px -12px rgba(16,185,129,0.28)",
   },
   CUSTOM: {
     label: "Custom",
     color: "#8b5cf6",
     ring: "rgba(139,92,246,0.35)",
-    glow: "0 0 0 1px rgba(139,92,246,0.18), 0 10px 30px -12px rgba(139,92,246,0.28)",
   },
 };
 
@@ -247,34 +243,19 @@ export default function EscenariosPage() {
   return (
     <div className="relative space-y-8">
       {/* ── Hero ───────────────────────────────────────────── */}
-      <header className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at 80% 0%, rgba(139,92,246,0.10) 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(6,182,212,0.06) 0%, transparent 55%)",
-          }}
-        />
+      <header className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated p-8 shadow-ent-xs">
         <div className="relative">
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1">
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                background:
-                  "linear-gradient(135deg, #a855f7 0%, #6d28d9 100%)",
-                boxShadow: "0 0 10px rgba(168,85,247,0.7)",
-              }}
-            />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-700">
+          <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-surface px-3 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-ink-40" />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-60">
               Fase 5 · Escenarios
             </span>
           </div>
 
-          <h1 className="mt-5 text-4xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-5 text-4xl font-bold tracking-tight text-ink">
             Escenarios
           </h1>
-          <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-slate-600">
+          <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-ink-60">
             3 vistas del futuro del negocio — Conservador, Base y Optimista —
             con 12 meses de forecast, estacionalidad LATAM (Día del Niño, Black
             Friday, Navidad) y KPIs calculados en vivo. Activá uno para que el
@@ -286,13 +267,8 @@ export default function EscenariosPage() {
             <div className="mt-5 flex flex-wrap gap-2">
               <button
                 onClick={() => setCompareOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
-                  boxShadow: "0 4px 14px -4px rgba(124,58,237,0.55)",
-                  transition: `all 220ms ${ES}`,
-                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-sm font-semibold text-white"
+                style={{ transition: `all 220ms ${ES}` }}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
                   <path
@@ -318,7 +294,7 @@ export default function EscenariosPage() {
           <div className="mt-1 text-rose-700/90">{error}</div>
           <button
             onClick={reload}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-elevated px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"
             style={{ transition: `all 220ms ${ES}` }}
           >
             Reintentar
@@ -330,10 +306,10 @@ export default function EscenariosPage() {
       {scenarios && presets.length > 0 && (
         <section>
           <div className="mb-4 flex items-end justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-40">
               Escenarios del sistema
             </h2>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-ink-40">
               {scenarios.length} total · {presets.length} presets ·{" "}
               {customs.length} custom
             </span>
@@ -385,7 +361,7 @@ export default function EscenariosPage() {
       {scenarios && customs.length > 0 && (
         <section>
           <div className="mb-4 flex items-end justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-40">
               Tus escenarios custom
             </h2>
           </div>
@@ -415,8 +391,8 @@ export default function EscenariosPage() {
 
       {/* ── Footer con contexto del bloque ──────────────────── */}
       {scenarios && (
-        <footer className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+        <footer className="rounded-2xl border border-hairline bg-surface p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-60">
             <div>
               Los KPIs de cada card se calculan con el engine del backend —
               inflación mensual compuesta, estacionalidad LATAM y bandas
@@ -425,7 +401,7 @@ export default function EscenariosPage() {
             </div>
             <Link
               href="/finanzas/estado"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-violet-300 hover:text-violet-700"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-sm font-medium text-ink-60 shadow-ent-xs hover:border-hairline-2 hover:text-ink"
               style={{ transition: `all 220ms ${ES}` }}
             >
               Ver P&amp;L actual
@@ -567,31 +543,22 @@ function ScenarioCard({
 
   return (
     <article
-      className="relative flex flex-col overflow-hidden rounded-2xl border bg-white p-5"
+      className="relative flex flex-col overflow-hidden rounded-2xl border bg-elevated p-5"
       style={{
-        borderColor: isActive ? meta.ring : "rgba(226,232,240,0.9)",
+        borderColor: isActive ? meta.ring : "rgba(229,225,216,0.9)",
         boxShadow: isActive
-          ? meta.glow
-          : "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+          ? `0 0 0 1px ${color}30`
+          : "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
         transition: `all 260ms ${ES}`,
       }}
     >
-      {/* aurora decorativa arriba */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-12 h-32"
-        style={{
-          background: `radial-gradient(ellipse at 50% 0%, ${color}22 0%, transparent 70%)`,
-        }}
-      />
-
       {/* Header */}
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span
               className="h-2 w-2 rounded-full"
-              style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
+              style={{ background: color }}
             />
             <span
               className="text-[10px] font-semibold uppercase tracking-[0.14em]"
@@ -615,23 +582,17 @@ function ScenarioCard({
                   fill="none"
                   aria-hidden
                 >
-                  <circle
-                    cx="4"
-                    cy="4"
-                    r="3"
-                    fill={color}
-                    style={{ filter: `drop-shadow(0 0 3px ${color})` }}
-                  />
+                  <circle cx="4" cy="4" r="3" fill={color} />
                 </svg>
                 Activo
               </span>
             )}
           </div>
-          <h3 className="mt-2 truncate text-xl font-semibold tracking-tight text-slate-900">
+          <h3 className="mt-2 truncate text-xl font-semibold tracking-tight text-ink">
             {scenario.name}
           </h3>
           {scenario.description && (
-            <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-slate-500">
+            <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-ink-40">
               {scenario.description}
             </p>
           )}
@@ -675,13 +636,13 @@ function ScenarioCard({
       {/* Mini range bar: revenue del primer → ultimo mes */}
       {firstMonth && lastMonth && (
         <div className="relative mt-5">
-          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
             <span>{shortMonth(firstMonth.month)}</span>
             <span>{shortMonth(lastMonth.month)}</span>
           </div>
           <div
             className="mt-1 h-1.5 w-full overflow-hidden rounded-full"
-            style={{ background: "rgba(226,232,240,0.9)" }}
+            style={{ background: "rgba(229,225,216,0.9)" }}
           >
             <div
               className="h-full rounded-full"
@@ -691,7 +652,7 @@ function ScenarioCard({
               }}
             />
           </div>
-          <div className="mt-1 flex items-center justify-between text-[11px] font-medium tabular-nums text-slate-600">
+          <div className="mt-1 flex items-center justify-between text-[11px] font-medium tabular-nums text-ink-60">
             <span>{fm(firstMonth.revenue, firstMonth.month + "-15")}</span>
             <span>{fm(lastMonth.revenue, lastMonth.month + "-15")}</span>
           </div>
@@ -699,7 +660,7 @@ function ScenarioCard({
       )}
 
       {/* Footer: acciones */}
-      <div className="relative mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+      <div className="relative mt-5 flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
         {isActive ? (
           <span
             className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold"
@@ -726,8 +687,7 @@ function ScenarioCard({
             disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
             style={{
-              background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`,
-              boxShadow: `0 4px 14px -4px ${color}88`,
+              background: color,
               transition: `all 220ms ${ES}`,
             }}
             title="Convertí este escenario en la base real del negocio"
@@ -751,7 +711,7 @@ function ScenarioCard({
         <button
           onClick={onOpenDrivers}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-sm font-medium text-ink-60 hover:border-hairline-2 hover:bg-surface disabled:opacity-50"
           style={{ transition: `all 220ms ${ES}` }}
           aria-label="Ajustar drivers"
         >
@@ -772,7 +732,7 @@ function ScenarioCard({
         <button
           onClick={onClone}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-sm font-medium text-ink-60 hover:border-hairline-2 hover:bg-surface disabled:opacity-50"
           style={{ transition: `all 220ms ${ES}` }}
         >
           Clonar
@@ -781,7 +741,7 @@ function ScenarioCard({
         <button
           onClick={onExportPdf}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-2.5 py-1.5 text-sm font-medium text-ink-60 hover:border-hairline-2 hover:bg-surface disabled:opacity-50"
           style={{ transition: `all 220ms ${ES}` }}
           aria-label="Exportar PDF"
           title="Abre una vista imprimible en una nueva pestaña"
@@ -814,7 +774,7 @@ function ScenarioCard({
       </div>
 
       {scenario.lastComputedAt && (
-        <div className="relative mt-2 text-[10px] text-slate-400">
+        <div className="relative mt-2 text-[10px] text-ink-40">
           Calculado {humanDate(scenario.lastComputedAt)}
         </div>
       )}
@@ -842,24 +802,24 @@ function KpiCell({
     <div
       className="rounded-xl border px-3 py-2"
       style={{
-        borderColor: "rgba(226,232,240,0.9)",
+        borderColor: "rgba(229,225,216,0.9)",
         background:
-          "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.6) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(237,234,227,0.6) 100%)",
       }}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
         {label}
       </div>
       <div
         className="mt-0.5 truncate text-base font-semibold tabular-nums tracking-tight"
         style={{
-          color: accent ?? (dim ? "#94a3b8" : "#0f172a"),
+          color: accent ?? (dim ? "#9A978D" : "#1C1B18"),
         }}
       >
         {value}
       </div>
       {hint && (
-        <div className="text-[10px] tabular-nums text-slate-400">{hint}</div>
+        <div className="text-[10px] tabular-nums text-ink-40">{hint}</div>
       )}
     </div>
   );
@@ -874,7 +834,7 @@ function SkeletonGrid() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="rounded-2xl border border-slate-200 bg-white p-5"
+          className="rounded-2xl border border-hairline bg-elevated p-5"
         >
           <SkelBar w="40%" h={10} />
           <SkelBar w="70%" h={22} className="mt-3" />
@@ -908,7 +868,7 @@ function SkelBar({
         width: w,
         height: h,
         background:
-          "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
+          "linear-gradient(90deg, #F5F3EE 0%, #EDEAE3 50%, #F5F3EE 100%)",
         backgroundSize: "800px 100%",
         animation: "skelShimmer 1.6s ease-in-out infinite",
       }}
@@ -985,27 +945,20 @@ function RealityConfirmModal({
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-white shadow-2xl"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-elevated shadow-2xl"
         style={{
           borderColor: `${color}44`,
           animation: `realityIn 280ms ${ES}`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-10 h-32"
-          style={{
-            background: `radial-gradient(ellipse at 50% 0%, ${color}33 0%, transparent 70%)`,
-          }}
-        />
         <div className="relative p-6">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-white px-2.5 py-1"
+          <div className="inline-flex items-center gap-2 rounded-full border bg-elevated px-2.5 py-1"
             style={{ borderColor: `${color}55` }}
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
-              style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+              style={{ background: color }}
             />
             <span
               className="text-[10px] font-semibold uppercase tracking-[0.14em]"
@@ -1015,22 +968,22 @@ function RealityConfirmModal({
             </span>
           </div>
 
-          <h3 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+          <h3 className="mt-4 text-2xl font-bold tracking-tight text-ink">
             Activar “{scenario.name}”
           </h3>
-          <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-60">
             Este escenario pasa a ser la <strong>base real</strong> del
             negocio. Todo el P&amp;L, el Pulso y los reportes van a usar los
             drivers de este escenario para calcular KPIs y forecasts.
           </p>
 
           {/* Mini resumen de lo que va a pasar */}
-          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-[12px]">
+          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-hairline bg-surface p-3 text-[12px]">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
                 Revenue 12M esperado
               </div>
-              <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+              <div className="mt-0.5 font-semibold tabular-nums text-ink">
                 {totals?.revenue !== undefined
                   ? new Intl.NumberFormat("es-AR", {
                       style: "currency",
@@ -1041,15 +994,15 @@ function RealityConfirmModal({
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
                 Margen neto
               </div>
-              <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+              <div className="mt-0.5 font-semibold tabular-nums text-ink">
                 {pct(totals?.marginPct, 1)}
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
                 Runway
               </div>
               <div
@@ -1060,17 +1013,17 @@ function RealityConfirmModal({
                       ? "#dc2626"
                       : runway?.status === "warn"
                       ? "#d97706"
-                      : "#0f172a",
+                      : "#1C1B18",
                 }}
               >
                 {monthsText(runway?.monthsRemaining)}
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
                 Horizonte
               </div>
-              <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+              <div className="mt-0.5 font-semibold tabular-nums text-ink">
                 {scenario.horizonMonths} meses
               </div>
             </div>
@@ -1080,7 +1033,7 @@ function RealityConfirmModal({
             <button
               onClick={onCancel}
               disabled={busy}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-hairline bg-elevated px-3.5 py-2 text-sm font-medium text-ink-60 hover:border-hairline-2 hover:bg-surface disabled:opacity-50"
               style={{ transition: `all 200ms ${ES}` }}
             >
               Cancelar
@@ -1090,8 +1043,7 @@ function RealityConfirmModal({
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-50"
               style={{
-                background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`,
-                boxShadow: `0 4px 14px -4px ${color}aa`,
+                background: color,
                 transition: `all 200ms ${ES}`,
               }}
             >

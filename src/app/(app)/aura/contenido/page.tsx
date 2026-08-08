@@ -23,32 +23,25 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+// Nota: accent se usa como `${accent}1a` / `${accent}44` (alpha-hex suffix),
+// así que estos valores deben quedar como hex planos de 6 dígitos.
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  purple: "#a855f7",
-  purpleSoft: "rgba(168, 85, 247, 0.10)",
-  purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "#00d4ff",
-  cyanSoft: "rgba(0, 212, 255, 0.10)",
-  cyanBorder: "rgba(0, 212, 255, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  ink: "#1C1B18",
+  inkSoft: "rgba(28,27,24,0.06)",
+  inkBorder: "rgba(28,27,24,0.16)",
+  accentHex: "#2F9153",
+  amber: "#C98A1A",
+  amberSoft: "rgba(201,138,26,0.10)",
+  amberBorder: "rgba(201,138,26,0.28)",
+  danger: "#B91C1C",
 };
 
 type BriefTotals = { count: number; active: number; completed: number; pendingSubmissions: number };
@@ -82,22 +75,14 @@ export default function ContenidoOverviewPage() {
   }, []);
 
   return (
-    <div className="min-h-screen" style={{ background: THEME.bgPage }}>
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-[1320px] mx-auto px-6 md:px-10 py-8 md:py-10">
         {/* HEADER */}
         <header className="mb-8">
           <div className="text-[11px] tracking-[0.18em] uppercase font-medium mb-2" style={{ color: THEME.textMuted }}>
             Aura · Contenido
           </div>
-          <h1
-            className="text-[34px] font-semibold tracking-tight leading-none mb-3"
-            style={{
-              background: THEME.gradientText,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
+          <h1 className="text-[34px] font-semibold tracking-tight leading-none mb-3 text-ink">
             Contenido
           </h1>
           <p className="text-[14px] max-w-2xl" style={{ color: THEME.textSecondary }}>
@@ -111,26 +96,26 @@ export default function ContenidoOverviewPage() {
           <Kpi
             label="Briefings activos"
             value={briefTotals?.active ?? "—"}
-            accent={THEME.purple}
+            accent={THEME.ink}
             icon={<ClipboardList size={16} strokeWidth={2.2} />}
           />
           <Kpi
             label="Briefings completados"
             value={briefTotals?.completed ?? "—"}
-            accent={THEME.green}
+            accent={THEME.accentHex}
             icon={<CheckCircle2 size={16} strokeWidth={2.2} />}
           />
           <Kpi
             label="Por aprobar"
             value={subTotals?.pending ?? "—"}
-            accent={THEME.gold}
+            accent={THEME.amber}
             icon={<Inbox size={16} strokeWidth={2.2} />}
             urgent={(subTotals?.pending ?? 0) > 0}
           />
           <Kpi
             label="Aprobados"
             value={subTotals?.approved ?? "—"}
-            accent={THEME.cyan}
+            accent={THEME.accentHex}
             icon={<Sparkles size={16} strokeWidth={2.2} />}
           />
         </div>
@@ -144,7 +129,7 @@ export default function ContenidoOverviewPage() {
             icon={<FileText size={20} strokeWidth={2.2} />}
             count={briefTotals?.active ?? 0}
             countLabel="activos"
-            accent={THEME.purple}
+            accent={THEME.ink}
             cta="Ver briefings"
           />
           <NavCard
@@ -154,7 +139,7 @@ export default function ContenidoOverviewPage() {
             icon={<Inbox size={20} strokeWidth={2.2} />}
             count={subTotals?.pending ?? 0}
             countLabel="por revisar"
-            accent={THEME.gold}
+            accent={THEME.amber}
             cta="Revisar inbox"
             urgent={(subTotals?.pending ?? 0) > 0}
           />
@@ -164,12 +149,7 @@ export default function ContenidoOverviewPage() {
         <div className="mt-6 flex flex-wrap gap-2">
           <Link
             href="/aura/contenido/briefings?new=1"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight"
-            style={{
-              background: "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-              color: "#FFF",
-              boxShadow: "0 4px 20px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
-            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight bg-ink text-white"
           >
             <Plus size={14} strokeWidth={2.4} />
             Nuevo briefing
@@ -198,7 +178,7 @@ function Kpi({
       className="p-4 rounded-xl"
       style={{
         background: THEME.bgCard,
-        border: `1px solid ${urgent ? THEME.goldBorder : THEME.border}`,
+        border: `1px solid ${urgent ? THEME.amberBorder : THEME.border}`,
       }}
     >
       <div className="flex items-center gap-2 mb-2" style={{ color: accent }}>
@@ -211,7 +191,7 @@ function Kpi({
         {value}
         {urgent && typeof value === "number" && value > 0 ? (
           <span className="ml-2 inline-flex items-center gap-1 text-[10px] align-middle px-1.5 py-[2px] rounded-full"
-            style={{ color: THEME.gold, background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}` }}>
+            style={{ color: THEME.amber, background: THEME.amberSoft, border: `1px solid ${THEME.amberBorder}` }}>
             <AlertTriangle size={10} strokeWidth={2.4} /> urge
           </span>
         ) : null}
@@ -247,13 +227,13 @@ function NavCard({
       className="block p-6 rounded-2xl transition-all hover:-translate-y-0.5"
       style={{
         background: THEME.bgCard,
-        border: `1px solid ${urgent ? THEME.goldBorder : THEME.border}`,
+        border: `1px solid ${urgent ? THEME.amberBorder : THEME.border}`,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = urgent ? THEME.gold : THEME.borderStrong;
+        e.currentTarget.style.borderColor = urgent ? THEME.amber : THEME.borderStrong;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = urgent ? THEME.goldBorder : THEME.border;
+        e.currentTarget.style.borderColor = urgent ? THEME.amberBorder : THEME.border;
       }}
     >
       <div className="flex items-start justify-between gap-4 mb-3">

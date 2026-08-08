@@ -217,8 +217,8 @@ export default function OrganizacionPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
-        <div className="h-80 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
+        <div className="h-40 animate-pulse rounded-2xl border border-hairline bg-surface-2/50" />
+        <div className="h-80 animate-pulse rounded-2xl border border-hairline bg-surface-2/50" />
       </div>
     );
   }
@@ -226,14 +226,14 @@ export default function OrganizacionPage() {
   return (
     <div className="space-y-5">
       {/* Card 1 — Básicos */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-cyan-600" />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          <Building2 className="h-4 w-4 text-ink" />
+          <h2 className="text-sm font-semibold tracking-tight text-ink">
             Datos básicos
           </h2>
         </div>
-        <p className="mt-1 text-[12px] text-slate-500">
+        <p className="mt-1 text-[12px] text-ink-40">
           El nombre aparece en los PDFs exportados y en la barra lateral.
         </p>
 
@@ -244,7 +244,7 @@ export default function OrganizacionPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+              className="w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               placeholder="Ej: Mi Empresa"
             />
           </FormField>
@@ -253,13 +253,13 @@ export default function OrganizacionPage() {
             hint="Se usa en URLs internas. Solo letras, números y guiones."
           >
             <div className="flex items-center gap-2">
-              <span className="text-[12px] text-slate-400">nitrosales.app/</span>
+              <span className="text-[12px] text-ink-40">nitrosales.app/</span>
               <input
                 type="text"
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 maxLength={60}
-                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                className="flex-1 rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
                 placeholder="miempresa"
               />
             </div>
@@ -270,7 +270,7 @@ export default function OrganizacionPage() {
           <FormField
             label={
               <span className="inline-flex items-center gap-1.5">
-                <Link2 className="h-3.5 w-3.5 text-slate-400" />
+                <Link2 className="h-3.5 w-3.5 text-ink-40" />
                 URL de tu tienda
               </span>
             }
@@ -281,7 +281,7 @@ export default function OrganizacionPage() {
               value={storeUrl}
               onChange={(e) => setStoreUrl(e.target.value)}
               maxLength={200}
-              className="w-full max-w-xl rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+              className="w-full max-w-xl rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               placeholder="https://mitienda.com"
             />
           </FormField>
@@ -293,13 +293,13 @@ export default function OrganizacionPage() {
             hint="Identificador único de tu organización. Útil para soporte técnico y configuraciones avanzadas."
           >
             <div className="flex items-center gap-2">
-              <code className="flex-1 max-w-xl truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[12px] text-slate-600">
+              <code className="flex-1 max-w-xl truncate rounded-lg border border-hairline bg-surface px-3 py-2 font-mono text-[12px] text-ink-60">
                 {data?.id ?? "—"}
               </code>
               <button
                 type="button"
                 onClick={copyOrgId}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-2 text-xs font-medium text-ink-60 shadow-sm transition hover:border-hairline-2 hover:bg-surface"
                 style={{ transition: `all 160ms ${ES}` }}
               >
                 {copiedOrgId ? (
@@ -319,15 +319,15 @@ export default function OrganizacionPage() {
         </div>
 
         <div className="mt-5 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
+          <div className="text-[11px] text-ink-40">
             Plan actual:{" "}
-            <span className="font-semibold text-slate-700">{data?.plan}</span>
+            <span className="font-semibold text-ink-60">{data?.plan}</span>
           </div>
           <button
             type="button"
             disabled={!basicDirty || saving}
             onClick={saveBasic}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ transition: `all 160ms ${ES}` }}
           >
             <Save className="h-3.5 w-3.5" />
@@ -337,14 +337,14 @@ export default function OrganizacionPage() {
       </div>
 
       {/* Card 2 — White-label */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <div className="flex items-center gap-2">
-          <Palette className="h-4 w-4 text-violet-600" />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          <Palette className="h-4 w-4 text-ink" />
+          <h2 className="text-sm font-semibold tracking-tight text-ink">
             Marca y preferencias
           </h2>
         </div>
-        <p className="mt-1 text-[12px] text-slate-500">
+        <p className="mt-1 text-[12px] text-ink-40">
           Personalizá cómo se ve NitroSales para tu equipo.
         </p>
 
@@ -352,7 +352,7 @@ export default function OrganizacionPage() {
           <FormField label="Logo" hint="PNG o SVG, máx 150KB. Aparece arriba a la izquierda.">
             <div className="flex items-center gap-4">
               <div
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 overflow-hidden"
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-hairline-2 bg-surface overflow-hidden"
                 style={{ transition: `all 160ms ${ES}` }}
               >
                 {logoUrl ? (
@@ -362,11 +362,11 @@ export default function OrganizacionPage() {
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <ImageIcon className="h-6 w-6 text-slate-300" />
+                  <ImageIcon className="h-6 w-6 text-ink-40" />
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-sm transition hover:border-hairline-2 hover:bg-surface">
                   <Upload className="h-3.5 w-3.5" />
                   {logoUrl ? "Cambiar" : "Subir logo"}
                   <input
@@ -383,7 +383,7 @@ export default function OrganizacionPage() {
                   <button
                     type="button"
                     onClick={() => setLogoUrl(null)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+                    className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-elevated px-2 py-1.5 text-xs font-medium text-ink-40 transition hover:border-rose-200 hover:text-rose-600"
                   >
                     <X className="h-3.5 w-3.5" />
                     Quitar
@@ -402,14 +402,14 @@ export default function OrganizacionPage() {
                 type="color"
                 value={primaryColor}
                 onChange={(e) => setPrimaryColor(e.target.value)}
-                className="h-10 w-16 cursor-pointer rounded-lg border border-slate-200 bg-white"
+                className="h-10 w-16 cursor-pointer rounded-lg border border-hairline bg-elevated"
               />
               <input
                 type="text"
                 value={primaryColor}
                 onChange={(e) => setPrimaryColor(e.target.value)}
                 maxLength={7}
-                className="w-32 rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm uppercase text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="w-32 rounded-lg border border-hairline bg-elevated px-3 py-2 font-mono text-sm uppercase text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               />
               <div className="flex items-center gap-1.5">
                 {["#0ea5e9", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#0f172a"].map(
@@ -439,7 +439,7 @@ export default function OrganizacionPage() {
             <select
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+              className="w-full max-w-xs rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
             >
               <option value="">— Seleccionar —</option>
               {INDUSTRIES.map((i) => (
@@ -453,7 +453,7 @@ export default function OrganizacionPage() {
           <FormField
             label={
               <span className="inline-flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                <Clock className="h-3.5 w-3.5 text-ink-40" />
                 Zona horaria
               </span>
             }
@@ -462,7 +462,7 @@ export default function OrganizacionPage() {
             <select
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
-              className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+              className="w-full max-w-md rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz.value} value={tz.value}>
@@ -475,9 +475,9 @@ export default function OrganizacionPage() {
           <FormField
             label={
               <span className="inline-flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5 text-slate-400" />
+                <Globe className="h-3.5 w-3.5 text-ink-40" />
                 Dominio custom{" "}
-                <span className="text-[10px] font-normal text-slate-400">
+                <span className="text-[10px] font-normal text-ink-40">
                   (informativo)
                 </span>
               </span>
@@ -489,7 +489,7 @@ export default function OrganizacionPage() {
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               maxLength={80}
-              className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+              className="w-full max-w-md rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               placeholder="app.miempresa.com"
             />
           </FormField>
@@ -500,7 +500,7 @@ export default function OrganizacionPage() {
             type="button"
             disabled={!whiteLabelDirty || saving}
             onClick={saveWhiteLabel}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ transition: `all 160ms ${ES}` }}
           >
             <Save className="h-3.5 w-3.5" />
@@ -511,12 +511,12 @@ export default function OrganizacionPage() {
 
       {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-medium text-white shadow-lg"
           role="status"
           aria-live="polite"
           style={{
             boxShadow:
-              "0 10px 40px -10px rgba(15,23,42,0.35), 0 0 0 1px rgba(15,23,42,0.08)",
+              "0 10px 40px -10px rgba(28,27,24,0.35), 0 0 0 1px rgba(28,27,24,0.08)",
           }}
         >
           <span
@@ -560,10 +560,10 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="block text-[12px] font-semibold text-slate-700">
+      <label className="block text-[12px] font-semibold text-ink-60">
         {label}
       </label>
-      {hint && <p className="mt-0.5 text-[11px] text-slate-500">{hint}</p>}
+      {hint && <p className="mt-0.5 text-[11px] text-ink-40">{hint}</p>}
       <div className="mt-1.5">{children}</div>
     </div>
   );

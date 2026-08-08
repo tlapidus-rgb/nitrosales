@@ -32,7 +32,7 @@ const QUICK_RANGES = [
 
 const COLORS = [
   "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
-  "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#94a3b8",
+  "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#9A978D",
 ];
 
 const COLUMN_TOOLTIPS: Record<string, string> = {
@@ -119,7 +119,7 @@ function ProductImage({ src, name, onClick, size = 40 }: { src: string | null; n
       src={src}
       alt={name}
       style={style}
-      className={`rounded object-cover bg-white border border-hairline flex-shrink-0 ${clickable ? "cursor-pointer transition-all duration-200 hover:opacity-80 hover:ring-2 hover:ring-amber-400/50" : ""}`}
+      className={`rounded object-cover bg-elevated border border-hairline flex-shrink-0 ${clickable ? "cursor-pointer transition-all duration-200 hover:opacity-80 hover:ring-2 hover:ring-amber-400/50" : ""}`}
       referrerPolicy="no-referrer"
       loading="lazy"
       onError={() => setFailed(true)}
@@ -150,13 +150,13 @@ function TrendIndicator({ value }: { value: number }) {
       <TrendingDown className="w-4 h-4" />{value.toFixed(1)}%
     </span>
   );
-  return <span className="text-gray-500 text-sm">{value.toFixed(1)}%</span>;
+  return <span className="text-ink-40 text-sm">{value.toFixed(1)}%</span>;
 }
 
 function StockBadge({ daysOfStock, stockHealth, stock }: { daysOfStock: number | null; stockHealth: string | null; stock?: number | null }) {
   if (stock !== undefined && stock !== null && stock === 0)
     return <span className="px-2 py-1 text-xs rounded-md bg-red-200 text-red-800 font-bold">Agotado</span>;
-  let bg = "bg-gray-100 text-gray-700";
+  let bg = "bg-surface-2 text-ink-60";
   if (stockHealth === "critical") bg = "bg-red-100 text-red-700 font-semibold";
   else if (stockHealth === "low") bg = "bg-amber-100 text-amber-700 font-semibold";
   else if (stockHealth === "optimal") bg = "bg-green-100 text-green-700";
@@ -167,7 +167,7 @@ function StockBadge({ daysOfStock, stockHealth, stock }: { daysOfStock: number |
 }
 
 function ABCBadge({ abcClass }: { abcClass: string }) {
-  const bg = abcClass === "A" ? "bg-green-100 text-green-700" : abcClass === "B" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-700";
+  const bg = abcClass === "A" ? "bg-green-100 text-green-700" : abcClass === "B" ? "bg-amber-100 text-amber-700" : "bg-surface-2 text-ink-60";
   return <span className={`px-2 py-1 text-xs font-bold rounded-md ${bg}`}>{abcClass}</span>;
 }
 
@@ -195,14 +195,14 @@ const STOCK_CHIPS = [
 
 function StockChips({ active, onChange, counts }: { active: string; onChange: (k: string) => void; counts: Record<string, number> }) {
   const colorMap: Record<string, string> = {
-    gray: "bg-gray-100 text-gray-700 border-gray-300",
+    gray: "bg-surface-2 text-ink-60 border-hairline-2",
     red: "bg-red-50 text-red-700 border-red-300",
     amber: "bg-amber-50 text-amber-700 border-amber-300",
     green: "bg-green-50 text-green-700 border-green-300",
     blue: "bg-blue-50 text-blue-700 border-blue-300",
   };
   const activeColorMap: Record<string, string> = {
-    gray: "bg-gray-800 text-white border-gray-800",
+    gray: "bg-ink text-white border-ink",
     red: "bg-red-600 text-white border-red-600",
     amber: "bg-amber-500 text-white border-amber-500",
     green: "bg-green-600 text-white border-green-600",
@@ -217,7 +217,7 @@ function StockChips({ active, onChange, counts }: { active: string; onChange: (k
           <button key={c.key} onClick={() => onChange(c.key)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive ? activeColorMap[c.color] : colorMap[c.color]}`}>
             {c.label}
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/20" : "bg-black/5"}`}>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-elevated/20" : "bg-black/5"}`}>
               {count}
             </span>
           </button>
@@ -240,20 +240,20 @@ function ColumnSelector({ columns, visible, onChange }: {
   return (
     <div className="relative">
       <button onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+        className="flex items-center gap-1.5 px-3 py-1.5 border border-hairline-2 rounded-lg text-xs text-ink-60 hover:bg-surface transition-colors">
         <SlidersHorizontal className="w-3.5 h-3.5" />Columnas
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
-            <p className="text-[10px] text-gray-400 uppercase font-semibold mb-2">Mostrar/Ocultar</p>
+          <div className="absolute right-0 top-full mt-1 z-40 bg-elevated border border-hairline rounded-lg shadow-lg p-3 min-w-[200px]">
+            <p className="text-[10px] text-ink-40 uppercase font-semibold mb-2">Mostrar/Ocultar</p>
             {columns.map((col) => (
-              <label key={col.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 rounded px-1">
+              <label key={col.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-surface rounded px-1">
                 <input type="checkbox" checked={visible[col.key] ?? col.defaultVisible}
                   onChange={(e) => onChange(col.key, e.target.checked)}
-                  className="rounded border-gray-300 text-ink-60 focus:ring-ink/20 w-3.5 h-3.5" />
-                <span className="text-xs text-gray-700">{col.label}</span>
+                  className="rounded border-hairline-2 text-ink-60 focus:ring-ink/20 w-3.5 h-3.5" />
+                <span className="text-xs text-ink-60">{col.label}</span>
               </label>
             ))}
           </div>
@@ -302,7 +302,7 @@ function ProductsHero({
         {/* Top row — tag + contexto */}
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-hairline/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-elevated/70 backdrop-blur-sm border border-hairline/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">
               <TagIcon className={`w-3 h-3 ${tagColor}`} />
               {title}
             </span>
@@ -1162,8 +1162,8 @@ export default function ProductsPage() {
         <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center" onClick={() => setEnlargedImage(null)}>
           <div className="relative max-w-md">
             <img src={enlargedImage.url} alt={enlargedImage.name} className="w-full rounded-lg" />
-            <button onClick={() => setEnlargedImage(null)} className="absolute top-2 right-2 bg-white rounded-full p-1">
-              <X className="w-6 h-6 text-gray-800" />
+            <button onClick={() => setEnlargedImage(null)} className="absolute top-2 right-2 bg-elevated rounded-full p-1">
+              <X className="w-6 h-6 text-ink-60" />
             </button>
           </div>
         </div>
@@ -1207,7 +1207,7 @@ export default function ProductsPage() {
 
       {/* Stock Health Alerts Row — stagger entrance */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 dash-stagger">
-        <div className="bg-white rounded-2xl border border-red-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(239,68,68,0.14), 0 22px 40px -28px rgba(239,68,68,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
+        <div className="bg-elevated rounded-2xl border border-red-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(239,68,68,0.14), 0 22px 40px -28px rgba(239,68,68,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
           <div className="flex items-center gap-2 mb-1">
             <X className="w-4 h-4 text-red-500" />
             <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Sin Stock</span>
@@ -1215,7 +1215,7 @@ export default function ProductsPage() {
           <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-ink"}`}>{stockHealthAlerts.sinStock}</p>
           <p className="text-[10px] text-ink-40 mt-0.5">productos con stock = 0</p>
         </div>
-        <div className="bg-white rounded-2xl border border-amber-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(245,158,11,0.14), 0 22px 40px -28px rgba(245,158,11,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
+        <div className="bg-elevated rounded-2xl border border-amber-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(245,158,11,0.14), 0 22px 40px -28px rgba(245,158,11,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle className="w-4 h-4 text-amber-500" />
             <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Stock Crítico</span>
@@ -1223,7 +1223,7 @@ export default function ProductsPage() {
           <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-ink"}`}>{stockHealthAlerts.critico}</p>
           <p className="text-[10px] text-ink-40 mt-0.5">menos de 7 días de stock</p>
         </div>
-        <div className="bg-white rounded-2xl border border-blue-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(59,130,246,0.14), 0 22px 40px -28px rgba(59,130,246,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
+        <div className="bg-elevated rounded-2xl border border-blue-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(59,130,246,0.14), 0 22px 40px -28px rgba(59,130,246,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
           <div className="flex items-center gap-2 mb-1">
             <Package className="w-4 h-4 text-blue-500" />
             <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Sobrestock</span>
@@ -1242,29 +1242,29 @@ export default function ProductsPage() {
       </div>
 
       {/* Filters Bar */}
-      <div className="flex flex-wrap gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-center">
+      <div className="flex flex-wrap gap-4 bg-elevated p-4 rounded-lg shadow-sm border border-hairline items-center">
         <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-ink-40" />
           <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             placeholder="Buscar producto o SKU..."
-            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-ink/20" />
+            className="w-full pl-9 pr-8 py-2 border border-hairline-2 rounded-lg text-sm text-ink focus:outline-none focus:ring-2 focus:ring-ink/20" />
           {searchTerm && (
-            <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+            <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-40 hover:text-ink-60">
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
         <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
-          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${brandFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
+          className={`px-3 py-2 border rounded-lg text-sm text-ink ${brandFilter ? "border-hairline-2 bg-surface" : "border-hairline-2 bg-elevated"}`}>
           <option value="">Todas las marcas ({brands.length})</option>
           {brands.map((b) => <option key={b} value={b}>{b}</option>)}
         </select>
         <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${categoryFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
+          className={`px-3 py-2 border rounded-lg text-sm text-ink ${categoryFilter ? "border-hairline-2 bg-surface" : "border-hairline-2 bg-elevated"}`}>
           <option value="">Todas las categorias ({categories.length})</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <span className="text-sm text-gray-600">{filtered.length} producto{filtered.length !== 1 ? "s" : ""}</span>
+        <span className="text-sm text-ink-60">{filtered.length} producto{filtered.length !== 1 ? "s" : ""}</span>
         <button onClick={exportCSV} className="ml-auto flex items-center gap-2 px-4 py-2 bg-ink text-white text-sm font-medium rounded-lg hover:bg-ink/90 transition-colors">
           <Download className="w-4 h-4" />Exportar CSV
         </button>
@@ -1300,11 +1300,11 @@ export default function ProductsPage() {
         <div className="space-y-6">
           {/* Metric Toggle */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 font-medium">Metrica:</span>
-            <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
+            <span className="text-sm text-ink-60 font-medium">Metrica:</span>
+            <div className="bg-surface-2 p-1 rounded-lg inline-flex gap-1">
               {(["revenue", "units"] as const).map((m) => (
                 <button key={m} onClick={() => setChartMetric(m)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${chartMetric === m ? "bg-white shadow-sm text-ink-60" : "text-gray-600"}`}>
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${chartMetric === m ? "bg-elevated shadow-sm text-ink-60" : "text-ink-60"}`}>
                   {m === "revenue" ? "Facturacion" : "Unidades"}
                 </button>
               ))}
@@ -1314,8 +1314,8 @@ export default function ProductsPage() {
           {/* Distribution Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Brand Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-4">Por Marca</h3>
+            <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+              <h3 className="font-semibold text-ink mb-4">Por Marca</h3>
               <div className="flex gap-4">
                 <div className="flex-shrink-0" style={{ width: "220px", height: "220px" }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -1329,19 +1329,19 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px]">
                   <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-white">
+                    <thead className="sticky top-0 bg-elevated">
                       <tr>
-                        <th className="text-left py-1 text-gray-500 font-medium">Marca</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturacion" : "Unidades"}</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">%</th>
+                        <th className="text-left py-1 text-ink-40 font-medium">Marca</th>
+                        <th className="text-right py-1 text-ink-40 font-medium">{chartMetric === "revenue" ? "Facturacion" : "Unidades"}</th>
+                        <th className="text-right py-1 text-ink-40 font-medium">%</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => { const t = brandDistribution.reduce((s, e) => s + e.value, 0); return brandDistribution.map((e) => (
-                        <tr key={e.name} className="border-t border-gray-100 hover:bg-gray-50">
-                          <td className="py-1.5 flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} /><span className="text-gray-800 truncate max-w-[120px]" title={e.name}>{e.name}</span></td>
-                          <td className="py-1.5 text-right text-gray-700 font-medium">{chartMetric === "revenue" ? formatCompact(e.value) : e.value?.toLocaleString("es-AR")}</td>
-                          <td className="py-1.5 text-right text-gray-600">{t > 0 ? ((e.value / t) * 100).toFixed(1) : "0"}%</td>
+                        <tr key={e.name} className="border-t border-hairline hover:bg-surface">
+                          <td className="py-1.5 flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} /><span className="text-ink-60 truncate max-w-[120px]" title={e.name}>{e.name}</span></td>
+                          <td className="py-1.5 text-right text-ink-60 font-medium">{chartMetric === "revenue" ? formatCompact(e.value) : e.value?.toLocaleString("es-AR")}</td>
+                          <td className="py-1.5 text-right text-ink-60">{t > 0 ? ((e.value / t) * 100).toFixed(1) : "0"}%</td>
                         </tr>
                       )); })()}
                     </tbody>
@@ -1351,8 +1351,8 @@ export default function ProductsPage() {
             </div>
 
             {/* Category Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-4">Por Categoria</h3>
+            <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+              <h3 className="font-semibold text-ink mb-4">Por Categoria</h3>
               <div className="flex gap-4">
                 <div className="flex-shrink-0" style={{ width: "220px", height: "220px" }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -1366,19 +1366,19 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px]">
                   <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-white">
+                    <thead className="sticky top-0 bg-elevated">
                       <tr>
-                        <th className="text-left py-1 text-gray-500 font-medium">Categoria</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturacion" : "Unidades"}</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">%</th>
+                        <th className="text-left py-1 text-ink-40 font-medium">Categoria</th>
+                        <th className="text-right py-1 text-ink-40 font-medium">{chartMetric === "revenue" ? "Facturacion" : "Unidades"}</th>
+                        <th className="text-right py-1 text-ink-40 font-medium">%</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => { const t = categoryDistribution.reduce((s, e) => s + e.value, 0); return categoryDistribution.map((e) => (
-                        <tr key={e.name} className="border-t border-gray-100 hover:bg-gray-50">
-                          <td className="py-1.5 flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} /><span className="text-gray-800 truncate max-w-[120px]" title={e.name}>{e.name}</span></td>
-                          <td className="py-1.5 text-right text-gray-700 font-medium">{chartMetric === "revenue" ? formatCompact(e.value) : e.value?.toLocaleString("es-AR")}</td>
-                          <td className="py-1.5 text-right text-gray-600">{t > 0 ? ((e.value / t) * 100).toFixed(1) : "0"}%</td>
+                        <tr key={e.name} className="border-t border-hairline hover:bg-surface">
+                          <td className="py-1.5 flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} /><span className="text-ink-60 truncate max-w-[120px]" title={e.name}>{e.name}</span></td>
+                          <td className="py-1.5 text-right text-ink-60 font-medium">{chartMetric === "revenue" ? formatCompact(e.value) : e.value?.toLocaleString("es-AR")}</td>
+                          <td className="py-1.5 text-right text-ink-60">{t > 0 ? ((e.value / t) * 100).toFixed(1) : "0"}%</td>
                         </tr>
                       )); })()}
                     </tbody>
@@ -1389,45 +1389,45 @@ export default function ProductsPage() {
           </div>
 
           {/* Products Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Productos ({filtered.length})</h3>
+          <div className="bg-elevated rounded-xl shadow-sm border border-hairline overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-hairline flex items-center justify-between">
+              <h3 className="font-semibold text-ink">Productos ({filtered.length})</h3>
               <ColumnSelector columns={OVERVIEW_COLUMNS} visible={overviewCols}
                 onChange={(k, v) => setOverviewCols(prev => ({ ...prev, [k]: v }))} />
             </div>
             <div className="overflow-x-auto flex-1 flex flex-col">
               <div className="overflow-y-auto max-h-[600px]">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                  <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
                     <tr>
-                      <th className="px-6 py-3 text-left font-semibold text-gray-700">Producto</th>
-                      {isOvCol("facturacion") && <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("revenue")}>
+                      <th className="px-6 py-3 text-left font-semibold text-ink-60">Producto</th>
+                      {isOvCol("facturacion") && <th className="px-6 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("revenue")}>
                         <TooltipHeader text="Facturacion" tooltip={COLUMN_TOOLTIPS.facturacion} />{sortIcon("revenue")}
                       </th>}
-                      {isOvCol("margen") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("marginPct")}>
+                      {isOvCol("margen") && <th className="px-6 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("marginPct")}>
                         <TooltipHeader text="Margen" tooltip="Margen bruto: (Precio neto - Costo) / Precio neto" />{sortIcon("marginPct")}
                       </th>}
-                      {isOvCol("porcMarca") && <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} /></th>}
-                      {isOvCol("porcCat") && <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} /></th>}
-                      {isOvCol("porcTotal") && <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} /></th>}
-                      {isOvCol("unidades") && <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("unitsSold")}>
+                      {isOvCol("porcMarca") && <th className="px-6 py-3 text-right font-semibold text-ink-60"><TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} /></th>}
+                      {isOvCol("porcCat") && <th className="px-6 py-3 text-right font-semibold text-ink-60"><TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} /></th>}
+                      {isOvCol("porcTotal") && <th className="px-6 py-3 text-right font-semibold text-ink-60"><TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} /></th>}
+                      {isOvCol("unidades") && <th className="px-6 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("unitsSold")}>
                         <TooltipHeader text="Unidades" tooltip={COLUMN_TOOLTIPS.unidades} />{sortIcon("unitsSold")}
                       </th>}
-                      {isOvCol("wow") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("wowRevenuePct")}>
+                      {isOvCol("wow") && <th className="px-6 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("wowRevenuePct")}>
                         <TooltipHeader text="WoW" tooltip={COLUMN_TOOLTIPS.tendencia} />{sortIcon("wowRevenuePct")}
                       </th>}
-                      {isOvCol("stock") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("stock")}>
+                      {isOvCol("stock") && <th className="px-6 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("stock")}>
                         <TooltipHeader text="Stock" tooltip={COLUMN_TOOLTIPS.stock} />{sortIcon("stock")}
                       </th>}
-                      {isOvCol("diasStock") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("daysOfStock")}>
+                      {isOvCol("diasStock") && <th className="px-6 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("daysOfStock")}>
                         <TooltipHeader text="Dias" tooltip={COLUMN_TOOLTIPS.diasstock} />{sortIcon("daysOfStock")}
                       </th>}
-                      {isOvCol("abc") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("abc")}>
+                      {isOvCol("abc") && <th className="px-6 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2" onClick={() => handleSort("abc")}>
                         <TooltipHeader text="ABC" tooltip={COLUMN_TOOLTIPS.abc} />{sortIcon("abc")}
                       </th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-hairline">
                     {paginatedProducts.map((p) => {
                       const brandRev = revenueCalcs.brandT.get(p.brand || "Sin marca") || 1;
                       const catRev = revenueCalcs.catT.get(p.category || "Sin categoria") || 1;
@@ -1435,15 +1435,15 @@ export default function ProductsPage() {
                       const pCat = (p.revenue / catRev) * 100;
                       const pTotal = revenueCalcs.total > 0 ? (p.revenue / revenueCalcs.total) * 100 : 0;
                       return (
-                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                        <tr key={p.id} className="hover:bg-surface transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               {p.imageUrl && (
                                 <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80" onClick={() => setEnlargedImage({ url: p.imageUrl!, name: p.name })} />
                               )}
                               <div>
-                                <div className="font-medium text-gray-900">{p.name}</div>
-                                <div className="text-xs text-gray-500 mb-1">{p.sku || "--"}</div>
+                                <div className="font-medium text-ink">{p.name}</div>
+                                <div className="text-xs text-ink-40 mb-1">{p.sku || "--"}</div>
                                 <div className="flex gap-1.5">
                                   {p.brand && <span className="px-1.5 py-0.5 bg-surface-2 text-ink rounded text-[10px] font-medium">{p.brand}</span>}
                                   {p.category && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded text-[10px] font-medium">{p.category}</span>}
@@ -1451,7 +1451,7 @@ export default function ProductsPage() {
                               </div>
                             </div>
                           </td>
-                          {isOvCol("facturacion") && <td className="px-6 py-4 text-right font-medium text-gray-900">{formatARS(p.revenue)}</td>}
+                          {isOvCol("facturacion") && <td className="px-6 py-4 text-right font-medium text-ink">{formatARS(p.revenue)}</td>}
                           {isOvCol("margen") && <td className="px-6 py-4 text-center">
                             {p.marginPct != null ? (
                               <span className={`px-2 py-1 text-xs font-bold rounded-md ${
@@ -1460,14 +1460,14 @@ export default function ProductsPage() {
                                 p.marginPct >= 0 ? "bg-red-100 text-red-700" :
                                 "bg-red-200 text-red-800"
                               }`}>{p.marginPct.toFixed(1)}%</span>
-                            ) : <span className="text-gray-400 text-xs">--</span>}
+                            ) : <span className="text-ink-40 text-xs">--</span>}
                           </td>}
-                          {isOvCol("porcMarca") && <td className="px-6 py-4 text-right text-gray-700">{pMarca.toFixed(1)}%</td>}
-                          {isOvCol("porcCat") && <td className="px-6 py-4 text-right text-gray-700">{pCat.toFixed(1)}%</td>}
-                          {isOvCol("porcTotal") && <td className="px-6 py-4 text-right text-gray-700">{pTotal.toFixed(1)}%</td>}
-                          {isOvCol("unidades") && <td className="px-6 py-4 text-right text-gray-700">{formatCompact(p.unitsSold)}</td>}
+                          {isOvCol("porcMarca") && <td className="px-6 py-4 text-right text-ink-60">{pMarca.toFixed(1)}%</td>}
+                          {isOvCol("porcCat") && <td className="px-6 py-4 text-right text-ink-60">{pCat.toFixed(1)}%</td>}
+                          {isOvCol("porcTotal") && <td className="px-6 py-4 text-right text-ink-60">{pTotal.toFixed(1)}%</td>}
+                          {isOvCol("unidades") && <td className="px-6 py-4 text-right text-ink-60">{formatCompact(p.unitsSold)}</td>}
                           {isOvCol("wow") && <td className="px-6 py-4 text-center"><TrendIndicator value={p.trendData.wowRevenuePct} /></td>}
-                          {isOvCol("stock") && <td className="px-6 py-4 text-center"><span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>{p.stock ?? 0}</span></td>}
+                          {isOvCol("stock") && <td className="px-6 py-4 text-center"><span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-ink"}`}>{p.stock ?? 0}</span></td>}
                           {isOvCol("diasStock") && <td className="px-6 py-4 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>}
                           {isOvCol("abc") && <td className="px-6 py-4 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>}
                         </tr>
@@ -1479,14 +1479,14 @@ export default function ProductsPage() {
             </div>
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
-                <span className="text-gray-600">
+              <div className="border-t border-hairline px-6 py-4 bg-surface flex items-center justify-between text-sm">
+                <span className="text-ink-60">
                   Mostrando {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filtered.length)}-{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length}
                 </span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Anterior</button>
-                  <span className="px-4 py-1 text-gray-700 font-medium">Pag {currentPage} de {totalPages}</span>
-                  <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Siguiente</button>
+                  <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated hover:bg-surface-2 disabled:opacity-50 text-ink-60">Anterior</button>
+                  <span className="px-4 py-1 text-ink-60 font-medium">Pag {currentPage} de {totalPages}</span>
+                  <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated hover:bg-surface-2 disabled:opacity-50 text-ink-60">Siguiente</button>
                 </div>
               </div>
             )}
@@ -1501,23 +1501,23 @@ export default function ProductsPage() {
                 <span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">Periodo seleccionado</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-white/80 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">Unidades Vendidas</p>
+                <div className="bg-elevated/80 rounded-lg p-3">
+                  <p className="text-xs text-ink-40 mb-1">Unidades Vendidas</p>
                   <p className="text-xl font-bold text-amber-800">{bagsAnalytics.totalBagsSold.toLocaleString("es-AR")}</p>
                 </div>
-                <div className="bg-white/80 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">Revenue</p>
+                <div className="bg-elevated/80 rounded-lg p-3">
+                  <p className="text-xs text-ink-40 mb-1">Revenue</p>
                   <p className="text-xl font-bold text-amber-800">${bagsAnalytics.bagsRevenue.toLocaleString("es-AR")}</p>
                 </div>
-                <div className="bg-white/80 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">Stock Actual</p>
+                <div className="bg-elevated/80 rounded-lg p-3">
+                  <p className="text-xs text-ink-40 mb-1">Stock Actual</p>
                   <p className="text-xl font-bold text-amber-800">{bagsAnalytics.currentStock.total.toLocaleString("es-AR")}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Grande: {bagsAnalytics.currentStock.grande.toLocaleString("es-AR")} | Chica: {bagsAnalytics.currentStock.chica.toLocaleString("es-AR")}</p>
+                  <p className="text-[10px] text-ink-40 mt-0.5">Grande: {bagsAnalytics.currentStock.grande.toLocaleString("es-AR")} | Chica: {bagsAnalytics.currentStock.chica.toLocaleString("es-AR")}</p>
                 </div>
-                <div className="bg-white/80 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">Adopcion</p>
+                <div className="bg-elevated/80 rounded-lg p-3">
+                  <p className="text-xs text-ink-40 mb-1">Adopcion</p>
                   <p className="text-xl font-bold text-amber-800">{bagsAnalytics.bagAdoptionPct}%</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{bagsAnalytics.ordersWithBags} de {bagsAnalytics.totalOrders} ordenes</p>
+                  <p className="text-[10px] text-ink-40 mt-0.5">{bagsAnalytics.ordersWithBags} de {bagsAnalytics.totalOrders} ordenes</p>
                   <div className="w-full bg-amber-200 rounded-full h-1.5 mt-1.5">
                     <div className="bg-amber-600 h-1.5 rounded-full" style={{ width: Math.min(bagsAnalytics.bagAdoptionPct, 100) + "%" }} />
                   </div>
@@ -1526,7 +1526,7 @@ export default function ProductsPage() {
               {bagsAnalytics.breakdown.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {bagsAnalytics.breakdown.map((bag, i) => (
-                    <span key={i} className="text-xs bg-white/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
+                    <span key={i} className="text-xs bg-elevated/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
                       {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u - stock {bag.stock ?? "N/A"}
                     </span>
                   ))}
@@ -1541,8 +1541,8 @@ export default function ProductsPage() {
       {activeTab === "trends" && (
         <div className="space-y-6">
           {/* Category Evolution */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Evolucion por Categoria</h3>
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+            <h3 className="font-semibold text-ink mb-4">Evolucion por Categoria</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={categoryTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1557,8 +1557,8 @@ export default function ProductsPage() {
           </div>
 
           {/* Brand Evolution */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Evolucion por Marca</h3>
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+            <h3 className="font-semibold text-ink mb-4">Evolucion por Marca</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={brandTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1656,8 +1656,8 @@ export default function ProductsPage() {
           )}
 
           {/* Stock Health Pie */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Salud General del Inventario</h3>
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+            <h3 className="font-semibold text-ink mb-4">Salud General del Inventario</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="flex justify-center">
                 <ResponsiveContainer width={250} height={250}>
@@ -1673,14 +1673,14 @@ export default function ProductsPage() {
                 {distributionData.map((item) => {
                   const total = distributionData.reduce((s, d) => s + d.value, 0);
                   return (
-                    <div key={item.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div key={item.name} className="flex items-center justify-between p-3 bg-surface rounded-lg border border-hairline">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                        <span className="text-sm font-medium text-ink">{item.name}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900">{item.value}</span>
-                        <span className="text-xs text-gray-600">({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)</span>
+                        <span className="font-bold text-ink">{item.value}</span>
+                        <span className="text-xs text-ink-60">({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)</span>
                       </div>
                     </div>
                   );
@@ -1690,8 +1690,8 @@ export default function ProductsPage() {
           </div>
 
           {/* Stock por Marca */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Stock por Marca (Top 10)</h3>
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+            <h3 className="font-semibold text-ink mb-4">Stock por Marca (Top 10)</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stockByBrandData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 120 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1704,8 +1704,8 @@ export default function ProductsPage() {
           </div>
 
           {/* ABC Classification */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Clasificacion ABC</h3>
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+            <h3 className="font-semibold text-ink mb-4">Clasificacion ABC</h3>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <p className="text-sm font-semibold text-green-900">Clase A</p>
@@ -1719,19 +1719,19 @@ export default function ProductsPage() {
                 <p className="text-xs text-amber-700 mt-1">{((abcCounts.B / (filtered.length || 1)) * 100).toFixed(1)}% de productos</p>
                 <p className="text-[10px] text-amber-600 mt-0.5">15% del revenue</p>
               </div>
-              <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
-                <p className="text-sm font-semibold text-gray-900">Clase C</p>
-                <p className="text-2xl font-bold text-gray-600 mt-1">{abcCounts.C}</p>
-                <p className="text-xs text-gray-700 mt-1">{((abcCounts.C / (filtered.length || 1)) * 100).toFixed(1)}% de productos</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">5% del revenue</p>
+              <div className="p-4 bg-surface-2 rounded-lg border border-hairline-2">
+                <p className="text-sm font-semibold text-ink">Clase C</p>
+                <p className="text-2xl font-bold text-ink-60 mt-1">{abcCounts.C}</p>
+                <p className="text-xs text-ink-60 mt-1">{((abcCounts.C / (filtered.length || 1)) * 100).toFixed(1)}% de productos</p>
+                <p className="text-[10px] text-ink-40 mt-0.5">5% del revenue</p>
               </div>
             </div>
           </div>
 
           {/* Stock Alerts — Light premium, animated alert icon, internal scroll */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
             <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2.5 text-lg tracking-tight">
+              <h3 className="font-semibold text-ink flex items-center gap-2.5 text-lg tracking-tight">
                 <span className="relative inline-flex w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 items-center justify-center shadow-sm">
                   <AlertTriangle className="relative w-[18px] h-[18px] text-amber-600" />
                 </span>
@@ -1741,7 +1741,7 @@ export default function ProductsPage() {
                 Productos en demanda • Por quebrar
               </span>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-ink-60 mb-4">
               {stockAlerts.length} producto{stockAlerts.length !== 1 ? "s" : ""} con buena rotación que se quedó o está por quedarse sin stock
             </p>
 
@@ -1751,12 +1751,12 @@ export default function ProductsPage() {
                 value={stockAlertsSearch}
                 onChange={(e) => { setStockAlertsSearch(e.target.value); setStockAlertsPage(1); }}
                 placeholder="Buscar por nombre o SKU..."
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
+                className="flex-1 px-3 py-2 text-sm border border-hairline rounded-md bg-elevated focus:outline-none focus:ring-2 focus:ring-amber-400 text-ink placeholder-ink-40"
               />
               <select
                 value={stockAlertsBrand}
                 onChange={(e) => { setStockAlertsBrand(e.target.value); setStockAlertsPage(1); }}
-                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="px-3 py-2 text-sm border border-hairline rounded-md bg-elevated text-ink focus:outline-none focus:ring-2 focus:ring-amber-400"
               >
                 <option value="all">Todas las marcas</option>
                 {stockAlertsBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -1764,7 +1764,7 @@ export default function ProductsPage() {
               <select
                 value={stockAlertsCategory}
                 onChange={(e) => { setStockAlertsCategory(e.target.value); setStockAlertsPage(1); }}
-                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="px-3 py-2 text-sm border border-hairline rounded-md bg-elevated text-ink focus:outline-none focus:ring-2 focus:ring-amber-400"
               >
                 <option value="all">Todas las categorías</option>
                 {stockAlertsCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1772,22 +1772,22 @@ export default function ProductsPage() {
             </div>
 
             {stockAlerts.length === 0 ? (
-              <p className="text-gray-500 py-8 text-center">No hay productos con buena rotación en riesgo de quiebre.</p>
+              <p className="text-ink-40 py-8 text-center">No hay productos con buena rotación en riesgo de quiebre.</p>
             ) : (
               <>
-                <div className="overflow-auto rounded-lg border border-gray-200 max-h-[420px]">
+                <div className="overflow-auto rounded-lg border border-hairline max-h-[420px]">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                    <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
                       <tr>
-                        <th onClick={() => toggleStockAlertsSort("producto")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Producto{stockAlertsSortIcon("producto")}</th>
-                        <th onClick={() => toggleStockAlertsSort("stock")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Stock{stockAlertsSortIcon("stock")}</th>
-                        <th onClick={() => toggleStockAlertsSort("velocidad")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Velocidad{stockAlertsSortIcon("velocidad")}</th>
-                        <th onClick={() => toggleStockAlertsSort("dias")} className="px-5 py-3 text-center font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Días{stockAlertsSortIcon("dias")}</th>
-                        <th onClick={() => toggleStockAlertsSort("quiebre")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Fecha Quiebre{stockAlertsSortIcon("quiebre")}</th>
-                        <th onClick={() => toggleStockAlertsSort("valor")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Valor en riesgo{stockAlertsSortIcon("valor")}</th>
+                        <th onClick={() => toggleStockAlertsSort("producto")} className="px-5 py-3 text-left font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Producto{stockAlertsSortIcon("producto")}</th>
+                        <th onClick={() => toggleStockAlertsSort("stock")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Stock{stockAlertsSortIcon("stock")}</th>
+                        <th onClick={() => toggleStockAlertsSort("velocidad")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Velocidad{stockAlertsSortIcon("velocidad")}</th>
+                        <th onClick={() => toggleStockAlertsSort("dias")} className="px-5 py-3 text-center font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Días{stockAlertsSortIcon("dias")}</th>
+                        <th onClick={() => toggleStockAlertsSort("quiebre")} className="px-5 py-3 text-left font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Fecha Quiebre{stockAlertsSortIcon("quiebre")}</th>
+                        <th onClick={() => toggleStockAlertsSort("valor")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Valor en riesgo{stockAlertsSortIcon("valor")}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-hairline">
                       {stockAlertsPaginated.map((p) => {
                         const stock = p.stock ?? 0;
                         const velocity = p.stockData.dailySalesRate ?? 0;
@@ -1800,19 +1800,19 @@ export default function ProductsPage() {
                               <div className="flex items-center gap-3">
                                 <ProductImage src={p.imageUrl} name={p.name} size={36} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
                                 <div className="min-w-0 max-w-[260px]">
-                                  <div className="font-medium text-gray-900 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
+                                  <div className="font-medium text-ink text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
                                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    <span className="text-[11px] text-gray-500 font-mono">{p.sku || "--"}</span>
+                                    <span className="text-[11px] text-ink-40 font-mono">{p.sku || "--"}</span>
                                     {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">{p.brand}</span>}
-                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 font-medium">{p.category}</span>}
+                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-2 text-ink-60 border border-hairline font-medium">{p.category}</span>}
                                   </div>
                                 </div>
                               </div>
                             </td>
-                            <td className={`px-5 py-3 text-right font-semibold ${stock <= 0 ? "text-red-600" : "text-gray-900"}`}>{stock}</td>
-                            <td className="px-5 py-3 text-right text-gray-700">{velocity.toFixed(1)} <span className="text-[10px] text-gray-500">uds/día</span></td>
+                            <td className={`px-5 py-3 text-right font-semibold ${stock <= 0 ? "text-red-600" : "text-ink"}`}>{stock}</td>
+                            <td className="px-5 py-3 text-right text-ink-60">{velocity.toFixed(1)} <span className="text-[10px] text-ink-40">uds/día</span></td>
                             <td className="px-5 py-3 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
-                            <td className="px-5 py-3 text-gray-700">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : (stock <= 0 ? <span className="text-red-600 font-medium">Sin stock</span> : "--")}</td>
+                            <td className="px-5 py-3 text-ink-60">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : (stock <= 0 ? <span className="text-red-600 font-medium">Sin stock</span> : "--")}</td>
                             <td className="px-5 py-3 text-right font-bold text-amber-700">{formatARS(valorRiesgo)}</td>
                           </tr>
                         );
@@ -1822,11 +1822,11 @@ export default function ProductsPage() {
                 </div>
                 {stockAlertsTotalPages > 1 && (
                   <div className="flex items-center justify-between text-sm mt-4 px-1">
-                    <span className="text-gray-600">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
+                    <span className="text-ink-60">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Anterior</button>
-                      <span className="px-4 py-1 text-gray-700 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
-                      <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Siguiente</button>
+                      <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated text-ink-60 disabled:opacity-50 hover:bg-surface">Anterior</button>
+                      <span className="px-4 py-1 text-ink-60 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
+                      <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated text-ink-60 disabled:opacity-50 hover:bg-surface">Siguiente</button>
                     </div>
                   </div>
                 )}
@@ -1835,9 +1835,9 @@ export default function ProductsPage() {
           </div>
 
           {/* Dead Stock — Light premium, animated alert icon, internal scroll */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
             <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2.5 text-lg tracking-tight">
+              <h3 className="font-semibold text-ink flex items-center gap-2.5 text-lg tracking-tight">
                 <span className="relative inline-flex w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 items-center justify-center shadow-sm">
                   <AlertTriangle className="relative w-[18px] h-[18px] text-rose-600" />
                 </span>
@@ -1847,7 +1847,7 @@ export default function ProductsPage() {
                 Capital Inmovilizado
               </span>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-ink-60 mb-4">
               Capital total inmovilizado: <span className="text-rose-700 font-bold">{formatARS(deadStockCapital)}</span>
             </p>
 
@@ -1857,12 +1857,12 @@ export default function ProductsPage() {
                 value={deadStockSearch}
                 onChange={(e) => { setDeadStockSearch(e.target.value); setDeadStockPage(1); }}
                 placeholder="Buscar por nombre o SKU..."
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 text-gray-900 placeholder-gray-400"
+                className="flex-1 px-3 py-2 text-sm border border-hairline rounded-md bg-elevated focus:outline-none focus:ring-2 focus:ring-rose-400 text-ink placeholder-ink-40"
               />
               <select
                 value={deadStockBrand}
                 onChange={(e) => { setDeadStockBrand(e.target.value); setDeadStockPage(1); }}
-                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                className="px-3 py-2 text-sm border border-hairline rounded-md bg-elevated text-ink focus:outline-none focus:ring-2 focus:ring-rose-400"
               >
                 <option value="all">Todas las marcas</option>
                 {deadStockBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -1870,7 +1870,7 @@ export default function ProductsPage() {
               <select
                 value={deadStockCategory}
                 onChange={(e) => { setDeadStockCategory(e.target.value); setDeadStockPage(1); }}
-                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                className="px-3 py-2 text-sm border border-hairline rounded-md bg-elevated text-ink focus:outline-none focus:ring-2 focus:ring-rose-400"
               >
                 <option value="all">Todas las categorías</option>
                 {deadStockCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1878,25 +1878,25 @@ export default function ProductsPage() {
             </div>
 
             {deadStock.length === 0 ? (
-              <p className="text-gray-500 py-8 text-center">No hay productos con stock muerto.</p>
+              <p className="text-ink-40 py-8 text-center">No hay productos con stock muerto.</p>
             ) : (
               <>
-                <div className="overflow-auto rounded-lg border border-gray-200 max-h-[480px]">
+                <div className="overflow-auto rounded-lg border border-hairline max-h-[480px]">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                    <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
                       <tr>
-                        <th onClick={() => toggleDeadStockSort("producto")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Producto{deadStockSortIcon("producto")}</th>
-                        <th onClick={() => toggleDeadStockSort("stock")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Stock{deadStockSortIcon("stock")}</th>
-                        <th onClick={() => toggleDeadStockSort("valor")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Valor{deadStockSortIcon("valor")}</th>
-                        <th onClick={() => toggleDeadStockSort("costo")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Costo{deadStockSortIcon("costo")}</th>
-                        <th onClick={() => toggleDeadStockSort("margen")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Margen{deadStockSortIcon("margen")}</th>
-                        <th onClick={() => toggleDeadStockSort("markup")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Markup{deadStockSortIcon("markup")}</th>
-                        <th onClick={() => toggleDeadStockSort("visitas")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Visitas{deadStockSortIcon("visitas")}</th>
-                        <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Últ. Venta{deadStockSortIcon("ultimaVenta")}</th>
-                        <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Días s/Venta{deadStockSortIcon("diasSinVenta")}</th>
+                        <th onClick={() => toggleDeadStockSort("producto")} className="px-5 py-3 text-left font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Producto{deadStockSortIcon("producto")}</th>
+                        <th onClick={() => toggleDeadStockSort("stock")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Stock{deadStockSortIcon("stock")}</th>
+                        <th onClick={() => toggleDeadStockSort("valor")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Valor{deadStockSortIcon("valor")}</th>
+                        <th onClick={() => toggleDeadStockSort("costo")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Costo{deadStockSortIcon("costo")}</th>
+                        <th onClick={() => toggleDeadStockSort("margen")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Margen{deadStockSortIcon("margen")}</th>
+                        <th onClick={() => toggleDeadStockSort("markup")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Markup{deadStockSortIcon("markup")}</th>
+                        <th onClick={() => toggleDeadStockSort("visitas")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Visitas{deadStockSortIcon("visitas")}</th>
+                        <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-5 py-3 text-left font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Últ. Venta{deadStockSortIcon("ultimaVenta")}</th>
+                        <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-5 py-3 text-right font-semibold text-ink-60 cursor-pointer select-none hover:bg-surface-2 uppercase text-[11px] tracking-wider">Días s/Venta{deadStockSortIcon("diasSinVenta")}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-hairline">
                       {deadStockPaginated.map((p) => {
                         const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
                         const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
@@ -1913,26 +1913,26 @@ export default function ProductsPage() {
                               <div className="flex items-center gap-3">
                                 <ProductImage src={p.imageUrl} name={p.name} size={36} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
                                 <div className="min-w-0 max-w-[260px]">
-                                  <div className="font-medium text-gray-900 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
+                                  <div className="font-medium text-ink text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
                                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    <span className="text-[11px] text-gray-500 font-mono">{p.sku || "--"}</span>
+                                    <span className="text-[11px] text-ink-40 font-mono">{p.sku || "--"}</span>
                                     {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-medium">{p.brand}</span>}
-                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 font-medium">{p.category}</span>}
+                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-2 text-ink-60 border border-hairline font-medium">{p.category}</span>}
                                   </div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-5 py-3 text-right font-semibold text-gray-900">{stock}</td>
+                            <td className="px-5 py-3 text-right font-semibold text-ink">{stock}</td>
                             <td className="px-5 py-3 text-right">
                               <div className="font-bold text-rose-700">{formatARS(valorTotal)}</div>
-                              <div className="text-[10px] text-gray-500 mt-0.5">{formatARS(unitPrice)} c/u</div>
+                              <div className="text-[10px] text-ink-40 mt-0.5">{formatARS(unitPrice)} c/u</div>
                             </td>
-                            <td className="px-5 py-3 text-right text-gray-700">{p.costPrice != null ? formatARS(p.costPrice) : "--"}</td>
-                            <td className="px-5 py-3 text-right text-gray-800">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
-                            <td className="px-5 py-3 text-right text-gray-800">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
-                            <td className="px-5 py-3 text-right text-gray-800 font-medium">{p.viewers ?? 0}</td>
-                            <td className="px-5 py-3 text-gray-600 text-[12px]">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
-                            <td className="px-5 py-3 text-right text-gray-900 font-semibold">{daysNoSale ?? "--"}</td>
+                            <td className="px-5 py-3 text-right text-ink-60">{p.costPrice != null ? formatARS(p.costPrice) : "--"}</td>
+                            <td className="px-5 py-3 text-right text-ink-60">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
+                            <td className="px-5 py-3 text-right text-ink-60">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
+                            <td className="px-5 py-3 text-right text-ink-60 font-medium">{p.viewers ?? 0}</td>
+                            <td className="px-5 py-3 text-ink-60 text-[12px]">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
+                            <td className="px-5 py-3 text-right text-ink font-semibold">{daysNoSale ?? "--"}</td>
                           </tr>
                         );
                       })}
@@ -1941,11 +1941,11 @@ export default function ProductsPage() {
                 </div>
                 {deadStockTotalPages > 1 && (
                   <div className="flex items-center justify-between text-sm mt-4 px-1">
-                    <span className="text-gray-600">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
+                    <span className="text-ink-60">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Anterior</button>
-                      <span className="px-4 py-1 text-gray-700 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
-                      <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Siguiente</button>
+                      <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated text-ink-60 disabled:opacity-50 hover:bg-surface">Anterior</button>
+                      <span className="px-4 py-1 text-ink-60 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
+                      <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated text-ink-60 disabled:opacity-50 hover:bg-surface">Siguiente</button>
                     </div>
                   </div>
                 )}
@@ -1960,47 +1960,47 @@ export default function ProductsPage() {
         <div className="space-y-6">
           {/* Margin KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div className="bg-elevated rounded-xl shadow-sm border border-hairline p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Percent className="w-4 h-4 text-green-600" />
-                <p className="text-xs text-gray-500 font-medium">Margen Bruto Prom.</p>
+                <p className="text-xs text-ink-40 font-medium">Margen Bruto Prom.</p>
               </div>
               <p className={`text-2xl font-bold ${marginAnalysis.weightedMarginPct >= 40 ? "text-green-700" : marginAnalysis.weightedMarginPct >= 20 ? "text-amber-700" : "text-red-700"}`}>
                 {marginAnalysis.weightedMarginPct.toFixed(1)}%
               </p>
-              <p className="text-[10px] text-gray-400 mt-1">Ponderado por revenue neto (sin IVA)</p>
+              <p className="text-[10px] text-ink-40 mt-1">Ponderado por revenue neto (sin IVA)</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div className="bg-elevated rounded-xl shadow-sm border border-hairline p-5">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="w-4 h-4 text-ink-60" />
-                <p className="text-xs text-gray-500 font-medium">Revenue Neto (sin IVA)</p>
+                <p className="text-xs text-ink-40 font-medium">Revenue Neto (sin IVA)</p>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{formatARS(marginAnalysis.totalRevenueWithCost)}</p>
-              <p className="text-[10px] text-gray-400 mt-1">{marginAnalysis.productsWithCost} productos con costo</p>
+              <p className="text-2xl font-bold text-ink">{formatARS(marginAnalysis.totalRevenueWithCost)}</p>
+              <p className="text-[10px] text-ink-40 mt-1">{marginAnalysis.productsWithCost} productos con costo</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div className="bg-elevated rounded-xl shadow-sm border border-hairline p-5">
               <div className="flex items-center gap-2 mb-2">
                 <PiggyBank className="w-4 h-4 text-amber-600" />
-                <p className="text-xs text-gray-500 font-medium">Ganancia Bruta</p>
+                <p className="text-xs text-ink-40 font-medium">Ganancia Bruta</p>
               </div>
               <p className="text-2xl font-bold text-green-700">{formatARS(marginAnalysis.grossProfit)}</p>
-              <p className="text-[10px] text-gray-400 mt-1">COGS: {formatARS(marginAnalysis.totalCogs)}</p>
+              <p className="text-[10px] text-ink-40 mt-1">COGS: {formatARS(marginAnalysis.totalCogs)}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div className="bg-elevated rounded-xl shadow-sm border border-hairline p-5">
               <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-4 h-4 text-gray-400" />
-                <p className="text-xs text-gray-500 font-medium">Sin Costo</p>
+                <AlertTriangle className="w-4 h-4 text-ink-40" />
+                <p className="text-xs text-ink-40 font-medium">Sin Costo</p>
               </div>
-              <p className="text-2xl font-bold text-gray-600">{marginAnalysis.productsWithoutCost}</p>
-              <p className="text-[10px] text-gray-400 mt-1">Productos sin costPrice</p>
+              <p className="text-2xl font-bold text-ink-60">{marginAnalysis.productsWithoutCost}</p>
+              <p className="text-[10px] text-ink-40 mt-1">Productos sin costPrice</p>
             </div>
           </div>
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Margin Distribution */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-4">Distribucion por Rango de Margen</h3>
+            <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
+              <h3 className="font-semibold text-ink mb-4">Distribucion por Rango de Margen</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={marginAnalysis.distribution}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -2017,9 +2017,9 @@ export default function ProductsPage() {
             </div>
 
             {/* Margin by Brand */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-elevated p-6 rounded-xl shadow-sm border border-hairline">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Margen por Marca (Top 10)</h3>
+                <h3 className="font-semibold text-ink">Margen por Marca (Top 10)</h3>
                 {categoryFilter && <span className="text-xs text-ink-60 bg-surface px-2 py-1 rounded-md">Filtro: {categoryFilter}</span>}
               </div>
               <ResponsiveContainer width="100%" height={250}>
@@ -2039,20 +2039,20 @@ export default function ProductsPage() {
           </div>
 
           {/* Margin by Category Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <div className="bg-elevated rounded-xl shadow-sm border border-hairline overflow-hidden">
+            <div className="p-6 border-b border-hairline flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900">Margen por Categoria</h3>
+                <h3 className="font-semibold text-ink">Margen por Categoria</h3>
                 {brandFilter && <p className="text-xs text-ink-60 mt-1">Filtrado por marca: {brandFilter}</p>}
               </div>
               <div className="flex items-center gap-2">
                 <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); }}
-                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
+                  className={`px-2 py-1.5 border rounded-lg text-xs text-ink ${brandFilter ? "border-hairline-2 bg-surface" : "border-hairline-2 bg-elevated"}`}>
                   <option value="">Todas las marcas</option>
                   {brands.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
                 <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); }}
-                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
+                  className={`px-2 py-1.5 border rounded-lg text-xs text-ink ${categoryFilter ? "border-hairline-2 bg-surface" : "border-hairline-2 bg-elevated"}`}>
                   <option value="">Todas las categorias</option>
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -2060,18 +2060,18 @@ export default function ProductsPage() {
             </div>
             <div className="overflow-x-auto overflow-y-auto max-h-[440px]">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
                   <tr>
-                    <th className="px-4 py-2 text-left font-semibold text-gray-700">Categoria</th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">Revenue</th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">COGS</th>
-                    <th className="px-4 py-2 text-center font-semibold text-gray-700">Margen %</th>
-                    <th className="px-4 py-2 text-center font-semibold text-gray-700">Markup %</th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">Ganancia</th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">Productos</th>
+                    <th className="px-4 py-2 text-left font-semibold text-ink-60">Categoria</th>
+                    <th className="px-4 py-2 text-right font-semibold text-ink-60">Revenue</th>
+                    <th className="px-4 py-2 text-right font-semibold text-ink-60">COGS</th>
+                    <th className="px-4 py-2 text-center font-semibold text-ink-60">Margen %</th>
+                    <th className="px-4 py-2 text-center font-semibold text-ink-60">Markup %</th>
+                    <th className="px-4 py-2 text-right font-semibold text-ink-60">Ganancia</th>
+                    <th className="px-4 py-2 text-right font-semibold text-ink-60">Productos</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-hairline">
                   {(() => {
                     try {
                       return computedByCategoryTree.map((cat: any) => {
@@ -2080,26 +2080,26 @@ export default function ProductsPage() {
                         return (
                           <React.Fragment key={cat.name}>
                             <tr
-                              className={`hover:bg-gray-50 ${hasChildren ? "cursor-pointer" : ""}`}
+                              className={`hover:bg-surface ${hasChildren ? "cursor-pointer" : ""}`}
                               onClick={() => {
                                 if (hasChildren) setExpandedCats((s) => ({ ...s, [cat.name]: !s[cat.name] }));
                               }}
                             >
-                              <td className="px-4 py-1.5 font-medium text-gray-900">
+                              <td className="px-4 py-1.5 font-medium text-ink">
                                 <span className="inline-flex items-center gap-2">
                                   {hasChildren ? (
-                                    <span className={`text-gray-400 text-[10px] transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                                    <span className={`text-ink-40 text-[10px] transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
                                   ) : (
                                     <span className="w-2" />
                                   )}
                                   <span>{cat.name}</span>
                                   {hasChildren && (
-                                    <span className="text-[10px] text-gray-400 font-normal">({cat.children.length})</span>
+                                    <span className="text-[10px] text-ink-40 font-normal">({cat.children.length})</span>
                                   )}
                                 </span>
                               </td>
-                              <td className="px-4 py-1.5 text-right text-gray-700">{formatARS(cat.revenue)}</td>
-                              <td className="px-4 py-1.5 text-right text-gray-500">{formatARS(cat.cogs)}</td>
+                              <td className="px-4 py-1.5 text-right text-ink-60">{formatARS(cat.revenue)}</td>
+                              <td className="px-4 py-1.5 text-right text-ink-40">{formatARS(cat.cogs)}</td>
                               <td className="px-4 py-1.5 text-center">
                                 <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                                   cat.marginPct >= 50 ? "bg-green-100 text-green-700" :
@@ -2115,15 +2115,15 @@ export default function ProductsPage() {
                                 }`}>{cat.markupPct.toFixed(1)}%</span>
                               </td>
                               <td className="px-4 py-1.5 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
-                              <td className="px-4 py-1.5 text-right text-gray-500">{cat.productCount}</td>
+                              <td className="px-4 py-1.5 text-right text-ink-40">{cat.productCount}</td>
                             </tr>
                             {isOpen && hasChildren && cat.children.map((sub: any) => (
-                              <tr key={cat.name + "::" + sub.name} className="bg-gray-50/40 hover:bg-gray-100/60">
-                                <td className="px-4 py-1 pl-10 text-gray-700">
-                                  <span className="text-gray-300 mr-2">└</span>{sub.name}
+                              <tr key={cat.name + "::" + sub.name} className="bg-surface/40 hover:bg-surface-2/60">
+                                <td className="px-4 py-1 pl-10 text-ink-60">
+                                  <span className="text-ink-40 mr-2">└</span>{sub.name}
                                 </td>
-                                <td className="px-4 py-1 text-right text-gray-700">{formatARS(sub.revenue)}</td>
-                                <td className="px-4 py-1 text-right text-gray-500">{formatARS(sub.cogs)}</td>
+                                <td className="px-4 py-1 text-right text-ink-60">{formatARS(sub.revenue)}</td>
+                                <td className="px-4 py-1 text-right text-ink-40">{formatARS(sub.cogs)}</td>
                                 <td className="px-4 py-1 text-center">
                                   <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
                                     sub.marginPct >= 50 ? "bg-green-50 text-green-700" :
@@ -2139,7 +2139,7 @@ export default function ProductsPage() {
                                   }`}>{sub.markupPct.toFixed(1)}%</span>
                                 </td>
                                 <td className="px-4 py-1 text-right text-green-700">{formatARS(sub.revenue - sub.cogs)}</td>
-                                <td className="px-4 py-1 text-right text-gray-500">{sub.productCount}</td>
+                                <td className="px-4 py-1 text-right text-ink-40">{sub.productCount}</td>
                               </tr>
                             ))}
                           </React.Fragment>
@@ -2147,7 +2147,7 @@ export default function ProductsPage() {
                       });
                     } catch (e) {
                       return (
-                        <tr><td colSpan={7} className="px-4 py-4 text-center text-xs text-gray-500">
+                        <tr><td colSpan={7} className="px-4 py-4 text-center text-xs text-ink-40">
                           No se pudo construir el arbol de categorias.
                         </td></tr>
                       );
@@ -2162,33 +2162,33 @@ export default function ProductsPage() {
           {(() => {
             try {
               return (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div className="bg-elevated rounded-xl shadow-sm border border-hairline overflow-hidden">
+                  <div className="p-6 border-b border-hairline flex items-center justify-between">
                     <div>
-                      <h3 className="font-semibold text-gray-900">Margen por Marca</h3>
+                      <h3 className="font-semibold text-ink">Margen por Marca</h3>
                       {categoryFilter && <p className="text-xs text-ink-60 mt-1">Filtrado por categoria: {categoryFilter}</p>}
                     </div>
-                    <span className="text-xs text-gray-500">{computedByBrand.length} marcas</span>
+                    <span className="text-xs text-ink-40">{computedByBrand.length} marcas</span>
                   </div>
                   <div className="overflow-x-auto overflow-y-auto max-h-[440px]">
                     <table className="w-full text-xs">
-                      <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                      <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-2 text-left font-semibold text-gray-700">Marca</th>
-                          <th className="px-4 py-2 text-right font-semibold text-gray-700">Revenue</th>
-                          <th className="px-4 py-2 text-right font-semibold text-gray-700">COGS</th>
-                          <th className="px-4 py-2 text-center font-semibold text-gray-700">Margen %</th>
-                          <th className="px-4 py-2 text-center font-semibold text-gray-700">Markup %</th>
-                          <th className="px-4 py-2 text-right font-semibold text-gray-700">Ganancia</th>
-                          <th className="px-4 py-2 text-right font-semibold text-gray-700">Productos</th>
+                          <th className="px-4 py-2 text-left font-semibold text-ink-60">Marca</th>
+                          <th className="px-4 py-2 text-right font-semibold text-ink-60">Revenue</th>
+                          <th className="px-4 py-2 text-right font-semibold text-ink-60">COGS</th>
+                          <th className="px-4 py-2 text-center font-semibold text-ink-60">Margen %</th>
+                          <th className="px-4 py-2 text-center font-semibold text-ink-60">Markup %</th>
+                          <th className="px-4 py-2 text-right font-semibold text-ink-60">Ganancia</th>
+                          <th className="px-4 py-2 text-right font-semibold text-ink-60">Productos</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200">
+                      <tbody className="divide-y divide-hairline">
                         {computedByBrand.map((br: any) => (
-                          <tr key={br.name} className="hover:bg-gray-50">
-                            <td className="px-4 py-1.5 font-medium text-gray-900">{br.name}</td>
-                            <td className="px-4 py-1.5 text-right text-gray-700">{formatARS(br.revenue)}</td>
-                            <td className="px-4 py-1.5 text-right text-gray-500">{formatARS(br.cogs)}</td>
+                          <tr key={br.name} className="hover:bg-surface">
+                            <td className="px-4 py-1.5 font-medium text-ink">{br.name}</td>
+                            <td className="px-4 py-1.5 text-right text-ink-60">{formatARS(br.revenue)}</td>
+                            <td className="px-4 py-1.5 text-right text-ink-40">{formatARS(br.cogs)}</td>
                             <td className="px-4 py-1.5 text-center">
                               <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                                 br.marginPct >= 50 ? "bg-green-100 text-green-700" :
@@ -2204,7 +2204,7 @@ export default function ProductsPage() {
                               }`}>{br.markupPct.toFixed(1)}%</span>
                             </td>
                             <td className="px-4 py-1.5 text-right font-medium text-green-700">{formatARS(br.revenue - br.cogs)}</td>
-                            <td className="px-4 py-1.5 text-right text-gray-500">{br.productCount}</td>
+                            <td className="px-4 py-1.5 text-right text-ink-40">{br.productCount}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2220,7 +2220,7 @@ export default function ProductsPage() {
           {/* Top & Bottom Products */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Margin */}
-            <div className="bg-white rounded-xl shadow-sm border border-green-200 overflow-hidden">
+            <div className="bg-elevated rounded-xl shadow-sm border border-green-200 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-green-200 bg-green-50">
                 <h3 className="font-semibold text-green-800 flex items-center gap-2 text-sm">
                   <TrendingUp className="w-4 h-4" /> Top 10 Mas Rentables
@@ -2239,10 +2239,10 @@ export default function ProductsPage() {
                     {marginAnalysis.topMargin.map((p) => (
                       <tr key={p.id} className="hover:bg-green-50/50">
                         <td className="px-3 py-1">
-                          <div className="font-medium text-gray-900 text-[11px] leading-tight">{p.name.substring(0, 45)}</div>
-                          <div className="text-[10px] text-gray-500">{p.sku}</div>
+                          <div className="font-medium text-ink text-[11px] leading-tight">{p.name.substring(0, 45)}</div>
+                          <div className="text-[10px] text-ink-40">{p.sku}</div>
                         </td>
-                        <td className="px-3 py-1 text-right text-gray-700">{formatCompact(p.revenue)}</td>
+                        <td className="px-3 py-1 text-right text-ink-60">{formatCompact(p.revenue)}</td>
                         <td className="px-3 py-1 text-center">
                           <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[11px] font-bold rounded">{p.marginPct?.toFixed(1)}%</span>
                         </td>
@@ -2254,7 +2254,7 @@ export default function ProductsPage() {
             </div>
 
             {/* Bottom Margin */}
-            <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
+            <div className="bg-elevated rounded-xl shadow-sm border border-red-200 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-red-200 bg-red-50">
                 <h3 className="font-semibold text-red-800 flex items-center gap-2 text-sm">
                   <TrendingDown className="w-4 h-4" /> Top 10 Menos Rentables
@@ -2273,10 +2273,10 @@ export default function ProductsPage() {
                     {marginAnalysis.bottomMargin.map((p) => (
                       <tr key={p.id} className="hover:bg-red-50/50">
                         <td className="px-3 py-1">
-                          <div className="font-medium text-gray-900 text-[11px] leading-tight">{p.name.substring(0, 45)}</div>
-                          <div className="text-[10px] text-gray-500">{p.sku}</div>
+                          <div className="font-medium text-ink text-[11px] leading-tight">{p.name.substring(0, 45)}</div>
+                          <div className="text-[10px] text-ink-40">{p.sku}</div>
                         </td>
-                        <td className="px-3 py-1 text-right text-gray-700">{formatCompact(p.revenue)}</td>
+                        <td className="px-3 py-1 text-right text-ink-60">{formatCompact(p.revenue)}</td>
                         <td className="px-3 py-1 text-center">
                           <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                             (p.marginPct ?? 0) < 0 ? "bg-red-200 text-red-800" :
@@ -2293,11 +2293,11 @@ export default function ProductsPage() {
           </div>
 
           {/* ── Full Catalog Table ─────────────────────── */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="bg-elevated rounded-xl shadow-sm border border-hairline overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-hairline flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h3 className="font-semibold text-gray-900">Catalogo Completo - Analisis de Margenes</h3>
-                <p className="text-xs text-gray-500 mt-1">{marginCatalog.length} productos con costo cargado</p>
+                <h3 className="font-semibold text-ink">Catalogo Completo - Analisis de Margenes</h3>
+                <p className="text-xs text-ink-40 mt-1">{marginCatalog.length} productos con costo cargado</p>
               </div>
               <div className="flex items-center gap-2">
                 <ColumnSelector columns={MARGIN_COLUMNS} visible={marginCols}
@@ -2309,20 +2309,20 @@ export default function ProductsPage() {
             </div>
 
             {/* Inline Filters for Margins */}
-            <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+            <div className="px-6 py-3 border-b border-hairline flex flex-wrap gap-3 items-center">
               <div className="relative min-w-[180px] max-w-[260px]">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-40" />
                 <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setMarginPage(1); }}
                   placeholder="SKU o producto..."
-                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-ink/20" />
+                  className="w-full pl-8 pr-3 py-1.5 border border-hairline-2 rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-ink/20" />
               </div>
               <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setMarginPage(1); }}
-                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
+                className={`px-2 py-1.5 border rounded-lg text-xs text-ink ${brandFilter ? "border-hairline-2 bg-surface" : "border-hairline-2 bg-elevated"}`}>
                 <option value="">Todas las marcas</option>
                 {brands.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
               <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setMarginPage(1); }}
-                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-hairline-2 bg-surface" : "border-gray-300 bg-white"}`}>
+                className={`px-2 py-1.5 border rounded-lg text-xs text-ink ${categoryFilter ? "border-hairline-2 bg-surface" : "border-hairline-2 bg-elevated"}`}>
                 <option value="">Todas las categorias</option>
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -2333,12 +2333,12 @@ export default function ProductsPage() {
             </div>
 
             {/* Margin Range Chips */}
-            <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-2">
+            <div className="px-6 py-3 border-b border-hairline flex flex-wrap gap-2">
               {MARGIN_CHIPS.map((c) => {
                 const isActive = marginRangeFilter === c.key;
                 const count = marginChipCounts[c.key as keyof typeof marginChipCounts] ?? 0;
                 const colorMap: Record<string, string> = {
-                  gray: isActive ? "bg-gray-800 text-white border-gray-800" : "bg-gray-100 text-gray-700 border-gray-300",
+                  gray: isActive ? "bg-ink text-white border-ink" : "bg-surface-2 text-ink-60 border-hairline-2",
                   red: isActive ? "bg-red-600 text-white border-red-600" : "bg-red-50 text-red-700 border-red-300",
                   amber: isActive ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-700 border-amber-300",
                   yellow: isActive ? "bg-yellow-500 text-white border-yellow-500" : "bg-yellow-50 text-yellow-700 border-yellow-300",
@@ -2349,7 +2349,7 @@ export default function ProductsPage() {
                   <button key={c.key} onClick={() => setMarginRangeFilter(c.key)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${colorMap[c.color]}`}>
                     {c.label}
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/20" : "bg-black/5"}`}>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-elevated/20" : "bg-black/5"}`}>
                       {count}
                     </span>
                   </button>
@@ -2361,58 +2361,58 @@ export default function ProductsPage() {
             <div className="overflow-x-auto flex-1 flex flex-col">
               <div className="overflow-y-auto max-h-[600px]">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                  <thead className="bg-surface border-b border-hairline sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[200px]">Producto</th>
-                      {isMgCol("precio") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("avgPrice")}>
+                      <th className="px-4 py-3 text-left font-semibold text-ink-60 min-w-[200px]">Producto</th>
+                      {isMgCol("precio") && <th className="px-3 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("avgPrice")}>
                         <TooltipHeader text="Precio" tooltip="Precio de venta con IVA incluido" />{marginSortIcon("avgPrice")}
                       </th>}
-                      {isMgCol("costo") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("costPrice")}>
+                      {isMgCol("costo") && <th className="px-3 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("costPrice")}>
                         <TooltipHeader text="Costo" tooltip="Costo unitario sin IVA" />{marginSortIcon("costPrice")}
                       </th>}
-                      {isMgCol("margenPct") && <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPct")}>
+                      {isMgCol("margenPct") && <th className="px-3 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("marginPct")}>
                         <TooltipHeader text="Margen %" tooltip="(Precio neto - Costo) / Precio neto" />{marginSortIcon("marginPct")}
                       </th>}
-                      {isMgCol("markup") && <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("markup")}>
+                      {isMgCol("markup") && <th className="px-3 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("markup")}>
                         <TooltipHeader text="Markup %" tooltip="(Precio neto - Costo) / Costo" />{marginSortIcon("markup")}
                       </th>}
-                      {isMgCol("margenUd") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPerUnit")}>
+                      {isMgCol("margenUd") && <th className="px-3 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("marginPerUnit")}>
                         Margen $/ud{marginSortIcon("marginPerUnit")}
                       </th>}
-                      {isMgCol("unidades") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("unitsSold")}>
+                      {isMgCol("unidades") && <th className="px-3 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("unitsSold")}>
                         Uds{marginSortIcon("unitsSold")}
                       </th>}
-                      {isMgCol("facturacion") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("revenue")}>
+                      {isMgCol("facturacion") && <th className="px-3 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("revenue")}>
                         Facturacion{marginSortIcon("revenue")}
                       </th>}
-                      {isMgCol("ganancia") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginAbs")}>
+                      {isMgCol("ganancia") && <th className="px-3 py-3 text-right font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("marginAbs")}>
                         Ganancia{marginSortIcon("marginAbs")}
                       </th>}
-                      {isMgCol("stock") && <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("stock")}>
+                      {isMgCol("stock") && <th className="px-3 py-3 text-center font-semibold text-ink-60 cursor-pointer hover:bg-surface-2 whitespace-nowrap" onClick={() => handleMarginSort("stock")}>
                         Stock{marginSortIcon("stock")}
                       </th>}
-                      {isMgCol("abc") && <th className="px-3 py-3 text-center font-semibold text-gray-700">ABC</th>}
+                      {isMgCol("abc") && <th className="px-3 py-3 text-center font-semibold text-ink-60">ABC</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-hairline">
                     {marginPaginated.map((p) => {
                       const cost = p.costPrice ?? 0;
                       const marginPerUnit = p.avgPriceNeto - cost;
                       const mPct = p.marginPct ?? 0;
                       const markupPct = cost > 0 ? ((p.avgPriceNeto - cost) / cost) * 100 : 0;
                       return (
-                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                        <tr key={p.id} className="hover:bg-surface transition-colors">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-7 h-7 rounded object-cover flex-shrink-0" />}
                               <div className="min-w-0">
-                                <div className="font-medium text-gray-900 text-xs truncate max-w-[220px]" title={p.name}>{p.name}</div>
-                                <div className="text-[10px] text-gray-500">{p.sku || "--"} {p.brand && <span className="ml-1 text-ink-60">{p.brand}</span>}</div>
+                                <div className="font-medium text-ink text-xs truncate max-w-[220px]" title={p.name}>{p.name}</div>
+                                <div className="text-[10px] text-ink-40">{p.sku || "--"} {p.brand && <span className="ml-1 text-ink-60">{p.brand}</span>}</div>
                               </div>
                             </div>
                           </td>
-                          {isMgCol("precio") && <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatARS(p.avgPrice)}</td>}
-                          {isMgCol("costo") && <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">{formatARS(cost)}</td>}
+                          {isMgCol("precio") && <td className="px-3 py-3 text-right text-ink font-medium whitespace-nowrap">{formatARS(p.avgPrice)}</td>}
+                          {isMgCol("costo") && <td className="px-3 py-3 text-right text-ink-40 whitespace-nowrap">{formatARS(cost)}</td>}
                           {isMgCol("margenPct") && <td className="px-3 py-3 text-center">
                             <span className={`px-2 py-1 text-xs font-bold rounded-md ${
                               mPct >= 50 ? "bg-green-100 text-green-700" :
@@ -2434,15 +2434,15 @@ export default function ProductsPage() {
                               {formatARS(marginPerUnit)}
                             </span>
                           </td>}
-                          {isMgCol("unidades") && <td className="px-3 py-3 text-right text-gray-700">{p.unitsSold.toLocaleString("es-AR")}</td>}
-                          {isMgCol("facturacion") && <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatCompact(p.revenue)}</td>}
+                          {isMgCol("unidades") && <td className="px-3 py-3 text-right text-ink-60">{p.unitsSold.toLocaleString("es-AR")}</td>}
+                          {isMgCol("facturacion") && <td className="px-3 py-3 text-right text-ink font-medium whitespace-nowrap">{formatCompact(p.revenue)}</td>}
                           {isMgCol("ganancia") && <td className="px-3 py-3 text-right whitespace-nowrap">
                             <span className={(p.marginAbs ?? 0) >= 0 ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
                               {formatCompact(p.marginAbs ?? 0)}
                             </span>
                           </td>}
                           {isMgCol("stock") && <td className="px-3 py-3 text-center">
-                            <span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>
+                            <span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-ink"}`}>
                               {p.stock ?? 0}
                             </span>
                           </td>}
@@ -2457,16 +2457,16 @@ export default function ProductsPage() {
 
             {/* Pagination */}
             {marginTotalPages > 1 && (
-              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
-                <span className="text-gray-600">
+              <div className="border-t border-hairline px-6 py-4 bg-surface flex items-center justify-between text-sm">
+                <span className="text-ink-60">
                   Mostrando {Math.min((marginPage - 1) * MARGIN_PER_PAGE + 1, marginSorted.length)}-{Math.min(marginPage * MARGIN_PER_PAGE, marginSorted.length)} de {marginSorted.length}
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setMarginPage(Math.max(1, marginPage - 1))} disabled={marginPage === 1}
-                    className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Anterior</button>
-                  <span className="px-4 py-1 text-gray-700 font-medium">Pag {marginPage} de {marginTotalPages}</span>
+                    className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated hover:bg-surface-2 disabled:opacity-50 text-ink-60">Anterior</button>
+                  <span className="px-4 py-1 text-ink-60 font-medium">Pag {marginPage} de {marginTotalPages}</span>
                   <button onClick={() => setMarginPage(Math.min(marginTotalPages, marginPage + 1))} disabled={marginPage === marginTotalPages}
-                    className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Siguiente</button>
+                    className="px-3 py-1 border border-hairline-2 rounded-md bg-elevated hover:bg-surface-2 disabled:opacity-50 text-ink-60">Siguiente</button>
                 </div>
               </div>
             )}

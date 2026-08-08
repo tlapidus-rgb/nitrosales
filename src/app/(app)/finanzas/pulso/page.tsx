@@ -130,27 +130,20 @@ export default function PulsoPage() {
       {/* ═══════ Header: título + moneda ═══════ */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                background: "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
-                boxShadow: "0 0 10px rgba(251,191,36,0.65)",
-                animation: "pulsoHeaderDot 2s ease-in-out infinite",
-              }}
-            />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+          <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-surface px-3 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-ink-40" />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-60">
               Pulso · Fase 1e
             </span>
           </div>
 
           <h1
-            className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl"
+            className="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl"
             style={{ letterSpacing: "-0.025em" }}
           >
             Pulso
           </h1>
-          <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-slate-500">
+          <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-ink-40">
             Cómo estás hoy. Cash runway, salud financiera, narrativa del negocio
             en 10 segundos.
           </p>
@@ -174,7 +167,7 @@ export default function PulsoPage() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+            className="mt-3 rounded-md border border-red-300 bg-elevated px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
             style={{ transition: `all 200ms ${ES}` }}
           >
             Reintentar
@@ -221,13 +214,13 @@ export default function PulsoPage() {
       />
 
       {/* Atajos a otras tabs */}
-      <div className="flex flex-wrap items-center gap-2 pt-2 text-sm text-slate-500">
-        <span className="text-xs uppercase tracking-wider text-slate-400">
+      <div className="flex flex-wrap items-center gap-2 pt-2 text-sm text-ink-40">
+        <span className="text-xs uppercase tracking-wider text-ink-40">
           Ir a
         </span>
         <Link
           href="/finanzas/estado"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-amber-300 hover:text-amber-700"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-ent-xs hover:border-hairline-2 hover:text-ink"
           style={{ transition: `all 220ms ${ES}` }}
         >
           Estado de Resultados
@@ -235,27 +228,13 @@ export default function PulsoPage() {
         </Link>
         <Link
           href="/finanzas/costos"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-amber-300 hover:text-amber-700"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-ent-xs hover:border-hairline-2 hover:text-ink"
           style={{ transition: `all 220ms ${ES}` }}
         >
           Costos
           <span aria-hidden>→</span>
         </Link>
       </div>
-
-      <style jsx global>{`
-        @keyframes pulsoHeaderDot {
-          0%,
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.5);
-            opacity: 0.55;
-          }
-        }
-      `}</style>
     </div>
   );
 }

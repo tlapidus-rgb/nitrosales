@@ -422,7 +422,7 @@ function CreateDealModal({ onClose, onCreated }: { onClose: () => void; onCreate
               {step === "type" ? "Elegí el modelo de compensación" : "Completá los detalles del acuerdo"}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/10">
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-elevated/10">
             <X size={18} style={{ color: THEME.textSecondary }} />
           </button>
         </div>

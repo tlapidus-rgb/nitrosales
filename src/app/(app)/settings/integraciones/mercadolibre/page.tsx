@@ -60,7 +60,7 @@ export default function MercadoLibreIntegrationPage() {
     <div className="max-w-3xl mx-auto p-6">
       <Link
         href="/settings/integraciones"
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-900 mb-4"
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-60 hover:text-ink mb-4"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Volver a integraciones
@@ -72,13 +72,13 @@ export default function MercadoLibreIntegrationPage() {
           ML
         </div>
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">MercadoLibre</h1>
-          <p className="text-[13px] text-slate-500">Órdenes, comisiones, retenciones, reputación y publicaciones.</p>
+          <h1 className="text-[20px] font-bold text-ink">MercadoLibre</h1>
+          <p className="text-[13px] text-ink-40">Órdenes, comisiones, retenciones, reputación y publicaciones.</p>
         </div>
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+        <div className="rounded-xl border border-hairline bg-elevated p-6 text-center text-ink-40">
           <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
           Cargando estado…
         </div>
@@ -92,9 +92,9 @@ export default function MercadoLibreIntegrationPage() {
               <div className="text-[14px] font-semibold text-emerald-900">Conectado</div>
             </div>
             <div className="mt-2 text-[12px] text-emerald-800 leading-relaxed">
-              ID de vendedor: <code className="bg-white px-2 py-0.5 rounded border border-emerald-200">{status.mlUserId}</code>
+              ID de vendedor: <code className="bg-elevated px-2 py-0.5 rounded border border-emerald-200">{status.mlUserId}</code>
               {status.nickname && (
-                <span className="ml-3">Nickname: <code className="bg-white px-2 py-0.5 rounded border border-emerald-200">{status.nickname}</code></span>
+                <span className="ml-3">Nickname: <code className="bg-elevated px-2 py-0.5 rounded border border-emerald-200">{status.nickname}</code></span>
               )}
               {status.lastSyncAt && (
                 <div className="mt-1.5 text-emerald-700">
@@ -109,9 +109,9 @@ export default function MercadoLibreIntegrationPage() {
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 mb-4">
-            <div className="text-[13px] font-semibold text-slate-900 mb-2">Sobre la conexión</div>
-            <ul className="text-[12px] text-slate-600 space-y-1.5 leading-relaxed">
+          <div className="rounded-xl border border-hairline bg-elevated p-5 mb-4">
+            <div className="text-[13px] font-semibold text-ink mb-2">Sobre la conexión</div>
+            <ul className="text-[12px] text-ink-60 space-y-1.5 leading-relaxed">
               <li>• El token se renueva automáticamente cada 6 horas (refresh token).</li>
               <li>• Si cambiás permisos en tu cuenta ML, hacé "Reconectar" para que el token se actualice.</li>
               <li>• Solo lectura: NitroSales nunca modifica nada en tu cuenta MercadoLibre.</li>
@@ -120,7 +120,7 @@ export default function MercadoLibreIntegrationPage() {
 
           <button
             onClick={handleConnect}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-hairline-2 bg-elevated px-4 py-2 text-[12px] font-semibold text-ink-60 hover:bg-surface"
           >
             Reconectar
           </button>
@@ -128,9 +128,9 @@ export default function MercadoLibreIntegrationPage() {
       )}
 
       {!loading && !status?.connected && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="text-[14px] font-semibold text-slate-900 mb-2">Conectar MercadoLibre</div>
-          <div className="text-[12px] text-slate-600 leading-relaxed mb-4">
+        <div className="rounded-xl border border-hairline bg-elevated p-5">
+          <div className="text-[14px] font-semibold text-ink mb-2">Conectar MercadoLibre</div>
+          <div className="text-[12px] text-ink-60 leading-relaxed mb-4">
             Vas a entrar al login oficial de MercadoLibre para autorizar a NitroSales a leer tus órdenes,
             productos y métricas. <strong>Solo lectura</strong>, nunca modificamos nada en tu cuenta ML.
           </div>
@@ -155,7 +155,7 @@ export default function MercadoLibreIntegrationPage() {
           >
             Ingresar con MercadoLibre
           </button>
-          <p className="mt-3 text-[10px] text-slate-500 leading-relaxed">
+          <p className="mt-3 text-[10px] text-ink-40 leading-relaxed">
             ML te va a pedir tu usuario/email y password de tu cuenta. NitroSales nunca ve esa información —
             solo recibe un token temporal con permisos de lectura.
           </p>

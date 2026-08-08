@@ -45,14 +45,14 @@ const RETENTION_COLORS = [
   { threshold: 5, bg: "bg-emerald-200", text: "text-emerald-800" },
   { threshold: 2, bg: "bg-yellow-100", text: "text-yellow-800" },
   { threshold: 0.1, bg: "bg-red-100", text: "text-red-700" },
-  { threshold: 0, bg: "bg-gray-50", text: "text-gray-400" },
+  { threshold: 0, bg: "bg-surface", text: "text-ink-40" },
 ];
 
 function getRetentionStyle(pct: number): string {
   for (const level of RETENTION_COLORS) {
     if (pct >= level.threshold) return `${level.bg} ${level.text}`;
   }
-  return "bg-gray-50 text-gray-400";
+  return "bg-surface text-ink-40";
 }
 
 const QUICK_RANGES = [
@@ -71,8 +71,8 @@ function toDateInputValue(date: Date): string {
 function InfoTip({ text }: { text: string }) {
   return (
     <span className="relative group inline-flex ml-1 cursor-help">
-      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold leading-none hover:bg-gray-300 transition-colors">?</span>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed">
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface-2 text-ink-40 text-[10px] font-bold leading-none hover:bg-hairline transition-colors">?</span>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 text-xs text-white bg-ink rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed">
         {text}
         <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
       </span>
@@ -359,7 +359,7 @@ export default function LtvPage() {
     if (ratio >= 3) return { label: "Saludable", color: "text-emerald-700", bg: "bg-emerald-100" };
     if (ratio >= 1) return { label: "Ajustado", color: "text-yellow-700", bg: "bg-yellow-100" };
     if (ratio > 0) return { label: "Bajo", color: "text-red-700", bg: "bg-red-100" };
-    return { label: "Sin datos", color: "text-gray-500", bg: "bg-gray-100" };
+    return { label: "Sin datos", color: "text-ink-40", bg: "bg-surface-2" };
   }
 
   // ─────────────────────────────────────────────
@@ -370,8 +370,8 @@ export default function LtvPage() {
     return (
       <div className="p-6 flex items-center justify-center min-h-[60vh]">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm tracking-wider uppercase">Calculando Lifetime Value...</p>
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
+          <p className="text-ink-40 font-mono text-sm tracking-wider uppercase">Calculando Lifetime Value...</p>
         </div>
       </div>
     );
@@ -421,7 +421,7 @@ export default function LtvPage() {
       <BondlyKeyframes />
       <div className="p-4 lg:p-6 max-w-[1400px] mx-auto space-y-6">
         {/* ══ HERO Bondly ════════════════════════════════════ */}
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
+        <div className="relative overflow-hidden rounded-2xl bg-elevated border border-hairline shadow-ent-xs">
           <div className="relative z-10 px-5 lg:px-7 py-6 lg:py-8">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
               <div>
@@ -462,7 +462,7 @@ export default function LtvPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-ent-xs border border-hairline">
+                <div className="flex items-center gap-1 bg-elevated rounded-xl p-1 shadow-ent-xs border border-hairline">
                   {QUICK_RANGES.map((r) => (
                     <button
                       key={r.days}
@@ -570,7 +570,7 @@ export default function LtvPage() {
       <div>{/* sentinel */}</div>
 
       {/* ── Predicciones de LTV (pLTV engine con Trust Strip) ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
+      <div className="relative overflow-hidden rounded-2xl bg-elevated border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-6 lg:py-8">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
             <div>
@@ -641,7 +641,7 @@ export default function LtvPage() {
       </div>
 
       {/* Panel interior del pLTV engine con las métricas */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm overflow-hidden">
 
         {predData ? (
           <>
@@ -663,21 +663,21 @@ export default function LtvPage() {
                 <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">Confianza Prom.</p>
                 <p className="text-lg font-bold text-ink mt-1">{Math.round(predData.summary.avgConfidence * 100)}%</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Enviados</p>
-                <p className="text-lg font-bold text-gray-400 mt-1">0 / {predData.summary.total}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Meta: 0 · Google: 0</p>
+              <div className="bg-surface rounded-lg p-3">
+                <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">Enviados</p>
+                <p className="text-lg font-bold text-ink-40 mt-1">0 / {predData.summary.total}</p>
+                <p className="text-[10px] text-ink-40 mt-0.5">Meta: 0 · Google: 0</p>
               </div>
             </div>
 
             {/* Prediction by channel */}
             {predData.byChannel?.length > 0 && (
               <div className="px-4 lg:px-5 pb-2">
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">pLTV por Canal de Adquisicion</h3>
+                <h3 className="text-xs font-medium text-ink-40 uppercase tracking-wider mb-2">pLTV por Canal de Adquisicion</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 text-gray-500 text-xs">
+                      <tr className="bg-surface text-ink-40 text-xs">
                         <th className="text-left px-3 py-2 font-medium">Canal</th>
                         <th className="text-right px-3 py-2 font-medium">Clientes</th>
                         <th className="text-right px-3 py-2 font-medium">pLTV 90d</th>
@@ -686,31 +686,31 @@ export default function LtvPage() {
                     </thead>
                     <tbody>
                       {predData.byChannel.map((ch: any, i: number) => (
-                        <tr key={i} className="border-t border-gray-50 hover:bg-gray-50/50">
-                          <td className="px-3 py-2 font-medium text-gray-800 flex items-center gap-2">
+                        <tr key={i} className="border-t border-hairline hover:bg-surface/50">
+                          <td className="px-3 py-2 font-medium text-ink-60 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[ch.channel] || "#6366f1" }} />
                             {ch.channel}
                           </td>
-                          <td className="text-right px-3 py-2 text-gray-600">{ch.customers.toLocaleString("es-AR")}</td>
-                          <td className="text-right px-3 py-2 text-gray-600">{formatARS(ch.avgLtv90d)}</td>
+                          <td className="text-right px-3 py-2 text-ink-60">{ch.customers.toLocaleString("es-AR")}</td>
+                          <td className="text-right px-3 py-2 text-ink-60">{formatARS(ch.avgLtv90d)}</td>
                           <td className="text-right px-3 py-2 font-medium text-ink-60">{formatARS(ch.avgLtv365d)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2">Los clientes con canal &quot;Sin datos&quot; son anteriores a la instalacion del NitroPixel.</p>
+                <p className="text-[11px] text-ink-40 mt-2">Los clientes con canal &quot;Sin datos&quot; son anteriores a la instalacion del NitroPixel.</p>
               </div>
             )}
 
             {/* Top predicted customers */}
             {predData.topCustomers?.length > 0 && (
               <div className="px-4 lg:px-5 pb-4">
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 mt-3">Top Clientes por pLTV Predicho</h3>
+                <h3 className="text-xs font-medium text-ink-40 uppercase tracking-wider mb-2 mt-3">Top Clientes por pLTV Predicho</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 text-gray-500 text-xs">
+                      <tr className="bg-surface text-ink-40 text-xs">
                         <th className="text-left px-3 py-2 font-medium">#</th>
                         <th className="text-left px-3 py-2 font-medium">Cliente</th>
                         <th className="text-left px-3 py-2 font-medium">Canal</th>
@@ -726,17 +726,17 @@ export default function LtvPage() {
                       {predData.topCustomers.slice(0, 10).map((c: any, i: number) => (
                         <React.Fragment key={c.id}>
                           <tr
-                            className="border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer"
+                            className="border-t border-hairline hover:bg-surface/50 cursor-pointer"
                             onClick={() => handleExpandCustomer(c.id)}
                           >
-                            <td className="px-3 py-2 text-gray-400 text-xs">
+                            <td className="px-3 py-2 text-ink-40 text-xs">
                               <span className={`inline-block transition-transform ${expandedCustomer === c.id ? "rotate-90" : ""}`}>
                                 <ChevronRight size={12} />
                               </span>
                             </td>
                             <td className="px-3 py-2">
-                              <div className="font-medium text-gray-800 text-sm">{c.name}</div>
-                              {c.email && <div className="text-[10px] text-gray-400">{c.email}</div>}
+                              <div className="font-medium text-ink-60 text-sm">{c.name}</div>
+                              {c.email && <div className="text-[10px] text-ink-40">{c.email}</div>}
                             </td>
                             <td className="px-3 py-2">
                               <span className="inline-flex items-center gap-1 text-xs">
@@ -748,12 +748,12 @@ export default function LtvPage() {
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                 c.segment === "high_value" ? "bg-emerald-100 text-emerald-700" :
                                 c.segment === "medium_value" ? "bg-amber-100 text-amber-700" :
-                                "bg-gray-100 text-gray-600"
+                                "bg-surface-2 text-ink-60"
                               }`}>
                                 {c.segment === "high_value" ? "Alto" : c.segment === "medium_value" ? "Medio" : "Bajo"}
                               </span>
                             </td>
-                            <td className="text-right px-3 py-2 text-gray-600">{formatARS(c.predictedLtv90d)}</td>
+                            <td className="text-right px-3 py-2 text-ink-60">{formatARS(c.predictedLtv90d)}</td>
                             <td className="text-right px-3 py-2 font-medium text-ink-60">{formatARS(c.predictedLtv365d)}</td>
                             <td className="text-right px-3 py-2">
                               <span className={`text-xs font-medium ${c.confidence >= 0.7 ? "text-emerald-600" : c.confidence >= 0.5 ? "text-amber-600" : "text-red-500"}`}>
@@ -764,14 +764,14 @@ export default function LtvPage() {
                               {c.sentToMeta ? (
                                 <span className="text-emerald-500"><ShieldCheck size={14} /></span>
                               ) : (
-                                <span className="text-gray-300"><Lock size={12} /></span>
+                                <span className="text-ink-40"><Lock size={12} /></span>
                               )}
                             </td>
                             <td className="text-center px-3 py-2">
                               {c.sentToGoogle ? (
                                 <span className="text-emerald-500"><ShieldCheck size={14} /></span>
                               ) : (
-                                <span className="text-gray-300"><Lock size={12} /></span>
+                                <span className="text-ink-40"><Lock size={12} /></span>
                               )}
                             </td>
                           </tr>
@@ -780,7 +780,7 @@ export default function LtvPage() {
                             <tr className="bg-surface-2/50">
                               <td colSpan={9} className="px-4 py-3">
                                 {detailLoading ? (
-                                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                                  <div className="flex items-center gap-2 text-xs text-ink-40">
                                     <Loader2 size={12} className="animate-spin" /> Cargando historial...
                                   </div>
                                 ) : customerDetail ? (
@@ -788,43 +788,43 @@ export default function LtvPage() {
                                     {/* Prediction reasoning */}
                                     {customerDetail.prediction?.features && (
                                       <div className="flex flex-wrap gap-3 text-[11px]">
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Compras:</span>{" "}
-                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.orderCount || customerDetail.orders?.length || "?"}</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Compras:</span>{" "}
+                                          <span className="font-medium text-ink-60">{customerDetail.prediction.features.orderCount || customerDetail.orders?.length || "?"}</span>
                                         </div>
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Gasto total:</span>{" "}
-                                          <span className="font-medium text-gray-700">{formatARS(customerDetail.prediction.features.totalSpent || 0)}</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Gasto total:</span>{" "}
+                                          <span className="font-medium text-ink-60">{formatARS(customerDetail.prediction.features.totalSpent || 0)}</span>
                                         </div>
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Ticket prom:</span>{" "}
-                                          <span className="font-medium text-gray-700">{formatARS(customerDetail.prediction.features.avgTicket || 0)}</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Ticket prom:</span>{" "}
+                                          <span className="font-medium text-ink-60">{formatARS(customerDetail.prediction.features.avgTicket || 0)}</span>
                                         </div>
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Dias como cliente:</span>{" "}
-                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.daysSinceFirst || 0}d</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Dias como cliente:</span>{" "}
+                                          <span className="font-medium text-ink-60">{customerDetail.prediction.features.daysSinceFirst || 0}d</span>
                                         </div>
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Ultima compra hace:</span>{" "}
-                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.daysSinceLastOrder || 0}d</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Ultima compra hace:</span>{" "}
+                                          <span className="font-medium text-ink-60">{customerDetail.prediction.features.daysSinceLastOrder || 0}d</span>
                                         </div>
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Recompra segmento:</span>{" "}
-                                          <span className="font-medium text-gray-700">{Math.round((customerDetail.prediction.features.segmentRepeatRate || 0) * 100)}%</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Recompra segmento:</span>{" "}
+                                          <span className="font-medium text-ink-60">{Math.round((customerDetail.prediction.features.segmentRepeatRate || 0) * 100)}%</span>
                                         </div>
-                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="text-gray-400">Metodo:</span>{" "}
-                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.method === "cohort_lookup" ? "Cohorte" : "Historial personal"}</span>
+                                        <div className="bg-elevated rounded px-2 py-1 border border-hairline">
+                                          <span className="text-ink-40">Metodo:</span>{" "}
+                                          <span className="font-medium text-ink-60">{customerDetail.prediction.features.method === "cohort_lookup" ? "Cohorte" : "Historial personal"}</span>
                                         </div>
                                       </div>
                                     )}
                                     {/* Order history */}
                                     {customerDetail.orders?.length > 0 && (
                                       <div>
-                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Historial de compras</p>
+                                        <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider mb-1.5">Historial de compras</p>
                                         <table className="w-full text-xs">
                                           <thead>
-                                            <tr className="text-gray-400 text-[10px]">
+                                            <tr className="text-ink-40 text-[10px]">
                                               <th className="text-left py-1 pr-3">#</th>
                                               <th className="text-left py-1 pr-3">Fecha</th>
                                               <th className="text-right py-1 pr-3">Monto</th>
@@ -834,18 +834,18 @@ export default function LtvPage() {
                                           </thead>
                                           <tbody>
                                             {customerDetail.orders.map((o: any, idx: number) => (
-                                              <tr key={o.orderId} className="border-t border-gray-100/50">
-                                                <td className="py-1.5 pr-3 text-gray-400">{idx + 1}</td>
-                                                <td className="py-1.5 pr-3 text-gray-600">
+                                              <tr key={o.orderId} className="border-t border-hairline/50">
+                                                <td className="py-1.5 pr-3 text-ink-40">{idx + 1}</td>
+                                                <td className="py-1.5 pr-3 text-ink-60">
                                                   {new Date(o.date).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
                                                 </td>
-                                                <td className="py-1.5 pr-3 text-right font-medium text-gray-700">{formatARS(o.total)}</td>
+                                                <td className="py-1.5 pr-3 text-right font-medium text-ink-60">{formatARS(o.total)}</td>
                                                 <td className="py-1.5 pr-3">
-                                                  <span className={`text-[10px] ${o.status === "INVOICED" || o.status === "COMPLETED" ? "text-emerald-600" : o.status === "CANCELLED" ? "text-red-500" : "text-gray-500"}`}>
+                                                  <span className={`text-[10px] ${o.status === "INVOICED" || o.status === "COMPLETED" ? "text-emerald-600" : o.status === "CANCELLED" ? "text-red-500" : "text-ink-40"}`}>
                                                     {o.status}
                                                   </span>
                                                 </td>
-                                                <td className="py-1.5 text-gray-500 truncate max-w-[300px]">{o.products || "-"}</td>
+                                                <td className="py-1.5 text-ink-40 truncate max-w-[300px]">{o.products || "-"}</td>
                                               </tr>
                                             ))}
                                           </tbody>
@@ -853,11 +853,11 @@ export default function LtvPage() {
                                       </div>
                                     )}
                                     {customerDetail.orders?.length === 0 && (
-                                      <p className="text-xs text-gray-400">Sin ordenes encontradas</p>
+                                      <p className="text-xs text-ink-40">Sin ordenes encontradas</p>
                                     )}
                                   </div>
                                 ) : (
-                                  <p className="text-xs text-gray-400">Error cargando datos</p>
+                                  <p className="text-xs text-ink-40">Error cargando datos</p>
                                 )}
                               </td>
                             </tr>
@@ -872,7 +872,7 @@ export default function LtvPage() {
 
             {/* Distribution bars */}
             <div className="px-4 lg:px-5 pb-4">
-              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 mt-2">Distribucion de Segmentos</h3>
+              <h3 className="text-xs font-medium text-ink-40 uppercase tracking-wider mb-2 mt-2">Distribucion de Segmentos</h3>
               <div className="flex gap-1 h-6 rounded-full overflow-hidden">
                 {predData.summary.distribution.highValue > 0 && (
                   <div
@@ -892,7 +892,7 @@ export default function LtvPage() {
                 )}
                 {predData.summary.distribution.lowValue > 0 && (
                   <div
-                    className="bg-gray-300 flex items-center justify-center text-gray-700 text-[10px] font-medium"
+                    className="bg-surface-2 flex items-center justify-center text-ink-60 text-[10px] font-medium"
                     style={{ width: `${(predData.summary.distribution.lowValue / predData.summary.total) * 100}%` }}
                   >
                     {predData.summary.distribution.lowValue > 0 ? `Bajo: ${predData.summary.distribution.lowValue}` : ""}
@@ -900,7 +900,7 @@ export default function LtvPage() {
                 )}
               </div>
               {thresholdConfig && (
-                <p className="text-[10px] text-gray-400 mt-1.5">
+                <p className="text-[10px] text-ink-40 mt-1.5">
                   Umbrales: Bajo &lt; {formatARS(thresholdConfig.current.low)} · Medio {formatARS(thresholdConfig.current.low)} - {formatARS(thresholdConfig.current.medium)} · Alto &gt; {formatARS(thresholdConfig.current.medium)}
                 </p>
               )}
@@ -909,14 +909,14 @@ export default function LtvPage() {
             {/* Threshold configuration */}
             {thresholdConfig && (
               <div className="px-4 lg:px-5 pb-4">
-                <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/50">
+                <div className="border border-hairline rounded-lg p-3 bg-surface/50">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-gray-600">Configuracion de umbrales</p>
+                      <p className="text-xs font-medium text-ink-60">Configuracion de umbrales</p>
                       {thresholdConfig.suggested && !showThresholdEdit && (
-                        <p className="text-[10px] text-gray-400 mt-0.5">
+                        <p className="text-[10px] text-ink-40 mt-0.5">
                           Sugerido por tus datos: Bajo &lt; {formatARS(thresholdConfig.suggested.low)} · Alto &gt; {formatARS(thresholdConfig.suggested.medium)}
-                          <span className="text-gray-300 ml-1">(basado en percentiles p50/p90 de {thresholdConfig.suggested.data.totalCustomers.toLocaleString("es-AR")} clientes)</span>
+                          <span className="text-ink-40 ml-1">(basado en percentiles p50/p90 de {thresholdConfig.suggested.data.totalCustomers.toLocaleString("es-AR")} clientes)</span>
                         </p>
                       )}
                     </div>
@@ -924,14 +924,14 @@ export default function LtvPage() {
                       {thresholdConfig.suggested && !showThresholdEdit && (
                         <button
                           onClick={handleApplySuggested}
-                          className="text-[10px] px-2 py-1 rounded bg-surface-2 text-ink-60 hover:bg-surface-2 transition-colors"
+                          className="text-[10px] px-2 py-1 rounded bg-surface-2 text-ink-60 hover:bg-hairline transition-colors"
                         >
                           Usar sugerido
                         </button>
                       )}
                       <button
                         onClick={() => setShowThresholdEdit(!showThresholdEdit)}
-                        className="text-[10px] px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                        className="text-[10px] px-2 py-1 rounded bg-surface-2 text-ink-60 hover:bg-hairline transition-colors"
                       >
                         {showThresholdEdit ? "Cancelar" : "Editar"}
                       </button>
@@ -940,22 +940,22 @@ export default function LtvPage() {
                   {showThresholdEdit && (
                     <div className="mt-3 flex items-end gap-3">
                       <div>
-                        <label className="text-[10px] text-gray-500 block mb-1">Umbral Bajo (hasta)</label>
+                        <label className="text-[10px] text-ink-40 block mb-1">Umbral Bajo (hasta)</label>
                         <input
                           type="number"
                           value={editLow}
                           onChange={(e) => setEditLow(e.target.value)}
-                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
+                          className="w-28 px-2 py-1.5 text-xs border border-hairline rounded-lg focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
                           placeholder="25000"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-gray-500 block mb-1">Umbral Alto (desde)</label>
+                        <label className="text-[10px] text-ink-40 block mb-1">Umbral Alto (desde)</label>
                         <input
                           type="number"
                           value={editMed}
                           onChange={(e) => setEditMed(e.target.value)}
-                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
+                          className="w-28 px-2 py-1.5 text-xs border border-hairline rounded-lg focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
                           placeholder="100000"
                         />
                       </div>
@@ -967,7 +967,7 @@ export default function LtvPage() {
                         {savingThresholds ? "Guardando..." : "Guardar y recalcular"}
                       </button>
                       {thresholdConfig.suggested && (
-                        <div className="text-[10px] text-gray-400 pb-1">
+                        <div className="text-[10px] text-ink-40 pb-1">
                           <div>p50: {formatARS(thresholdConfig.suggested.data.p50)} · p75: {formatARS(thresholdConfig.suggested.data.p75)}</div>
                           <div>p90: {formatARS(thresholdConfig.suggested.data.p90)} · p95: {formatARS(thresholdConfig.suggested.data.p95)}</div>
                         </div>
@@ -979,16 +979,16 @@ export default function LtvPage() {
             )}
 
             {predData.lastUpdated && (
-              <div className="px-4 lg:px-5 pb-4 text-[10px] text-gray-400">
+              <div className="px-4 lg:px-5 pb-4 text-[10px] text-ink-40">
                 Ultima actualizacion: {new Date(predData.lastUpdated).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}
               </div>
             )}
           </>
         ) : (
           <div className="p-8 text-center">
-            <Brain size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm font-medium">Sin predicciones aun</p>
-            <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+            <Brain size={32} className="mx-auto text-ink-40 mb-3" />
+            <p className="text-ink-40 text-sm font-medium">Sin predicciones aun</p>
+            <p className="text-ink-40 text-xs mt-1 max-w-md mx-auto">
               Hace click en "Recalcular predicciones" para que el motor analice tus clientes y prediga su valor futuro basandose en el comportamiento historico.
             </p>
             <button
@@ -1013,7 +1013,7 @@ export default function LtvPage() {
       </div>
 
       {/* ══ INSIGHTS ENGINE — cards accionables ══════════════════════════ */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
+      <div className="relative overflow-hidden rounded-2xl bg-elevated border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-5 lg:py-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-surface-2 border border-hairline">
@@ -1060,7 +1060,7 @@ export default function LtvPage() {
                 return (
                   <div
                     key={card.id}
-                    className="rounded-xl p-4 bg-white hover:bg-surface transition-colors border"
+                    className="rounded-xl p-4 bg-elevated hover:bg-surface transition-colors border"
                     style={{ borderColor: toneColor }}
                   >
                     <div className="flex items-start gap-2 mb-2">
@@ -1101,7 +1101,7 @@ export default function LtvPage() {
       </div>
 
       {/* ══ BEHAVIORAL LTV EXPLORER ══════════════════════════════════════ */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
+      <div className="relative overflow-hidden rounded-2xl bg-elevated border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-6">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-5">
             <div>
@@ -1325,7 +1325,7 @@ export default function LtvPage() {
 
       {/* ══ JOURNEY DRAWER — conditional ════════════════════════════════ */}
       {journeyCustomerId && (
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
+        <div className="relative overflow-hidden rounded-2xl bg-elevated border border-hairline shadow-ent-xs">
           <div className="relative z-10 px-5 lg:px-7 py-6">
             <div className="flex items-start justify-between mb-5">
               <div>
@@ -1396,7 +1396,7 @@ export default function LtvPage() {
                         ? "#9A978D"
                         : item.type === "product_view"
                         ? "#2F9153"
-                        : "#64748b";
+                        : "#9A978D";
                     const date = new Date(item.timestamp);
                     return (
                       <div
@@ -1442,9 +1442,9 @@ export default function LtvPage() {
       )}
 
       {/* ══ DECILES DE LTV + CONCENTRACIÓN PARETO ════════════════════════ */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-hairline">
+          <h2 className="text-base font-semibold text-ink-60 flex items-center gap-2">
             Deciles de LTV y concentración Pareto
             <InfoTip text="Segmenta tus clientes en 10 grupos iguales ordenados por LTV. El decil 10 es tu top 10% de clientes. La concentración te dice cuánto del revenue total generan los mejores deciles." />
           </h2>
@@ -1454,7 +1454,7 @@ export default function LtvPage() {
             <>
               {/* Barra horizontal 10 segmentos */}
               <div className="mb-6">
-                <div className="flex h-8 rounded-lg overflow-hidden border border-gray-200">
+                <div className="flex h-8 rounded-lg overflow-hidden border border-hairline">
                   {data.ltvDeciles.map((d: any) => {
                     const share = Math.max(
                       0,
@@ -1486,7 +1486,7 @@ export default function LtvPage() {
                     );
                   })}
                 </div>
-                <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-mono uppercase tracking-wider">
+                <div className="flex justify-between text-[10px] text-ink-40 mt-1 font-mono uppercase tracking-wider">
                   <span>Menor LTV</span>
                   <span>Mayor LTV</span>
                 </div>
@@ -1495,8 +1495,8 @@ export default function LtvPage() {
               {/* Tabla detallada */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr className="text-[10px] font-mono uppercase tracking-widest text-gray-500">
+                  <thead className="bg-surface border-b border-hairline">
+                    <tr className="text-[10px] font-mono uppercase tracking-widest text-ink-40">
                       <th className="text-left px-3 py-2 font-medium">
                         Decil
                       </th>
@@ -1523,9 +1523,9 @@ export default function LtvPage() {
                       .map((d: any) => (
                         <tr
                           key={d.decile}
-                          className="border-t border-gray-50 hover:bg-gray-50/40"
+                          className="border-t border-hairline hover:bg-surface/40"
                         >
-                          <td className="px-3 py-2 font-medium text-gray-800">
+                          <td className="px-3 py-2 font-medium text-ink-60">
                             D{d.decile}
                             {d.decile === 10 && (
                               <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-mono uppercase tracking-wider">
@@ -1533,23 +1533,23 @@ export default function LtvPage() {
                               </span>
                             )}
                           </td>
-                          <td className="text-right px-3 py-2 text-gray-600 tabular-nums">
+                          <td className="text-right px-3 py-2 text-ink-60 tabular-nums">
                             {Number(d.customers).toLocaleString("es-AR")}
                           </td>
-                          <td className="text-right px-3 py-2 text-gray-500 text-xs tabular-nums">
+                          <td className="text-right px-3 py-2 text-ink-40 text-xs tabular-nums">
                             {formatARS(Number(d.minLtv) || 0)} —{" "}
                             {formatARS(Number(d.maxLtv) || 0)}
                           </td>
-                          <td className="text-right px-3 py-2 text-gray-700 tabular-nums">
+                          <td className="text-right px-3 py-2 text-ink-60 tabular-nums">
                             {formatARS(Number(d.totalRevenue) || 0)}
                           </td>
-                          <td className="text-right px-3 py-2 font-medium text-gray-800 tabular-nums">
+                          <td className="text-right px-3 py-2 font-medium text-ink-60 tabular-nums">
                             {Math.round(
                               (Number(d.revenueShare) || 0) * 100
                             )}
                             %
                           </td>
-                          <td className="text-right px-3 py-2 text-gray-500 text-xs tabular-nums">
+                          <td className="text-right px-3 py-2 text-ink-40 text-xs tabular-nums">
                             {Math.round(
                               (Number(d.repeatRate) || 0) * 100
                             )}
@@ -1562,7 +1562,7 @@ export default function LtvPage() {
               </div>
             </>
           ) : (
-            <div className="p-6 text-center text-sm text-gray-400">
+            <div className="p-6 text-center text-sm text-ink-40">
               No hay data suficiente de deciles para este período.
             </div>
           )}
@@ -1570,9 +1570,9 @@ export default function LtvPage() {
       </div>
 
       {/* ── LTV por Canal de Adquisicion ── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-hairline">
+          <h2 className="text-base font-semibold text-ink-60">
             LTV por Canal de Adquisicion
             <InfoTip text="Muestra el valor promedio de un cliente segun el canal por el que llego a tu tienda la primera vez. Te dice donde invertir para atraer clientes que compren mas a largo plazo." />
           </h2>
@@ -1600,7 +1600,7 @@ export default function LtvPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-500 text-xs">
+                  <tr className="bg-surface text-ink-40 text-xs">
                     <th className="text-left px-4 py-2 font-medium">Canal</th>
                     <th className="text-right px-4 py-2 font-medium">Clientes</th>
                     <th className="text-right px-4 py-2 font-medium">LTV Prom.</th>
@@ -1643,26 +1643,26 @@ export default function LtvPage() {
                         ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
                         : actionTone === "lookalike"
                         ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
-                        : "bg-gray-50 text-gray-400 border-gray-200";
+                        : "bg-surface text-ink-40 border-hairline";
                     return (
-                      <tr key={i} className="border-t border-gray-50 hover:bg-gray-50/50">
-                        <td className="px-4 py-2.5 font-medium text-gray-800 flex items-center gap-2">
+                      <tr key={i} className="border-t border-hairline hover:bg-surface/50">
+                        <td className="px-4 py-2.5 font-medium text-ink-60 flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[ch.channel] || "#6366f1" }} />
                           {ch.channel}
                         </td>
-                        <td className="text-right px-4 py-2.5 text-gray-600">{ch.customers.toLocaleString("es-AR")}</td>
-                        <td className="text-right px-4 py-2.5 font-medium text-gray-800">{formatARS(ch.avgLtv)}</td>
-                        <td className="text-right px-4 py-2.5 text-gray-600">{ch.repeatRate}%</td>
-                        <td className="text-right px-4 py-2.5 text-gray-600">{ch.avgOrders}</td>
-                        <td className="text-right px-4 py-2.5 text-gray-600">{formatARS(ch.totalRevenue)}</td>
-                        <td className="text-right px-4 py-2.5 text-gray-600">{ch.cac > 0 ? formatARS(ch.cac) : "—"}</td>
+                        <td className="text-right px-4 py-2.5 text-ink-60">{ch.customers.toLocaleString("es-AR")}</td>
+                        <td className="text-right px-4 py-2.5 font-medium text-ink-60">{formatARS(ch.avgLtv)}</td>
+                        <td className="text-right px-4 py-2.5 text-ink-60">{ch.repeatRate}%</td>
+                        <td className="text-right px-4 py-2.5 text-ink-60">{ch.avgOrders}</td>
+                        <td className="text-right px-4 py-2.5 text-ink-60">{formatARS(ch.totalRevenue)}</td>
+                        <td className="text-right px-4 py-2.5 text-ink-60">{ch.cac > 0 ? formatARS(ch.cac) : "—"}</td>
                         <td className="text-right px-4 py-2.5">
                           {ch.ltvCac > 0 ? (
                             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${h.bg} ${h.color}`}>
                               {ch.ltvCac}x
                             </span>
                           ) : (
-                            <span className="text-gray-400">—</span>
+                            <span className="text-ink-40">—</span>
                           )}
                         </td>
                         <td className="text-right px-4 py-2.5">
@@ -1686,7 +1686,7 @@ export default function LtvPage() {
                               </button>
                             )
                           ) : (
-                            <span className="text-gray-300 text-xs">—</span>
+                            <span className="text-ink-40 text-xs">—</span>
                           )}
                         </td>
                       </tr>
@@ -1697,16 +1697,16 @@ export default function LtvPage() {
             </div>
           </>
         ) : (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-8 text-center text-ink-40 text-sm">
             No hay datos de canales para el periodo seleccionado
           </div>
         )}
       </div>
 
       {/* ── Retencion por Cohorte ── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-hairline">
+          <h2 className="text-base font-semibold text-ink-60">
             Retencion por Cohorte
             <InfoTip text="Cada fila es un grupo de clientes que hicieron su primera compra en el mismo mes. Los porcentajes muestran cuantos volvieron a comprar en los meses siguientes. Verde oscuro = mas clientes volvieron." />
           </h2>
@@ -1715,8 +1715,8 @@ export default function LtvPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-gray-50 text-gray-500">
-                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-gray-50 z-10">Cohorte</th>
+                <tr className="bg-surface text-ink-40">
+                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-surface z-10">Cohorte</th>
                   <th className="text-right px-3 py-2 font-medium">Clientes</th>
                   <th className="text-right px-3 py-2 font-medium">Rev. Inicial</th>
                   {Array.from({ length: 12 }, (_, i) => (
@@ -1731,12 +1731,12 @@ export default function LtvPage() {
                   const now = new Date();
                   const monthsPassed = (now.getFullYear() - cohortDate.getFullYear()) * 12 + (now.getMonth() - cohortDate.getMonth());
                   return (
-                    <tr key={ci} className="border-t border-gray-50">
-                      <td className="px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white z-10 whitespace-nowrap">
+                    <tr key={ci} className="border-t border-hairline">
+                      <td className="px-3 py-2 font-medium text-ink-60 sticky left-0 bg-elevated z-10 whitespace-nowrap">
                         {cohort.month}
                       </td>
-                      <td className="text-right px-3 py-2 text-gray-600">{cohort.size.toLocaleString("es-AR")}</td>
-                      <td className="text-right px-3 py-2 text-gray-600">{formatCompact(cohort.revenue)}</td>
+                      <td className="text-right px-3 py-2 text-ink-60">{cohort.size.toLocaleString("es-AR")}</td>
+                      <td className="text-right px-3 py-2 text-ink-60">{formatCompact(cohort.revenue)}</td>
                       {cohort.retention.map((pct: number, mi: number) => (
                         <td key={mi} className="text-center px-1 py-1.5">
                           {mi < monthsPassed ? (
@@ -1744,7 +1744,7 @@ export default function LtvPage() {
                               {pct > 0 ? `${pct}%` : "0%"}
                             </span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-ink-40">—</span>
                           )}
                         </td>
                       ))}
@@ -1755,21 +1755,21 @@ export default function LtvPage() {
             </table>
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-8 text-center text-ink-40 text-sm">
             No hay suficientes datos de cohortes para el periodo seleccionado
           </div>
         )}
       </div>
 
       {/* ── Patron de Recompra ── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-hairline">
+          <h2 className="text-base font-semibold text-ink-60">
             Patron de Recompra
             <InfoTip text="Cuantos dias pasan entre la primera compra y la segunda. Te ayuda a saber cuando es el momento ideal para enviar una campana de retencion." />
           </h2>
           {repurchaseInsight && (
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-ink-40 mt-1">
               El {repurchaseInsight.within30}% de las recompras ocurren dentro de los primeros 30 dias.
               {repurchaseInsight.neverPct > 0 && ` El ${repurchaseInsight.neverPct}% nunca vuelve a comprar.`}
             </p>
@@ -1802,20 +1802,20 @@ export default function LtvPage() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-8 text-center text-ink-40 text-sm">
             No hay datos de recompra para el periodo seleccionado
           </div>
         )}
       </div>
 
       {/* ══ PRODUCT AFFINITY MATRIX ═════════════════════════════════════ */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-hairline">
+          <h2 className="text-base font-semibold text-ink-60">
             Product Affinity — cross-sell por categoría
             <InfoTip text="Muestra qué compraron los clientes después de su primera compra. Cada fila es una categoría de primera compra; cada columna, la siguiente compra. El LTV resultante te dice qué combinaciones generan clientes de más valor." />
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-ink-40 mt-1">
             De la categoría inicial a la siguiente compra · LTV promedio
             resultante
           </p>
@@ -1853,7 +1853,7 @@ export default function LtvPage() {
                           })`,
                         }}
                       >
-                        <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-2">
+                        <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-ink-40 mb-2">
                           <span className="truncate max-w-[100px]">
                             {p.from}
                           </span>
@@ -1864,7 +1864,7 @@ export default function LtvPage() {
                         </div>
                         <div className="flex items-end justify-between gap-2">
                           <div>
-                            <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                            <div className="text-[10px] text-ink-40 font-mono uppercase tracking-wider">
                               LTV promedio
                             </div>
                             <div className="text-base font-semibold text-emerald-900 tabular-nums">
@@ -1872,15 +1872,15 @@ export default function LtvPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                            <div className="text-[10px] text-ink-40 font-mono uppercase tracking-wider">
                               Clientes
                             </div>
-                            <div className="text-sm font-medium text-gray-700 tabular-nums">
+                            <div className="text-sm font-medium text-ink-60 tabular-nums">
                               {customers.toLocaleString("es-AR")}
                             </div>
                           </div>
                         </div>
-                        <div className="mt-2 h-1 rounded-full bg-white/50 overflow-hidden">
+                        <div className="mt-2 h-1 rounded-full bg-elevated/50 overflow-hidden">
                           <div
                             className="h-full rounded-full"
                             style={{
@@ -1897,7 +1897,7 @@ export default function LtvPage() {
               );
             })()
           ) : (
-            <div className="p-6 text-center text-sm text-gray-400">
+            <div className="p-6 text-center text-sm text-ink-40">
               No hay suficientes patrones de cross-sell detectados aún.
             </div>
           )}
@@ -1905,7 +1905,7 @@ export default function LtvPage() {
       </div>
 
       {/* ══ CHURN RISK SCOREBOARD ═════════════════════════════════════════ */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-hairline shadow-ent-xs">
+      <div className="relative overflow-hidden rounded-2xl bg-elevated border border-hairline shadow-ent-xs">
         <div className="relative z-10 px-5 lg:px-7 py-6">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-5">
             <div>
@@ -2085,9 +2085,9 @@ export default function LtvPage() {
       </div>
 
       {/* ── Top Clientes por LTV — tier-aware ── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">
+      <div className="bg-elevated rounded-xl border border-hairline shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-hairline">
+          <h2 className="text-base font-semibold text-ink-60">
             Top 20 Clientes por Valor de Vida
             <InfoTip text="Los 20 clientes que mas gastaron en total desde su primera compra. Los 3 primeros tienen tier oro/plata/bronce. Click para ver su journey completo." />
           </h2>
@@ -2096,7 +2096,7 @@ export default function LtvPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-gray-500 text-xs">
+                <tr className="bg-surface text-ink-40 text-xs">
                   <th className="text-left px-4 py-2 font-medium">#</th>
                   <th className="text-left px-4 py-2 font-medium">Cliente</th>
                   <th className="text-left px-4 py-2 font-medium">Canal</th>
@@ -2121,12 +2121,12 @@ export default function LtvPage() {
                   return (
                     <tr
                       key={c.id}
-                      className="border-t border-gray-50 hover:bg-gray-50/50"
+                      className="border-t border-hairline hover:bg-surface/50"
                     >
                       <td className="px-4 py-2.5">
                         {tierStyle ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400 text-xs">{i + 1}</span>
+                            <span className="text-ink-40 text-xs">{i + 1}</span>
                             <span
                               className={`text-[9px] font-geistmono font-semibold tracking-wider px-1.5 py-0.5 rounded ${tierStyle.bg}`}
                             >
@@ -2134,15 +2134,15 @@ export default function LtvPage() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">{i + 1}</span>
+                          <span className="text-ink-40 text-xs">{i + 1}</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-gray-800 text-sm">
+                        <div className="font-medium text-ink-60 text-sm">
                           {c.name}
                         </div>
                         {c.email && (
-                          <div className="text-[11px] text-gray-400">
+                          <div className="text-[11px] text-ink-40">
                             {c.email}
                           </div>
                         )}
@@ -2159,19 +2159,19 @@ export default function LtvPage() {
                           {c.channel}
                         </span>
                       </td>
-                      <td className="text-right px-4 py-2.5 text-gray-600">
+                      <td className="text-right px-4 py-2.5 text-ink-60">
                         {c.orders}
                       </td>
-                      <td className="text-right px-4 py-2.5 font-medium text-gray-800">
+                      <td className="text-right px-4 py-2.5 font-medium text-ink-60">
                         {formatARS(c.totalSpent)}
                       </td>
-                      <td className="text-right px-4 py-2.5 text-gray-500 text-xs">
+                      <td className="text-right px-4 py-2.5 text-ink-40 text-xs">
                         {c.firstOrder}
                       </td>
-                      <td className="text-right px-4 py-2.5 text-gray-500 text-xs">
+                      <td className="text-right px-4 py-2.5 text-ink-40 text-xs">
                         {c.lastOrder}
                       </td>
-                      <td className="text-right px-4 py-2.5 text-gray-500 text-xs">
+                      <td className="text-right px-4 py-2.5 text-ink-40 text-xs">
                         {c.daysAsCustomer}d
                       </td>
                       <td className="text-right px-4 py-2.5">
@@ -2189,14 +2189,14 @@ export default function LtvPage() {
             </table>
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-8 text-center text-ink-40 text-sm">
             No hay datos de clientes para el periodo seleccionado
           </div>
         )}
       </div>
 
       {/* ── Footer stats ── */}
-      <div className="text-center text-xs text-gray-400 py-2">
+      <div className="text-center text-xs text-ink-40 py-2">
         {summary.totalCustomers.toLocaleString("es-AR")} clientes analizados · Revenue total: {formatARS(summary.totalRevenue)} · Mediana LTV: {formatARS(summary.medianLtv)}
       </div>
     </div>

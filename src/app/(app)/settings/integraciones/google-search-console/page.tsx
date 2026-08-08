@@ -86,7 +86,7 @@ export default function GscIntegrationPage() {
     <div className="max-w-3xl mx-auto p-6">
       <Link
         href="/settings/integraciones"
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-900 mb-4"
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-60 hover:text-ink mb-4"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Volver a integraciones
@@ -98,27 +98,27 @@ export default function GscIntegrationPage() {
           GSC
         </div>
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">Google Search Console</h1>
-          <p className="text-[13px] text-slate-500">Queries, impresiones, clicks y posición orgánica.</p>
+          <h1 className="text-[20px] font-bold text-ink">Google Search Console</h1>
+          <p className="text-[13px] text-ink-40">Queries, impresiones, clicks y posición orgánica.</p>
         </div>
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+        <div className="rounded-xl border border-hairline bg-elevated p-6 text-center text-ink-40">
           <Loader2 className="h-5 w-5 animate-spin inline mr-2" /> Cargando…
         </div>
       )}
 
       {!loading && status && (
         <>
-          <div className={`rounded-xl border p-4 mb-4 ${status.connected ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+          <div className={`rounded-xl border p-4 mb-4 ${status.connected ? "border-emerald-200 bg-emerald-50" : "border-hairline bg-surface"}`}>
             <div className="flex items-center gap-2">
-              {status.connected ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertCircle className="h-5 w-5 text-slate-500" />}
-              <div className={`text-[14px] font-semibold ${status.connected ? "text-emerald-900" : "text-slate-700"}`}>
+              {status.connected ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertCircle className="h-5 w-5 text-ink-40" />}
+              <div className={`text-[14px] font-semibold ${status.connected ? "text-emerald-900" : "text-ink-60"}`}>
                 {status.connected ? "Conectado y sincronizando" : "No conectado"}
               </div>
             </div>
-            <div className={`mt-2 text-[12px] leading-relaxed ${status.connected ? "text-emerald-800" : "text-slate-600"}`}>
+            <div className={`mt-2 text-[12px] leading-relaxed ${status.connected ? "text-emerald-800" : "text-ink-60"}`}>
               {status.connected ? (
                 <>
                   <strong>{status.daysWithData}</strong> días de datos sincronizados.
@@ -135,22 +135,22 @@ export default function GscIntegrationPage() {
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 mb-4">
-            <div className="text-[14px] font-semibold text-slate-900 mb-1">URL de tu propiedad</div>
-            <div className="text-[11px] text-slate-500 mb-3">
-              La URL exacta como aparece en Search Console. Puede ser un dominio (ej: <code className="bg-slate-100 px-1 rounded text-[10px]">sc-domain:tutienda.com</code>) o una URL con prefijo (ej: <code className="bg-slate-100 px-1 rounded text-[10px]">https://www.tutienda.com/</code>).
+          <div className="rounded-xl border border-hairline bg-elevated p-5 mb-4">
+            <div className="text-[14px] font-semibold text-ink mb-1">URL de tu propiedad</div>
+            <div className="text-[11px] text-ink-40 mb-3">
+              La URL exacta como aparece en Search Console. Puede ser un dominio (ej: <code className="bg-surface-2 px-1 rounded text-[10px]">sc-domain:tutienda.com</code>) o una URL con prefijo (ej: <code className="bg-surface-2 px-1 rounded text-[10px]">https://www.tutienda.com/</code>).
             </div>
             <div className="flex gap-2 flex-wrap">
               <input
                 value={propertyUrl}
                 onChange={(e) => { setPropertyUrl(e.target.value); setError(null); }}
                 placeholder="https://www.tutienda.com/"
-                className="flex-1 min-w-[200px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                className="flex-1 min-w-[200px] rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
               />
               <button
                 onClick={handleSave}
                 disabled={saving || propertyUrl === (status.propertyUrl || "")}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar"}
               </button>
@@ -168,7 +168,7 @@ export default function GscIntegrationPage() {
           </div>
 
           {/* Instrucciones de invitación al service account */}
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-[12px] text-blue-900 leading-relaxed">
+          <div className="rounded-xl border border-hairline bg-surface p-5 text-[12px] text-ink leading-relaxed">
             <div className="font-semibold text-[13px] mb-2">Paso 2: invitá a NitroSales como Owner</div>
             <p className="mb-2">
               Para que podamos leer tus datos de GSC, necesitamos acceso. <strong>Solo lectura</strong>, no modificamos nada.
@@ -182,10 +182,10 @@ export default function GscIntegrationPage() {
                 Pegá este email:
                 {status.serviceAccountEmail ? (
                   <div className="mt-2 flex gap-2 items-center">
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 font-mono text-[11px]">{status.serviceAccountEmail}</code>
+                    <code className="bg-elevated px-2 py-1 rounded border border-hairline-2 font-mono text-[11px]">{status.serviceAccountEmail}</code>
                     <button
                       onClick={copyServiceAccount}
-                      className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-blue-700"
+                      className="inline-flex items-center gap-1 rounded bg-ink px-2 py-1 text-[10px] font-semibold text-white hover:bg-ink/90"
                     >
                       {copiedEmail ? <><Check className="h-3 w-3" /> Copiado</> : <><Copy className="h-3 w-3" /> Copiar</>}
                     </button>

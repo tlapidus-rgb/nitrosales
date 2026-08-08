@@ -176,10 +176,10 @@ export default function MLDashboardPage() {
         style={{
           background: "white",
           borderRadius: 18,
-          border: "1px solid rgba(15, 23, 42, 0.05)",
+          border: "1px solid rgba(28,27,24, 0.05)",
           padding: "26px 30px",
           marginBottom: 16,
-          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 8px 24px rgba(15,23,42,.04)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 8px 24px rgba(28,27,24,.04)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -201,10 +201,10 @@ export default function MLDashboardPage() {
             ML
           </div>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a", margin: 0, marginBottom: 4 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>
               MercadoLibre
             </h1>
-            <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 13, color: "#9A978D", display: "flex", alignItems: "center", gap: 10 }}>
               Dashboard de tu seller en MercadoLibre
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", background: "rgba(16,185,129,.08)", borderRadius: 999, fontSize: 11, fontWeight: 600, color: "#059669" }}>
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: "#10b981", animation: "pulseDot 2s infinite" }} />
@@ -221,9 +221,9 @@ export default function MLDashboardPage() {
           style={{
             display: "inline-flex", alignItems: "center", gap: 7,
             padding: "10px 16px",
-            background: syncing ? "#f1f5f9" : syncMsg?.startsWith("Sincronizado") ? "linear-gradient(135deg,#10b981,#14b8a6)" : "white",
-            color: syncing ? "#94a3b8" : syncMsg?.startsWith("Sincronizado") ? "white" : ML_PRIMARY,
-            border: syncing ? "1px solid #e2e8f0" : `1px solid ${ML_PRIMARY}30`,
+            background: syncing ? "#EDEAE3" : syncMsg?.startsWith("Sincronizado") ? "linear-gradient(135deg,#10b981,#14b8a6)" : "white",
+            color: syncing ? "#9A978D" : syncMsg?.startsWith("Sincronizado") ? "white" : ML_PRIMARY,
+            border: syncing ? "1px solid #E5E1D8" : `1px solid ${ML_PRIMARY}30`,
             borderRadius: 10,
             cursor: syncing ? "not-allowed" : "pointer",
             fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
@@ -256,21 +256,21 @@ export default function MLDashboardPage() {
             display: "block",
             background: "white",
             borderRadius: 16,
-            border: "1px solid rgba(15,23,42,.05)",
+            border: "1px solid rgba(28,27,24,.05)",
             padding: 22,
             marginBottom: 24,
             position: "relative",
             overflow: "hidden",
-            boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+            boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
             textDecoration: "none",
             transition: "all 0.15s cubic-bezier(0.16,1,0.3,1)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = "0 1px 3px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06)";
+            e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,27,24,.04), 0 8px 24px rgba(28,27,24,.06)";
             e.currentTarget.style.transform = "translateY(-1px)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)";
+            e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)";
             e.currentTarget.style.transform = "translateY(0)";
           }}
         >
@@ -291,10 +291,10 @@ export default function MLDashboardPage() {
                 <Award size={22} />
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
                   Reputación del seller
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em" }}>
                   Nivel <span style={{ color: levelInfo.color }}>{levelInfo.label}</span>
                   {reputation.powerSeller && (
                     <span style={{ marginLeft: 8, padding: "2px 8px", background: "linear-gradient(135deg,#fbbf24,#f97316)", color: "white", fontSize: 10, fontWeight: 700, borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -302,7 +302,7 @@ export default function MLDashboardPage() {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                <div style={{ fontSize: 12, color: "#9A978D", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
                   {reputation.totalSales.toLocaleString("es-AR")} ventas totales · {reputation.completedSales.toLocaleString("es-AR")} completadas
                 </div>
               </div>
@@ -310,9 +310,9 @@ export default function MLDashboardPage() {
 
             <div style={{ display: "flex", gap: 18, marginLeft: "auto", alignItems: "center", flexWrap: "wrap" }}>
               <RatingMetric Icon={ThumbsUp} value={reputation.positiveRatings} label="Positivas" tone="#10b981" />
-              <RatingMetric Icon={Minus} value={reputation.neutralRatings} label="Neutras" tone="#94a3b8" />
+              <RatingMetric Icon={Minus} value={reputation.neutralRatings} label="Neutras" tone="#9A978D" />
               <RatingMetric Icon={ThumbsDown} value={reputation.negativeRatings} label="Negativas" tone="#ef4444" />
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#9A978D", fontSize: 12, fontWeight: 600 }}>
                 Ver detalle <ArrowRight size={13} />
               </div>
             </div>
@@ -366,16 +366,16 @@ export default function MLDashboardPage() {
       {/* ── DAILY SALES CHART premium ── */}
       <div
         style={{
-          background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+          background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)",
           padding: 22, marginBottom: 16,
-          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <div style={{ width: 28, height: 28, borderRadius: 7, background: `${ML_PRIMARY}12`, color: ML_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <Activity size={14} />
           </div>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
             Ventas diarias
           </h2>
         </div>
@@ -387,17 +387,17 @@ export default function MLDashboardPage() {
                 <stop offset="95%" stopColor={ML_PRIMARY} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" vertical={false} />
             <XAxis
               dataKey="day"
               tickFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return `${date.getDate()}/${date.getMonth() + 1}`; } catch { return d; } }}
-              tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
+              tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false}
             />
-            <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={60} />
+            <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={60} />
             <Tooltip
               formatter={(value: number) => [formatARS(value), "Facturación"]}
               labelFormatter={(d) => { try { return new Date(d + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" }); } catch { return d; } }}
-              contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", boxShadow: "0 4px 14px rgba(15,23,42,.08)" }}
+              contentStyle={{ borderRadius: "10px", border: "1px solid #E5E1D8", fontSize: "12px", boxShadow: "0 4px 14px rgba(28,27,24,.08)" }}
             />
             <Area type="monotone" dataKey="revenue" stroke={ML_PRIMARY} strokeWidth={2.5} fill="url(#mlGrad)" />
           </AreaChart>
@@ -407,12 +407,12 @@ export default function MLDashboardPage() {
       {/* ── STATUS + PAYMENT side by side ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
         {/* Status breakdown premium */}
-        <div style={{ background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)", padding: 22, boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)" }}>
+        <div style={{ background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)", padding: 22, boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <CheckCircle2 size={14} />
             </div>
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
               Estado de órdenes
             </h2>
           </div>
@@ -420,19 +420,19 @@ export default function MLDashboardPage() {
             {data.statusBreakdown.map((s) => {
               const total = data.statusBreakdown.reduce((acc, x) => acc + x.count, 0) || 1;
               const pct = (s.count / total) * 100;
-              const color = STATUS_COLORS[s.status] || "#94a3b8";
+              const color = STATUS_COLORS[s.status] || "#9A978D";
               return (
                 <div key={s.status}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontSize: 12 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#475569", fontWeight: 600 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#6B685F", fontWeight: 600 }}>
                       <span style={{ width: 7, height: 7, borderRadius: 2, background: color }} />
                       {STATUS_LABELS[s.status] || s.status}
                     </span>
-                    <span style={{ color: "#0f172a", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                      {s.count.toLocaleString("es-AR")} <span style={{ color: "#94a3b8", fontWeight: 600, marginLeft: 4 }}>{pct.toFixed(0)}%</span>
+                    <span style={{ color: "#1C1B18", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                      {s.count.toLocaleString("es-AR")} <span style={{ color: "#9A978D", fontWeight: 600, marginLeft: 4 }}>{pct.toFixed(0)}%</span>
                     </span>
                   </div>
-                  <div style={{ background: "#f1f5f9", borderRadius: 999, height: 6, overflow: "hidden" }}>
+                  <div style={{ background: "#EDEAE3", borderRadius: 999, height: 6, overflow: "hidden" }}>
                     <div style={{ height: "100%", borderRadius: 999, width: `${pct}%`, background: color, transition: "width 0.4s cubic-bezier(0.16,1,0.3,1)" }} />
                   </div>
                 </div>
@@ -442,12 +442,12 @@ export default function MLDashboardPage() {
         </div>
 
         {/* Payment methods premium */}
-        <div style={{ background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)", padding: 22, boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)" }}>
+        <div style={{ background: "white", borderRadius: 14, border: "1px solid rgba(28,27,24,.05)", padding: 22, boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(16,185,129,.12)", color: "#10b981", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <DollarSign size={14} />
             </div>
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em", margin: 0 }}>
               Métodos de pago
             </h2>
           </div>
@@ -460,7 +460,7 @@ export default function MLDashboardPage() {
                   </Pie>
                   <Tooltip
                     formatter={(v: number) => v.toLocaleString("es-AR")}
-                    contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", boxShadow: "0 4px 14px rgba(15,23,42,.08)" }}
+                    contentStyle={{ borderRadius: "10px", border: "1px solid #E5E1D8", fontSize: "12px", boxShadow: "0 4px 14px rgba(28,27,24,.08)" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -469,10 +469,10 @@ export default function MLDashboardPage() {
               {data.paymentMethods.slice(0, 5).map((pm, i) => (
                 <div key={pm.method} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                  <span style={{ color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                  <span style={{ color: "#6B685F", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
                     {pm.method}
                   </span>
-                  <span style={{ color: "#0f172a", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{pm.orders}</span>
+                  <span style={{ color: "#1C1B18", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{pm.orders}</span>
                 </div>
               ))}
             </div>
@@ -483,10 +483,10 @@ export default function MLDashboardPage() {
       {/* ── SYNC STATUS footer ── */}
       <div
         style={{
-          background: "white", borderRadius: 12, border: "1px solid rgba(15,23,42,.05)",
+          background: "white", borderRadius: 12, border: "1px solid rgba(28,27,24,.05)",
           padding: "14px 18px",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
-          boxShadow: "0 1px 3px rgba(15,23,42,.02)",
+          boxShadow: "0 1px 3px rgba(28,27,24,.02)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -494,11 +494,11 @@ export default function MLDashboardPage() {
             <span style={{ width: 7, height: 7, borderRadius: 999, background: "#10b981", animation: "pulseDot 2s infinite" }} />
             <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>Webhook activo</span>
           </span>
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>
+          <span style={{ fontSize: 11, color: "#9A978D" }}>
             Órdenes, publicaciones y preguntas se actualizan en tiempo real vía MELI
           </span>
         </div>
-        <div style={{ textAlign: "right", fontSize: 11, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
+        <div style={{ textAlign: "right", fontSize: 11, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
           {data.lastSync && (
             <div>Última actualización: {new Date(data.lastSync).toLocaleString("es-AR")}</div>
           )}
@@ -532,19 +532,9 @@ function PageShell({ children }: { children: React.ReactNode }) {
         position: "relative",
         minHeight: "100%",
         padding: "32px 40px 64px",
-        background: "#fafafa",
+        background: "#FBFAF7",
       }}
     >
-      {/* Aurora premium 3 capas amarilla MELI */}
-      <div
-        style={{
-          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-          background:
-            "radial-gradient(900px 500px at 85% -10%, rgba(245,158,11,.08), transparent 60%)," +
-            "radial-gradient(700px 400px at 5% 30%, rgba(251,191,36,.05), transparent 60%)," +
-            "radial-gradient(600px 400px at 50% 110%, rgba(249,115,22,.04), transparent 60%)",
-        }}
-      />
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1240, margin: "0 auto" }}>
         {children}
       </div>
@@ -554,7 +544,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 function LoadingState() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#94a3b8" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>Cargando dashboard MercadoLibre…</span>
       <style jsx>{`
@@ -603,7 +593,7 @@ function HealthBanner({ health }: { health: { score: number; status: "ok" | "war
         <div style={{ fontSize: 11, fontWeight: 700, color: config.color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>
           Salud del seller · {config.label}
         </div>
-        <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: "#6B685F", lineHeight: 1.5 }}>
           {health.issues.length === 0
             ? "Todas las métricas dentro de rangos saludables. Seguí así."
             : `Detectamos ${health.issues.length} ${health.issues.length === 1 ? "área" : "áreas"} para atender: ${health.issues.join(" · ")}`}
@@ -613,7 +603,7 @@ function HealthBanner({ health }: { health: { score: number; status: "ok" | "war
         <div style={{ fontSize: 28, fontWeight: 700, color: config.color, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", lineHeight: 1 }}>
           {health.score}
         </div>
-        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, marginTop: 2 }}>SCORE / 100</div>
+        <div style={{ fontSize: 10, color: "#9A978D", fontWeight: 600, marginTop: 2 }}>SCORE / 100</div>
       </div>
     </div>
   );
@@ -631,8 +621,8 @@ function KpiPremium({
         padding: "20px 22px",
         background: "white",
         borderRadius: 14,
-        border: "1px solid rgba(15,23,42,.05)",
-        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        border: "1px solid rgba(28,27,24,.05)",
+        boxShadow: "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)",
         position: "relative",
         overflow: "hidden",
         height: "100%",
@@ -640,13 +630,13 @@ function KpiPremium({
       }}
       onMouseEnter={(e) => {
         if (link) {
-          e.currentTarget.style.boxShadow = "0 1px 3px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06)";
+          e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,27,24,.04), 0 8px 24px rgba(28,27,24,.06)";
           e.currentTarget.style.transform = "translateY(-1px)";
         }
       }}
       onMouseLeave={(e) => {
         if (link) {
-          e.currentTarget.style.boxShadow = "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)";
+          e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,27,24,.02), 0 4px 14px rgba(28,27,24,.03)";
           e.currentTarget.style.transform = "translateY(0)";
         }
       }}
@@ -654,18 +644,18 @@ function KpiPremium({
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: spark ? 6 : 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
             {label}
           </div>
           <div
             style={{
-              fontSize: 24, fontWeight: 700, color: "#0f172a",
+              fontSize: 24, fontWeight: 700, color: "#1C1B18",
               fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1,
             }}
           >
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
         </div>
         <div
           style={{
@@ -716,7 +706,7 @@ function RatingMetric({ Icon, value, label, tone }: { Icon: any; value: number; 
           {value.toLocaleString("es-AR")}
         </span>
       </div>
-      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
+      <div style={{ fontSize: 10, color: "#9A978D", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
     </div>
   );
 }

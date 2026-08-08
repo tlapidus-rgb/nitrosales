@@ -178,8 +178,8 @@ export default function TeamPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
-        <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-slate-100/50" />
+        <div className="h-24 animate-pulse rounded-2xl border border-hairline bg-surface-2/50" />
+        <div className="h-64 animate-pulse rounded-2xl border border-hairline bg-surface-2/50" />
       </div>
     );
   }
@@ -187,16 +187,16 @@ export default function TeamPage() {
   return (
     <div className="space-y-5">
       {/* Header + Invite button */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-elevated p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-violet-600" />
-              <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+              <Users className="h-4 w-4 text-ink" />
+              <h2 className="text-sm font-semibold tracking-tight text-ink">
                 Miembros del equipo
               </h2>
             </div>
-            <p className="mt-1 text-[12px] text-slate-500">
+            <p className="mt-1 text-[12px] text-ink-40">
               {members.length} miembro{members.length !== 1 ? "s" : ""} activo
               {members.length !== 1 ? "s" : ""}
               {pendingInvs.length > 0 &&
@@ -208,7 +208,7 @@ export default function TeamPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/settings/team/permisos"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-ink-60 shadow-sm transition hover:border-hairline-2 hover:bg-surface"
               style={{ transition: `all 160ms ${ES}` }}
             >
               <KeyRound className="h-3.5 w-3.5" />
@@ -217,7 +217,7 @@ export default function TeamPage() {
             <button
               type="button"
               onClick={() => setInviteOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90"
               style={{ transition: `all 160ms ${ES}` }}
             >
               <UserPlus className="h-3.5 w-3.5" />
@@ -228,13 +228,13 @@ export default function TeamPage() {
       </div>
 
       {/* Lista de miembros */}
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+      <div className="rounded-2xl border border-hairline bg-elevated overflow-hidden">
+        <div className="border-b border-hairline bg-surface px-6 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-40">
             Miembros activos
           </div>
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-hairline">
           {members.map((m) => (
             <div
               key={m.id}
@@ -250,10 +250,10 @@ export default function TeamPage() {
                   {(m.name?.[0] ?? m.email[0]).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold tracking-tight text-slate-900">
+                  <div className="truncate text-[13px] font-semibold tracking-tight text-ink">
                     {m.name ?? m.email.split("@")[0]}
                   </div>
-                  <div className="truncate text-[11px] text-slate-500">{m.email}</div>
+                  <div className="truncate text-[11px] text-ink-40">{m.email}</div>
                 </div>
               </div>
 
@@ -274,7 +274,7 @@ export default function TeamPage() {
                 <select
                   value={memberCurrentValue(m)}
                   onChange={(e) => handleRoleChange(m.id, e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                  className="rounded-lg border border-hairline bg-elevated px-2.5 py-1.5 text-[11px] font-semibold text-ink-60 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
                 >
                   <optgroup label="Roles del sistema">
                     <option value="base:OWNER">Owner</option>
@@ -294,7 +294,7 @@ export default function TeamPage() {
                 <button
                   type="button"
                   onClick={() => handleRemoveMember(m)}
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 transition hover:border-rose-200 hover:text-rose-600"
+                  className="inline-flex items-center justify-center rounded-lg border border-hairline bg-elevated p-1.5 text-ink-40 transition hover:border-rose-200 hover:text-rose-600"
                   title="Remover miembro"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -307,14 +307,14 @@ export default function TeamPage() {
 
       {/* Invitaciones pendientes */}
       {pendingInvs.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-          <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-3 flex items-center gap-2">
+        <div className="rounded-2xl border border-hairline bg-elevated overflow-hidden">
+          <div className="border-b border-hairline bg-surface px-6 py-3 flex items-center gap-2">
             <Clock className="h-3.5 w-3.5 text-amber-600" />
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-40">
               Invitaciones pendientes
             </div>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-hairline">
             {pendingInvs.map((inv) => (
               <div
                 key={inv.id}
@@ -326,7 +326,7 @@ export default function TeamPage() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-semibold text-slate-900">
+                      <span className="truncate text-[13px] font-semibold text-ink">
                         {inv.email}
                       </span>
                       {inv.customRole && (
@@ -342,7 +342,7 @@ export default function TeamPage() {
                         </span>
                       )}
                     </div>
-                    <div className="truncate text-[11px] text-slate-500">
+                    <div className="truncate text-[11px] text-ink-40">
                       {inv.customRole
                         ? `Custom · ${ROLE_META[inv.role].label} base`
                         : ROLE_META[inv.role].label}{" "}
@@ -366,7 +366,7 @@ export default function TeamPage() {
                         showToast("No se pudo copiar", "err");
                       }
                     }}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-elevated px-2.5 py-1.5 text-[11px] font-medium text-ink-60 transition hover:border-hairline-2 hover:bg-surface"
                   >
                     <Copy className="h-3 w-3" />
                     Copiar link
@@ -374,7 +374,7 @@ export default function TeamPage() {
                   <button
                     type="button"
                     onClick={() => handleRevokeInvite(inv)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+                    className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-elevated px-2.5 py-1.5 text-[11px] font-medium text-ink-40 transition hover:border-rose-200 hover:text-rose-600"
                   >
                     <X className="h-3 w-3" />
                     Revocar
@@ -452,7 +452,7 @@ export default function TeamPage() {
             Mandale este link al invitado por WhatsApp o email manual:
           </p>
           <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 truncate rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-[11px] text-amber-900">
+            <code className="flex-1 truncate rounded-lg border border-amber-200 bg-elevated px-3 py-2 font-mono text-[11px] text-amber-900">
               {lastInvite.url}
             </code>
             <button
@@ -475,12 +475,12 @@ export default function TeamPage() {
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-medium text-white shadow-lg"
           role="status"
           aria-live="polite"
           style={{
             boxShadow:
-              "0 10px 40px -10px rgba(15,23,42,0.35), 0 0 0 1px rgba(15,23,42,0.08)",
+              "0 10px 40px -10px rgba(28,27,24,0.35), 0 0 0 1px rgba(28,27,24,0.08)",
           }}
         >
           <span
@@ -599,36 +599,28 @@ function InviteModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at 85% 0%, rgba(139,92,246,0.08) 0%, transparent 55%)",
-          }}
-        />
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-hairline bg-elevated shadow-2xl">
         <div className="relative p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div
                 className="flex h-9 w-9 items-center justify-center rounded-xl"
                 style={{
-                  background: "rgba(139,92,246,0.08)",
-                  color: "#8b5cf6",
-                  border: "1px solid rgba(139,92,246,0.22)",
+                  background: "rgba(28,27,24,0.05)",
+                  color: "#1C1B18",
+                  border: "1px solid rgba(28,27,24,0.14)",
                 }}
               >
                 <UserPlus className="h-4 w-4" />
               </div>
-              <h3 className="text-sm font-semibold tracking-tight text-slate-900">
+              <h3 className="text-sm font-semibold tracking-tight text-ink">
                 Invitar miembro
               </h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-lg p-1 text-ink-40 hover:bg-surface-2 hover:text-ink-60"
             >
               <X className="h-4 w-4" />
             </button>
@@ -636,7 +628,7 @@ function InviteModal({
 
           <div className="mt-5 space-y-4">
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink-60">
                 Email
               </label>
               <input
@@ -644,17 +636,17 @@ function InviteModal({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="juan@empresa.com"
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink-60">
                 Rol
               </label>
 
               {/* Base roles */}
-              <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-40">
                 Roles del sistema
               </div>
               <div className="mt-1 grid grid-cols-3 gap-2">
@@ -671,7 +663,7 @@ function InviteModal({
                       style={{
                         borderColor: active
                           ? ROLE_META[r].color
-                          : "rgba(226,232,240,1)",
+                          : "rgba(229,225,216,1)",
                         background: active
                           ? `${ROLE_META[r].color}0f`
                           : "white",
@@ -684,7 +676,7 @@ function InviteModal({
                       <span
                         className="text-[11px] font-semibold"
                         style={{
-                          color: active ? ROLE_META[r].color : "#334155",
+                          color: active ? ROLE_META[r].color : "#6B685F",
                         }}
                       >
                         {ROLE_META[r].label}
@@ -697,7 +689,7 @@ function InviteModal({
               {/* Custom roles */}
               {customRoles.length > 0 && (
                 <>
-                  <div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  <div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-ink-40">
                     Roles custom de tu organización
                   </div>
                   <div className="mt-1 grid grid-cols-2 gap-2">
@@ -714,7 +706,7 @@ function InviteModal({
                           style={{
                             borderColor: active
                               ? color
-                              : "rgba(226,232,240,1)",
+                              : "rgba(229,225,216,1)",
                             background: active ? `${color}0f` : "white",
                           }}
                         >
@@ -725,7 +717,7 @@ function InviteModal({
                           <span
                             className="truncate text-[11px] font-semibold"
                             style={{
-                              color: active ? color : "#334155",
+                              color: active ? color : "#6B685F",
                             }}
                           >
                             {cr.name}
@@ -737,15 +729,15 @@ function InviteModal({
                 </>
               )}
 
-              <p className="mt-2 text-[10px] text-slate-500">
+              <p className="mt-2 text-[10px] text-ink-40">
                 Owner: todo · Admin: casi todo · Editor: ve y edita datos.
                 Los roles custom overridean los permisos base.
               </p>
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-slate-700">
+              <label className="block text-[12px] font-semibold text-ink-60">
                 Mensaje{" "}
-                <span className="text-[10px] font-normal text-slate-400">
+                <span className="text-[10px] font-normal text-ink-40">
                   (opcional)
                 </span>
               </label>
@@ -755,7 +747,7 @@ function InviteModal({
                 placeholder="Hola! Te invito a sumarte a nuestro NitroSales..."
                 maxLength={280}
                 rows={2}
-                className="mt-1.5 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full resize-none rounded-lg border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               />
             </div>
 
@@ -766,11 +758,11 @@ function InviteModal({
             )}
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="mt-6 flex items-center justify-end gap-2 border-t border-hairline pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-hairline bg-elevated px-3 py-1.5 text-xs font-semibold text-ink-60 hover:bg-surface"
             >
               Cancelar
             </button>
@@ -778,7 +770,7 @@ function InviteModal({
               type="button"
               disabled={!email || submitting}
               onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <UserPlus className="h-3.5 w-3.5" />
               {submitting ? "Creando…" : "Crear invitación"}

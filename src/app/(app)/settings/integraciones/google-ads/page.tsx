@@ -128,7 +128,7 @@ export default function GoogleAdsIntegrationPage() {
     <div className="max-w-3xl mx-auto p-6">
       <Link
         href="/settings/integraciones"
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-900 mb-4"
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-60 hover:text-ink mb-4"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Volver a integraciones
@@ -140,13 +140,13 @@ export default function GoogleAdsIntegrationPage() {
           G
         </div>
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">Google Ads</h1>
-          <p className="text-[13px] text-slate-500">Spend, impresiones y conversiones de campañas Google.</p>
+          <h1 className="text-[20px] font-bold text-ink">Google Ads</h1>
+          <p className="text-[13px] text-ink-40">Spend, impresiones y conversiones de campañas Google.</p>
         </div>
       </div>
 
       {authState === "LOADING" && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+        <div className="rounded-xl border border-hairline bg-elevated p-6 text-center text-ink-40">
           Cargando estado…
         </div>
       )}
@@ -163,29 +163,29 @@ export default function GoogleAdsIntegrationPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-hairline bg-elevated p-5">
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Customer ID</label>
+                <label className="block text-[12px] font-semibold text-ink-60 mb-1">Customer ID</label>
                 <input
                   value={customerIdInput}
                   onChange={(e) => { setCustomerIdInput(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
                   placeholder="1234567890"
                   maxLength={10}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                  className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                 />
-                <p className="mt-1 text-[10px] text-slate-500">10 dígitos sin guiones. Lo encontrás arriba a la derecha en ads.google.com.</p>
+                <p className="mt-1 text-[10px] text-ink-40">10 dígitos sin guiones. Lo encontrás arriba a la derecha en ads.google.com.</p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[12px] font-semibold text-slate-700">
-                    Login Customer ID <span className="text-slate-400 font-normal">(opcional, MCC)</span>
+                  <label className="text-[12px] font-semibold text-ink-60">
+                    Login Customer ID <span className="text-ink-40 font-normal">(opcional, MCC)</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setShowMccHelp(!showMccHelp)}
-                    className="text-[10px] font-semibold text-blue-600 hover:underline"
+                    className="text-[10px] font-semibold text-accent hover:underline"
                   >
                     {showMccHelp ? "Ocultar ayuda" : "¿Qué es MCC?"}
                   </button>
@@ -195,16 +195,16 @@ export default function GoogleAdsIntegrationPage() {
                   onChange={(e) => { setLoginCustomerIdInput(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
                   placeholder="(dejar vacío si tu cuenta no está bajo un MCC)"
                   maxLength={10}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                  className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] font-mono"
                 />
                 {showMccHelp && (
-                  <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-[11px] text-blue-900 leading-relaxed">
+                  <div className="mt-2 rounded-lg bg-surface border border-hairline p-3 text-[11px] text-ink leading-relaxed">
                     <strong>MCC = Manager Account.</strong> Es una cuenta de Google Ads que <em>administra otras cuentas</em>.
                     <ul className="mt-2 ml-3 list-disc space-y-1">
                       <li>Si <strong>tu cuenta es solo tuya</strong> y la administrás directo → dejá vacío.</li>
                       <li>Si tu cuenta <strong>está bajo una agencia o un manager</strong> que la administra → cargá el ID del MCC (10 dígitos del manager).</li>
                     </ul>
-                    <div className="mt-2 text-[10px] text-blue-700">Para anunciantes individuales, lo normal es dejarlo vacío.</div>
+                    <div className="mt-2 text-[10px] text-ink-60">Para anunciantes individuales, lo normal es dejarlo vacío.</div>
                   </div>
                 )}
               </div>
@@ -227,13 +227,13 @@ export default function GoogleAdsIntegrationPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || (customerIdInput === (customerId || "") && loginCustomerIdInput === (savedLoginCid || ""))}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
               <button
                 onClick={handleConnect}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-hairline-2 bg-elevated px-4 py-2 text-[12px] font-semibold text-ink-60 hover:bg-surface"
               >
                 Reconectar
               </button>
@@ -276,7 +276,7 @@ export default function GoogleAdsIntegrationPage() {
             Te avisamos por mail cuando estés autorizado (~1 día hábil).
             {googleEmail && (
               <div className="mt-2">
-                Email Google: <code className="bg-white px-2 py-0.5 rounded border border-amber-200">{googleEmail}</code>
+                Email Google: <code className="bg-elevated px-2 py-0.5 rounded border border-amber-200">{googleEmail}</code>
               </div>
             )}
           </div>
@@ -284,19 +284,19 @@ export default function GoogleAdsIntegrationPage() {
       )}
 
       {authState === "NONE" && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="text-[14px] font-semibold text-slate-900 mb-2">Antes de conectar Google Ads</div>
-          <div className="text-[12px] text-slate-600 leading-relaxed mb-4">
+        <div className="rounded-xl border border-hairline bg-elevated p-5">
+          <div className="text-[14px] font-semibold text-ink mb-2">Antes de conectar Google Ads</div>
+          <div className="text-[12px] text-ink-60 leading-relaxed mb-4">
             Necesitamos autorizarte como usuario de prueba (1 paso de nuestro lado, ~1 día).
             Pasanos el <strong>email de Google</strong> con el que entrás a Google Ads.
           </div>
-          <label className="block text-[12px] font-semibold text-slate-700 mb-1">Email de Google</label>
+          <label className="block text-[12px] font-semibold text-ink-60 mb-1">Email de Google</label>
           <input
             type="email"
             value={emailInput}
             onChange={(e) => { setEmailInput(e.target.value); setError(null); }}
             placeholder="tu@gmail.com"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] mb-3"
+            className="w-full rounded-lg border border-hairline-2 bg-elevated px-3 py-2 text-[13px] mb-3"
           />
           {error && (
             <div className="flex items-center gap-1.5 text-[11px] text-rose-600 mb-3">
@@ -308,7 +308,7 @@ export default function GoogleAdsIntegrationPage() {
             onClick={handleRequest}
             disabled={submitting || !emailInput}
             className="w-full rounded-lg px-4 py-2.5 text-white font-semibold text-[13px] disabled:opacity-50"
-            style={{ background: submitting || !emailInput ? "#94a3b8" : "linear-gradient(135deg, #4285F4, #1a73e8)" }}
+            style={{ background: submitting || !emailInput ? "#9A978D" : "linear-gradient(135deg, #4285F4, #1a73e8)" }}
           >
             {submitting ? "Enviando…" : "Pedir autorización"}
           </button>

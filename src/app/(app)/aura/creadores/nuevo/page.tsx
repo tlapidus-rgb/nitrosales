@@ -15,16 +15,13 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { isValidCreatorPhone } from "@/lib/aura/validation";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080, #00d4ff)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
 };
 
 export default function NuevoCreadorPage() {
@@ -69,9 +66,8 @@ export default function NuevoCreadorPage() {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen bg-canvas"
       style={{
-        background: THEME.bgPage,
         color: THEME.textPrimary,
         fontFamily:
           "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif",
@@ -119,7 +115,7 @@ export default function NuevoCreadorPage() {
               style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
             />
             {email.trim().length > 0 && !emailValid && (
-              <span className="text-[11px]" style={{ color: "#ff6b9d" }}>
+              <span className="text-[11px]" style={{ color: "#B91C1C" }}>
                 Email inválido.
               </span>
             )}
@@ -135,7 +131,7 @@ export default function NuevoCreadorPage() {
               style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
             />
             {phone.trim().length > 0 && !phoneValid && (
-              <span className="text-[11px]" style={{ color: "#ff6b9d" }}>
+              <span className="text-[11px]" style={{ color: "#B91C1C" }}>
                 Teléfono inválido: mínimo 6 dígitos (se aceptan +, espacios, guiones y paréntesis).
               </span>
             )}
@@ -144,7 +140,7 @@ export default function NuevoCreadorPage() {
           {/* Comisión quitada del alta (item 9): se asigna por campaña. */}
 
           {error && (
-            <p className="text-xs" style={{ color: "#f87171" }}>
+            <p className="text-xs" style={{ color: "#B91C1C" }}>
               {error}
             </p>
           )}
@@ -153,8 +149,7 @@ export default function NuevoCreadorPage() {
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold tracking-tight text-white transition-all hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: THEME.gradient }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold tracking-tight text-white transition-all hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed bg-ink"
           >
             <Plus size={15} strokeWidth={2.4} />
             {saving ? "Creando..." : "Crear creador"}
@@ -180,7 +175,7 @@ function Field({
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium" style={{ color: THEME.textSecondary }}>
         {label}
-        {required ? <span style={{ color: "#ff0080" }}> *</span> : null}
+        {required ? <span style={{ color: "#B91C1C" }}> *</span> : null}
       </span>
       {children}
       {hint ? (

@@ -69,7 +69,7 @@ export default function NitroPixelIntegrationPage() {
     <div className="max-w-3xl mx-auto p-6">
       <Link
         href="/settings/integraciones"
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-900 mb-4"
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-60 hover:text-ink mb-4"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Volver a integraciones
@@ -81,13 +81,13 @@ export default function NitroPixelIntegrationPage() {
           NP
         </div>
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900">NitroPixel</h1>
-          <p className="text-[13px] text-slate-500">Analytics propio: sesiones, visitas, conversiones y atribución multi-touch.</p>
+          <h1 className="text-[20px] font-bold text-ink">NitroPixel</h1>
+          <p className="text-[13px] text-ink-40">Analytics propio: sesiones, visitas, conversiones y atribución multi-touch.</p>
         </div>
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+        <div className="rounded-xl border border-hairline bg-elevated p-6 text-center text-ink-40">
           <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
           Cargando estado…
         </div>
@@ -122,36 +122,36 @@ export default function NitroPixelIntegrationPage() {
           </div>
 
           {/* Snippet de instalación */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 mb-4">
+          <div className="rounded-xl border border-hairline bg-elevated p-5 mb-4">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-[14px] font-semibold text-slate-900">Snippet de instalación</div>
+              <div className="text-[14px] font-semibold text-ink">Snippet de instalación</div>
               <button
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-ink/90"
               >
                 {copied ? <><Check className="h-3.5 w-3.5" /> Copiado</> : <><Copy className="h-3.5 w-3.5" /> Copiar</>}
               </button>
             </div>
-            <div className="text-[12px] text-slate-500 mb-3">
-              Pegá este código en el <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">&lt;head&gt;</code> de todas las páginas de tu sitio.
+            <div className="text-[12px] text-ink-40 mb-3">
+              Pegá este código en el <code className="bg-surface-2 px-1.5 py-0.5 rounded text-[11px]">&lt;head&gt;</code> de todas las páginas de tu sitio.
               En Tienda Nube/Shopify/VTEX se carga desde el panel de admin → "Código personalizado" → "Head".
             </div>
-            <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-[11px] font-mono leading-relaxed">
+            <pre className="bg-ink text-white/85 p-4 rounded-lg overflow-x-auto text-[11px] font-mono leading-relaxed">
 {snippet}
             </pre>
           </div>
 
           {/* Tabla de eventos recientes */}
           {events.length > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 mb-4">
+            <div className="rounded-xl border border-hairline bg-elevated p-5 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="text-[14px] font-semibold text-slate-900">Eventos recientes</div>
-                  <div className="text-[11px] text-slate-500">Últimos {events.length} eventos recibidos. Verificá que coincidan con tu navegación reciente.</div>
+                  <div className="text-[14px] font-semibold text-ink">Eventos recientes</div>
+                  <div className="text-[11px] text-ink-40">Últimos {events.length} eventos recibidos. Verificá que coincidan con tu navegación reciente.</div>
                 </div>
                 <button
                   onClick={loadAll}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-hairline-2 bg-elevated px-3 py-1.5 text-[11px] font-semibold text-ink-60 hover:bg-surface"
                 >
                   <RefreshCw className="h-3.5 w-3.5" /> Refrescar
                 </button>
@@ -159,7 +159,7 @@ export default function NitroPixelIntegrationPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase tracking-wider">
+                    <tr className="border-b border-hairline text-ink-40 text-[10px] uppercase tracking-wider">
                       <th className="text-left py-2">Evento</th>
                       <th className="text-left py-2">Página</th>
                       <th className="text-left py-2">Device</th>
@@ -169,16 +169,16 @@ export default function NitroPixelIntegrationPage() {
                   </thead>
                   <tbody>
                     {events.map((ev) => (
-                      <tr key={ev.id} className="border-b border-slate-100">
+                      <tr key={ev.id} className="border-b border-hairline">
                         <td className="py-2">
-                          <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">{ev.type}</span>
+                          <span className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded">{ev.type}</span>
                         </td>
-                        <td className="py-2 text-slate-600 max-w-[200px] truncate" title={ev.pageUrl || ""}>
+                        <td className="py-2 text-ink-60 max-w-[200px] truncate" title={ev.pageUrl || ""}>
                           {ev.pageUrl ? new URL(ev.pageUrl).pathname : "—"}
                         </td>
-                        <td className="py-2 text-slate-600">{ev.deviceType || "—"}</td>
-                        <td className="py-2 text-slate-600">{ev.country || "—"}</td>
-                        <td className="py-2 text-slate-600 text-right">
+                        <td className="py-2 text-ink-60">{ev.deviceType || "—"}</td>
+                        <td className="py-2 text-ink-60">{ev.country || "—"}</td>
+                        <td className="py-2 text-ink-60 text-right">
                           {ev.receivedAt ? new Date(ev.receivedAt).toLocaleString("es-AR") : "—"}
                         </td>
                       </tr>
@@ -191,7 +191,7 @@ export default function NitroPixelIntegrationPage() {
 
           {/* Tips de instalación */}
           {!status.isInstalled && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-[12px] text-blue-900 leading-relaxed">
+            <div className="rounded-xl border border-hairline bg-surface p-5 text-[12px] text-ink leading-relaxed">
               <div className="font-semibold mb-2">Cómo instalarlo</div>
               <ol className="list-decimal ml-5 space-y-1.5">
                 <li>Copiá el snippet de arriba.</li>

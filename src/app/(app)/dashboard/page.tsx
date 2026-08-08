@@ -311,7 +311,7 @@ const fmtPct = (n: number) => (n ?? 0) + "%";
 function ChangeIndicator({ value, inverse }: { value: number | null | undefined; inverse?: boolean }) {
   if (value === null || value === undefined) return null;
   const isPositive = inverse ? value < 0 : value > 0;
-  const color = isPositive ? "text-green-600" : value === 0 ? "text-gray-400" : "text-red-500";
+  const color = isPositive ? "text-green-600" : value === 0 ? "text-ink-40" : "text-red-500";
   const arrow = value > 0 ? "\u2191" : value < 0 ? "\u2193" : "";
   return <span className={`text-xs font-medium ${color}`}>{arrow}{Math.abs(value)}%</span>;
 }
@@ -865,7 +865,7 @@ export default function DashboardPage() {
         return (
           <button
             onClick={() => setSlotPickerOpen({ rowId: row.id, slotIdx, size: slot.size })}
-            className="w-full h-full min-h-[112px] flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600 hover:bg-slate-50/60"
+            className="w-full h-full min-h-[112px] flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-hairline-2 text-ink-40 hover:border-ink-40 hover:text-ink-60 hover:bg-surface/60"
             style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
             <Plus className="w-4 h-4" />
@@ -876,7 +876,7 @@ export default function DashboardPage() {
         );
       }
       return (
-        <div className="w-full h-full min-h-[112px] rounded-xl border border-dashed border-slate-200/60" />
+        <div className="w-full h-full min-h-[112px] rounded-xl border border-dashed border-hairline/60" />
       );
     }
 
@@ -891,7 +891,7 @@ export default function DashboardPage() {
           <button
             onClick={() => setSlotPickerOpen({ rowId: row.id, slotIdx, size: slot.size })}
             title="Reemplazar widget"
-            className="w-7 h-7 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
+            className="w-7 h-7 rounded-lg text-ink-40 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors"
             style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
             <Replace className="w-3.5 h-3.5" />
@@ -1145,8 +1145,8 @@ export default function DashboardPage() {
           onClick={() => { if (editMode) { setEditMode(false); setTemplatePickerOpen(false); setSlotPickerOpen(null); } else setEditMode(true); }}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
             editMode
-              ? "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
-              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+              ? "bg-surface-2 text-ink-60 border-hairline hover:bg-surface-2"
+              : "bg-elevated text-ink-60 border-hairline hover:bg-surface hover:border-hairline-2"
           }`}
           style={{ transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
         >
@@ -1165,7 +1165,7 @@ export default function DashboardPage() {
       {/* Edit mode banner */}
       {editMode && (
         <div className="flex items-center gap-2 bg-ink text-white px-4 py-2.5 rounded-xl text-sm font-medium mb-5">
-          <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-elevated animate-pulse" />
           Modo edicion — Quita, agrega o reordena widgets a tu gusto
         </div>
       )}
@@ -1233,7 +1233,7 @@ export default function DashboardPage() {
                       }}
                     >
                       <span
-                        className="w-6 h-6 flex items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
+                        className="w-6 h-6 flex items-center justify-center text-ink-40 cursor-grab active:cursor-grabbing"
                         title="Arrastrar fila"
                       >
                         <GripVertical className="w-4 h-4" />
@@ -1243,13 +1243,13 @@ export default function DashboardPage() {
                         value={row.title || ""}
                         onChange={(e) => setRowTitle(row.id, e.target.value)}
                         placeholder="Titulo de la fila (opcional)"
-                        className="flex-1 min-w-0 text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-700 bg-transparent border-0 border-b border-transparent hover:border-slate-300 focus:border-slate-500 focus:outline-none px-1 py-0.5"
+                        className="flex-1 min-w-0 text-[10px] font-semibold tracking-[0.18em] uppercase text-ink-60 bg-transparent border-0 border-b border-transparent hover:border-hairline-2 focus:border-accent focus:outline-none px-1 py-0.5"
                         style={{ transition: "border-color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
                       />
                       <button
                         onClick={() => setTemplatePickerOpen({ mode: "change", rowId: row.id })}
                         title="Cambiar plantilla de fila"
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border border-hairline text-ink-60 hover:border-ink-40 hover:bg-surface"
                         style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
                       >
                         <LayoutGrid className="w-3 h-3" />
@@ -1270,8 +1270,8 @@ export default function DashboardPage() {
                   {/* Read-mode title pill */}
                   {!editMode && row.title && (
                     <div className="flex items-center gap-2 mb-2 px-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-ink-40" />
+                      <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-ink-40">
                         {row.title}
                       </span>
                     </div>
@@ -1280,8 +1280,8 @@ export default function DashboardPage() {
                   {/* Drop indicator */}
                   {isDragOver && (
                     <div
-                      className="absolute -top-2 left-0 right-0 h-1 rounded-full bg-indigo-500"
-                      style={{ boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.22)" }}
+                      className="absolute -top-2 left-0 right-0 h-1 rounded-full bg-accent"
+                      style={{ boxShadow: "0 0 0 3px rgba(47, 145, 83, 0.22)" }}
                     />
                   )}
 
@@ -1306,7 +1306,7 @@ export default function DashboardPage() {
           {editMode && (
             <button
               onClick={() => setTemplatePickerOpen({ mode: "add" })}
-              className="dash-add-slot w-full py-6 flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 font-semibold text-sm mb-8"
+              className="dash-add-slot w-full py-6 flex items-center justify-center gap-2 text-ink-60 hover:text-ink font-semibold text-sm mb-8"
             >
               <Plus className="w-4 h-4" />
               Agregar fila
@@ -1337,18 +1337,18 @@ export default function DashboardPage() {
                   <LayoutGrid className="w-[18px] h-[18px]" />
                 </div>
                 <div>
-                  <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">
+                  <h3 className="text-[17px] font-semibold tracking-tight text-ink">
                     {templatePickerOpen && typeof templatePickerOpen === "object" && templatePickerOpen.mode === "add"
                       ? "Agregar fila"
                       : "Cambiar plantilla"}
                   </h3>
-                  <p className="text-[12px] text-slate-500">Elegí la estructura de slots para esta fila</p>
+                  <p className="text-[12px] text-ink-40">Elegí la estructura de slots para esta fila</p>
                 </div>
               </div>
               <button
                 onClick={() => setTemplatePickerOpen(false)}
                 aria-label="Cerrar"
-                className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg text-ink-40 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors"
                 style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
               >
                 <X className="w-4 h-4" />
@@ -1369,19 +1369,19 @@ export default function DashboardPage() {
                     }
                     setTemplatePickerOpen(false);
                   }}
-                  className="flex flex-col gap-2 p-3.5 border border-slate-200 rounded-xl bg-white text-left hover:border-slate-400 hover:bg-slate-50"
+                  className="flex flex-col gap-2 p-3.5 border border-hairline rounded-xl bg-elevated text-left hover:border-ink-40 hover:bg-surface"
                   style={{
                     boxShadow: "0 1px 0 rgba(28,27,24,0.03)",
                     transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold tracking-tight text-[13px] text-slate-900">{tpl.label}</span>
-                    <span className="text-[10px] font-medium tracking-wider uppercase text-slate-400">
+                    <span className="font-semibold tracking-tight text-[13px] text-ink">{tpl.label}</span>
+                    <span className="text-[10px] font-medium tracking-wider uppercase text-ink-40">
                       {tpl.height === "tall" ? "Alto" : "Compacto"}
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-500 leading-snug">{tpl.description}</span>
+                  <span className="text-[11px] text-ink-40 leading-snug">{tpl.description}</span>
                   {/* Mini preview — barras proporcionales al tamaño */}
                   <div className="flex gap-1 mt-1 h-4">
                     {tpl.slots.map((size, i) => {
@@ -1390,7 +1390,7 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={i}
-                          className={`${height} bg-slate-200 rounded`}
+                          className={`${height} bg-surface-2 rounded`}
                           style={{ flex: colSpan }}
                         />
                       );
@@ -1424,10 +1424,10 @@ export default function DashboardPage() {
                   <LayoutGrid className="w-[18px] h-[18px]" />
                 </div>
                 <div>
-                  <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">
+                  <h3 className="text-[17px] font-semibold tracking-tight text-ink">
                     Elegir widget
                   </h3>
-                  <p className="text-[12px] text-slate-500">
+                  <p className="text-[12px] text-ink-40">
                     Slot {SLOT_SIZES[slotPickerOpen.size].label} — mostrando widgets compatibles
                   </p>
                 </div>
@@ -1435,7 +1435,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => setSlotPickerOpen(null)}
                 aria-label="Cerrar"
-                className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg text-ink-40 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors"
                 style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
               >
                 <X className="w-4 h-4" />
@@ -1474,11 +1474,11 @@ export default function DashboardPage() {
                         return (
                           <div
                             key={w.id}
-                            className="flex flex-col gap-2 px-3.5 py-3 border border-slate-200 rounded-xl bg-white"
+                            className="flex flex-col gap-2 px-3.5 py-3 border border-hairline rounded-xl bg-elevated"
                             style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.03)" }}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-medium tracking-tight text-[13px] text-slate-800 truncate">
+                              <span className="font-medium tracking-tight text-[13px] text-ink-60 truncate">
                                 {w.title}
                               </span>
                             </div>
@@ -1502,7 +1502,7 @@ export default function DashboardPage() {
                                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${
                                       isDefault
                                         ? "border-ink bg-ink text-white hover:bg-ink/90"
-                                        : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                                        : "border-hairline text-ink-60 hover:border-ink-40 hover:bg-surface"
                                     }`}
                                     style={{
                                       transitionProperty: "border-color, background-color, color",
