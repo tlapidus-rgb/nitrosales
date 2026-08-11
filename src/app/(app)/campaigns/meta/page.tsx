@@ -680,8 +680,8 @@ function MetaCampaignsInner() {
             valueClass={roasColorClass(metaRoas, breakeven.breakevenRoas)}
           />
           <HeroKpi
-            icon={<MousePointer size={16} className="text-blue-700" />}
-            iconBg="bg-blue-50"
+            icon={<MousePointer size={16} className="text-ink-60" />}
+            iconBg="bg-surface"
             label="CTR"
             value={
               <span className="tabular-nums">
@@ -692,8 +692,8 @@ function MetaCampaignsInner() {
             sub={`${formatCompact(metaTotals.clicks)} clicks / ${formatCompact(metaTotals.impressions)} imp`}
           />
           <HeroKpi
-            icon={<ShoppingCart size={16} className="text-violet-700" />}
-            iconBg="bg-violet-50"
+            icon={<ShoppingCart size={16} className="text-ink-60" />}
+            iconBg="bg-surface"
             label="Conversiones"
             value={<CountNum value={metaTotals.conversions} />}
             delta={changes?.conversions}
@@ -1477,14 +1477,14 @@ function CampaignDrawer({
             valueClass={roasColorClass(campaign.roas || 0, breakevenRoas)}
           />
           <DrawerKpi
-            icon={<ShoppingCart size={14} className="text-violet-700" />}
-            iconBg="bg-violet-50"
+            icon={<ShoppingCart size={14} className="text-ink-60" />}
+            iconBg="bg-surface"
             label="Conversiones"
             value={(campaign.conversions || 0).toLocaleString("es-AR")}
           />
           <DrawerKpi
-            icon={<MousePointer size={14} className="text-blue-700" />}
-            iconBg="bg-blue-50"
+            icon={<MousePointer size={14} className="text-ink-60" />}
+            iconBg="bg-surface"
             label="CTR"
             value={`${(campaign.ctr || 0).toFixed(2)}%`}
           />
