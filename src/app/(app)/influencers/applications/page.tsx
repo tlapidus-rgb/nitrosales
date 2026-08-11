@@ -102,8 +102,8 @@ export default function ApplicationsPage() {
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Aplicaciones de Influencers</h1>
-          <p className="text-sm text-gray-500 mt-1">Revisá y aprobá aplicaciones del formulario público</p>
+          <h1 className="text-xl font-bold text-ink">Aplicaciones de Influencers</h1>
+          <p className="text-sm text-ink-40 mt-1">Revisá y aprobá aplicaciones del formulario público</p>
         </div>
       </div>
 
@@ -140,7 +140,7 @@ export default function ApplicationsPage() {
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
               filter === s
                 ? "bg-orange-500 text-white border-orange-500"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                : "bg-elevated text-ink-60 border-hairline hover:border-hairline-2"
             }`}
           >
             {STATUS_LABELS[s]}
@@ -150,46 +150,46 @@ export default function ApplicationsPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="text-center py-12 text-gray-400 text-sm">Cargando...</div>
+        <div className="text-center py-12 text-ink-40 text-sm">Cargando...</div>
       ) : applications.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-sm">No hay aplicaciones {STATUS_LABELS[filter]?.toLowerCase()}</p>
+          <p className="text-ink-40 text-sm">No hay aplicaciones {STATUS_LABELS[filter]?.toLowerCase()}</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-elevated rounded-xl border border-hairline overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Nombre</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Redes</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Seguidores</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              <tr className="bg-surface border-b border-hairline">
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase">Nombre</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase">Email</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase hidden md:table-cell">Redes</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase hidden md:table-cell">Seguidores</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase">Fecha</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-ink-40 uppercase">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {applications.map((app) => (
-                <tr key={app.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                <tr key={app.id} className="border-b border-hairline hover:bg-surface/50">
                   <td className="px-4 py-3">
                     <button
                       onClick={() => setExpandedId(expandedId === app.id ? null : app.id)}
-                      className="text-sm font-medium text-gray-900 hover:text-orange-500 transition-colors text-left"
+                      className="text-sm font-medium text-ink hover:text-orange-500 transition-colors text-left"
                     >
                       {app.name}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{app.email}</td>
+                  <td className="px-4 py-3 text-ink-60 text-xs">{app.email}</td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <div className="flex gap-1">
                       {app.instagram && <span className="text-[10px] bg-pink-50 text-pink-500 px-1.5 py-0.5 rounded">IG</span>}
-                      {app.tiktok && <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">TT</span>}
+                      {app.tiktok && <span className="text-[10px] bg-surface-2 text-ink-60 px-1.5 py-0.5 rounded">TT</span>}
                       {app.youtube && <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded">YT</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-500 hidden md:table-cell">{app.followers || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{formatDate(app.createdAt)}</td>
+                  <td className="px-4 py-3 text-xs text-ink-40 hidden md:table-cell">{app.followers || "—"}</td>
+                  <td className="px-4 py-3 text-xs text-ink-40">{formatDate(app.createdAt)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-[10px] px-2 py-1 rounded-full border font-medium ${STATUS_COLORS[app.status]}`}>
                       {STATUS_LABELS[app.status]}
@@ -200,7 +200,7 @@ export default function ApplicationsPage() {
                       <div className="flex gap-1">
                         <button
                           onClick={() => setExpandedId(expandedId === app.id ? null : app.id)}
-                          className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                          className="text-xs px-2 py-1 bg-surface-2 text-ink-60 rounded hover:bg-hairline transition-colors"
                         >
                           Revisar
                         </button>
@@ -214,73 +214,73 @@ export default function ApplicationsPage() {
 
           {/* Expanded review panel */}
           {expandedId && (
-            <div className="border-t border-gray-200 bg-gray-50 p-4">
+            <div className="border-t border-hairline bg-surface p-4">
               {(() => {
                 const app = applications.find((a) => a.id === expandedId);
                 if (!app) return null;
                 return (
                   <div className="max-w-2xl">
-                    <h3 className="font-medium text-gray-900 mb-3">Detalle de {app.name}</h3>
+                    <h3 className="font-medium text-ink mb-3">Detalle de {app.name}</h3>
                     <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                       <div>
-                        <p className="text-xs text-gray-500">Email</p>
-                        <p className="text-gray-900">{app.email}</p>
+                        <p className="text-xs text-ink-40">Email</p>
+                        <p className="text-ink">{app.email}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Seguidores</p>
-                        <p className="text-gray-900">{app.followers || "No especificó"}</p>
+                        <p className="text-xs text-ink-40">Seguidores</p>
+                        <p className="text-ink">{app.followers || "No especificó"}</p>
                       </div>
                       {app.instagram && (
                         <div>
-                          <p className="text-xs text-gray-500">Instagram</p>
-                          <p className="text-gray-900">{app.instagram}</p>
+                          <p className="text-xs text-ink-40">Instagram</p>
+                          <p className="text-ink">{app.instagram}</p>
                         </div>
                       )}
                       {app.tiktok && (
                         <div>
-                          <p className="text-xs text-gray-500">TikTok</p>
-                          <p className="text-gray-900">{app.tiktok}</p>
+                          <p className="text-xs text-ink-40">TikTok</p>
+                          <p className="text-ink">{app.tiktok}</p>
                         </div>
                       )}
                       {app.youtube && (
                         <div>
-                          <p className="text-xs text-gray-500">YouTube</p>
-                          <p className="text-gray-900">{app.youtube}</p>
+                          <p className="text-xs text-ink-40">YouTube</p>
+                          <p className="text-ink">{app.youtube}</p>
                         </div>
                       )}
                     </div>
                     {app.message && (
                       <div className="mb-4">
-                        <p className="text-xs text-gray-500 mb-1">Mensaje</p>
-                        <p className="text-sm text-gray-700 bg-white p-3 rounded-lg border border-gray-200">
+                        <p className="text-xs text-ink-40 mb-1">Mensaje</p>
+                        <p className="text-sm text-ink-60 bg-elevated p-3 rounded-lg border border-hairline">
                           {app.message}
                         </p>
                       </div>
                     )}
 
                     {app.status === "PENDING" && (
-                      <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-hairline">
                         <div className="flex gap-4 items-end">
                           <div>
-                            <label className="text-xs text-gray-500">Comision %</label>
+                            <label className="text-xs text-ink-40">Comision %</label>
                             <input
                               type="number"
                               min="1"
                               max="50"
                               value={commissionInput[app.id] || "10"}
                               onChange={(e) => setCommissionInput({ ...commissionInput, [app.id]: e.target.value })}
-                              className="w-20 mt-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                              className="w-20 mt-1 px-3 py-1.5 border border-hairline rounded-lg text-sm"
                               style={{ color: "#111827", backgroundColor: "#ffffff" }}
                             />
                           </div>
                           <div className="flex-1">
-                            <label className="text-xs text-gray-500">Notas internas</label>
+                            <label className="text-xs text-ink-40">Notas internas</label>
                             <input
                               type="text"
                               value={notesInput[app.id] || ""}
                               onChange={(e) => setNotesInput({ ...notesInput, [app.id]: e.target.value })}
                               placeholder="Notas opcionales..."
-                              className="w-full mt-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                              className="w-full mt-1 px-3 py-1.5 border border-hairline rounded-lg text-sm"
                               style={{ color: "#111827", backgroundColor: "#ffffff" }}
                             />
                           </div>

@@ -88,7 +88,7 @@ export default function LeaderboardPage() {
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-hairline"
             style={{ color: "#111827", backgroundColor: "#fff" }}
           >
             {PERIOD_OPTIONS.map((o) => (
@@ -98,7 +98,7 @@ export default function LeaderboardPage() {
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-hairline"
             style={{ color: "#111827", backgroundColor: "#fff" }}
           >
             {SORT_OPTIONS.map((o) => (
@@ -118,7 +118,7 @@ export default function LeaderboardPage() {
             { label: "Visitantes", value: fmt(totals.visitors) },
             { label: "Influencers activos", value: fmt(totals.influencerCount) },
           ].map((t) => (
-            <div key={t.label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div key={t.label} className="bg-elevated rounded-xl border border-hairline p-4">
               <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#9CA3AF" }}>{t.label}</p>
               <p className="text-lg font-bold" style={{ color: "#111827" }}>{t.value}</p>
             </div>
@@ -146,11 +146,11 @@ export default function LeaderboardPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-elevated rounded-xl border border-hairline overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr className="bg-surface border-b border-hairline">
                   <th className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>#</th>
                   <th className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>Influencer</th>
                   <th className="text-right px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>Ventas</th>
@@ -165,7 +165,7 @@ export default function LeaderboardPage() {
               </thead>
               <tbody>
                 {leaderboard.map((entry, idx) => (
-                  <tr key={entry.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                  <tr key={entry.id} className="border-b border-hairline hover:bg-surface/50">
                     <td className="px-4 py-3">
                       <span className="text-lg">{idx < 3 ? MEDALS[idx] : <span className="text-xs font-mono" style={{ color: "#9CA3AF" }}>{idx + 1}</span>}</span>
                     </td>
@@ -212,7 +212,7 @@ export default function LeaderboardPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 hidden xl:table-cell">
-                      <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="w-32 h-2 bg-surface-2 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full transition-all"
                           style={{ width: `${(entry.revenue / maxRevenue) * 100}%` }}

@@ -283,7 +283,7 @@ export default function InfluencerManagePage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm">Cargando...</p>
+          <p className="text-ink-40 font-mono text-sm">Cargando...</p>
         </div>
       </div>
     );
@@ -294,8 +294,8 @@ export default function InfluencerManagePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestionar Influencers</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-ink">Gestionar Influencers</h1>
+          <p className="text-sm text-ink-40 mt-1">
             Crea influencers, configura comisiones y genera links de tracking
           </p>
         </div>
@@ -309,38 +309,38 @@ export default function InfluencerManagePage() {
 
       {/* Create / Edit Form */}
       {(showCreate || editId) && (
-        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">
+        <div className="bg-elevated rounded-2xl border border-orange-100 shadow-sm p-6">
+          <h3 className="font-semibold text-ink mb-4">
             {editId ? "Editar Influencer" : "Nuevo Influencer"}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Nombre *</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Nombre *</label>
               <input
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="Nombre del influencer"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Email</label>
               <input
                 type="email"
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="email@ejemplo.com"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Comision % *</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Comision % *</label>
               <input
                 type="number"
                 value={formCommission}
                 onChange={(e) => setFormCommission(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="10"
                 min="0"
                 max="100"
@@ -348,27 +348,27 @@ export default function InfluencerManagePage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Nombre publico (dashboard)</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Nombre publico (dashboard)</label>
               <input
                 type="text"
                 value={formPublicName}
                 onChange={(e) => setFormPublicName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="@nombreinstagram"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-ink-40 mb-1">
                 Contraseña dashboard {editId ? "(dejar vacio para no cambiar)" : "(opcional)"}
               </label>
               <input
                 type="text"
                 value={formPassword}
                 onChange={(e) => setFormPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="Contraseña para proteger el dashboard publico"
               />
-              <p className="text-[10px] text-gray-400 mt-1">Si se define, el influencer necesita esta contraseña para ver su dashboard</p>
+              <p className="text-[10px] text-ink-40 mt-1">Si se define, el influencer necesita esta contraseña para ver su dashboard</p>
             </div>
           </div>
           <div className="flex gap-3 mt-4">
@@ -381,7 +381,7 @@ export default function InfluencerManagePage() {
             </button>
             <button
               onClick={resetForm}
-              className="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm"
+              className="px-4 py-2 text-ink-40 hover:text-ink-60 text-sm"
             >
               Cancelar
             </button>
@@ -390,35 +390,35 @@ export default function InfluencerManagePage() {
       )}
 
       {/* Influencer Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-6 py-3 font-medium text-gray-500">Influencer</th>
-                <th className="px-6 py-3 font-medium text-gray-500">Codigo</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-right">Comision %</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-right">Revenue</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-right">Comision $</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-right">Ventas</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-center">Estado</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-center">Acciones</th>
+              <tr className="bg-surface text-left">
+                <th className="px-6 py-3 font-medium text-ink-40">Influencer</th>
+                <th className="px-6 py-3 font-medium text-ink-40">Codigo</th>
+                <th className="px-6 py-3 font-medium text-ink-40 text-right">Comision %</th>
+                <th className="px-6 py-3 font-medium text-ink-40 text-right">Revenue</th>
+                <th className="px-6 py-3 font-medium text-ink-40 text-right">Comision $</th>
+                <th className="px-6 py-3 font-medium text-ink-40 text-right">Ventas</th>
+                <th className="px-6 py-3 font-medium text-ink-40 text-center">Estado</th>
+                <th className="px-6 py-3 font-medium text-ink-40 text-center">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-hairline">
               {influencers.map((inf) => (
                 <React.Fragment key={inf.id}>
-                <tr className="hover:bg-gray-50/50 transition-colors">
+                <tr className="hover:bg-surface/50 transition-colors">
                   <td className="px-6 py-4">
                     <Link href={`/influencers/${inf.id}`} className="group">
-                      <p className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
+                      <p className="font-medium text-ink group-hover:text-orange-600 transition-colors">
                         {inf.name}
                       </p>
-                      {inf.email && <p className="text-xs text-gray-400">{inf.email}</p>}
+                      {inf.email && <p className="text-xs text-ink-40">{inf.email}</p>}
                     </Link>
                   </td>
                   <td className="px-6 py-4">
-                    <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                    <code className="text-xs bg-surface-2 px-2 py-1 rounded font-mono">
                       inf_{inf.code}
                     </code>
                   </td>
@@ -438,7 +438,7 @@ export default function InfluencerManagePage() {
                           ? "bg-green-50 text-green-700 hover:bg-green-100"
                           : inf.status === "PAUSED"
                           ? "bg-yellow-50 text-yellow-700 hover:bg-yellow-100"
-                          : "bg-gray-50 text-gray-500"
+                          : "bg-surface text-ink-40"
                       }`}
                     >
                       {inf.status === "ACTIVE" ? "Activo" : inf.status === "PAUSED" ? "Pausado" : "Inactivo"}
@@ -453,21 +453,21 @@ export default function InfluencerManagePage() {
                       >
                         {copied === inf.id ? "Copiado!" : "Link"}
                       </button>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-ink-40">|</span>
                       <button
                         onClick={() => startEdit(inf)}
-                        className="text-xs text-gray-500 hover:text-gray-700"
+                        className="text-xs text-ink-40 hover:text-ink-60"
                       >
                         Editar
                       </button>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-ink-40">|</span>
                       <button
                         onClick={() => handleDelete(inf.id)}
                         className="text-xs text-red-400 hover:text-red-600"
                       >
                         Eliminar
                       </button>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-ink-40">|</span>
                       <button
                         onClick={() => toggleExpand(inf.id)}
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium"
@@ -480,23 +480,23 @@ export default function InfluencerManagePage() {
                 {/* Expanded panel: Coupons + Tiers */}
                 {expandedId === inf.id && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 bg-gray-50/50">
+                    <td colSpan={8} className="px-6 py-4 bg-surface/50">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Coupons section */}
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-3">Cupones de descuento</h4>
+                          <h4 className="text-sm font-semibold text-ink-60 mb-3">Cupones de descuento</h4>
                           {(coupons[inf.id] || []).length > 0 && (
                             <div className="space-y-2 mb-3">
                               {(coupons[inf.id] || []).map((c) => (
-                                <div key={c.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                <div key={c.id} className="flex items-center justify-between bg-elevated rounded-lg px-3 py-2 border border-hairline">
                                   <div className="flex items-center gap-2">
                                     <code className="text-xs font-mono bg-orange-50 text-orange-700 px-2 py-0.5 rounded">{c.code}</code>
-                                    {c.discountPercent && <span className="text-xs text-gray-500">{Number(c.discountPercent)}% off</span>}
-                                    {c.discountFixed && <span className="text-xs text-gray-500">${Number(c.discountFixed)} off</span>}
+                                    {c.discountPercent && <span className="text-xs text-ink-40">{Number(c.discountPercent)}% off</span>}
+                                    {c.discountFixed && <span className="text-xs text-ink-40">${Number(c.discountFixed)} off</span>}
                                   </div>
                                   <button
                                     onClick={() => handleToggleCoupon(inf.id, c)}
-                                    className={`text-xs px-2 py-0.5 rounded-full ${c.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}
+                                    className={`text-xs px-2 py-0.5 rounded-full ${c.isActive ? "bg-green-50 text-green-700" : "bg-surface-2 text-ink-40"}`}
                                   >
                                     {c.isActive ? "Activo" : "Inactivo"}
                                   </button>
@@ -509,14 +509,14 @@ export default function InfluencerManagePage() {
                               type="text"
                               value={couponCode}
                               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              className="flex-1 px-2 py-1.5 border border-hairline rounded-lg text-xs text-ink bg-elevated"
                               placeholder="CODIGO (ej: SOFIA10)"
                             />
                             <input
                               type="number"
                               value={couponDiscount}
                               onChange={(e) => setCouponDiscount(e.target.value)}
-                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              className="w-20 px-2 py-1.5 border border-hairline rounded-lg text-xs text-ink bg-elevated"
                               placeholder="% off"
                               min="0"
                               max="100"
@@ -529,26 +529,26 @@ export default function InfluencerManagePage() {
                               {couponSaving ? "..." : "+ Agregar"}
                             </button>
                           </div>
-                          <p className="text-[10px] text-gray-400 mt-1">
+                          <p className="text-[10px] text-ink-40 mt-1">
                             Si un cliente usa este cupón al comprar, la venta se atribuye a este influencer
                           </p>
                         </div>
 
                         {/* Tiers section */}
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                          <h4 className="text-sm font-semibold text-ink-60 mb-3">
                             Tiers de comisión
-                            <span className="font-normal text-gray-400 ml-2 text-xs">
+                            <span className="font-normal text-ink-40 ml-2 text-xs">
                               Revenue este mes: {fmtARS(tierMonth[inf.id] || 0)}
                             </span>
                           </h4>
                           {(tiers[inf.id] || []).length > 0 && (
                             <div className="space-y-2 mb-3">
                               {(tiers[inf.id] || []).map((t) => (
-                                <div key={t.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                <div key={t.id} className="flex items-center justify-between bg-elevated rounded-lg px-3 py-2 border border-hairline">
                                   <div className="text-xs">
-                                    {t.label && <span className="font-medium text-gray-700 mr-2">{t.label}</span>}
-                                    <span className="text-gray-500">
+                                    {t.label && <span className="font-medium text-ink-60 mr-2">{t.label}</span>}
+                                    <span className="text-ink-40">
                                       {fmtARS(Number(t.minRevenue))} — {t.maxRevenue ? fmtARS(Number(t.maxRevenue)) : "∞"}
                                     </span>
                                     <span className="ml-2 font-semibold text-orange-600">{Number(t.commissionPercent)}%</span>
@@ -564,35 +564,35 @@ export default function InfluencerManagePage() {
                             </div>
                           )}
                           {(tiers[inf.id] || []).length === 0 && (
-                            <p className="text-xs text-gray-400 mb-3">Sin tiers → usa comisión base ({Number(inf.commissionPercent)}%)</p>
+                            <p className="text-xs text-ink-40 mb-3">Sin tiers → usa comisión base ({Number(inf.commissionPercent)}%)</p>
                           )}
                           <div className="flex gap-2 flex-wrap">
                             <input
                               type="text"
                               value={tierLabel}
                               onChange={(e) => setTierLabel(e.target.value)}
-                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              className="w-20 px-2 py-1.5 border border-hairline rounded-lg text-xs text-ink bg-elevated"
                               placeholder="Nombre"
                             />
                             <input
                               type="number"
                               value={tierMin}
                               onChange={(e) => setTierMin(e.target.value)}
-                              className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              className="w-24 px-2 py-1.5 border border-hairline rounded-lg text-xs text-ink bg-elevated"
                               placeholder="Desde $"
                             />
                             <input
                               type="number"
                               value={tierMax}
                               onChange={(e) => setTierMax(e.target.value)}
-                              className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              className="w-24 px-2 py-1.5 border border-hairline rounded-lg text-xs text-ink bg-elevated"
                               placeholder="Hasta $ (∞)"
                             />
                             <input
                               type="number"
                               value={tierPercent}
                               onChange={(e) => setTierPercent(e.target.value)}
-                              className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              className="w-16 px-2 py-1.5 border border-hairline rounded-lg text-xs text-ink bg-elevated"
                               placeholder="%"
                               min="0"
                               max="100"
@@ -600,12 +600,12 @@ export default function InfluencerManagePage() {
                             <button
                               onClick={() => handleAddTier(inf.id)}
                               disabled={!tierMin || !tierPercent}
-                              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 disabled:opacity-50"
+                              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-ink disabled:opacity-50"
                             >
                               + Tier
                             </button>
                           </div>
-                          <p className="text-[10px] text-gray-400 mt-1">
+                          <p className="text-[10px] text-ink-40 mt-1">
                             Si hay tiers, la comisión se ajusta según el revenue mensual del influencer
                           </p>
                         </div>
@@ -619,7 +619,7 @@ export default function InfluencerManagePage() {
           </table>
         </div>
         {influencers.length === 0 && (
-          <div className="p-12 text-center text-gray-400">
+          <div className="p-12 text-center text-ink-40">
             No hay influencers aun. Crea el primero!
           </div>
         )}

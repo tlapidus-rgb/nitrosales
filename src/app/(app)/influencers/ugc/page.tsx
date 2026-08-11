@@ -56,7 +56,7 @@ export default function UGCLibraryPage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm">Cargando UGC...</p>
+          <p className="text-ink-40 font-mono text-sm">Cargando UGC...</p>
         </div>
       </div>
     );
@@ -65,11 +65,11 @@ export default function UGCLibraryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Biblioteca UGC</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-ink">Biblioteca UGC</h1>
+        <p className="text-sm text-ink-40 mt-1">
           Contenido aprobado de tus influencers, listo para reutilizar en ads y redes
           {items.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">({items.length} piezas)</span>
+            <span className="ml-2 text-xs text-ink-40">({items.length} piezas)</span>
           )}
         </p>
       </div>
@@ -80,7 +80,7 @@ export default function UGCLibraryPage() {
           <button
             onClick={() => setPlatformFilter("")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              !platformFilter ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              !platformFilter ? "bg-orange-500 text-white" : "bg-surface-2 text-ink-60 hover:bg-hairline"
             }`}
           >
             Todos
@@ -90,7 +90,7 @@ export default function UGCLibraryPage() {
               key={p}
               onClick={() => setPlatformFilter(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                platformFilter === p ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                platformFilter === p ? "bg-orange-500 text-white" : "bg-surface-2 text-ink-60 hover:bg-hairline"
               }`}
             >
               {PLATFORM_ICONS[p]} {p}
@@ -100,20 +100,20 @@ export default function UGCLibraryPage() {
       )}
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-12 text-center">
           <p className="text-4xl mb-3">🎨</p>
-          <p className="text-gray-900 font-medium">Tu biblioteca UGC esta vacia</p>
-          <p className="text-gray-500 text-sm mt-1 max-w-md mx-auto">
+          <p className="text-ink font-medium">Tu biblioteca UGC esta vacia</p>
+          <p className="text-ink-40 text-sm mt-1 max-w-md mx-auto">
             Cuando apruebes contenido de tus influencers y lo marques como UGC, va a aparecer aca como una galería lista para reutilizar en campañas
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((item) => (
-            <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden group">
+            <div key={item.id} className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden group">
               {/* Thumbnail or placeholder */}
               {item.thumbnailUrl ? (
-                <div className="aspect-video bg-gray-100 overflow-hidden">
+                <div className="aspect-video bg-surface-2 overflow-hidden">
                   <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                 </div>
               ) : (
@@ -135,13 +135,13 @@ export default function UGCLibraryPage() {
                     <span className="text-xs font-medium" style={{ color: "#111827" }}>{item.influencer.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-400">{item.platform}</span>
+                    <span className="text-xs text-ink-40">{item.platform}</span>
                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-50 text-purple-600 font-medium">{item.type}</span>
                   </div>
                 </div>
 
                 {item.caption && (
-                  <p className="text-xs text-gray-600 line-clamp-2">{item.caption}</p>
+                  <p className="text-xs text-ink-60 line-clamp-2">{item.caption}</p>
                 )}
 
                 {item.briefing && (
@@ -151,13 +151,13 @@ export default function UGCLibraryPage() {
                 )}
 
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-ink-40">
                     {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString("es-AR") : new Date(item.createdAt).toLocaleDateString("es-AR")}
                   </span>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => copyUrl(item.id, item.contentUrl)}
-                      className="px-2 py-1 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-medium hover:bg-gray-200 transition-colors"
+                      className="px-2 py-1 bg-surface-2 text-ink-60 rounded-lg text-[10px] font-medium hover:bg-hairline transition-colors"
                     >
                       {copiedId === item.id ? "Copiado!" : "Copiar URL"}
                     </button>

@@ -103,7 +103,7 @@ export default function SeedingPage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm">Cargando seedings...</p>
+          <p className="text-ink-40 font-mono text-sm">Cargando seedings...</p>
         </div>
       </div>
     );
@@ -113,8 +113,8 @@ export default function SeedingPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Product Seeding</h1>
-          <p className="text-sm text-gray-500 mt-1">Productos enviados a influencers para crear contenido</p>
+          <h1 className="text-2xl font-bold text-ink">Product Seeding</h1>
+          <p className="text-sm text-ink-40 mt-1">Productos enviados a influencers para crear contenido</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -130,9 +130,9 @@ export default function SeedingPage() {
           {STATUS_FLOW.map((sf) => {
             const stat = stats.find((s) => s.status === sf.value);
             return (
-              <div key={sf.value} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">{sf.label}</p>
-                <p className="text-xl font-bold text-gray-900 mt-1">{stat?._count.id || 0}</p>
+              <div key={sf.value} className="bg-elevated rounded-2xl border border-hairline p-4 shadow-sm">
+                <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">{sf.label}</p>
+                <p className="text-xl font-bold text-ink mt-1">{stat?._count.id || 0}</p>
               </div>
             );
           })}
@@ -140,28 +140,28 @@ export default function SeedingPage() {
       )}
 
       {totalValue > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <div className="bg-elevated rounded-2xl border border-hairline p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Inversion total en seeding</p>
-              <p className="text-xl font-bold text-gray-900 mt-1">{fmtARS(totalValue)}</p>
+              <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">Inversion total en seeding</p>
+              <p className="text-xl font-bold text-ink mt-1">{fmtARS(totalValue)}</p>
             </div>
-            <p className="text-sm text-gray-400">{totalCount} envios totales</p>
+            <p className="text-sm text-ink-40">{totalCount} envios totales</p>
           </div>
         </div>
       )}
 
       {/* Create Form */}
       {showForm && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-6 space-y-4">
           <h3 className="text-sm font-semibold" style={inputStyle}>Nuevo envio de producto</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Influencer *</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Influencer *</label>
               <select
                 value={form.influencerId}
                 onChange={(e) => setForm({ ...form, influencerId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               >
                 <option value="">Seleccionar influencer</option>
@@ -169,35 +169,35 @@ export default function SeedingPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Valor estimado</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Valor estimado</label>
               <input
                 type="number"
                 value={form.estimatedValue}
                 onChange={(e) => setForm({ ...form, estimatedValue: e.target.value })}
                 placeholder="Ej: 15000"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Nro de seguimiento</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Nro de seguimiento</label>
               <input
                 value={form.trackingNumber}
                 onChange={(e) => setForm({ ...form, trackingNumber: e.target.value })}
                 placeholder="Ej: OCA-123456789"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Notas</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Notas</label>
               <input
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="Ej: Kit especial Día del Niño"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               />
             </div>
@@ -214,40 +214,40 @@ export default function SeedingPage() {
 
       {/* Seedings List */}
       {seedings.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-12 text-center">
           <p className="text-4xl mb-3">📦</p>
-          <p className="text-gray-900 font-medium">No hay envios de productos todavia</p>
-          <p className="text-gray-500 text-sm mt-1">Registrá los productos que envias a tus influencers para trackear el proceso de seeding completo</p>
+          <p className="text-ink font-medium">No hay envios de productos todavia</p>
+          <p className="text-ink-40 text-sm mt-1">Registrá los productos que envias a tus influencers para trackear el proceso de seeding completo</p>
         </div>
       ) : (
         <div className="space-y-3">
           {seedings.map((s) => (
-            <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div key={s.id} className="bg-elevated rounded-2xl border border-hairline shadow-sm p-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   {s.product?.imageUrl ? (
-                    <img src={s.product.imageUrl} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-100" />
+                    <img src={s.product.imageUrl} alt="" className="w-12 h-12 rounded-xl object-cover border border-hairline" />
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-lg">📦</div>
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center text-lg">📦</div>
                   )}
                   <div>
                     <p className="text-sm font-medium" style={{ color: "#111827" }}>
                       {s.product?.name || "Producto sin especificar"}
-                      <span className="text-gray-400 ml-2">→ {s.influencer.name}</span>
+                      <span className="text-ink-40 ml-2">→ {s.influencer.name}</span>
                     </p>
                     <div className="flex items-center gap-3 mt-0.5">
-                      {s.estimatedValue && <span className="text-xs text-gray-500">Valor: {fmtARS(Number(s.estimatedValue))}</span>}
-                      {s.trackingNumber && <span className="text-xs text-gray-400 font-mono">Tracking: {s.trackingNumber}</span>}
+                      {s.estimatedValue && <span className="text-xs text-ink-40">Valor: {fmtARS(Number(s.estimatedValue))}</span>}
+                      {s.trackingNumber && <span className="text-xs text-ink-40 font-mono">Tracking: {s.trackingNumber}</span>}
                       {s.briefing && <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">Brief: {s.briefing.title}</span>}
                     </div>
-                    {s.notes && <p className="text-xs text-gray-400 mt-0.5">{s.notes}</p>}
+                    {s.notes && <p className="text-xs text-ink-40 mt-0.5">{s.notes}</p>}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {/* Status progression buttons */}
                   {s.status === "PENDING" && (
-                    <button onClick={() => updateStatus(s.id, "SHIPPED")} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600">
+                    <button onClick={() => updateStatus(s.id, "SHIPPED")} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-ink">
                       Marcar enviado
                     </button>
                   )}
@@ -263,10 +263,10 @@ export default function SeedingPage() {
                   )}
 
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                    STATUS_FLOW.find((sf) => sf.value === s.status)?.color || "bg-gray-50 text-gray-500"
+                    STATUS_FLOW.find((sf) => sf.value === s.status)?.color || "bg-surface text-ink-40"
                   }`}>{STATUS_FLOW.find((sf) => sf.value === s.status)?.label || s.status}</span>
 
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-ink-40">
                     {new Date(s.createdAt).toLocaleDateString("es-AR")}
                   </span>
                 </div>

@@ -155,7 +155,7 @@ export default function AnalyticsPage() {
 
       {/* Empty state */}
       {!kpis && cohort.length === 0 && campaigns.length === 0 && anomalies.length === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-elevated rounded-xl border border-hairline p-12 text-center">
           <p className="text-4xl mb-4">📊</p>
           <p className="text-lg font-medium mb-2" style={{ color: "#111827" }}>Todavía no hay datos de atribuciones</p>
           <p className="text-sm max-w-md mx-auto" style={{ color: "#6B7280" }}>
@@ -189,7 +189,7 @@ export default function AnalyticsPage() {
               sub: "tasa efectiva",
             },
           ].map((kpi) => (
-            <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div key={kpi.label} className="bg-elevated rounded-xl border border-hairline p-4">
               <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#9CA3AF" }}>{kpi.label}</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-lg font-bold" style={{ color: "#111827" }}>{kpi.value}</p>
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
 
       {/* Anomalies */}
       {anomalies.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-elevated rounded-xl border border-hairline p-5">
           <h2 className="text-sm font-bold mb-3" style={{ color: "#111827" }}>
             Alertas detectadas
           </h2>
@@ -236,7 +236,7 @@ export default function AnalyticsPage() {
 
       {/* Revenue Cohort (bar chart) */}
       {cohort.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-elevated rounded-xl border border-hairline p-5">
           <h2 className="text-sm font-bold mb-4" style={{ color: "#111827" }}>
             Evolución mensual del programa
           </h2>
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-gray-200">
+                <tr className="border-b border-hairline">
                   <th className="text-left py-2 pr-4 font-medium" style={{ color: "#6B7280" }}>Mes</th>
                   <th className="text-right py-2 px-2 font-medium" style={{ color: "#6B7280" }}>Ventas</th>
                   <th className="text-right py-2 px-2 font-medium" style={{ color: "#6B7280" }}>Comisión</th>
@@ -272,7 +272,7 @@ export default function AnalyticsPage() {
               </thead>
               <tbody>
                 {cohort.map((c) => (
-                  <tr key={c.month} className="border-b border-gray-100">
+                  <tr key={c.month} className="border-b border-hairline">
                     <td className="py-2 pr-4 font-medium" style={{ color: "#111827" }}>{shortMonth(c.month)} {c.month.slice(0, 4)}</td>
                     <td className="py-2 px-2 text-right tabular-nums" style={{ color: "#111827" }}>{fmtARS(c.total)}</td>
                     <td className="py-2 px-2 text-right tabular-nums" style={{ color: "#F97316" }}>{fmtARS(c.totalCommission)}</td>
@@ -288,13 +288,13 @@ export default function AnalyticsPage() {
 
       {/* Campaign ROI */}
       {campaigns.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-elevated rounded-xl border border-hairline p-5">
           <h2 className="text-sm font-bold mb-4" style={{ color: "#111827" }}>
             ROI por Campaña
           </h2>
           <div className="space-y-3">
             {campaigns.map((c) => (
-              <div key={c.id} className="border border-gray-100 rounded-xl p-4">
+              <div key={c.id} className="border border-hairline rounded-xl p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-medium text-sm" style={{ color: "#111827" }}>{c.name}</p>
@@ -338,7 +338,7 @@ export default function AnalyticsPage() {
                       <span style={{ color: "#9CA3AF" }}>Objetivo: {fmtARS(c.bonusTarget || 0)}</span>
                       <span style={{ color: c.progress >= 100 ? "#22C55E" : "#F97316" }}>{c.progress.toFixed(0)}%</span>
                     </div>
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{

@@ -87,7 +87,7 @@ export default function ContentPage() {
       REVISION: "bg-orange-50 text-orange-700",
       REJECTED: "bg-red-50 text-red-700",
     };
-    return map[status] || "bg-gray-50 text-gray-700";
+    return map[status] || "bg-surface text-ink-60";
   };
 
   const inputStyle = { color: "#111827", backgroundColor: "#ffffff" };
@@ -98,7 +98,7 @@ export default function ContentPage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm">Cargando contenido...</p>
+          <p className="text-ink-40 font-mono text-sm">Cargando contenido...</p>
         </div>
       </div>
     );
@@ -107,8 +107,8 @@ export default function ContentPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Contenido y Aprobaciones</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-ink">Contenido y Aprobaciones</h1>
+        <p className="text-sm text-ink-40 mt-1">
           Revisá y aprobá el contenido que suben tus influencers
           {pendingCount > 0 && (
             <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
@@ -127,7 +127,7 @@ export default function ContentPage() {
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               statusFilter === tab.value
                 ? "bg-orange-500 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                : "bg-surface-2 text-ink-60 hover:bg-hairline"
             }`}
           >
             {tab.label}
@@ -136,15 +136,15 @@ export default function ContentPage() {
       </div>
 
       {submissions.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-12 text-center">
           <p className="text-4xl mb-3">📹</p>
-          <p className="text-gray-900 font-medium">No hay contenido {statusFilter ? `con estado ${statusFilter}` : "todavia"}</p>
-          <p className="text-gray-500 text-sm mt-1">Cuando tus influencers suban contenido desde su dashboard, vas a verlo aca para revisar y aprobar</p>
+          <p className="text-ink font-medium">No hay contenido {statusFilter ? `con estado ${statusFilter}` : "todavia"}</p>
+          <p className="text-ink-40 text-sm mt-1">Cuando tus influencers suban contenido desde su dashboard, vas a verlo aca para revisar y aprobar</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {submissions.map((s) => (
-            <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div key={s.id} className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden">
               {/* Header */}
               <div className="p-4 border-b border-gray-50">
                 <div className="flex items-center justify-between">
@@ -158,7 +158,7 @@ export default function ContentPage() {
                     )}
                     <div>
                       <p className="text-xs font-medium" style={{ color: "#111827" }}>{s.influencer.name}</p>
-                      <p className="text-[10px] text-gray-400">@{s.influencer.code}</p>
+                      <p className="text-[10px] text-ink-40">@{s.influencer.code}</p>
                     </div>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusBadge(s.status)}`}>
@@ -171,7 +171,7 @@ export default function ContentPage() {
               <div className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{PLATFORM_ICONS[s.platform] || "🔗"}</span>
-                  <span className="text-xs font-medium text-gray-500">{s.platform} · {s.type}</span>
+                  <span className="text-xs font-medium text-ink-40">{s.platform} · {s.type}</span>
                   {s.briefing && (
                     <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
                       Brief: {s.briefing.title}
@@ -189,14 +189,14 @@ export default function ContentPage() {
                 </a>
 
                 {s.caption && (
-                  <p className="text-xs text-gray-600 line-clamp-3">{s.caption}</p>
+                  <p className="text-xs text-ink-60 line-clamp-3">{s.caption}</p>
                 )}
 
                 {s.notes && (
-                  <p className="text-xs text-gray-400 italic">Nota: {s.notes}</p>
+                  <p className="text-xs text-ink-40 italic">Nota: {s.notes}</p>
                 )}
 
-                <p className="text-[10px] text-gray-400">
+                <p className="text-[10px] text-ink-40">
                   Enviado {new Date(s.createdAt).toLocaleDateString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </p>
 
@@ -220,7 +220,7 @@ export default function ContentPage() {
                       value={reviewNotes}
                       onChange={(e) => setReviewNotes(e.target.value)}
                       placeholder="Feedback para el influencer (opcional)..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs resize-none"
+                      className="w-full px-3 py-2 border border-hairline rounded-xl text-xs resize-none"
                       style={{ ...inputStyle, minHeight: "60px" }}
                     />
                     <div className="flex gap-2">
@@ -245,7 +245,7 @@ export default function ContentPage() {
                     </div>
                     <button
                       onClick={() => { setReviewingId(null); setReviewNotes(""); }}
-                      className="w-full px-3 py-1.5 text-gray-400 text-xs hover:text-gray-600"
+                      className="w-full px-3 py-1.5 text-ink-40 text-xs hover:text-ink-60"
                     >
                       Cancelar
                     </button>
@@ -268,7 +268,7 @@ export default function ContentPage() {
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           s.isUGC
                             ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            : "bg-surface-2 text-ink-60 hover:bg-hairline"
                         }`}
                       >
                         {s.isUGC ? "✓ Marcado UGC" : "Marcar como UGC"}

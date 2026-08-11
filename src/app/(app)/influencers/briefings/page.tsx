@@ -106,7 +106,7 @@ export default function BriefingsPage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm">Cargando briefings...</p>
+          <p className="text-ink-40 font-mono text-sm">Cargando briefings...</p>
         </div>
       </div>
     );
@@ -116,8 +116,8 @@ export default function BriefingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Briefings de Contenido</h1>
-          <p className="text-sm text-gray-500 mt-1">Creá y asigná briefs a tus influencers</p>
+          <h1 className="text-2xl font-bold text-ink">Briefings de Contenido</h1>
+          <p className="text-sm text-ink-40 mt-1">Creá y asigná briefs a tus influencers</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -129,39 +129,39 @@ export default function BriefingsPage() {
 
       {/* Create Form */}
       {showForm && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-6 space-y-4">
           <h3 className="text-sm font-semibold" style={inputStyle}>Nuevo Briefing</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Titulo *</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Titulo *</label>
               <input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="Ej: Reel para Día del Niño"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Tipo</label>
+                <label className="block text-xs font-medium text-ink-40 mb-1">Tipo</label>
                 <select
                   value={form.type}
                   onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                  className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                   style={inputStyle}
                 >
                   {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Fecha limite</label>
+                <label className="block text-xs font-medium text-ink-40 mb-1">Fecha limite</label>
                 <input
                   type="date"
                   value={form.deadline}
                   onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                  className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                   style={inputStyle}
                 />
               </div>
@@ -169,34 +169,34 @@ export default function BriefingsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Descripcion / Instrucciones *</label>
+            <label className="block text-xs font-medium text-ink-40 mb-1">Descripcion / Instrucciones *</label>
             <textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Describí en detalle qué necesitás del influencer..."
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-y"
+              className="w-full px-3 py-2 border border-hairline rounded-xl text-sm resize-y"
               style={textareaStyle}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Lo que SI hacer</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Lo que SI hacer</label>
               <textarea
                 value={form.dos}
                 onChange={(e) => setForm({ ...form, dos: e.target.value })}
                 placeholder="- Mostrar el producto en uso&#10;- Mencionar el código de descuento"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-y"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm resize-y"
                 style={textareaStyle}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Lo que NO hacer</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Lo que NO hacer</label>
               <textarea
                 value={form.donts}
                 onChange={(e) => setForm({ ...form, donts: e.target.value })}
                 placeholder="- No mencionar a la competencia&#10;- No hacer claims sobre seguridad"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-y"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm resize-y"
                 style={textareaStyle}
               />
             </div>
@@ -204,31 +204,31 @@ export default function BriefingsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Hashtags</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Hashtags</label>
               <input
                 value={form.hashtags}
                 onChange={(e) => setForm({ ...form, hashtags: e.target.value })}
                 placeholder="#juguetes #diadelnino"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Menciones</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Menciones</label>
               <input
                 value={form.mentions}
                 onChange={(e) => setForm({ ...form, mentions: e.target.value })}
                 placeholder="@tumarca"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Asignar a</label>
+              <label className="block text-xs font-medium text-ink-40 mb-1">Asignar a</label>
               <select
                 value={form.influencerId}
                 onChange={(e) => setForm({ ...form, influencerId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
                 style={inputStyle}
               >
                 <option value="">Todos los influencers</option>
@@ -238,23 +238,23 @@ export default function BriefingsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Requerimientos tecnicos</label>
+            <label className="block text-xs font-medium text-ink-40 mb-1">Requerimientos tecnicos</label>
             <input
               value={form.requirements}
               onChange={(e) => setForm({ ...form, requirements: e.target.value })}
               placeholder="Ej: Vertical 9:16, min 15s, max 60s, resolución mín 1080p"
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+              className="w-full px-3 py-2 border border-hairline rounded-xl text-sm"
               style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Links de referencia (uno por linea)</label>
+            <label className="block text-xs font-medium text-ink-40 mb-1">Links de referencia (uno por linea)</label>
             <textarea
               value={form.referenceUrls}
               onChange={(e) => setForm({ ...form, referenceUrls: e.target.value })}
               placeholder="https://instagram.com/reel/ejemplo1&#10;https://tiktok.com/@ejemplo/video/123"
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-y"
+              className="w-full px-3 py-2 border border-hairline rounded-xl text-sm resize-y"
               style={{ ...inputStyle, minHeight: "60px" }}
             />
           </div>
@@ -271,17 +271,17 @@ export default function BriefingsPage() {
 
       {/* Briefings List */}
       {briefings.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-12 text-center">
           <p className="text-4xl mb-3">📋</p>
-          <p className="text-gray-900 font-medium">No hay briefings todavia</p>
-          <p className="text-gray-500 text-sm mt-1">Creá tu primer brief para guiar a tus influencers sobre qué contenido crear</p>
+          <p className="text-ink font-medium">No hay briefings todavia</p>
+          <p className="text-ink-40 text-sm mt-1">Creá tu primer brief para guiar a tus influencers sobre qué contenido crear</p>
         </div>
       ) : (
         <div className="space-y-3">
           {briefings.map((b) => (
-            <div key={b.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div key={b.id} className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden">
               <div
-                className="p-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                className="p-5 cursor-pointer hover:bg-surface transition-colors"
                 onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}
               >
                 <div className="flex items-center justify-between">
@@ -291,57 +291,57 @@ export default function BriefingsPage() {
                       b.type === "STORY" ? "bg-blue-50 text-blue-700" :
                       b.type === "UNBOXING" ? "bg-amber-50 text-amber-700" :
                       b.type === "REVIEW" ? "bg-green-50 text-green-700" :
-                      "bg-gray-50 text-gray-700"
+                      "bg-surface text-ink-60"
                     }`}>{b.type}</span>
                     <h3 className="text-sm font-semibold" style={{ color: "#111827" }}>{b.title}</h3>
                     {b.influencer ? (
-                      <span className="text-xs text-gray-400">→ {b.influencer.name}</span>
+                      <span className="text-xs text-ink-40">→ {b.influencer.name}</span>
                     ) : (
-                      <span className="text-xs text-gray-400">→ Todos</span>
+                      <span className="text-xs text-ink-40">→ Todos</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400">{b._count.submissions} envios</span>
+                    <span className="text-xs text-ink-40">{b._count.submissions} envios</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                       b.status === "ACTIVE" ? "bg-green-50 text-green-700" :
                       b.status === "COMPLETED" ? "bg-blue-50 text-blue-700" :
-                      "bg-gray-50 text-gray-500"
+                      "bg-surface text-ink-40"
                     }`}>{b.status}</span>
                     {b.deadline && (
-                      <span className="text-[10px] text-gray-400 font-mono">
+                      <span className="text-[10px] text-ink-40 font-mono">
                         Deadline: {new Date(b.deadline).toLocaleDateString("es-AR")}
                       </span>
                     )}
-                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedId === b.id ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    <svg className={`w-4 h-4 text-ink-40 transition-transform ${expandedId === b.id ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </div>
                 </div>
               </div>
 
               {expandedId === b.id && (
-                <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-3">
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{b.description}</p>
+                <div className="px-5 pb-5 border-t border-hairline pt-4 space-y-3">
+                  <p className="text-sm text-ink-60 whitespace-pre-wrap">{b.description}</p>
 
                   {b.dos && (
                     <div>
                       <p className="text-xs font-medium text-green-700 mb-1">Lo que SI hacer:</p>
-                      <p className="text-xs text-gray-600 whitespace-pre-wrap">{b.dos}</p>
+                      <p className="text-xs text-ink-60 whitespace-pre-wrap">{b.dos}</p>
                     </div>
                   )}
                   {b.donts && (
                     <div>
                       <p className="text-xs font-medium text-red-700 mb-1">Lo que NO hacer:</p>
-                      <p className="text-xs text-gray-600 whitespace-pre-wrap">{b.donts}</p>
+                      <p className="text-xs text-ink-60 whitespace-pre-wrap">{b.donts}</p>
                     </div>
                   )}
                   {b.hashtags && <p className="text-xs text-orange-500">{b.hashtags}</p>}
                   {b.mentions && <p className="text-xs text-blue-500">{b.mentions}</p>}
-                  {b.requirements && <p className="text-xs text-gray-500">Req. técnicos: {b.requirements}</p>}
+                  {b.requirements && <p className="text-xs text-ink-40">Req. técnicos: {b.requirements}</p>}
 
                   <div className="flex gap-2 pt-2">
                     {b.status === "ACTIVE" && (
                       <button
                         onClick={() => updateStatus(b.id, "COMPLETED")}
-                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600"
+                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-ink"
                       >
                         Marcar completado
                       </button>
@@ -349,7 +349,7 @@ export default function BriefingsPage() {
                     {b.status !== "CANCELLED" && (
                       <button
                         onClick={() => updateStatus(b.id, "CANCELLED")}
-                        className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200"
+                        className="px-3 py-1.5 bg-surface-2 text-ink-60 rounded-lg text-xs font-medium hover:bg-hairline"
                       >
                         Cancelar brief
                       </button>

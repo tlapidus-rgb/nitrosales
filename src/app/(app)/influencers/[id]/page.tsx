@@ -88,7 +88,7 @@ export default function InfluencerDetailPage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <p className="text-gray-500 font-mono text-sm">Cargando...</p>
+          <p className="text-ink-40 font-mono text-sm">Cargando...</p>
         </div>
       </div>
     );
@@ -99,7 +99,7 @@ export default function InfluencerDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/influencers" className="text-gray-400 hover:text-gray-600 transition-colors">
+          <Link href="/influencers" className="text-ink-40 hover:text-ink-60 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -108,8 +108,8 @@ export default function InfluencerDetailPage() {
             {influencer.name[0]?.toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{influencer.name}</h1>
-            <p className="text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-ink">{influencer.name}</h1>
+            <p className="text-sm text-ink-40">
               @{influencer.code} · {Number(influencer.commissionPercent)}% comision
             </p>
           </div>
@@ -126,12 +126,12 @@ export default function InfluencerDetailPage() {
       </div>
 
       {/* Tracking Links */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-5">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Link de tracking</label>
+            <label className="block text-xs font-medium text-ink-40 mb-1">Link de tracking</label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-gray-50 px-3 py-2 rounded-lg font-mono text-gray-600 overflow-hidden text-ellipsis">
+              <code className="flex-1 text-xs bg-surface px-3 py-2 rounded-lg font-mono text-ink-60 overflow-hidden text-ellipsis">
                 {influencer.trackingLink}
               </code>
               <button
@@ -143,7 +143,7 @@ export default function InfluencerDetailPage() {
             </div>
           </div>
           <div className="sm:w-auto">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Dashboard publico</label>
+            <label className="block text-xs font-medium text-ink-40 mb-1">Dashboard publico</label>
             <button
               onClick={copyPublicLink}
               className="px-3 py-2 border border-orange-200 text-orange-600 rounded-lg text-xs font-medium hover:bg-orange-50 transition-colors whitespace-nowrap"
@@ -155,7 +155,7 @@ export default function InfluencerDetailPage() {
       </div>
 
       {/* Dashboard Settings */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-5">
         <h3 className="text-sm font-semibold mb-3" style={{ color: "#111827" }}>Configuración del dashboard público</h3>
         <div className="flex items-center justify-between">
           <div>
@@ -175,11 +175,11 @@ export default function InfluencerDetailPage() {
               setInfluencer({ ...influencer, isProductBreakdownEnabled: newValue });
             }}
             className={`relative w-11 h-6 rounded-full transition-colors ${
-              influencer.isProductBreakdownEnabled ? "bg-orange-500" : "bg-gray-300"
+              influencer.isProductBreakdownEnabled ? "bg-orange-500" : "bg-hairline-2"
             }`}
           >
             <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-elevated shadow transition-transform ${
                 influencer.isProductBreakdownEnabled ? "translate-x-5" : ""
               }`}
             />
@@ -196,9 +196,9 @@ export default function InfluencerDetailPage() {
           { label: "Ticket Promedio", value: fmtARS(metrics?.avgOrderValue || 0) },
           { label: "Tasa Conversion", value: `${(metrics?.conversionRate || 0).toFixed(1)}%` },
         ].map((kpi) => (
-          <div key={kpi.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</p>
-            <p className="text-xl font-bold text-gray-900 mt-1">{kpi.value}</p>
+          <div key={kpi.label} className="bg-elevated rounded-2xl border border-hairline p-4 shadow-sm">
+            <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider">{kpi.label}</p>
+            <p className="text-xl font-bold text-ink mt-1">{kpi.value}</p>
           </div>
         ))}
       </div>
@@ -207,8 +207,8 @@ export default function InfluencerDetailPage() {
       {metrics?.dailyMetrics && metrics.dailyMetrics.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Revenue Chart */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">Revenue diario (ultimos 30 dias)</h3>
+          <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-ink mb-4">Revenue diario (ultimos 30 dias)</h3>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={metrics.dailyMetrics}>
                 <defs>
@@ -235,8 +235,8 @@ export default function InfluencerDetailPage() {
 
           {/* Campaign Breakdown */}
           {metrics.campaignBreakdown && metrics.campaignBreakdown.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Revenue por campaña</h3>
+            <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-5">
+              <h3 className="text-sm font-semibold text-ink mb-4">Revenue por campaña</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={metrics.campaignBreakdown} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -253,25 +253,25 @@ export default function InfluencerDetailPage() {
 
       {/* Product Breakdown */}
       {metrics?.productBreakdown && metrics.productBreakdown.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">Productos vendidos</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Top productos generados por este influencer</p>
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-hairline">
+            <h3 className="text-sm font-semibold text-ink">Productos vendidos</h3>
+            <p className="text-xs text-ink-40 mt-0.5">Top productos generados por este influencer</p>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-hairline">
             {metrics.productBreakdown.map((p) => (
               <div key={p.productId} className="px-6 py-3 flex items-center gap-4">
                 {p.imageUrl ? (
-                  <img src={p.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+                  <img src={p.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-hairline" />
                 ) : (
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 text-xs">📦</div>
+                  <div className="w-10 h-10 rounded-lg bg-surface-2 flex items-center justify-center text-ink-40 text-xs">📦</div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                  {p.category && <p className="text-[10px] text-gray-400">{p.category}</p>}
+                  <p className="text-sm font-medium text-ink truncate">{p.name}</p>
+                  {p.category && <p className="text-[10px] text-ink-40">{p.category}</p>}
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">{p.units} un.</p>
+                  <p className="text-sm font-semibold text-ink">{p.units} un.</p>
                   <p className="text-xs text-orange-500">{fmtARS(p.revenue)}</p>
                 </div>
               </div>
@@ -282,22 +282,22 @@ export default function InfluencerDetailPage() {
 
       {/* Campaigns list */}
       {influencer.campaigns && influencer.campaigns.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">Campañas</h3>
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-hairline">
+            <h3 className="text-sm font-semibold text-ink">Campañas</h3>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-hairline">
             {influencer.campaigns.map((c) => (
               <div key={c.id} className="px-6 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{c.name}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm font-medium text-ink">{c.name}</p>
+                  <p className="text-xs text-ink-40">
                     Desde {new Date(c.startDate).toLocaleDateString("es-AR")}
                   </p>
                 </div>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    c.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-500"
+                    c.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-surface text-ink-40"
                   }`}
                 >
                   {c.status === "ACTIVE" ? "Activa" : c.status}
