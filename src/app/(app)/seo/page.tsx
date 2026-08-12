@@ -635,7 +635,7 @@ function AurumSectionCard({
                 <span
                   className="text-[13px] font-bold tracking-tight"
                   style={{
-                    background: "linear-gradient(180deg, #fef3c7 0%, rgb(var(--ent-accent)) 100%)",
+                    background: "rgb(var(--ent-ink))",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                   }}
@@ -732,7 +732,7 @@ function AurumSectionCard({
               <h4
                 className="text-[14px] font-bold tracking-tight"
                 style={{
-                  background: "linear-gradient(180deg, #fef3c7 0%, rgb(var(--ent-accent)) 100%)",
+                  background: "rgb(var(--ent-ink))",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}

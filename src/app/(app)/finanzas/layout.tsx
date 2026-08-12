@@ -99,7 +99,7 @@ export default function FinanzasLayout({
               <span
                 className="text-[10px] font-semibold tracking-[0.18em] uppercase"
                 style={{
-                  background: "linear-gradient(90deg, #fbbf24 0%, #d97706 100%)",
+                  background: "rgb(var(--ent-ink))",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -134,7 +134,7 @@ export default function FinanzasLayout({
                           width: 6,
                           height: 6,
                           background: active
-                            ? "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)"
+                            ? "rgb(var(--ent-ink))"
                             : "rgba(148,163,184,0.35)",
                           boxShadow: active
                             ? "0 0 10px rgba(251,191,36,0.6)"
@@ -173,7 +173,7 @@ export default function FinanzasLayout({
                       className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full"
                       style={{
                         background:
-                          "linear-gradient(90deg, #fbbf24 0%, #d97706 100%)",
+                          "rgb(var(--ent-ink))",
                         opacity: active ? 1 : 0,
                         transform: active ? "scaleX(1)" : "scaleX(0.4)",
                         transformOrigin: "center",

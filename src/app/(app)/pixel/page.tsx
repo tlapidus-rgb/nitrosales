@@ -622,7 +622,7 @@ export default function PixelPage() {
             <div>
               <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-ink-40 mb-1">Revenue Attribution Map</p>
               <div className="flex items-baseline gap-4">
-                <span className="text-4xl font-bold tracking-tight" style={{ background: "linear-gradient(135deg, #e2e8f0, #2F9153)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                <span className="text-4xl font-bold tracking-tight" style={{ background: "rgb(var(--ent-ink))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                   {fmtCompact(Math.round(revCountUp))}
                 </span>
                 <span className="text-lg font-semibold text-ink-60">
