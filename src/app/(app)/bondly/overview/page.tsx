@@ -147,7 +147,7 @@ function eventMeta(type: string): { label: string; icon: any; color: string } {
     case "PURCHASE": return { label: "Compró", icon: ShoppingCart, color: "#10b981" };
     case "ADD_TO_CART": return { label: "Agregó al carrito", icon: ShoppingCart, color: "#f59e0b" };
     case "VIEW_PRODUCT": return { label: "Vio producto", icon: Eye, color: "#2F9153" };
-    case "IDENTIFY": return { label: "Se identificó", icon: UserCheck, color: "#9A978D" };
+    case "IDENTIFY": return { label: "Se identificó", icon: UserCheck, color: "#83807A" };
     case "PAGE_VIEW": return { label: "Navega", icon: Eye, color: "#64748b" };
     default: return { label: type, icon: Activity, color: "#64748b" };
   }
@@ -654,7 +654,7 @@ function TimelineBar({
             <defs>
               <linearGradient id={`spark-${kind}`} x1="0" x2="1" y1="0" y2="0">
                 <stop offset="0%" stopColor={kind === "pixel" ? "#2F9153" : "#10b981"} stopOpacity="0.9" />
-                <stop offset="100%" stopColor={kind === "pixel" ? "#9A978D" : "#059669"} stopOpacity="0.9" />
+                <stop offset="100%" stopColor={kind === "pixel" ? "#83807A" : "#059669"} stopOpacity="0.9" />
               </linearGradient>
               <linearGradient id={`spark-fill-${kind}`} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor={kind === "pixel" ? "#2F9153" : "#10b981"} stopOpacity="0.25" />

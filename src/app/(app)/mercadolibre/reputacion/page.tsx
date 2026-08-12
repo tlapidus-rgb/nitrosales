@@ -77,8 +77,8 @@ export default function ReputacionPage() {
   if (!data || !data.current) return (
     <PageShell>
       <Breadcrumb />
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, color: "#9A978D" }}>
-        <Award size={36} style={{ marginBottom: 12, color: "#9A978D" }} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, color: "#83807A" }}>
+        <Award size={36} style={{ marginBottom: 12, color: "#83807A" }} />
         <div style={{ fontSize: 14 }}>Sin datos de reputación. Sincronizá MELI desde el dashboard.</div>
       </div>
     </PageShell>
@@ -118,13 +118,13 @@ export default function ReputacionPage() {
               <Award size={32} />
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
                 Nivel actual
               </div>
               <div style={{ fontSize: 28, fontWeight: 700, color: current.levelColor, letterSpacing: "-0.02em", lineHeight: 1 }}>
                 {current.levelLabel}
               </div>
-              <div style={{ fontSize: 12, color: "#9A978D", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+              <div style={{ fontSize: 12, color: "#83807A", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
                 {current.powerSeller && (
                   <span style={{ marginRight: 8, padding: "2px 8px", background: ML_GRADIENT, color: "white", fontSize: 10, fontWeight: 700, borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     ⚡ MercadoLíder
@@ -137,7 +137,7 @@ export default function ReputacionPage() {
 
           <div style={{ display: "flex", gap: 24, marginLeft: "auto", flexWrap: "wrap", alignItems: "center" }}>
             <RatingBlock Icon={ThumbsUp} value={current.positiveRatings} label={`Positivas · ${current.positiveRate}%`} tone="#10b981" />
-            <RatingBlock Icon={Minus} value={current.neutralRatings} label="Neutras" tone="#9A978D" />
+            <RatingBlock Icon={Minus} value={current.neutralRatings} label="Neutras" tone="#83807A" />
             <RatingBlock Icon={ThumbsDown} value={current.negativeRatings} label="Negativas" tone="#ef4444" />
           </div>
         </div>
@@ -215,7 +215,7 @@ export default function ReputacionPage() {
                   boxShadow: isCurrent ? `0 4px 14px ${seg.color}40` : "none",
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 700, color: isCurrent ? "white" : "#9A978D", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: isCurrent ? "white" : "#83807A", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   {seg.label}
                 </span>
                 {isCurrent && (
@@ -251,7 +251,7 @@ export default function ReputacionPage() {
             </span>
           )}
           {current.thresholdsError && (
-            <span style={{ fontSize: 10, color: "#9A978D", fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: "#83807A", fontWeight: 600 }}>
               Umbrales no disponibles ahora
             </span>
           )}
@@ -280,7 +280,7 @@ export default function ReputacionPage() {
             return items.map((m) => {
               const hasThreshold = m.thresholdPct != null;
               const isGood = hasThreshold ? m.value < (m.thresholdPct as number) : true;
-              const tone = !hasThreshold ? "#9A978D" : isGood ? "#10b981" : "#ef4444";
+              const tone = !hasThreshold ? "#83807A" : isGood ? "#10b981" : "#ef4444";
               // El bar va de 0 a 2x threshold (o, si no hay threshold, de 0 a max(value, 1))
               const range = hasThreshold ? (m.thresholdPct as number) * 2 : Math.max(m.value, 1);
               const pct = Math.min((m.value / range) * 100, 100);
@@ -293,7 +293,7 @@ export default function ReputacionPage() {
                       <span style={{ fontSize: 13, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums" }}>
                         {m.value.toFixed(2)}%
                       </span>
-                      <span style={{ fontSize: 10, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontSize: 10, color: "#83807A", fontVariantNumeric: "tabular-nums" }}>
                         {hasThreshold ? `umbral ${(m.thresholdPct as number).toFixed(2)}%` : "umbral —"}
                       </span>
                     </div>
@@ -318,7 +318,7 @@ export default function ReputacionPage() {
                           width: 0, height: 0,
                           borderLeft: "4px solid transparent",
                           borderRight: "4px solid transparent",
-                          borderTop: "4px solid #9A978D",
+                          borderTop: "4px solid #83807A",
                         }}
                       />
                     )}
@@ -328,7 +328,7 @@ export default function ReputacionPage() {
             });
           })()}
         </div>
-        <div style={{ fontSize: 11, color: "#9A978D", marginTop: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: "#83807A", marginTop: 10, lineHeight: 1.5 }}>
           {current.thresholdsError
             ? `⚠ Los umbrales reales no se pudieron traer ahora (${current.thresholdsError}). Solo se muestran los valores actuales del seller.`
             : "▼ Umbrales oficiales de MELI traídos en vivo en cada carga. Si tu valor supera el umbral te bajan de nivel."}
@@ -364,9 +364,9 @@ export default function ReputacionPage() {
               <XAxis
                 dataKey="date"
                 tickFormatter={(d) => { try { return new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "short" }); } catch { return d; } }}
-                tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false}
+                tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false}
               />
-              <YAxis tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={50} />
+              <YAxis tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false} width={50} />
               <Tooltip contentStyle={{ borderRadius: "10px", border: "1px solid #E5E1D8", fontSize: "12px", boxShadow: "0 4px 14px rgba(28,27,24,.08)" }} />
               <Area type="monotone" dataKey="totalSales" stroke="#6366f1" strokeWidth={2.5} fill="url(#histGrad)" name="Ventas acumuladas" />
             </AreaChart>
@@ -415,7 +415,7 @@ function RatingBlock({ Icon, value, label, tone }: { Icon: any; value: number; l
           {value.toLocaleString("es-AR")}
         </span>
       </div>
-      <div style={{ fontSize: 10, color: "#9A978D", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+      <div style={{ fontSize: 10, color: "#83807A", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
     </div>
   );
 }
@@ -436,11 +436,11 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#83807A", marginTop: 6 }}>{sub}</div>}
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: `${tone}12`, color: tone, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={15} />
@@ -473,7 +473,7 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
       </div>
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>{title}</h1>
-        <div style={{ fontSize: 13, color: "#9A978D", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
+        <div style={{ fontSize: 13, color: "#83807A", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
       </div>
     </div>
   );
@@ -483,9 +483,9 @@ function Breadcrumb() {
   return (
     <Link
       href="/mercadolibre"
-      style={{ fontSize: 12, color: "#9A978D", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
+      style={{ fontSize: 12, color: "#83807A", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
       onMouseEnter={(e) => (e.currentTarget.style.color = "#6B685F")}
-      onMouseLeave={(e) => (e.currentTarget.style.color = "#9A978D")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#83807A")}
     >
       <ArrowLeft size={13} /> MercadoLibre
     </Link>
@@ -494,7 +494,7 @@ function Breadcrumb() {
 
 function LoadingState({ text }: { text: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#83807A" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>{text}</span>
       <style jsx>{`

@@ -80,7 +80,7 @@ interface SignalsResponse {
 
 // ─── Moment visual config ──────────────────────────────────────────
 const MOMENT_CONFIG: Record<MomentType, { icon: any; accent: string; label: string }> = {
-  VIP_ACTIVE:         { icon: Crown,            accent: "#9A978D", label: "VIP ACTIVO" },
+  VIP_ACTIVE:         { icon: Crown,            accent: "#83807A", label: "VIP ACTIVO" },
   REAPPEARANCE:       { icon: Repeat,           accent: "#10b981", label: "REAPARICIÓN" },
   HIGH_VALUE_ABANDON: { icon: ShoppingCart,     accent: "#f97316", label: "CARRITO ABANDONADO" },
   INTENSE_INTEREST:   { icon: Flame,            accent: "#ef4444", label: "INTERÉS ALTO" },
@@ -89,13 +89,13 @@ const MOMENT_CONFIG: Record<MomentType, { icon: any; accent: string; label: stri
 };
 
 const EVENT_ICONS: Record<string, { icon: any; color: string }> = {
-  PAGE_VIEW:     { icon: Eye,                color: "#9A978D" },
+  PAGE_VIEW:     { icon: Eye,                color: "#83807A" },
   VIEW_PRODUCT:  { icon: Eye,                color: "#6366f1" },
   ADD_TO_CART:   { icon: ShoppingCart,       color: "#f97316" },
   PURCHASE:      { icon: Check,              color: "#10b981" },
   IDENTIFY:      { icon: UserCheck,          color: "#2F9153" },
   CHECKOUT:      { icon: CreditCard,         color: "#0891b2" },
-  CUSTOM:        { icon: MousePointerClick,  color: "#9A978D" },
+  CUSTOM:        { icon: MousePointerClick,  color: "#83807A" },
 };
 
 function eventLabel(type: string): string {
@@ -284,7 +284,7 @@ export default function SenalesPage() {
               value={data?.kpis.signalsLast24h ?? 0}
               helper="eventos capturados"
               icon={Sparkles}
-              color="#9A978D"
+              color="#83807A"
             />
             <KpiTile
               label="Carritos abandonados"

@@ -362,7 +362,7 @@ export default function FloatingAurum() {
           style={{
             width: 62,
             height: 62,
-            background: "linear-gradient(145deg, #0a0a0f 0%, #1a1410 100%)",
+            background: "rgb(var(--ent-elevated))",
             overflow: "hidden",
           }}
           onMouseEnter={(e) => {
@@ -378,7 +378,7 @@ export default function FloatingAurum() {
             style={{
               padding: 1.5,
               background:
-                "linear-gradient(145deg, rgba(251,191,36,0.9), rgba(217,119,6,0.5) 50%, rgba(251,191,36,0.3))",
+                "rgb(var(--ent-hairline-2))",
               WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
               WebkitMaskComposite: "xor",
               maskComposite: "exclude",
@@ -398,8 +398,8 @@ export default function FloatingAurum() {
               width: 10,
               height: 10,
               borderRadius: 999,
-              background: "#10b981",
-              boxShadow: "0 0 0 2px #0a0a0f, 0 0 10px rgba(16,185,129,0.9)",
+              background: "rgb(var(--ent-accent))",
+              boxShadow: "0 0 0 2px rgb(var(--ent-elevated))",
               zIndex: 3,
             }}
           />
@@ -413,8 +413,8 @@ export default function FloatingAurum() {
             bottom: 18,
             padding: "8px 12px",
             borderRadius: 10,
-            background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
-            border: "1px solid rgba(251,191,36,0.25)",
+            background: "rgb(var(--ent-elevated))",
+            border: "1px solid rgb(var(--ent-ink-40))",
             color: "#fde68a",
             fontSize: 11,
             fontWeight: 600,
@@ -435,11 +435,11 @@ export default function FloatingAurum() {
             bottom: 100,
             width: "min(420px, calc(100vw - 44px))",
             height: "min(640px, calc(100vh - 140px))",
-            background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
+            background: "rgb(var(--ent-elevated))",
             borderRadius: 20,
             overflow: "hidden",
             boxShadow:
-              "0 12px 40px -12px rgba(0,0,0,0.6), 0 40px 80px -40px rgba(217,119,6,0.4), 0 0 0 1px rgba(251,191,36,0.12)",
+              "0 12px 40px -12px rgba(0,0,0,0.6), 0 40px 80px -40px rgb(var(--ent-ink-40)), 0 0 0 1px rgb(var(--ent-ink-40))",
             display: "flex",
             flexDirection: "column",
           }}
@@ -449,7 +449,7 @@ export default function FloatingAurum() {
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "radial-gradient(500px 200px at 10% 0%, rgba(251,191,36,0.14), transparent 60%), radial-gradient(360px 180px at 95% 100%, rgba(217,119,6,0.12), transparent 60%)",
+                "radial-gradient(500px 200px at 10% 0%, rgba(28,27,24,0.08), transparent 60%), radial-gradient(360px 180px at 95% 100%, rgb(var(--ent-ink-40)), transparent 60%)",
               opacity: 0.9,
             }}
           />
@@ -460,7 +460,7 @@ export default function FloatingAurum() {
             style={{
               padding: 1,
               background:
-                "linear-gradient(180deg, rgba(251,191,36,0.35), rgba(251,191,36,0.08) 40%, rgba(217,119,6,0.2))",
+                "rgb(var(--ent-hairline-2))",
               WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
               WebkitMaskComposite: "xor",
               maskComposite: "exclude",
@@ -475,7 +475,7 @@ export default function FloatingAurum() {
                 <span
                   className="text-[15px] font-bold tracking-tight"
                   style={{
-                    background: "linear-gradient(180deg, #fef3c7 0%, #fbbf24 100%)",
+                    background: "rgb(var(--ent-ink))",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                   }}
@@ -485,9 +485,9 @@ export default function FloatingAurum() {
                 <span
                   className="text-[9px] font-bold uppercase tracking-[0.2em] px-1.5 py-0.5 rounded"
                   style={{
-                    color: "#fbbf24",
-                    background: "rgba(251,191,36,0.1)",
-                    border: "1px solid rgba(251,191,36,0.25)",
+                    color: "rgb(var(--ent-ink))",
+                    background: "rgba(28,27,24,0.06)",
+                    border: "1px solid rgb(var(--ent-ink-40))",
                   }}
                 >
                   Versión rápida
@@ -513,14 +513,14 @@ export default function FloatingAurum() {
               className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
               style={{
                 color: "#fde68a",
-                background: "rgba(251,191,36,0.06)",
-                border: "1px solid rgba(251,191,36,0.15)",
+                background: "rgba(28,27,24,0.04)",
+                border: "1px solid rgb(var(--ent-ink-40))",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.14)";
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(28,27,24,0.08)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.06)";
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(28,27,24,0.04)";
               }}
             >
               <X size={14} strokeWidth={2.5} />
@@ -537,7 +537,7 @@ export default function FloatingAurum() {
                 className="rounded-xl p-4 text-[12.5px]"
                 style={{
                   background: "rgba(254,243,199,0.08)",
-                  border: "1px solid rgba(251,191,36,0.2)",
+                  border: "1px solid rgb(var(--ent-ink-40))",
                   color: "#fde68a",
                 }}
               >
@@ -573,7 +573,7 @@ export default function FloatingAurum() {
                 className="rounded-xl p-3.5 mt-1"
                 style={{
                   background: "rgba(254,243,199,0.95)",
-                  border: "1px solid rgba(251,191,36,0.3)",
+                  border: "1px solid rgb(var(--ent-ink-40))",
                   animation: `fadeInUp 320ms ${ES_TRANSITION}`,
                 }}
               >
@@ -590,12 +590,12 @@ export default function FloatingAurum() {
                     style={{
                       background:
                         m.role === "user"
-                          ? "rgba(251,191,36,0.10)"
+                          ? "rgb(var(--ent-ink-40))"
                           : "rgba(254,243,199,0.95)",
                       border:
                         m.role === "user"
-                          ? "1px solid rgba(251,191,36,0.25)"
-                          : "1px solid rgba(251,191,36,0.3)",
+                          ? "1px solid rgb(var(--ent-ink-40))"
+                          : "1px solid rgb(var(--ent-ink-40))",
                       animation: `fadeInUp 260ms ${ES_TRANSITION}`,
                     }}
                   >
@@ -626,15 +626,15 @@ export default function FloatingAurum() {
                     disabled={asking}
                     className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
                     style={{
-                      background: "rgba(251,191,36,0.08)",
+                      background: "rgb(var(--ent-ink-40))",
                       color: "#fde68a",
-                      border: "1px solid rgba(251,191,36,0.25)",
+                      border: "1px solid rgb(var(--ent-ink-40))",
                     }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.16)";
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--ent-ink-40))";
                     }}
                     onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.08)";
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--ent-ink-40))";
                     }}
                   >
                     {s}
@@ -658,10 +658,10 @@ export default function FloatingAurum() {
                   className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2"
                   style={{
                     background: "rgba(0,0,0,0.3)",
-                    border: "1px solid rgba(251,191,36,0.2)",
+                    border: "1px solid rgb(var(--ent-ink-40))",
                   }}
                 >
-                  <Sparkles size={13} style={{ color: "#fbbf24" }} />
+                  <Sparkles size={13} style={{ color: "rgb(var(--ent-ink))" }} />
                   <input
                     ref={inputRef}
                     type="text"
@@ -670,7 +670,7 @@ export default function FloatingAurum() {
                     placeholder="Preguntale a Aurum…"
                     disabled={asking}
                     className="flex-1 bg-transparent outline-none text-[12.5px] placeholder:text-amber-200/40"
-                    style={{ color: "#fef3c7" }}
+                    style={{ color: "rgb(var(--ent-surface))" }}
                   />
                 </div>
                 <button
@@ -678,9 +678,9 @@ export default function FloatingAurum() {
                   disabled={asking || !input.trim()}
                   className="rounded-xl p-2 transition-all disabled:opacity-40 flex items-center justify-center"
                   style={{
-                    background: "linear-gradient(180deg, #fbbf24 0%, #d97706 100%)",
+                    background: "linear-gradient(180deg, rgb(var(--ent-ink)) 0%, #d97706 100%)",
                     color: "#422006",
-                    boxShadow: "0 2px 12px -2px rgba(251,191,36,0.4)",
+                    boxShadow: "0 2px 12px -2px rgb(var(--ent-ink-40))",
                     width: 36,
                     height: 36,
                   }}
@@ -723,46 +723,46 @@ export default function FloatingAurum() {
         .aurum-scroll::-webkit-scrollbar { width: 6px; }
         .aurum-scroll::-webkit-scrollbar-track { background: transparent; }
         .aurum-scroll::-webkit-scrollbar-thumb {
-          background: rgba(251,191,36,0.25);
+          background: rgb(var(--ent-ink-40));
           border-radius: 3px;
         }
         .aurum-scroll::-webkit-scrollbar-thumb:hover {
-          background: rgba(251,191,36,0.45);
+          background: rgb(var(--ent-ink-40));
         }
-        .aurum-scroll { scrollbar-width: thin; scrollbar-color: rgba(251,191,36,0.25) transparent; }
+        .aurum-scroll { scrollbar-width: thin; scrollbar-color: rgb(var(--ent-ink-40)) transparent; }
 
         /* Halo dorado de la burbuja — box-shadow siempre circular, sin artifacts.
            Respira suave y se intensifica en hover. */
         .aurum-bubble-halo {
           box-shadow:
-            0 0 0 0 rgba(251,191,36,0.35),
+            0 0 0 0 rgb(var(--ent-ink-40)),
             0 8px 28px -6px rgba(0,0,0,0.5),
-            0 0 22px 2px rgba(251,191,36,0.28),
-            0 0 44px 4px rgba(217,119,6,0.22),
-            inset 0 1px 0 rgba(251,191,36,0.3);
+            0 0 22px 2px rgb(var(--ent-ink-40)),
+            0 0 44px 4px rgb(var(--ent-ink-40)),
+            inset 0 1px 0 rgb(var(--ent-ink-40));
           animation: aurumBubbleHalo 3.4s ease-in-out infinite;
         }
         .aurum-bubble-halo:hover {
           box-shadow:
             0 10px 32px -6px rgba(0,0,0,0.55),
-            0 0 28px 4px rgba(251,191,36,0.45),
-            0 0 56px 8px rgba(217,119,6,0.32),
-            inset 0 1px 0 rgba(251,191,36,0.4);
+            0 0 28px 4px rgb(var(--ent-ink-40)),
+            0 0 56px 8px rgb(var(--ent-ink-40)),
+            inset 0 1px 0 rgb(var(--ent-ink-40));
         }
         @keyframes aurumBubbleHalo {
           0%,100% {
             box-shadow:
               0 8px 28px -6px rgba(0,0,0,0.5),
-              0 0 20px 1px rgba(251,191,36,0.24),
-              0 0 40px 3px rgba(217,119,6,0.20),
-              inset 0 1px 0 rgba(251,191,36,0.3);
+              0 0 20px 1px rgb(var(--ent-ink-40)),
+              0 0 40px 3px rgb(var(--ent-ink-40)),
+              inset 0 1px 0 rgb(var(--ent-ink-40));
           }
           50% {
             box-shadow:
               0 8px 28px -6px rgba(0,0,0,0.5),
-              0 0 26px 3px rgba(251,191,36,0.36),
-              0 0 52px 6px rgba(217,119,6,0.28),
-              inset 0 1px 0 rgba(251,191,36,0.35);
+              0 0 26px 3px rgb(var(--ent-ink-40)),
+              0 0 52px 6px rgb(var(--ent-ink-40)),
+              inset 0 1px 0 rgb(var(--ent-ink-40));
           }
         }
 

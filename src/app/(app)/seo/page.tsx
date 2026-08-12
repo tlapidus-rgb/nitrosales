@@ -346,7 +346,7 @@ function AurumOrbMini({ size = 28, thinking = false }: { size?: number; thinking
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background: "radial-gradient(circle, rgba(251,191,36,0.35) 0%, transparent 70%)",
+            background: "transparent 0%, transparent 70%)",
             animation: "aurumPulseRing 2.2s ease-in-out infinite",
           }}
         />
@@ -354,10 +354,10 @@ function AurumOrbMini({ size = 28, thinking = false }: { size?: number; thinking
       <div
         className="absolute inset-[15%] rounded-full"
         style={{
-          background: "radial-gradient(circle at 35% 30%, #fef3c7 0%, #fde68a 20%, #fbbf24 45%, #d97706 100%)",
+          background: "radial-gradient(circle at 35% 30%, #fef3c7 0%, rgb(var(--ent-surface-2)) 20%, rgb(var(--ent-accent)) 45%, #d97706 100%)",
           boxShadow:
-            "0 0 12px rgba(251,191,36,0.45), 0 0 22px rgba(251,191,36,0.2), inset -2px -3px 6px rgba(120,53,15,0.35), inset 1.5px 2px 5px rgba(254,243,199,0.6)",
-          animation: "aurumBreath 3.5s ease-in-out infinite",
+            "0 0 12px rgba(251,191,36,0.45),191,36,0.2), inset -2px -3px 6px rgba(120,53,15,0.35), inset 1.5px 2px 5px rgba(254,243,199,0.6)",
+          
         }}
       />
       <div
@@ -367,7 +367,7 @@ function AurumOrbMini({ size = 28, thinking = false }: { size?: number; thinking
           left: "25%",
           width: "22%",
           height: "18%",
-          background: "radial-gradient(circle, rgba(255,255,255,0.85) 0%, transparent 70%)",
+          background: "transparent 0%, transparent 70%)",
           filter: "blur(1px)",
         }}
       />
@@ -380,8 +380,7 @@ function AurumOrbMini({ size = 28, thinking = false }: { size?: number; thinking
               left: "50%",
               width: "2.5px",
               height: "2.5px",
-              background: "#fde68a",
-              boxShadow: "0 0 6px rgba(251,191,36,0.9)",
+              background: "rgb(var(--ent-surface-2))",
               transform: "translateX(-50%)",
             }}
           />
@@ -595,7 +594,7 @@ function AurumSectionCard({
           onClick={handleOpen}
           className="group w-full text-left relative rounded-2xl overflow-hidden transition-all"
           style={{
-            background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
+            background: "rgb(var(--ent-elevated))",
             boxShadow:
               "0 1px 0 rgba(251,191,36,0.08), 0 6px 18px -8px rgba(0,0,0,0.5), 0 20px 40px -28px rgba(217,119,6,0.18)",
           }}
@@ -636,7 +635,7 @@ function AurumSectionCard({
                 <span
                   className="text-[13px] font-bold tracking-tight"
                   style={{
-                    background: "linear-gradient(180deg, #fef3c7 0%, #fbbf24 100%)",
+                    background: "linear-gradient(180deg, #fef3c7 0%, rgb(var(--ent-accent)) 100%)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                   }}
@@ -650,7 +649,7 @@ function AurumSectionCard({
                 {!insightLoading && !insightError && !everOpened && (
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded"
                     style={{
-                      color: "#fde68a",
+                      color: "rgb(var(--ent-surface-2))",
                       background: "rgba(251,191,36,0.12)",
                       border: "1px solid rgba(251,191,36,0.3)",
                     }}
@@ -660,9 +659,8 @@ function AurumSectionCard({
                         width: 5,
                         height: 5,
                         borderRadius: 999,
-                        background: "#fbbf24",
-                        boxShadow: "0 0 8px rgba(251,191,36,0.8)",
-                        animation: "aurumBreath 2s ease-in-out infinite",
+                        background: "rgb(var(--ent-accent))",
+                        
                       }}
                     />
                     Listo
@@ -671,7 +669,7 @@ function AurumSectionCard({
                 {messages.length > 0 && (
                   <span className="text-[9px] font-semibold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded"
                     style={{
-                      color: "#fde68a",
+                      color: "rgb(var(--ent-surface-2))",
                       background: "rgba(251,191,36,0.08)",
                       border: "1px solid rgba(251,191,36,0.2)",
                     }}
@@ -695,7 +693,7 @@ function AurumSectionCard({
               className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.18em] px-2.5 py-1.5 rounded-lg transition-all"
               style={{
                 color: "#422006",
-                background: "linear-gradient(180deg, #fbbf24 0%, #d97706 100%)",
+                background: "linear-gradient(180deg, rgb(var(--ent-accent)) 0%, #d97706 100%)",
                 boxShadow: "0 2px 12px -2px rgba(251,191,36,0.4)",
               }}
             >
@@ -712,7 +710,7 @@ function AurumSectionCard({
     <div
       className="relative rounded-2xl overflow-hidden mt-4"
       style={{
-        background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
+        background: "rgb(var(--ent-elevated))",
         boxShadow:
           "0 1px 0 rgba(251,191,36,0.08), 0 10px 30px -10px rgba(0,0,0,0.5), 0 30px 60px -30px rgba(217,119,6,0.2)",
         animation: `fadeInUp 320ms ${ES_TRANSITION}`,
@@ -734,7 +732,7 @@ function AurumSectionCard({
               <h4
                 className="text-[14px] font-bold tracking-tight"
                 style={{
-                  background: "linear-gradient(180deg, #fef3c7 0%, #fbbf24 100%)",
+                  background: "linear-gradient(180deg, #fef3c7 0%, rgb(var(--ent-accent)) 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
@@ -744,7 +742,7 @@ function AurumSectionCard({
               <span
                 className="text-[9px] font-bold uppercase tracking-[0.2em] px-1.5 py-0.5 rounded"
                 style={{
-                  color: "#fbbf24",
+                  color: "rgb(var(--ent-accent))",
                   background: "rgba(251,191,36,0.08)",
                   border: "1px solid rgba(251,191,36,0.2)",
                 }}
@@ -765,7 +763,7 @@ function AurumSectionCard({
             title="Minimizar"
             className="shrink-0 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1.5 rounded-lg transition-all"
             style={{
-              color: "#fde68a",
+              color: "rgb(var(--ent-surface-2))",
               background: "rgba(251,191,36,0.06)",
               border: "1px solid rgba(251,191,36,0.18)",
             }}
@@ -834,7 +832,7 @@ function AurumSectionCard({
                 }}
               >
                 {m.role === "user" ? (
-                  <div className="text-[12.5px] font-medium" style={{ color: "#fde68a" }}>
+                  <div className="text-[12.5px] font-medium" style={{ color: "rgb(var(--ent-surface-2))" }}>
                     {m.content}
                   </div>
                 ) : (
@@ -861,7 +859,7 @@ function AurumSectionCard({
                 className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
                 style={{
                   background: "rgba(251,191,36,0.08)",
-                  color: "#fde68a",
+                  color: "rgb(var(--ent-surface-2))",
                   border: "1px solid rgba(251,191,36,0.25)",
                 }}
                 onMouseEnter={(e) => {
@@ -892,7 +890,7 @@ function AurumSectionCard({
                 border: "1px solid rgba(251,191,36,0.18)",
               }}
             >
-              <Sparkles size={13} style={{ color: "#fbbf24" }} />
+              <Sparkles size={13} style={{ color: "rgb(var(--ent-accent))" }} />
               <input
                 type="text"
                 value={input}
@@ -908,7 +906,7 @@ function AurumSectionCard({
               disabled={asking || !input.trim()}
               className="rounded-xl px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider transition-all disabled:opacity-40"
               style={{
-                background: "linear-gradient(180deg, #fbbf24 0%, #d97706 100%)",
+                background: "linear-gradient(180deg, rgb(var(--ent-accent)) 0%, #d97706 100%)",
                 color: "#422006",
                 boxShadow: "0 2px 12px -2px rgba(251,191,36,0.4)",
               }}
@@ -1219,7 +1217,7 @@ function SEOPageInner() {
           />
           <HeroKPI
             icon={Eye}
-            iconColor="#8b5cf6"
+            iconColor="rgb(var(--ent-ink-40))"
             iconBg="bg-violet-50"
             label="Impresiones"
             tooltip="Cuántas veces tu sitio apareció en los resultados de Google, aunque no te hayan hecho click. Mide tu visibilidad."
@@ -1716,7 +1714,7 @@ function PositionDistCard({ dist, total, loading }: any) {
     { key: "pos1_3", label: "Top 3", desc: "Primeros lugares", color: "#10b981", softBg: "bg-emerald-50" },
     { key: "pos4_10", label: "4–10", desc: "Primera página", color: "#3b82f6", softBg: "bg-blue-50" },
     { key: "pos11_20", label: "11–20", desc: "Segunda página", color: "#f59e0b", softBg: "bg-amber-50" },
-    { key: "pos20plus", label: "20+", desc: "Fuera del top 20", color: "#94a3b8", softBg: "bg-surface-2" },
+    { key: "pos20plus", label: "20+", desc: "Fuera del top 20", color: "rgb(var(--ent-ink-40))", softBg: "bg-surface-2" },
   ];
 
   return (
@@ -1865,9 +1863,9 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
                   <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={fmtDateShort} />
-              <YAxis yAxisId="l" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
-              <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgb(var(--ent-ink-40))" }} tickFormatter={fmtDateShort} />
+              <YAxis yAxisId="l" tick={{ fontSize: 10, fill: "rgb(var(--ent-ink-40))" }} tickFormatter={(v) => fmtCompact(v)} />
+              <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10, fill: "rgb(var(--ent-ink-40))" }} tickFormatter={(v) => fmtCompact(v)} />
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
@@ -1893,8 +1891,8 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={fmtDateShort} />
-              <YAxis reversed tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => v.toFixed(0)} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgb(var(--ent-ink-40))" }} tickFormatter={fmtDateShort} />
+              <YAxis reversed tick={{ fontSize: 10, fill: "rgb(var(--ent-ink-40))" }} tickFormatter={(v) => v.toFixed(0)} />
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
@@ -1909,7 +1907,7 @@ function TrendCard({ title, tooltip, dailyTrend, metric, loading }: any) {
                   );
                 }}
               />
-              <ReferenceLine y={10} stroke="#cbd5e1" strokeDasharray="3 3" label={{ value: "Top 10", fontSize: 9, fill: "#94a3b8", position: "right" }} />
+              <ReferenceLine y={10} stroke="rgb(var(--ent-hairline-2))" strokeDasharray="3 3" label={{ value: "Top 10", fontSize: 9, fill: "rgb(var(--ent-ink-40))", position: "right" }} />
               <Line type="monotone" dataKey="position" stroke="#f59e0b" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
@@ -2504,7 +2502,7 @@ function CannibalizationCard({ items, loading }: any) {
 function DeviceSplitCard({ deviceSplit, totalClicks, pctMobile, loading }: any) {
   const devices = [
     { key: "MOBILE", label: "Móvil", Icon: Smartphone, color: "#3b82f6", bg: "bg-blue-50", text: "text-blue-700" },
-    { key: "DESKTOP", label: "Escritorio", Icon: Monitor, color: "#8b5cf6", bg: "bg-violet-50", text: "text-violet-700" },
+    { key: "DESKTOP", label: "Escritorio", Icon: Monitor, color: "rgb(var(--ent-ink-40))", bg: "bg-violet-50", text: "text-violet-700" },
     { key: "TABLET", label: "Tablet", Icon: Monitor, color: "#10b981", bg: "bg-emerald-50", text: "text-emerald-700" },
   ];
 

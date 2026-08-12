@@ -308,7 +308,7 @@ export default function GoogleAdsIntegrationPage() {
             onClick={handleRequest}
             disabled={submitting || !emailInput}
             className="w-full rounded-lg px-4 py-2.5 text-white font-semibold text-[13px] disabled:opacity-50"
-            style={{ background: submitting || !emailInput ? "#9A978D" : "linear-gradient(135deg, #4285F4, #1a73e8)" }}
+            style={{ background: submitting || !emailInput ? "#83807A" : "linear-gradient(135deg, #4285F4, #1a73e8)" }}
           >
             {submitting ? "Enviando…" : "Pedir autorización"}
           </button>

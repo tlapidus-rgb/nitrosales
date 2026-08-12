@@ -14,7 +14,7 @@ import { X, Paperclip, Send, Image as ImageIcon, Loader2 } from "lucide-react";
 import { AurumOrb } from "./aurum/AurumOrb";
 
 const BRAND_ORANGE = "#FF5E1A";
-const CREATOR_GRADIENT = "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)";
+const CREATOR_GRADIENT = "rgb(var(--ent-ink))";
 
 type ImgAttachment = { base64: string; mediaType: string; preview: string };
 type UiMessage = {
@@ -210,7 +210,7 @@ export default function OnboardingAurumChat({
             alignItems: "center",
             gap: 12,
             padding: "16px 20px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid rgb(var(--ent-hairline))",
             background: "linear-gradient(180deg, rgba(168,85,247,0.08) 0%, transparent 100%)",
           }}
         >
@@ -296,7 +296,7 @@ export default function OnboardingAurumChat({
                       padding: "11px 14px",
                       borderRadius: 10,
                       border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
+                      background: "rgb(var(--ent-elevated))",
                       color: "#D1D5DB",
                       fontSize: 12.5,
                       textAlign: "left",
@@ -309,7 +309,7 @@ export default function OnboardingAurumChat({
                       e.currentTarget.style.color = "#fff";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                      e.currentTarget.style.background = "rgb(var(--ent-elevated))";
                       e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
                       e.currentTarget.style.color = "#D1D5DB";
                     }}
@@ -334,7 +334,7 @@ export default function OnboardingAurumChat({
                   padding: "10px 14px",
                   borderRadius: 12,
                   background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  border: "1px solid rgb(var(--ent-hairline))",
                   color: "#9CA3AF",
                   fontSize: 12.5,
                   display: "flex",
@@ -355,7 +355,7 @@ export default function OnboardingAurumChat({
           <div
             style={{
               padding: "10px 16px",
-              borderTop: "1px solid rgba(255,255,255,0.06)",
+              borderTop: "1px solid rgb(var(--ent-hairline))",
               display: "flex",
               gap: 8,
               flexWrap: "wrap",
@@ -405,7 +405,7 @@ export default function OnboardingAurumChat({
         <div
           style={{
             padding: "12px 16px 16px",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
+            borderTop: "1px solid rgb(var(--ent-hairline))",
             display: "flex",
             gap: 8,
             alignItems: "flex-end",
@@ -539,7 +539,7 @@ function MessageBubble({ message }: { message: UiMessage }) {
               padding: "10px 14px",
               borderRadius: 12,
               background: isUser ? "rgba(255,94,26,0.14)" : "rgba(255,255,255,0.04)",
-              border: isUser ? "1px solid rgba(255,94,26,0.3)" : "1px solid rgba(255,255,255,0.06)",
+              border: isUser ? "1px solid rgba(255,94,26,0.3)" : "1px solid rgb(var(--ent-hairline))",
               color: isUser ? "#FFD9C4" : "#E5E7EB",
               fontSize: 13,
               lineHeight: 1.55,

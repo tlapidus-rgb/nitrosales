@@ -20,19 +20,19 @@ import { SourceLogo, CHANNEL_LABEL, CHANNEL_TINT } from "@/components/bondly/Sou
 // ═══════════════════════════════════════════════════════════════════
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #2F9153 50%, #6366f1 100%)";
-const VIP_GRAD = "linear-gradient(135deg, #9A978D 0%, #ec4899 50%, #f97316 100%)";
+const VIP_GRAD = "linear-gradient(135deg, #83807A 0%, #ec4899 50%, #f97316 100%)";
 const GOLD_GRAD = "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)";
 
 const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gradient: string; label: string; bg: string }> = {
   VIP: {
-    icon: Crown, accent: "#9A978D", glow: "rgba(168,85,247,0.45)",
-    gradient: "linear-gradient(135deg, #9A978D 0%, #ec4899 50%, #f97316 100%)",
+    icon: Crown, accent: "#83807A", glow: "rgba(168,85,247,0.45)",
+    gradient: "linear-gradient(135deg, #83807A 0%, #ec4899 50%, #f97316 100%)",
     bg: "linear-gradient(135deg, rgba(168,85,247,0.10), rgba(236,72,153,0.08))",
     label: "VIP",
   },
   Loyal: {
     icon: Heart, accent: "#ec4899", glow: "rgba(236,72,153,0.35)",
-    gradient: "linear-gradient(135deg, #ec4899 0%, #9A978D 100%)",
+    gradient: "linear-gradient(135deg, #ec4899 0%, #83807A 100%)",
     bg: "linear-gradient(135deg, rgba(236,72,153,0.08), rgba(168,85,247,0.06))",
     label: "LEAL",
   },
@@ -55,8 +55,8 @@ const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gra
     label: "EN RIESGO",
   },
   Dormant: {
-    icon: Moon, accent: "#9A978D", glow: "rgba(154,151,141,0.30)",
-    gradient: "linear-gradient(135deg, #9A978D 0%, #6B685F 100%)",
+    icon: Moon, accent: "#83807A", glow: "rgba(154,151,141,0.30)",
+    gradient: "linear-gradient(135deg, #83807A 0%, #6B685F 100%)",
     bg: "linear-gradient(135deg, rgba(154,151,141,0.06), rgba(107,104,95,0.05))",
     label: "DORMIDO",
   },
@@ -64,23 +64,23 @@ const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gra
 
 const EVENT_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
   // Tipos reales que escribe el píxel de NitroSales
-  PAGE_VIEW:         { icon: Eye,               color: "#9A978D", label: "Vio página" },
+  PAGE_VIEW:         { icon: Eye,               color: "#83807A", label: "Vio página" },
   VIEW_PRODUCT:      { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
   ADD_TO_CART:       { icon: ShoppingCart,      color: "#f97316", label: "Agregó al carrito" },
-  INITIATE_CHECKOUT: { icon: CreditCard,        color: "#9A978D", label: "Inició checkout" },
-  CHECKOUT_SHIPPING: { icon: CreditCard,        color: "#9A978D", label: "Eligió envío" },
-  CHECKOUT_PAYMENT:  { icon: CreditCard,        color: "#9A978D", label: "Eligió pago" },
+  INITIATE_CHECKOUT: { icon: CreditCard,        color: "#83807A", label: "Inició checkout" },
+  CHECKOUT_SHIPPING: { icon: CreditCard,        color: "#83807A", label: "Eligió envío" },
+  CHECKOUT_PAYMENT:  { icon: CreditCard,        color: "#83807A", label: "Eligió pago" },
   PURCHASE:          { icon: Zap,               color: "#10b981", label: "Compró" },
   IDENTIFY:          { icon: Users,             color: "#14b8a6", label: "Se identificó" },
   // Variantes GA4-style (por si alguna integración las usa)
   VIEW_ITEM:         { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
   VIEW_ITEM_LIST:    { icon: Layers,            color: "#6366f1", label: "Exploró listado" },
-  REMOVE_FROM_CART:  { icon: ShoppingCart,      color: "#9A978D", label: "Quitó del carrito" },
-  BEGIN_CHECKOUT:    { icon: CreditCard,        color: "#9A978D", label: "Inició checkout" },
+  REMOVE_FROM_CART:  { icon: ShoppingCart,      color: "#83807A", label: "Quitó del carrito" },
+  BEGIN_CHECKOUT:    { icon: CreditCard,        color: "#83807A", label: "Inició checkout" },
   SEARCH:            { icon: Compass,           color: "#0891b2", label: "Buscó" },
   SESSION_START:     { icon: CircleDot,         color: "#2F9153", label: "Sesión iniciada" },
   CLICK:             { icon: MousePointerClick, color: "#6366f1", label: "Click" },
-  default:           { icon: Activity,          color: "#9A978D", label: "Actividad" },
+  default:           { icon: Activity,          color: "#83807A", label: "Actividad" },
 };
 
 function eventMeta(type: string) {
@@ -176,12 +176,12 @@ function avatarGradientFor(id: string): string {
     "linear-gradient(135deg, #2F9153 0%, #6366f1 100%)",
     "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
     "linear-gradient(135deg, #10b981 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #9A978D 0%, #ec4899 100%)",
+    "linear-gradient(135deg, #83807A 0%, #ec4899 100%)",
     "linear-gradient(135deg, #3b82f6 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #ec4899 0%, #9A978D 100%)",
+    "linear-gradient(135deg, #ec4899 0%, #83807A 100%)",
     "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
     "linear-gradient(135deg, #14b8a6 0%, #0891b2 100%)",
-    "linear-gradient(135deg, #6366f1 0%, #9A978D 100%)",
+    "linear-gradient(135deg, #6366f1 0%, #83807A 100%)",
     "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
   ];
   let h = 0;
@@ -553,7 +553,7 @@ export default function ClienteDetailPage() {
               icon={<Crown className="w-4 h-4" />}
               label="CLV rank"
               value={<><CountUpNum target={stats.clvRank} />%</>}
-              accent="#9A978D"
+              accent="#83807A"
               delay={240}
             />
           </div>
@@ -631,7 +631,7 @@ export default function ClienteDetailPage() {
                     label="CLV rank"
                     value={`${stats.clvRank}%`}
                     hint={stats.clvRank >= 80 ? "top" : stats.clvRank >= 50 ? "medio" : "bajo"}
-                    accent="#9A978D"
+                    accent="#83807A"
                   />
                   <MiniStat
                     label="Cadencia"
@@ -668,8 +668,8 @@ export default function ClienteDetailPage() {
                     <div
                       className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
                       style={{
-                        background: `${CHANNEL_TINT[acquisition.channel] || "#9A978D"}14`,
-                        border: `1px solid ${CHANNEL_TINT[acquisition.channel] || "#9A978D"}24`,
+                        background: `${CHANNEL_TINT[acquisition.channel] || "#83807A"}14`,
+                        border: `1px solid ${CHANNEL_TINT[acquisition.channel] || "#83807A"}24`,
                       }}
                     >
                       <SourceLogo channel={acquisition.channel as any} size={18} />
@@ -829,7 +829,7 @@ function ProbabilityBar({
   // Banner color: if inverted (churn), red at high values, green at low.
   const severity = inverted
     ? v >= 70 ? "#ef4444" : v >= 40 ? "#f59e0b" : "#10b981"
-    : v >= 60 ? "#10b981" : v >= 30 ? "#2F9153" : "#9A978D";
+    : v >= 60 ? "#10b981" : v >= 30 ? "#2F9153" : "#83807A";
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -897,7 +897,7 @@ function ProductRow({ product, rank }: { product: any; rank: number }) {
       <div
         className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
         style={{
-          background: rank === 1 ? GOLD_GRAD : rank === 2 ? "linear-gradient(135deg, #9A978D 0%, #6B685F 100%)" : "linear-gradient(135deg, #DCD8CD 0%, #9A978D 100%)",
+          background: rank === 1 ? GOLD_GRAD : rank === 2 ? "linear-gradient(135deg, #83807A 0%, #6B685F 100%)" : "linear-gradient(135deg, #DCD8CD 0%, #83807A 100%)",
         }}
       >
         {rank}
@@ -1074,7 +1074,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
                   className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
                   style={{
                     background: "rgba(148,163,184,0.12)",
-                    color: "#9A978D",
+                    color: "#83807A",
                     border: "1px solid rgba(148,163,184,0.25)",
                   }}
                   title="Compra anterior a la instalación de NitroPixel. No hay datos de canal para estas órdenes."

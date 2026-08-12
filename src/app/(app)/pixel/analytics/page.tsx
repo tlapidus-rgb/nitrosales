@@ -50,7 +50,7 @@ const fmtCompact = (n: number) => {
 const pctBadge = (v: number) =>
   v > 0 ? `+${v.toFixed(1)}%` : v < 0 ? `${v.toFixed(1)}%` : "0%";
 const pctColor = (v: number) =>
-  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-gray-400";
+  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-ink-60";
 
 const COLORS = ["#f97316", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899", "#3b82f6", "#14b8a6"];
 
@@ -143,9 +143,9 @@ function InfoTip({ text }: { text: string }) {
     <TooltipPortal
       width={240}
       content={text}
-      bubbleClassName="bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl"
+      bubbleClassName="bg-ink text-white text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl"
     >
-      <svg className="w-3.5 h-3.5 ml-1 text-gray-400 hover:text-cyan-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <svg className="w-3.5 h-3.5 ml-1 text-ink-60 hover:text-ink transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <circle cx="12" cy="12" r="10" /><path d="M12 16v-4m0-4h.01" />
       </svg>
     </TooltipPortal>
@@ -287,7 +287,7 @@ function useCountUp(target: number, duration = 800): number {
 
 // ── Truth Score color logic ──
 function truthScoreColor(pixelRev: number, platformRev: number): { color: string; bg: string; label: string } {
-  if (!platformRev || platformRev === 0) return { color: "text-gray-500", bg: "bg-gray-100", label: "N/A" };
+  if (!platformRev || platformRev === 0) return { color: "text-ink-60", bg: "bg-surface-2", label: "N/A" };
   const ratio = (pixelRev / platformRev) * 100;
   if (ratio >= 90 && ratio <= 110) return { color: "text-emerald-700", bg: "bg-emerald-50", label: `${Math.round(ratio)}%` };
   if (ratio >= 70 && ratio <= 130) return { color: "text-amber-700", bg: "bg-amber-50", label: `${Math.round(ratio)}%` };
@@ -297,7 +297,7 @@ function truthScoreColor(pixelRev: number, platformRev: number): { color: string
 // ══════════════════════════════════════════════════════════════
 // CARD SHELL — shared styling for all cards
 // ══════════════════════════════════════════════════════════════
-const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all duration-[280ms]";
+const cardStyle = "bg-elevated rounded-2xl border border-hairline transition-all duration-[280ms]";
 const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
 
 // ══════════════════════════════════════════════════════════════
@@ -420,7 +420,7 @@ function SectionNav() {
               className={`relative whitespace-nowrap px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all duration-300 ${
                 isActive
                   ? "text-white"
-                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-100/60"
+                  : "text-ink-60 hover:text-ink-60 hover:bg-surface-2/60"
               }`}
               style={isActive ? {
                 background: "#1C1B18",
@@ -564,21 +564,21 @@ export default function AnalyticsPage() {
       <div className="min-h-screen bg-canvas p-6">
         <div className="max-w-[1440px] mx-auto space-y-6">
           {/* Skeleton header */}
-          <div className="h-10 bg-gray-100 rounded-xl w-72 animate-pulse" />
+          <div className="h-10 bg-surface-2 rounded-xl w-72 animate-pulse" />
           {/* Skeleton KPI cards */}
           <div className="grid grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className={`${cardStyle} p-6 h-32 animate-pulse`} style={{ ...cardShadow, animationDelay: `${i * 80}ms` }}>
-                <div className="h-4 bg-gray-100 rounded w-24 mb-4" />
-                <div className="h-8 bg-gray-100 rounded w-36" />
+                <div className="h-4 bg-surface-2 rounded w-24 mb-4" />
+                <div className="h-8 bg-surface-2 rounded w-36" />
               </div>
             ))}
           </div>
           {/* Skeleton table */}
           <div className={`${cardStyle} p-6 h-64 animate-pulse`} style={cardShadow}>
-            <div className="h-4 bg-gray-100 rounded w-48 mb-6" />
+            <div className="h-4 bg-surface-2 rounded w-48 mb-6" />
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-50 rounded mb-2" />
+              <div key={i} className="h-10 bg-surface rounded mb-2" />
             ))}
           </div>
         </div>
@@ -596,9 +596,9 @@ export default function AnalyticsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-gray-900 font-medium mb-1">Error cargando analytics</p>
-          <p className="text-gray-500 text-sm mb-4">{error}</p>
-          <button onClick={() => fetchAll()} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors">
+          <p className="text-ink font-medium mb-1">Error cargando analytics</p>
+          <p className="text-ink-60 text-sm mb-4">{error}</p>
+          <button onClick={() => fetchAll()} className="px-4 py-2 bg-ink text-white rounded-lg text-sm hover:bg-ink transition-colors">
             Reintentar
           </button>
         </div>
@@ -670,7 +670,7 @@ export default function AnalyticsPage() {
         .pixel-refetching { position: relative; }
         .pixel-refetching::after {
           content: ''; position: absolute; inset: 0; z-index: 50; pointer-events: none;
-          background: linear-gradient(90deg, transparent 25%, rgba(6,182,212,0.04) 50%, transparent 75%);
+          background: linear-gradient(90deg, transparent 25%, rgba(28,27,24,0.03) 50%, transparent 75%);
           background-size: 400% 100%;
           animation: shimmer 1.5s ease-in-out infinite;
         }
@@ -694,8 +694,8 @@ export default function AnalyticsPage() {
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Analytics</h1>
-              <p className="text-xs text-gray-500 mt-0.5">Powered by NitroPixel — datos propios, sin intermediarios</p>
+              <h1 className="text-xl font-semibold text-ink tracking-tight">Analytics</h1>
+              <p className="text-xs text-ink-60 mt-0.5">Powered by NitroPixel — datos propios, sin intermediarios</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -782,19 +782,19 @@ export default function AnalyticsPage() {
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</span>
+                  <span className="text-xs font-medium text-ink-60 uppercase tracking-wider">{kpi.label}</span>
                   <InfoTip text={kpi.tooltip} />
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-surface-2 border border-hairline flex items-center justify-center text-ink-60 group-hover:text-ink transition-colors">
                   {kpi.icon}
                 </div>
               </div>
-              <div className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</div>
+              <div className="text-2xl font-bold text-ink tracking-tight">{kpi.value}</div>
               <div className="flex items-center gap-2 mt-1.5">
                 {kpi.change !== 0 && (
                   <span className={`text-xs font-semibold ${pctColor(kpi.change)}`}>{pctBadge(kpi.change)}</span>
                 )}
-                <span className="text-[11px] text-gray-400">{kpi.detail}</span>
+                <span className="text-[11px] text-ink-60">{kpi.detail}</span>
               </div>
             </div>
           ))}
@@ -807,12 +807,12 @@ export default function AnalyticsPage() {
           {/* Header row: title + verdict */}
           <div className="px-6 pt-4 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-900">Canales — Truth Score</h2>
+              <h2 className="text-sm font-semibold text-ink">Canales — Truth Score</h2>
               <InfoTip text="Compara revenue del pixel (LAST-CLICK) vs lo que reporta cada plataforma. 100% = alineados. Menos de 90% = la plataforma sobre-reporta. Más de 110% = sub-reporta. ESTA TABLA usa LAST-CLICK porque las plataformas (Meta, Google) tambien reportan en last-click — usar otra metrica romperia la comparacion. Los modulos Funnel y Conversion por Canal usan FIRST-TOUCH y por eso pueden mostrar numeros distintos." />
             </div>
             {discrepancy?.summary && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Veredicto global:</span>
+                <span className="text-xs text-ink-60">Veredicto global:</span>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                   discrepancy.summary.totalDeltaPercent < -10 ? "bg-red-50 text-red-700" :
                   discrepancy.summary.totalDeltaPercent > 10 ? "bg-amber-50 text-amber-700" :
@@ -837,32 +837,32 @@ export default function AnalyticsPage() {
             const wLast = w?.last ?? 40;
             return (
               <div className="px-6 pb-3 border-b border-gray-50 flex items-center gap-3">
-                <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">Atribución:</span>
+                <span className="text-[11px] text-ink-60 uppercase tracking-wider font-medium">Atribución:</span>
                 <div className="relative group/attr">
-                  <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5 cursor-default">
-                    <span className="text-[11px] font-semibold text-gray-700">NitroAttribution</span>
+                  <div className="flex items-center gap-2 bg-surface rounded-lg px-3 py-1.5 cursor-default">
+                    <span className="text-[11px] font-semibold text-ink-60">NitroAttribution</span>
                     <div className="flex items-center gap-0.5 h-2.5 w-20 rounded-full overflow-hidden">
-                      <div className="h-full bg-cyan-400 rounded-l-full" style={{ width: `${wFirst}%` }} />
+                      <div className="h-full bg-accent rounded-l-full" style={{ width: `${wFirst}%` }} />
                       <div className="h-full bg-violet-400" style={{ width: `${wMiddle}%` }} />
                       <div className="h-full bg-orange-400 rounded-r-full" style={{ width: `${wLast}%` }} />
                     </div>
-                    <span className="text-[10px] text-gray-400">{wFirst}/{wMiddle}/{wLast}</span>
+                    <span className="text-[10px] text-ink-60">{wFirst}/{wMiddle}/{wLast}</span>
                   </div>
                   {/* Tooltip explaining the model */}
-                  <div className="absolute top-full left-0 mt-2 w-64 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/attr:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
+                  <div className="absolute top-full left-0 mt-2 w-64 px-3 py-2.5 bg-ink text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/attr:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
                     <div className="absolute bottom-full left-4 border-4 border-transparent border-b-gray-900" />
                     <div className="font-semibold mb-1">Modelo multi-touch ponderado</div>
-                    <div className="space-y-0.5 text-gray-300">
-                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" /> Primer toque: {wFirst}%</div>
+                    <div className="space-y-0.5 text-white/70">
+                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent inline-block" /> Primer toque: {wFirst}%</div>
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-400 inline-block" /> Asistencias: {wMiddle}%</div>
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Último toque: {wLast}%</div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-400">
+                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-ink-60">
                       Estos pesos definen cómo se reparte el crédito de cada venta entre los canales del journey. Configuralo desde NitroPixel.
                     </div>
                   </div>
                 </div>
-                <a href="/pixel" className="text-[11px] text-gray-400 hover:text-gray-600 underline decoration-dotted underline-offset-2 transition-colors">
+                <a href="/pixel" className="text-[11px] text-ink-60 hover:text-ink-60 underline decoration-dotted underline-offset-2 transition-colors">
                   Cambiar ponderación
                 </a>
               </div>
@@ -870,11 +870,11 @@ export default function AnalyticsPage() {
           })()}
 
           {channels.length === 0 ? (
-            <div className="px-6 py-12 text-center text-gray-400 text-sm">No hay datos de canales para este período</div>
+            <div className="px-6 py-12 text-center text-ink-60 text-sm">No hay datos de canales para este período</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                <tr className="text-[11px] text-ink-60 uppercase tracking-wider border-b border-gray-50">
                   <th className="text-left px-6 py-3 font-medium">Canal</th>
                   <th className="text-right px-4 py-3 font-medium">Revenue Pixel</th>
                   <th className="text-right px-4 py-3 font-medium">Revenue Plataforma</th>
@@ -895,7 +895,7 @@ export default function AnalyticsPage() {
                   return (
                     <Fragment key={ch.source}>
                       <tr
-                        className={`border-b border-gray-50 transition-colors duration-200 cursor-pointer hover:bg-gray-50/50 ${isExpanded ? "bg-gray-50/50" : ""}`}
+                        className={`border-b border-gray-50 transition-colors duration-200 cursor-pointer hover:bg-surface/50 ${isExpanded ? "bg-surface/50" : ""}`}
                         onClick={() => setExpandedChannel(isExpanded ? null : ch.source)}
                       >
                         <td className="px-6 py-3.5">
@@ -903,7 +903,7 @@ export default function AnalyticsPage() {
                             <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
                               <ChannelLogo source={ch.source} size={14} />
                             </div>
-                            <span className="font-medium text-gray-900">{info.label}</span>
+                            <span className="font-medium text-ink">{info.label}</span>
                             {/* Channel journey role tooltip */}
                             {channelRoles[ch.source] && (() => {
                               const r = channelRoles[ch.source];
@@ -917,10 +917,10 @@ export default function AnalyticsPage() {
                                 : dominantRole === "Cierre" ? "text-emerald-500" : "text-amber-500";
                               return (
                                 <div className="relative group/role">
-                                  <span className={`text-[10px] font-medium ${roleColor} bg-gray-50 px-1.5 py-0.5 rounded`}>
+                                  <span className={`text-[10px] font-medium ${roleColor} bg-surface px-1.5 py-0.5 rounded`}>
                                     {dominantRole}
                                   </span>
-                                  <div className="absolute top-full left-0 mt-2 w-60 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
+                                  <div className="absolute top-full left-0 mt-2 w-60 px-3 py-2.5 bg-ink text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
                                     <div className="absolute bottom-full left-4 border-4 border-transparent border-b-gray-900" />
                                     <div className="font-semibold mb-1.5">Rol en los journeys</div>
                                     <div className="space-y-1">
@@ -928,7 +928,7 @@ export default function AnalyticsPage() {
                                       <div className="flex justify-between"><span>Asistencia:</span><span className="font-medium">{pAssist}% de journeys</span></div>
                                       <div className="flex justify-between"><span>Último toque:</span><span className="font-medium">{pLast}% de journeys</span></div>
                                     </div>
-                                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-300">
+                                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-white/70">
                                       {dominantRole === "Descubrimiento"
                                         ? "Este canal trae usuarios nuevos. Si su Truth Score es bajo, puede ser porque warmea audiencias que convierten por otro canal."
                                         : dominantRole === "Cierre"
@@ -941,24 +941,24 @@ export default function AnalyticsPage() {
                               );
                             })()}
                             {campaignsForChannel.length > 0 && (
-                              <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <svg className={`w-3.5 h-3.5 text-ink-60 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                               </svg>
                             )}
                           </div>
                         </td>
-                        <td className="text-right px-4 py-3.5 font-medium text-gray-900">{fmtCompact(ch.pixelRevenue)}</td>
-                        <td className="text-right px-4 py-3.5 text-gray-500">{ch.platformRevenue ? fmtCompact(ch.platformRevenue) : "—"}</td>
+                        <td className="text-right px-4 py-3.5 font-medium text-ink">{fmtCompact(ch.pixelRevenue)}</td>
+                        <td className="text-right px-4 py-3.5 text-ink-60">{ch.platformRevenue ? fmtCompact(ch.platformRevenue) : "—"}</td>
                         <td className="text-center px-4 py-3.5">
                           {ch.platformRevenue ? (
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${ts.color} ${ts.bg}`}>
                               {ts.label}
                             </span>
                           ) : (
-                            <span className="text-gray-300 text-xs">—</span>
+                            <span className="text-white/70 text-xs">—</span>
                           )}
                         </td>
-                        <td className="text-right px-4 py-3.5 text-gray-500">
+                        <td className="text-right px-4 py-3.5 text-ink-60">
                           {(() => {
                             const platformSpend = ch.platformSpend ?? ch.spend ?? 0;
                             const manualSp = ch.manualSpend ?? 0;
@@ -992,37 +992,37 @@ export default function AnalyticsPage() {
                                   e.stopPropagation();
                                   setManualSpendModal({ open: true, channel: ch.source, label: info.label });
                                 }}
-                                className="text-cyan-600 hover:text-cyan-800 hover:underline text-xs"
+                                className="text-ink hover:text-ink hover:underline text-xs"
                               >
                                 + Cargar inversión
                               </button>
                             );
                           })()}
                         </td>
-                        <td className="text-right px-4 py-3.5 font-semibold text-gray-900">{ch.pixelRoas ? `${ch.pixelRoas.toFixed(1)}x` : "—"}</td>
-                        <td className="text-right px-4 py-3.5 text-gray-400">{ch.platformRoas ? `${ch.platformRoas.toFixed(1)}x` : "—"}</td>
-                        <td className="text-right px-6 py-3.5 text-gray-600">{fmt(ch.orders)}</td>
+                        <td className="text-right px-4 py-3.5 font-semibold text-ink">{ch.pixelRoas ? `${ch.pixelRoas.toFixed(1)}x` : "—"}</td>
+                        <td className="text-right px-4 py-3.5 text-ink-60">{ch.platformRoas ? `${ch.platformRoas.toFixed(1)}x` : "—"}</td>
+                        <td className="text-right px-6 py-3.5 text-ink-60">{fmt(ch.orders)}</td>
                       </tr>
 
                       {/* Expanded campaign rows */}
                       {isExpanded && campaignsForChannel.length > 0 && campaignsForChannel.map((camp) => {
                         const campTs = truthScoreColor(camp.pixelRevenue, camp.platformRevenue);
                         return (
-                          <tr key={camp.campaign} className="bg-gray-50/80 border-b border-gray-100/50 text-xs">
-                            <td className="pl-16 pr-6 py-2.5 text-gray-600 truncate max-w-[200px]">{camp.campaign || "Sin campaña"}</td>
-                            <td className="text-right px-4 py-2.5 text-gray-700">{fmtCompact(camp.pixelRevenue)}</td>
-                            <td className="text-right px-4 py-2.5 text-gray-500">{camp.platformRevenue ? fmtCompact(camp.platformRevenue) : "—"}</td>
+                          <tr key={camp.campaign} className="bg-surface/80 border-b border-hairline/50 text-xs">
+                            <td className="pl-16 pr-6 py-2.5 text-ink-60 truncate max-w-[200px]">{camp.campaign || "Sin campaña"}</td>
+                            <td className="text-right px-4 py-2.5 text-ink-60">{fmtCompact(camp.pixelRevenue)}</td>
+                            <td className="text-right px-4 py-2.5 text-ink-60">{camp.platformRevenue ? fmtCompact(camp.platformRevenue) : "—"}</td>
                             <td className="text-center px-4 py-2.5">
                               {camp.platformRevenue ? (
                                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${campTs.color} ${campTs.bg}`}>
                                   {campTs.label}
                                 </span>
-                              ) : <span className="text-gray-300">—</span>}
+                              ) : <span className="text-white/70">—</span>}
                             </td>
-                            <td className="text-right px-4 py-2.5 text-gray-500">{camp.spend ? fmtCompact(camp.spend) : "—"}</td>
-                            <td className="text-right px-4 py-2.5 font-medium text-gray-700">{camp.pixelRoas ? `${camp.pixelRoas.toFixed(1)}x` : "—"}</td>
-                            <td className="text-right px-4 py-2.5 text-gray-400">{camp.platformRoas ? `${camp.platformRoas.toFixed(1)}x` : "—"}</td>
-                            <td className="text-right px-6 py-2.5 text-gray-500">{fmt(camp.pixelOrders)}</td>
+                            <td className="text-right px-4 py-2.5 text-ink-60">{camp.spend ? fmtCompact(camp.spend) : "—"}</td>
+                            <td className="text-right px-4 py-2.5 font-medium text-ink-60">{camp.pixelRoas ? `${camp.pixelRoas.toFixed(1)}x` : "—"}</td>
+                            <td className="text-right px-4 py-2.5 text-ink-60">{camp.platformRoas ? `${camp.platformRoas.toFixed(1)}x` : "—"}</td>
+                            <td className="text-right px-6 py-2.5 text-ink-60">{fmt(camp.pixelOrders)}</td>
                           </tr>
                         );
                       })}
@@ -1064,8 +1064,8 @@ export default function AnalyticsPage() {
                     <div className="absolute top-0 left-6 right-6 h-0.5 rounded-full" style={{ backgroundColor: col.color }} />
 
                     <div className="mb-4">
-                      <h3 className="text-sm font-semibold text-gray-900">{col.title}</h3>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{col.subtitle} — ¿Quién participa?</p>
+                      <h3 className="text-sm font-semibold text-ink">{col.title}</h3>
+                      <p className="text-[11px] text-ink-60 mt-0.5">{col.subtitle} — ¿Quién participa?</p>
                     </div>
 
                     <div className="space-y-2.5">
@@ -1074,7 +1074,7 @@ export default function AnalyticsPage() {
                         return (
                           <div key={e.src} className="flex items-center gap-3">
                             {/* Rank */}
-                            <span className="text-[10px] font-bold text-gray-300 w-3 text-right">{ei + 1}</span>
+                            <span className="text-[10px] font-bold text-white/70 w-3 text-right">{ei + 1}</span>
                             {/* Logo */}
                             <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
                               <ChannelLogo source={e.src} size={13} />
@@ -1082,10 +1082,10 @@ export default function AnalyticsPage() {
                             {/* Name + bar */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-medium text-gray-700 truncate">{info.label}</span>
+                                <span className="text-xs font-medium text-ink-60 truncate">{info.label}</span>
                                 <span className="text-xs font-bold tabular-nums" style={{ color: col.color }}>{e.pct}%</span>
                               </div>
-                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                                 <div
                                   className="h-full rounded-full transition-all duration-700"
                                   style={{ width: `${e.pct}%`, backgroundColor: col.color, opacity: 0.7 + (0.3 * (1 - ei / Math.max(entries.length - 1, 1))) }}
@@ -1096,7 +1096,7 @@ export default function AnalyticsPage() {
                         );
                       })}
                       {entries.length === 0 && (
-                        <div className="text-center text-gray-300 text-xs py-4">Sin datos</div>
+                        <div className="text-center text-white/70 text-xs py-4">Sin datos</div>
                       )}
                     </div>
                   </div>
@@ -1111,7 +1111,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         <div className="flex items-center gap-3 pt-2">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-[0.2em]">Comportamiento</span>
+          <span className="text-[10px] font-bold text-white/70 uppercase tracking-[0.2em]">Comportamiento</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
         </div>
 
@@ -1124,10 +1124,10 @@ export default function AnalyticsPage() {
             {/* Header (S60 EXT — first-touch filter) */}
             <div className="mb-4">
               <div className="flex items-center gap-1.5 mb-1">
-                <h2 className="text-sm font-semibold text-gray-900">Funnel de Conversión</h2>
+                <h2 className="text-sm font-semibold text-ink">Funnel de Conversión</h2>
                 <InfoTip text="El funnel completo se cuenta por FIRST-TOUCH del visitor en el periodo (canal por el que entró por primera vez). Cuando filtrás por un canal, ves solo a los visitors que arrancaron su journey por ese canal y cómo avanzaron etapa por etapa. La tabla Conversión por Canal usa la MISMA definición (first-touch). La etapa 'Compra' cuenta órdenes web atribuidas por NitroPixel (misma métrica que 'Órdenes Atribuidas' del KPI strip cuando el filtro está en 'Todos'); con filtro de canal, solo las órdenes cuyo journey incluye ese canal." />
               </div>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-ink-60">
                 {funnelChannel === "all"
                   ? "Mostrando todos los canales"
                   : <>Filtrado por <strong>primer toque</strong>: {getSourceInfo(funnelChannel).label}</>
@@ -1137,7 +1137,7 @@ export default function AnalyticsPage() {
 
             {/* Dropdown custom con logos (S60 EXT) */}
             <div className="mb-5">
-              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">Filtrar por canal</p>
+              <p className="text-[10px] font-medium text-ink-60 uppercase tracking-wide mb-1.5">Filtrar por canal</p>
               <FunnelChannelDropdown
                 channels={channels}
                 value={funnelChannel}
@@ -1180,7 +1180,7 @@ export default function AnalyticsPage() {
                               <span className="text-[11px] font-semibold" style={{ color: step.color }}>
                                 {prevStepRate}%
                               </span>
-                              <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <svg className="w-3 h-3 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                               </svg>
                             </div>
@@ -1226,11 +1226,11 @@ export default function AnalyticsPage() {
           {/* Customer Journeys — 2 cols */}
           <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card overflow-hidden`} style={{ ...cardShadow, animationDelay: "440ms" }}>
             <div className="flex items-center gap-1.5 mb-4">
-              <h2 className="text-sm font-semibold text-gray-900">Últimos Customer Journeys</h2>
+              <h2 className="text-sm font-semibold text-ink">Últimos Customer Journeys</h2>
               <InfoTip text="Las últimas órdenes web con su recorrido completo: por qué canales pasó cada cliente antes de comprar (descubrimiento, asistencia, cierre). Click en una orden expande el detalle." />
             </div>
             {journeys.length === 0 ? (
-              <div className="text-center text-gray-400 text-sm py-8">Sin journeys en este período</div>
+              <div className="text-center text-ink-60 text-sm py-8">Sin journeys en este período</div>
             ) : (
               <div className="space-y-2.5">
                 {journeys.slice(0, 10).map((j) => {
@@ -1238,7 +1238,7 @@ export default function AnalyticsPage() {
                   return (
                     <div key={j.orderId} className="group">
                       <button
-                        className="w-full flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                        className="w-full flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-surface transition-colors text-left"
                         onClick={() => setExpandedJourney(isOpen ? null : j.orderId)}
                       >
                         {/* Touchpoint dots */}
@@ -1252,16 +1252,16 @@ export default function AnalyticsPage() {
                             );
                           })}
                           {j.touchpoints.length > 6 && (
-                            <span className="text-[10px] text-gray-400 ml-1">+{j.touchpoints.length - 6}</span>
+                            <span className="text-[10px] text-ink-60 ml-1">+{j.touchpoints.length - 6}</span>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-gray-700 truncate block">
+                          <span className="text-xs font-medium text-ink-60 truncate block">
                             {j.orderExternalId || j.orderId.slice(0, 8)}
                           </span>
                         </div>
-                        <span className="text-xs font-semibold text-gray-900 flex-shrink-0">{fmtCompact(j.revenue)}</span>
-                        <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <span className="text-xs font-semibold text-ink flex-shrink-0">{fmtCompact(j.revenue)}</span>
+                        <svg className={`w-3.5 h-3.5 text-ink-60 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
@@ -1275,10 +1275,10 @@ export default function AnalyticsPage() {
                                 <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: tpInfo.color }}>
                                   <ChannelLogo source={tp.source} size={8} />
                                 </div>
-                                <span className="text-gray-600 font-medium">{tpInfo.label}</span>
-                                {tp.campaign && <span className="text-gray-400 truncate max-w-[120px]">{tp.campaign}</span>}
+                                <span className="text-ink-60 font-medium">{tpInfo.label}</span>
+                                {tp.campaign && <span className="text-ink-60 truncate max-w-[120px]">{tp.campaign}</span>}
                                 {tp.timestamp && (
-                                  <span className="text-gray-300 ml-auto flex-shrink-0">
+                                  <span className="text-white/70 ml-auto flex-shrink-0">
                                     {new Date(tp.timestamp).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
                                   </span>
                                 )}
@@ -1286,7 +1286,7 @@ export default function AnalyticsPage() {
                             );
                           })}
                           {j.conversionLag > 0 && (
-                            <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                            <div className="text-[10px] text-ink-60 pt-1 border-t border-hairline">
                               {j.conversionLag} día{j.conversionLag !== 1 ? "s" : ""} entre primer contacto y compra
                             </div>
                           )}
@@ -1306,10 +1306,10 @@ export default function AnalyticsPage() {
         <div id="sec-revenue" className={`${cardStyle} p-6 stagger-card scroll-mt-20`} style={{ ...cardShadow, animationDelay: "500ms" }}>
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-semibold text-gray-900">Revenue Intelligence</h2>
+              <h2 className="text-sm font-semibold text-ink">Revenue Intelligence</h2>
               <InfoTip text="Compara 3 cosas dia a dia: PIXEL (real, LAST-CLICK) = revenue de las ordenes que tu pixel atribuyo. PLATAFORMAS (reportado) = lo que Meta/Google dicen haberte traido (suelen inflar). AD SPEND = cuanto gastaste. Este modulo usa LAST-CLICK para que sea comparable con lo que reportan las plataformas. Si querés ver por FIRST-TOUCH usa Funnel + Conversion por Canal." />
             </div>
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <div className="flex items-center bg-surface-2 rounded-lg p-0.5">
               {[
                 { key: "truth" as const, label: "Pixel vs Plataformas" },
                 { key: "channels" as const, label: "Por Canal" },
@@ -1317,7 +1317,7 @@ export default function AnalyticsPage() {
                 <button
                   key={tab.key}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-                    chartMode === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    chartMode === tab.key ? "bg-elevated text-ink shadow-sm" : "text-ink-60 hover:text-ink-60"
                   }`}
                   onClick={() => setChartMode(tab.key)}
                 >
@@ -1357,7 +1357,7 @@ export default function AnalyticsPage() {
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de comparación para este período</div>
+                <div className="h-full flex items-center justify-center text-ink-60 text-sm">Sin datos de comparación para este período</div>
               )
             ) : (
               dailyChannels.length > 0 ? (
@@ -1381,7 +1381,7 @@ export default function AnalyticsPage() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de canales diarios</div>
+                <div className="h-full flex items-center justify-center text-ink-60 text-sm">Sin datos de canales diarios</div>
               )
             )}
           </div>
@@ -1389,9 +1389,9 @@ export default function AnalyticsPage() {
           {/* Chart legend */}
           {chartMode === "truth" && (
             <div className="flex items-center justify-center gap-6 mt-4">
-              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-cyan-500" /><span className="text-[11px] text-gray-500">Pixel (real)</span></div>
-              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-violet-500" style={{ borderBottom: "1px dashed #8b5cf6" }} /><span className="text-[11px] text-gray-500">Plataformas (reportado)</span></div>
-              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-[11px] text-gray-500">Ad Spend</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-accent" /><span className="text-[11px] text-ink-60">Pixel (real)</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-violet-500" style={{ borderBottom: "1px dashed #8b5cf6" }} /><span className="text-[11px] text-ink-60">Plataformas (reportado)</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-[11px] text-ink-60">Ad Spend</span></div>
             </div>
           )}
         </div>
@@ -1425,8 +1425,8 @@ export default function AnalyticsPage() {
             <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "560ms" }}>
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Velocidad de Conversión</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">¿Cuánto tardan tus clientes en comprar después del primer contacto?</p>
+                  <h2 className="text-sm font-semibold text-ink">Velocidad de Conversión</h2>
+                  <p className="text-[11px] text-ink-60 mt-0.5">¿Cuánto tardan tus clientes en comprar después del primer contacto?</p>
                 </div>
                 <InfoTip text="El conversion lag mide los días entre el primer touchpoint del pixel y la compra. Menor lag = journey más directo." />
               </div>
@@ -1438,23 +1438,23 @@ export default function AnalyticsPage() {
                   const isDominant = d.bucket === dominant.bucket;
                   return (
                     <div key={d.bucket} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500 w-20 text-right flex-shrink-0">{d.bucket}</span>
-                      <div className="flex-1 h-7 bg-gray-50 rounded-lg overflow-hidden relative">
+                      <span className="text-xs text-ink-60 w-20 text-right flex-shrink-0">{d.bucket}</span>
+                      <div className="flex-1 h-7 bg-surface rounded-lg overflow-hidden relative">
                         <div
                           className="h-full rounded-lg transition-all duration-700 flex items-center"
                           style={{ width: `${barWidth}%`, backgroundColor: LAG_COLORS[i] || LAG_COLORS[5], opacity: isDominant ? 1 : 0.7 }}
                         >
                           {barWidth > 20 && (
-                            <span className="text-[11px] font-semibold text-gray-700 ml-2.5">{pct}%</span>
+                            <span className="text-[11px] font-semibold text-ink-60 ml-2.5">{pct}%</span>
                           )}
                         </div>
                         {barWidth <= 20 && (
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-gray-400" style={{ left: `calc(${barWidth}% + 8px)` }}>{pct}%</span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ink-60" style={{ left: `calc(${barWidth}% + 8px)` }}>{pct}%</span>
                         )}
                       </div>
                       <div className="flex-shrink-0 w-28 text-right">
-                        <span className="text-xs font-medium text-gray-700">{fmt(d.orders)} ord.</span>
-                        <span className="text-[10px] text-gray-400 ml-1.5">{fmtCompact(d.revenue)}</span>
+                        <span className="text-xs font-medium text-ink-60">{fmt(d.orders)} ord.</span>
+                        <span className="text-[10px] text-ink-60 ml-1.5">{fmtCompact(d.revenue)}</span>
                       </div>
                     </div>
                   );
@@ -1462,9 +1462,9 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Auto-insight */}
-              <div className="mt-4 bg-gradient-to-r from-cyan-50/80 to-transparent p-3 rounded-xl">
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-cyan-700">Insight:</span>{" "}
+              <div className="mt-4 bg-gradient-to-r from-surface/80 to-transparent p-3 rounded-xl">
+                <p className="text-xs text-ink-60">
+                  <span className="font-semibold text-ink">Insight:</span>{" "}
                   {fastPct >= 70
                     ? `${fastPct}% de tus ventas ocurren dentro de 3 días. Tu ecommerce tiene un ciclo de compra rápido — optimizá remarketing para esa ventana.`
                     : fastPct >= 40
@@ -1485,7 +1485,7 @@ export default function AnalyticsPage() {
           {/* Device Breakdown — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "620ms" }}>
             <div className="flex items-center gap-1.5 mb-4">
-              <h2 className="text-sm font-semibold text-gray-900">Dispositivos</h2>
+              <h2 className="text-sm font-semibold text-ink">Dispositivos</h2>
               <InfoTip text="Cómo se reparten tus visitantes entre mobile, desktop y tablet. Útil para decidir dónde invertir en optimización (si la mayoría es mobile, priorizar UX mobile)." />
             </div>
             {(() => {
@@ -1497,7 +1497,7 @@ export default function AnalyticsPage() {
                 count: Number(d.count) || 0,
                 percentage: Number(d.percentage) || 0,
               }));
-              if (devices.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>;
+              if (devices.length === 0) return <div className="text-center text-ink-60 text-sm py-8">Sin datos de dispositivos</div>;
 
               const totalCount = devices.reduce((s, d) => s + d.count, 0);
               const DEVICE_COLORS: Record<string, string> = { mobile: "#06b6d4", desktop: "#8b5cf6", tablet: "#f97316" };
@@ -1532,8 +1532,8 @@ export default function AnalyticsPage() {
                     </ResponsiveContainer>
                     {/* Center label */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-lg font-bold text-gray-900">{fmt(totalCount)}</span>
-                      <span className="text-[10px] text-gray-400">sesiones</span>
+                      <span className="text-lg font-bold text-ink">{fmt(totalCount)}</span>
+                      <span className="text-[10px] text-ink-60">sesiones</span>
                     </div>
                   </div>
 
@@ -1546,30 +1546,30 @@ export default function AnalyticsPage() {
                           <span className="text-lg flex-shrink-0">{DEVICE_ICONS[d.deviceType] || "🖥️"}</span>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-gray-700">{DEVICE_LABELS[d.deviceType] || d.deviceType}</span>
+                              <span className="text-xs font-medium text-ink-60">{DEVICE_LABELS[d.deviceType] || d.deviceType}</span>
                               <span className="text-xs font-bold" style={{ color }}>{d.percentage}%</span>
                             </div>
-                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                               <div className="h-full rounded-full transition-all duration-700" style={{ width: `${d.percentage}%`, backgroundColor: color }} />
                             </div>
                           </div>
-                          <span className="text-[11px] text-gray-400 flex-shrink-0 w-16 text-right">{fmt(d.count)}</span>
+                          <span className="text-[11px] text-ink-60 flex-shrink-0 w-16 text-right">{fmt(d.count)}</span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
               );
-              } catch { return <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>; }
+              } catch { return <div className="text-center text-ink-60 text-sm py-8">Sin datos de dispositivos</div>; }
             })()}
           </div>
 
           {/* Top Landing Pages — 2 cols */}
           <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "680ms" }}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-900">Top Páginas</h2>
+              <h2 className="text-sm font-semibold text-ink">Top Páginas</h2>
               <InfoTip text="Las páginas más visitadas del sitio en este período, con cuántos visitantes únicos y cuántas vistas. Identifica páginas estrella y oportunidades de optimización." />
-              <span className="text-[10px] text-gray-400">visitantes únicos</span>
+              <span className="text-[10px] text-ink-60">visitantes únicos</span>
             </div>
             {(() => {
               try {
@@ -1578,7 +1578,7 @@ export default function AnalyticsPage() {
                 path: String(p.path || p.pageUrl || p.url || "/"),
                 visitors: Number(p.visitors ?? p.views ?? p.pageViews) || 0,
               }));
-              if (rawPages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
+              if (rawPages.length === 0) return <div className="text-center text-ink-60 text-sm py-8">Sin datos de páginas</div>;
 
               const prettifyPath = (raw: string) => {
                 try {
@@ -1620,13 +1620,13 @@ export default function AnalyticsPage() {
                     const barW = maxVisitors > 0 ? Math.max(8, (p.visitors / maxVisitors) * 100) : 0;
                     return (
                       <div key={p.label} className="flex items-center gap-2.5">
-                        <span className="text-[10px] font-bold text-gray-300 w-3 text-right">{i + 1}</span>
+                        <span className="text-[10px] font-bold text-white/70 w-3 text-right">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs text-gray-700 truncate font-medium" title={p.path}>{p.label}</span>
-                            <span className="text-xs font-semibold text-gray-900 flex-shrink-0 ml-2">{fmt(p.visitors)}</span>
+                            <span className="text-xs text-ink-60 truncate font-medium" title={p.path}>{p.label}</span>
+                            <span className="text-xs font-semibold text-ink flex-shrink-0 ml-2">{fmt(p.visitors)}</span>
                           </div>
-                          <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-1 bg-surface-2 rounded-full overflow-hidden">
                             <div className="h-full rounded-full bg-violet-400 transition-all duration-700" style={{ width: `${barW}%`, opacity: 1 - i * 0.12 }} />
                           </div>
                         </div>
@@ -1635,7 +1635,7 @@ export default function AnalyticsPage() {
                   })}
                 </div>
               );
-              } catch { return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>; }
+              } catch { return <div className="text-center text-ink-60 text-sm py-8">Sin datos de páginas</div>; }
             })()}
           </div>
         </div>
@@ -1664,13 +1664,13 @@ export default function AnalyticsPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-sm font-semibold text-gray-900">Cobertura del Pixel</h2>
+                    <h2 className="text-sm font-semibold text-ink">Cobertura del Pixel</h2>
                     <InfoTip text="Mide qué % de las órdenes web de cada día el pixel logró atribuir. 100% = todas trackeadas. Si baja un día específico es señal de problema técnico (snippet roto, picos de bots, etc)." />
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5">% de órdenes con atribución por día — muestra la salud del tracking</p>
+                  <p className="text-[11px] text-ink-60 mt-0.5">% de órdenes con atribución por día — muestra la salud del tracking</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Promedio:</span>
+                  <span className="text-xs text-ink-60">Promedio:</span>
                   <span className={`text-sm font-bold ${avgCoverage >= 80 ? "text-emerald-600" : avgCoverage >= 50 ? "text-amber-600" : "text-red-600"}`}>
                     {avgCoverage}%
                   </span>
@@ -1706,7 +1706,7 @@ export default function AnalyticsPage() {
               {/* Coverage insight */}
               {worstDay && (
                 <div className="mt-3 bg-gradient-to-r from-amber-50/80 to-transparent p-3 rounded-xl">
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-ink-60">
                     <span className="font-semibold text-amber-700">Alerta:</span>{" "}
                     El {parseDayLocal(worstDay.day).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} la cobertura cayó a {worstDay.coverage}% ({worstDay.attributedOrders} de {worstDay.totalOrders} órdenes atribuidas). Posible issue técnico con el pixel ese día.
                   </p>
@@ -1715,8 +1715,8 @@ export default function AnalyticsPage() {
 
               {/* Legend */}
               <div className="flex items-center justify-center gap-6 mt-3">
-                <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-emerald-500" /><span className="text-[11px] text-gray-500">Cobertura real</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 border-b border-dashed border-emerald-400" style={{ width: 12 }} /><span className="text-[11px] text-gray-500">Meta 80%</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-emerald-500" /><span className="text-[11px] text-ink-60">Cobertura real</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 border-b border-dashed border-emerald-400" style={{ width: 12 }} /><span className="text-[11px] text-ink-60">Meta 80%</span></div>
               </div>
             </div>
           );
@@ -1728,7 +1728,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         <div className="flex items-center gap-3 pt-2">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-[0.2em]">Intelligence</span>
+          <span className="text-[10px] font-bold text-white/70 uppercase tracking-[0.2em]">Intelligence</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
         </div>
 
@@ -1754,7 +1754,7 @@ export default function AnalyticsPage() {
                 <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: s, height: s, backgroundColor: info.color }}>
                   <ChannelLogo source={source} size={iconS} />
                 </div>
-                <span className={`font-medium text-gray-700 ${size === "md" ? "text-xs" : "text-[11px]"}`}>{info.label}</span>
+                <span className={`font-medium text-ink-60 ${size === "md" ? "text-xs" : "text-[11px]"}`}>{info.label}</span>
               </div>
             );
           };
@@ -1771,7 +1771,7 @@ export default function AnalyticsPage() {
               {/* Section header */}
               <div className="flex items-center gap-3 pt-2">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Journey Intelligence</h2>
+                <h2 className="text-xs font-semibold text-ink-60 uppercase tracking-widest">Journey Intelligence</h2>
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
               </div>
 
@@ -1784,9 +1784,9 @@ export default function AnalyticsPage() {
                   { label: "Revenue Multi-Touch", value: fmtCompact(ji.multiTouchRevenue), sub: `${Math.round(ji.multiTouchRevenue / (ji.multiTouchRevenue + ji.singleTouchRevenue + 1) * 100)}% del total atribuido` },
                 ].map((kpi, i) => (
                   <div key={i} className={`${cardStyle} p-4 stagger-card`} style={{ ...cardShadow, animationDelay: `${1100 + i * 60}ms` }}>
-                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{kpi.label}</p>
-                    <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{kpi.value}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{kpi.sub}</p>
+                    <p className="text-[10px] font-medium text-ink-60 uppercase tracking-wider">{kpi.label}</p>
+                    <p className="text-xl font-bold text-ink mt-1 tabular-nums">{kpi.value}</p>
+                    <p className="text-[10px] text-ink-60 mt-0.5">{kpi.sub}</p>
                   </div>
                 ))}
               </div>
@@ -1798,10 +1798,10 @@ export default function AnalyticsPage() {
                 <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1340ms" }}>
                   <div className="mb-4">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-gray-900">Complejidad del Journey</h2>
+                      <h2 className="text-sm font-semibold text-ink">Complejidad del Journey</h2>
                       <InfoTip text="Cuántos canales distintos toca un cliente antes de comprar. 1 toque = compró por impulso o canal único. 4+ toques = journey largo, varios canales involucrados (ojo: ROAS de Meta o Google solos te miente, hay asistencia)." />
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-0.5">¿Cuántos puntos de contacto necesita un comprador?</p>
+                    <p className="text-[11px] text-ink-60 mt-0.5">¿Cuántos puntos de contacto necesita un comprador?</p>
                   </div>
                   <div className="space-y-3">
                     {ji.complexity.map((c, i) => {
@@ -1810,21 +1810,21 @@ export default function AnalyticsPage() {
                       return (
                         <div key={c.bucket}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-700">{c.label}</span>
+                            <span className="text-xs font-medium text-ink-60">{c.label}</span>
                             <div className="flex items-center gap-3">
-                              <span className="text-[10px] text-gray-400 tabular-nums">{fmt(c.journeys)} journeys</span>
-                              <span className="text-[10px] font-semibold text-gray-600 tabular-nums w-14 text-right">{fmtCompact(c.revenue)}</span>
+                              <span className="text-[10px] text-ink-60 tabular-nums">{fmt(c.journeys)} journeys</span>
+                              <span className="text-[10px] font-semibold text-ink-60 tabular-nums w-14 text-right">{fmtCompact(c.revenue)}</span>
                             </div>
                           </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-700"
                               style={{ width: `${pct}%`, backgroundColor: colors[i % colors.length] }}
                             />
                           </div>
                           <div className="flex justify-between mt-0.5">
-                            <span className="text-[9px] text-gray-400">{Math.round((c.journeys / ji.totalJourneys) * 100)}% de journeys</span>
-                            <span className="text-[9px] text-gray-400">AOV {fmtCompact(c.aov)}</span>
+                            <span className="text-[9px] text-ink-60">{Math.round((c.journeys / ji.totalJourneys) * 100)}% de journeys</span>
+                            <span className="text-[9px] text-ink-60">AOV {fmtCompact(c.aov)}</span>
                           </div>
                         </div>
                       );
@@ -1832,9 +1832,9 @@ export default function AnalyticsPage() {
                   </div>
                   {/* Auto-insight */}
                   {ji.aovLift > 0 && (
-                    <div className="mt-4 bg-gradient-to-r from-cyan-50 to-transparent p-3 rounded-xl border border-cyan-100/50">
-                      <p className="text-[11px] text-cyan-800 leading-relaxed">
-                        <span className="font-bold">Insight:</span> Los compradores que interactúan con <span className="font-semibold">múltiples canales</span> gastan <span className="font-bold text-cyan-600">+{ji.aovLift}%</span> más que los de un solo toque. El retargeting multi-canal está generando valor.
+                    <div className="mt-4 bg-gradient-to-r from-surface to-transparent p-3 rounded-xl border border-hairline/50">
+                      <p className="text-[11px] text-ink leading-relaxed">
+                        <span className="font-bold">Insight:</span> Los compradores que interactúan con <span className="font-semibold">múltiples canales</span> gastan <span className="font-bold text-ink">+{ji.aovLift}%</span> más que los de un solo toque. El retargeting multi-canal está generando valor.
                       </p>
                     </div>
                   )}
@@ -1844,10 +1844,10 @@ export default function AnalyticsPage() {
                 <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1400ms" }}>
                   <div className="mb-4">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-gray-900">Combinaciones Ganadoras</h2>
+                      <h2 className="text-sm font-semibold text-ink">Combinaciones Ganadoras</h2>
                       <InfoTip text="Las rutas más rentables: por qué canal entraron primero los clientes y por cuál cerraron la compra. Ej: 'Meta Ads → Google Ads' = entraron por Meta y volvieron a buscar por Google. Te dice cómo combinar inversión." />
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Las rutas primer canal → último canal que más facturan</p>
+                    <p className="text-[11px] text-ink-60 mt-0.5">Las rutas primer canal → último canal que más facturan</p>
                   </div>
                   {ji.channelPairs.length > 0 ? (
                     <div className="space-y-2.5">
@@ -1857,25 +1857,25 @@ export default function AnalyticsPage() {
                         return (
                           <div key={i} className="group">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-bold text-gray-300 w-4 tabular-nums">{i + 1}</span>
+                              <span className="text-[10px] font-bold text-white/70 w-4 tabular-nums">{i + 1}</span>
                               <ChannelBadge source={pair.first_channel} />
                               <FlowArrow />
                               <ChannelBadge source={pair.last_channel} />
                               <div className="flex-1" />
-                              <span className="text-[10px] text-gray-400 tabular-nums">{pair.journeys} journeys</span>
+                              <span className="text-[10px] text-ink-60 tabular-nums">{pair.journeys} journeys</span>
                             </div>
                             <div className="flex items-center gap-2 ml-4">
-                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 transition-all duration-500" style={{ width: `${barPct}%` }} />
+                              <div className="flex-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-accent to-accent transition-all duration-500" style={{ width: `${barPct}%` }} />
                               </div>
-                              <span className="text-[11px] font-semibold text-gray-700 tabular-nums min-w-[50px] text-right">{fmtCompact(pair.revenue)}</span>
+                              <span className="text-[11px] font-semibold text-ink-60 tabular-nums min-w-[50px] text-right">{fmtCompact(pair.revenue)}</span>
                             </div>
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="text-center text-gray-400 text-sm py-8">Aún no hay suficientes journeys multi-touch</div>
+                    <div className="text-center text-ink-60 text-sm py-8">Aún no hay suficientes journeys multi-touch</div>
                   )}
                   {/* Auto-insight */}
                   {ji.channelPairs.length >= 2 && (() => {
@@ -1898,21 +1898,21 @@ export default function AnalyticsPage() {
                 <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1460ms" }}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h2 className="text-sm font-semibold text-gray-900">Roles de cada Canal</h2>
-                      <p className="text-[11px] text-gray-400 mt-0.5">¿Cada canal descubre, asiste o cierra la venta?</p>
+                      <h2 className="text-sm font-semibold text-ink">Roles de cada Canal</h2>
+                      <p className="text-[11px] text-ink-60 mt-0.5">¿Cada canal descubre, asiste o cierra la venta?</p>
                     </div>
                     <InfoTip text="Por cada canal, cuantas veces aparece como FIRST-TOUCH (descubrimiento, primer contacto), ASISTENCIA (touchpoint intermedio del journey), o LAST-TOUCH (cierre, ultimo contacto antes de comprar). Solo = journey de un solo toque (canal hizo todo el trabajo). Permite ver si un canal cierra ventas o solo asiste." />
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-gray-100">
-                          <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3">Canal</th>
-                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Descubrimiento</th>
-                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Asistencia</th>
-                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Cierre</th>
-                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Solo</th>
-                          <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">Rol Principal</th>
+                        <tr className="border-b border-hairline">
+                          <th className="text-left text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 pr-3">Canal</th>
+                          <th className="text-center text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 px-2">Descubrimiento</th>
+                          <th className="text-center text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 px-2">Asistencia</th>
+                          <th className="text-center text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 px-2">Cierre</th>
+                          <th className="text-center text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 px-2">Solo</th>
+                          <th className="text-right text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 pl-2">Rol Principal</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1927,20 +1927,20 @@ export default function AnalyticsPage() {
                           ];
                           const primary = [...roles].sort((a, b) => b.val - a.val)[0];
                           return (
-                            <tr key={ch.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                            <tr key={ch.source} className="border-b border-gray-50 last:border-0 hover:bg-surface/50 transition-colors">
                               <td className="py-2.5 pr-3">
                                 <ChannelBadge source={ch.source} size="md" />
                               </td>
                               {roles.map(r => (
                                 <td key={r.key} className="text-center py-2.5 px-2">
                                   <div className="flex flex-col items-center gap-0.5">
-                                    <span className="font-semibold text-gray-700 tabular-nums">{fmt(r.val)}</span>
+                                    <span className="font-semibold text-ink-60 tabular-nums">{fmt(r.val)}</span>
                                     {total > 0 && (
-                                      <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
+                                      <div className="w-12 h-1 bg-surface-2 rounded-full overflow-hidden">
                                         <div className="h-full rounded-full" style={{ width: `${Math.round((r.val / total) * 100)}%`, backgroundColor: r.color }} />
                                       </div>
                                     )}
-                                    <span className="text-[9px] text-gray-400">{Math.round((r.val / total) * 100)}%</span>
+                                    <span className="text-[9px] text-ink-60">{Math.round((r.val / total) * 100)}%</span>
                                   </div>
                                 </td>
                               ))}
@@ -1990,7 +1990,7 @@ export default function AnalyticsPage() {
               {/* Section header */}
               <div className="flex items-center gap-3 pt-2">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Tasas de Conversión</h2>
+                <h2 className="text-xs font-semibold text-ink-60 uppercase tracking-widest">Tasas de Conversión</h2>
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
               </div>
 
@@ -2011,8 +2011,8 @@ export default function AnalyticsPage() {
                 <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "800ms" }}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h2 className="text-sm font-semibold text-gray-900">Conversión por Canal</h2>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (NitroPixel) → Participaciones (atribución pixel) por fuente</p>
+                      <h2 className="text-sm font-semibold text-ink">Conversión por Canal</h2>
+                      <p className="text-[11px] text-ink-60 mt-0.5">Visitantes (NitroPixel) → Participaciones (atribución pixel) por fuente</p>
                     </div>
                     <InfoTip text="Visitantes y Participaciones se cuentan por FIRST-TOUCH del visitor (canal por el que entro por primera vez). Mismos numeros que el Funnel cuando lo filtras por ese canal. CR = participaciones / visitantes." />
                   </div>
@@ -2020,11 +2020,11 @@ export default function AnalyticsPage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="border-b border-gray-100">
-                            <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Visitantes</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Participaciones</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">CR</th>
+                          <tr className="border-b border-hairline">
+                            <th className="text-left text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 pr-2">Canal</th>
+                            <th className="text-right text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 px-2">Visitantes</th>
+                            <th className="text-right text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 px-2">Participaciones</th>
+                            <th className="text-right text-[10px] font-medium text-ink-60 uppercase tracking-wider pb-2 pl-2">CR</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2037,7 +2037,7 @@ export default function AnalyticsPage() {
                             const minCr = crs.length > 0 ? Math.min(...crs) : 0;
                             const range = maxCr - minCr || 1;
                             const crColorRelative = (cr: number) => {
-                              if (cr === 0) return "text-gray-400";
+                              if (cr === 0) return "text-ink-60";
                               const norm = (cr - minCr) / range; // 0-1
                               if (norm >= 0.66) return "text-emerald-600";
                               if (norm >= 0.33) return "text-amber-600";
@@ -2054,7 +2054,7 @@ export default function AnalyticsPage() {
                               ? `Otros${s.channelsMerged ? ` (${s.channelsMerged} canales)` : ""}`
                               : info.label;
                             return (
-                              <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                              <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-surface/50 transition-colors">
                                 <td className="py-2.5 pr-2">
                                   <div className="flex items-center gap-2">
                                     <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: isOtros ? "#94a3b8" : info.color }}>
@@ -2064,11 +2064,11 @@ export default function AnalyticsPage() {
                                         <ChannelLogo source={s.source} size={12} />
                                       )}
                                     </div>
-                                    <span className={`font-medium ${isOtros ? "text-gray-500 italic" : "text-gray-700"}`}>{label}</span>
+                                    <span className={`font-medium ${isOtros ? "text-ink-60 italic" : "text-ink-60"}`}>{label}</span>
                                   </div>
                                 </td>
-                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>
-                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.purchases)}</td>
+                                <td className="text-right text-ink-60 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>
+                                <td className="text-right text-ink-60 tabular-nums px-2 py-2.5">{fmt(s.purchases)}</td>
                                 <td className="text-right pl-2 py-2.5">
                                   <span className={`font-bold tabular-nums ${crColor}`}>{s.cr}%</span>
                                 </td>
@@ -2080,14 +2080,14 @@ export default function AnalyticsPage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de conversión por canal</div>
+                    <div className="text-center text-ink-60 text-sm py-8">Sin datos de conversión por canal</div>
                   )}
                 </div>
 
                 {/* CR by Device — 1 col */}
                 <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "860ms" }}>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-gray-900">CR por Dispositivo</h2>
+                    <h2 className="text-sm font-semibold text-ink">CR por Dispositivo</h2>
                     <InfoTip text="Visitantes: NitroPixel por tipo de dispositivo. Órdenes: VTEX por dispositivo. CR = órdenes / visitantes." />
                   </div>
                   {deviceCR.length > 0 ? (
@@ -2099,20 +2099,20 @@ export default function AnalyticsPage() {
                         const color = DEVICE_COLORS[d.device] || "#94a3b8";
                         const crColor = d.cr >= 2 ? "text-emerald-600" : d.cr >= 1 ? "text-amber-600" : "text-red-500";
                         return (
-                          <div key={d.device} className="bg-gray-50/50 rounded-xl p-3">
+                          <div key={d.device} className="bg-surface/50 rounded-xl p-3">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-lg">{DEVICE_ICONS[d.device] || "🖥️"}</span>
-                                <span className="text-xs font-medium text-gray-700">{DEVICE_LABELS[d.device] || d.device}</span>
+                                <span className="text-xs font-medium text-ink-60">{DEVICE_LABELS[d.device] || d.device}</span>
                               </div>
                               <span className={`text-lg font-bold tabular-nums ${crColor}`}>{d.cr}%</span>
                             </div>
-                            <div className="flex items-center justify-between text-[11px] text-gray-400">
+                            <div className="flex items-center justify-between text-[11px] text-ink-60">
                               <span>{fmt(d.visitors)} visitas</span>
                               <span className="mx-1">→</span>
                               <span>{fmt(d.orders)} órdenes</span>
                             </div>
-                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mt-2">
+                            <div className="h-1.5 bg-hairline rounded-full overflow-hidden mt-2">
                               <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(d.cr * 10, 100)}%`, backgroundColor: color }} />
                             </div>
                           </div>
@@ -2123,15 +2123,15 @@ export default function AnalyticsPage() {
                         const DLABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
                         return (
                           <div className="bg-gradient-to-r from-gray-50 to-transparent p-2.5 rounded-xl">
-                            <p className="text-[11px] text-gray-500">
-                              <span className="font-semibold text-gray-700">{DLABELS[best.device] || best.device}</span> convierte {(best.cr / (deviceCR[1]?.cr || 1)).toFixed(1)}x más que {DLABELS[deviceCR[1]?.device] || deviceCR[1]?.device || "otro"}.
+                            <p className="text-[11px] text-ink-60">
+                              <span className="font-semibold text-ink-60">{DLABELS[best.device] || best.device}</span> convierte {(best.cr / (deviceCR[1]?.cr || 1)).toFixed(1)}x más que {DLABELS[deviceCR[1]?.device] || deviceCR[1]?.device || "otro"}.
                             </p>
                           </div>
                         );
                       })()}
                     </div>
                   ) : (
-                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>
+                    <div className="text-center text-ink-60 text-sm py-8">Sin datos de dispositivos</div>
                   )}
                 </div>
               </div>
@@ -2146,7 +2146,7 @@ export default function AnalyticsPage() {
 
         {/* Footer tagline */}
         <div className="text-center py-4">
-          <p className="text-[11px] text-gray-300">
+          <p className="text-[11px] text-white/70">
             NitroPixel Analytics — Datos propios. Sin intermediarios. La verdad de tu negocio.
           </p>
         </div>
@@ -2201,7 +2201,7 @@ function FunnelChannelDropdown({
     return (
       <div className="flex items-center gap-2">
         {isAll ? (
-          <span className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+          <span className="w-5 h-5 rounded-full bg-ink flex items-center justify-center flex-shrink-0">
             <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -2214,7 +2214,7 @@ function FunnelChannelDropdown({
             <ChannelLogo source={source} size={11} />
           </span>
         )}
-        <span className={isActive ? "font-medium text-gray-900" : "text-gray-700"}>{label}</span>
+        <span className={isActive ? "font-medium text-ink" : "text-ink-60"}>{label}</span>
       </div>
     );
   };
@@ -2227,29 +2227,29 @@ function FunnelChannelDropdown({
         type="button"
         onClick={() => !disabled && setOpen((v) => !v)}
         disabled={disabled}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-white hover:border-gray-300 transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 border border-hairline rounded-lg text-xs bg-elevated hover:border-hairline-2 transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
       >
         {renderItem(value, selectedLabel, true)}
-        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className={`w-4 h-4 text-ink-60 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-72 overflow-y-auto py-1">
+        <div className="absolute top-full left-0 mt-1 w-full bg-elevated border border-hairline rounded-lg shadow-lg z-30 max-h-72 overflow-y-auto py-1">
           <button
             type="button"
             onClick={() => { onChange("all"); setOpen(false); }}
-            className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${value === "all" ? "bg-gray-50" : ""}`}
+            className={`w-full text-left px-3 py-2 text-xs hover:bg-surface transition-colors ${value === "all" ? "bg-surface" : ""}`}
           >
             {renderItem("all", "Todos los canales", value === "all")}
           </button>
-          <div className="border-t border-gray-100 my-1" />
+          <div className="border-t border-hairline my-1" />
           {channels.map((ch) => (
             <button
               key={ch.source}
               type="button"
               onClick={() => { onChange(ch.source); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${value === ch.source ? "bg-gray-50" : ""}`}
+              className={`w-full text-left px-3 py-2 text-xs hover:bg-surface transition-colors ${value === ch.source ? "bg-surface" : ""}`}
             >
               {renderItem(ch.source, getSourceInfo(ch.source).label, value === ch.source)}
             </button>
@@ -2350,33 +2350,33 @@ function ManualSpendModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+        className="bg-elevated rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Inversión manual — {label}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h3 className="text-lg font-semibold text-ink">Inversión manual — {label}</h3>
+            <p className="text-xs text-ink-60 mt-0.5">
               Para canales sin integración. Se prorratea según el rango de fechas del dashboard.
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-ink-60 hover:text-ink-60 text-xl leading-none">×</button>
         </div>
 
         {/* Lista existentes */}
         {loading ? (
-          <div className="text-sm text-gray-400 py-4">Cargando…</div>
+          <div className="text-sm text-ink-60 py-4">Cargando…</div>
         ) : items.length > 0 ? (
           <div className="mb-5 space-y-2">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Inversiones cargadas</p>
+            <p className="text-xs font-medium text-ink-60 uppercase tracking-wide">Inversiones cargadas</p>
             {items.map((it) => (
-              <div key={it.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+              <div key={it.id} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
                 <div className="text-sm">
-                  <div className="font-medium text-gray-900">${it.amount.toLocaleString("es-AR")}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="font-medium text-ink">${it.amount.toLocaleString("es-AR")}</div>
+                  <div className="text-xs text-ink-60">
                     {new Date(it.fromDate).toLocaleDateString("es-AR")} → {new Date(it.toDate).toLocaleDateString("es-AR")}
                   </div>
-                  {it.note && <div className="text-xs text-gray-400 italic">{it.note}</div>}
+                  {it.note && <div className="text-xs text-ink-60 italic">{it.note}</div>}
                 </div>
                 <button
                   onClick={() => handleDelete(it.id)}
@@ -2389,46 +2389,46 @@ function ManualSpendModal({
 
         {/* Form nuevo */}
         <div className="space-y-3">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cargar nueva inversión</p>
+          <p className="text-xs font-medium text-ink-60 uppercase tracking-wide">Cargar nueva inversión</p>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Monto (ARS)</label>
+            <label className="block text-xs text-ink-60 mb-1">Monto (ARS)</label>
             <input
               type="text"
               inputMode="numeric"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="500000"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+              className="w-full px-3 py-2 border border-hairline rounded-lg text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent outline-none"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Desde</label>
+              <label className="block text-xs text-ink-60 mb-1">Desde</label>
               <input
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Hasta</label>
+              <label className="block text-xs text-ink-60 mb-1">Hasta</label>
               <input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent outline-none"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Nota (opcional)</label>
+            <label className="block text-xs text-ink-60 mb-1">Nota (opcional)</label>
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ej: Campaña Día de la Madre"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+              className="w-full px-3 py-2 border border-hairline rounded-lg text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent outline-none"
             />
           </div>
 
@@ -2437,16 +2437,16 @@ function ManualSpendModal({
           <div className="flex gap-2 pt-2">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 text-sm font-medium text-ink-60 bg-surface-2 hover:bg-hairline rounded-lg transition-colors"
             >Cancelar</button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-ink hover:bg-ink/90 disabled:bg-accent rounded-lg transition-colors"
             >{saving ? "Guardando…" : "Guardar"}</button>
             <button
               onClick={() => { onSaved(); }}
-              className="px-3 py-2 text-sm font-medium text-cyan-600 hover:text-cyan-800"
+              className="px-3 py-2 text-sm font-medium text-ink hover:text-ink"
             >Listo</button>
           </div>
         </div>

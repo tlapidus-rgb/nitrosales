@@ -117,9 +117,9 @@ const MODULES: Array<{
   { key: "operaciones",    filterType: "category",   filterValue: "operaciones", label: "Operaciones",    Icon: Package,       color: "#6B685F", bg: "#EDEAE3" },
   // Productos
   { key: "aurum",          filterType: "source",     filterValue: "aurum",       label: "Aurum",          Icon: Sparkles,      color: "#6B685F", bg: "#EDEAE3" },
-  { key: "bondly",         filterType: "source",     filterValue: "bondly",      label: "Bondly",         Icon: Heart,         color: "#9A978D", bg: "#EDEAE3", comingSoon: true },
-  { key: "aura",           filterType: "source",     filterValue: "aura",        label: "Aura",           Icon: Wand2,         color: "#9A978D", bg: "#EDEAE3", comingSoon: true },
-  { key: "nitropixel",     filterType: "source",     filterValue: "nitropixel",  label: "Nitropixel",     Icon: Zap,           color: "#9A978D", bg: "#EDEAE3", comingSoon: true },
+  { key: "bondly",         filterType: "source",     filterValue: "bondly",      label: "Bondly",         Icon: Heart,         color: "#83807A", bg: "#EDEAE3", comingSoon: true },
+  { key: "aura",           filterType: "source",     filterValue: "aura",        label: "Aura",           Icon: Wand2,         color: "#83807A", bg: "#EDEAE3", comingSoon: true },
+  { key: "nitropixel",     filterType: "source",     filterValue: "nitropixel",  label: "Nitropixel",     Icon: Zap,           color: "#83807A", bg: "#EDEAE3", comingSoon: true },
 ];
 
 const SEV_META: Record<AlertSeverity, { label: string; color: string; bg: string; Icon: any }> = {
@@ -452,7 +452,7 @@ export default function AlertasPage() {
         >
           Alertas
         </div>
-        <div style={{ fontSize: 13, color: "#9A978D" }}>
+        <div style={{ fontSize: 13, color: "#83807A" }}>
           {loading ? "Cargando…" : `${alerts.length} · ${unreadCount} sin leer`}
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
@@ -563,7 +563,7 @@ export default function AlertasPage() {
               padding: "0 12px 10px",
               fontSize: 10,
               fontWeight: 700,
-              color: "#9A978D",
+              color: "#83807A",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -595,7 +595,7 @@ export default function AlertasPage() {
               padding: "0 12px 10px",
               fontSize: 10,
               fontWeight: 700,
-              color: "#9A978D",
+              color: "#83807A",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -627,7 +627,7 @@ export default function AlertasPage() {
               padding: "0 12px 10px",
               fontSize: 10,
               fontWeight: 700,
-              color: "#9A978D",
+              color: "#83807A",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -668,7 +668,7 @@ export default function AlertasPage() {
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: "#9A978D",
+                color: "#83807A",
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 marginBottom: 8,
@@ -716,7 +716,7 @@ export default function AlertasPage() {
                       borderRadius: 6,
                       cursor: "pointer",
                       background: isActive ? "white" : "transparent",
-                      color: isActive ? "#1C1B18" : "#9A978D",
+                      color: isActive ? "#1C1B18" : "#83807A",
                       boxShadow: isActive
                         ? "0 1px 2px rgba(28, 27, 24, 0.08)"
                         : "none",
@@ -741,7 +741,7 @@ export default function AlertasPage() {
                     <span
                       style={{
                         fontSize: 10,
-                        color: isActive ? "#9A978D" : "#9A978D",
+                        color: isActive ? "#6B685F" : "#83807A",
                       }}
                     >
                       {count}
@@ -765,7 +765,7 @@ export default function AlertasPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  color: "#9A978D",
+                  color: "#83807A",
                   cursor: "pointer",
                 }}
               >
@@ -783,7 +783,7 @@ export default function AlertasPage() {
           {/* Lista */}
           <div style={{ flex: 1, overflowY: "auto" }}>
             {loading ? (
-              <div style={{ padding: 40, textAlign: "center", color: "#9A978D", fontSize: 13 }}>
+              <div style={{ padding: 40, textAlign: "center", color: "#83807A", fontSize: 13 }}>
                 Cargando…
               </div>
             ) : error ? (
@@ -800,7 +800,7 @@ export default function AlertasPage() {
                       padding: "14px 18px 6px",
                       fontSize: 10,
                       fontWeight: 700,
-                      color: "#9A978D",
+                      color: "#83807A",
                       textTransform: "uppercase",
                       letterSpacing: "0.08em",
                       background: "#F5F3EE",
@@ -876,7 +876,7 @@ function ModuleButton({
         padding: "9px 12px",
         borderRadius: 8,
         fontSize: 13,
-        color: active ? "white" : isComingSoon ? "#9A978D" : "#6B685F",
+        color: active ? "white" : isComingSoon ? "#83807A" : "#6B685F",
         marginBottom: 2,
         background: active ? "#1C1B18" : "transparent",
         border: "none",
@@ -921,7 +921,7 @@ function ModuleButton({
             padding: "2px 6px",
             borderRadius: 10,
             background: "#EDEAE3",
-            color: "#9A978D",
+            color: "#83807A",
             textTransform: "uppercase",
             letterSpacing: "0.04em",
           }}
@@ -945,7 +945,7 @@ function ModuleButton({
             style={{
               fontSize: 11,
               fontWeight: 600,
-              color: active ? "rgba(255, 255, 255, 0.8)" : "#9A978D",
+              color: active ? "rgba(255, 255, 255, 0.8)" : "#83807A",
               fontVariantNumeric: "tabular-nums",
             }}
           >
@@ -1029,7 +1029,7 @@ function AlertRow({
             lineHeight: 1.4,
             marginBottom: 4,
             fontWeight: isRead ? 400 : 600,
-            color: isRead ? "#9A978D" : "#1C1B18",
+            color: isRead ? "#6B685F" : "#1C1B18",
             display: "flex",
             alignItems: "flex-start",
             gap: 6,
@@ -1051,7 +1051,7 @@ function AlertRow({
             gap: 6,
             alignItems: "center",
             fontSize: 11,
-            color: "#9A978D",
+            color: "#83807A",
           }}
         >
           <span
@@ -1080,7 +1080,7 @@ function AlertRow({
             border: "none",
             background: "transparent",
             cursor: "pointer",
-            color: alert.favorited ? "#f59e0b" : "#9A978D",
+            color: alert.favorited ? "#f59e0b" : "#83807A",
             padding: 4,
             borderRadius: 4,
             display: "inline-flex",
@@ -1101,7 +1101,7 @@ function AlertRow({
             border: "none",
             background: "transparent",
             cursor: "pointer",
-            color: isRead ? "#9A978D" : "#2563eb",
+            color: isRead ? "#83807A" : "#2563eb",
             padding: 4,
             borderRadius: 4,
             display: "inline-flex",
@@ -1146,7 +1146,7 @@ function AlertDetail({
               border: "none",
               background: "transparent",
               cursor: "pointer",
-              color: alert.favorited ? "#f59e0b" : "#9A978D",
+              color: alert.favorited ? "#f59e0b" : "#83807A",
               padding: 4,
               marginTop: 2,
             }}
@@ -1217,7 +1217,7 @@ function AlertDetail({
           display: "flex",
           gap: 16,
           fontSize: 13,
-          color: "#9A978D",
+          color: "#83807A",
           marginBottom: 24,
           paddingBottom: 20,
           borderBottom: "1px solid rgba(28, 27, 24, 0.06)",
@@ -1274,7 +1274,7 @@ function AlertDetail({
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#9A978D",
+                    color: "#83807A",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: 6,
@@ -1343,7 +1343,7 @@ function AlertDetail({
           <Lightbulb size={14} />
           ¿Querés que te avisemos antes la próxima vez?
         </div>
-        <div style={{ fontSize: 12, color: "#9A978D", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "#83807A", lineHeight: 1.5 }}>
           Crear una regla personalizada para esta situación y recibir
           notificación por mail o in-app.{" "}
           <Link
@@ -1364,7 +1364,7 @@ function EmptyList() {
       style={{
         padding: 40,
         textAlign: "center",
-        color: "#9A978D",
+        color: "#83807A",
         fontSize: 13,
         display: "flex",
         flexDirection: "column",
@@ -1399,7 +1399,7 @@ function EmptyDetail() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        color: "#9A978D",
+        color: "#83807A",
         fontSize: 13,
         gap: 10,
       }}

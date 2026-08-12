@@ -656,32 +656,32 @@ function OrdersPageInner() {
 
       {/* KPI CARDS - Row 1: Main metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
-        <KpiCard icon={<DollarSign size={16} className="text-emerald-600" />} iconBg="bg-emerald-50"
+        <KpiCard icon={<DollarSign size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Ventas totales" value={formatCompact(kpis.totalRevenue)} change={kpis.changes.revenue} />
-        <KpiCard icon={<ShoppingCart size={16} className="text-blue-600" />} iconBg="bg-blue-50"
+        <KpiCard icon={<ShoppingCart size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Ordenes" value={kpis.totalOrders.toLocaleString("es-AR")} change={kpis.changes.orders} />
-        <KpiCard icon={<CreditCard size={16} className="text-purple-600" />} iconBg="bg-purple-50"
+        <KpiCard icon={<CreditCard size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Ticket promedio" value={formatARS(kpis.avgTicket)} change={kpis.changes.avgTicket} />
-        <KpiCard icon={<Package size={16} className="text-orange-600" />} iconBg="bg-orange-50"
+        <KpiCard icon={<Package size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Unidades vendidas" value={kpis.totalItems.toLocaleString("es-AR")}
           subtitle={`${avgItemsPerOrder.toFixed(1)} items/orden`} />
-        <KpiCard icon={<XCircle size={16} className="text-red-500" />} iconBg="bg-red-50"
+        <KpiCard icon={<XCircle size={16} className="text-red-600" />} iconBg="bg-red-50"
           label="Cancelacion" value={`${kpis.cancellationRate}%`}
           subtitle={`${kpis.cancelledOrders} orden${kpis.cancelledOrders !== 1 ? "es" : ""}`} />
       </div>
 
       {/* KPI CARDS - Row 2: Secondary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
-        <KpiCard icon={<Clock size={16} className="text-indigo-600" />} iconBg="bg-indigo-50"
+        <KpiCard icon={<Clock size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Venta promedio/dia" value={formatCompact(avgRevenuePerDay)}
           subtitle={`${avgOrdersPerDay.toFixed(1)} ordenes/dia`} />
-        <KpiCard icon={<Truck size={16} className="text-ink" />} iconBg="bg-surface"
+        <KpiCard icon={<Truck size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Envio promedio" value={formatARS(Math.abs(avgShippingPerOrder))}
           subtitle={`${formatCompact(Math.abs(kpis.totalShipping))} total`} />
-        <KpiCard icon={<Tag size={16} className="text-pink-600" />} iconBg="bg-pink-50"
+        <KpiCard icon={<Tag size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Descuento promedio" value={formatARS(avgDiscountPerOrder)}
           subtitle={`${formatCompact(kpis.totalDiscounts)} total`} />
-        <KpiCard icon={<Percent size={16} className="text-amber-600" />} iconBg="bg-amber-50"
+        <KpiCard icon={<Percent size={16} className="text-ink-60" />} iconBg="bg-surface"
           label="Peso envío/ticket" value={`${kpis.avgTicket > 0 ? ((Math.abs(avgShippingPerOrder) / kpis.avgTicket) * 100).toFixed(1) : 0}%`}
           subtitle="Qué % del ticket se va en logística" />
       </div>
@@ -808,11 +808,11 @@ function OrdersPageInner() {
             <XAxis
               dataKey="day"
               tickFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return `${date.getDate()}/${date.getMonth() + 1}`; } catch { return d; } }}
-              tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false}
+              tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false}
             />
             <YAxis
               tickFormatter={(v) => dailyMetric === "revenue" ? formatCompact(v) : v.toLocaleString()}
-              tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={60}
+              tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false} width={60}
             />
             <Tooltip
               formatter={(value: number, name: string) => {
@@ -874,8 +874,8 @@ function OrdersPageInner() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="4 4" stroke="#E5E1D8" strokeOpacity={0.6} />
-              <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={40} />
+              <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
                 contentStyle={{ background: "rgba(245,243,238,0.98)", border: "1px solid #E5E1D8", borderRadius: "12px", fontSize: "12px", color: "#1C1B18", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.18)" }}
                 labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500 }}
@@ -897,8 +897,8 @@ function OrdersPageInner() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="4 4" stroke="#E5E1D8" strokeOpacity={0.6} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9A978D" }} axisLine={false} tickLine={false} interval={2} />
-              <YAxis tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={40} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#83807A" }} axisLine={false} tickLine={false} interval={2} />
+              <YAxis tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
                 contentStyle={{ background: "rgba(245,243,238,0.98)", border: "1px solid #E5E1D8", borderRadius: "12px", fontSize: "12px", color: "#1C1B18", boxShadow: "0 12px 32px -12px rgba(28,27,24,0.18)" }}
                 labelStyle={{ color: "#6B685F", fontSize: "10px", fontWeight: 500 }}

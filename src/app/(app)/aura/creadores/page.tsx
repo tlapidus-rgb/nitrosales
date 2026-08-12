@@ -38,32 +38,28 @@ import {
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
-// ───────────────────────── THEME (DARK · Creator Gradient) ──────
+// ───────────────────────── THEME (Enterprise · tokens --ent-*) ──────
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  gray: "#9ca3af",
-  graySoft: "rgba(156, 163, 175, 0.08)",
-  grayBorder: "rgba(156, 163, 175, 0.22)",
-  // Gradient
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080, #00d4ff)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  gold: "rgb(var(--ent-ink))",
+  goldSoft: "rgb(var(--ent-surface))",
+  goldBorder: "rgb(var(--ent-hairline))",
+  green: "rgb(var(--ent-accent))",
+  greenSoft: "rgba(47,145,83,0.10)",
+  greenBorder: "rgba(47,145,83,0.28)",
+  rose: "#B91C1C",
+  roseSoft: "rgba(185,28,28,0.08)",
+  roseBorder: "rgba(185,28,28,0.24)",
+  gray: "rgb(var(--ent-ink-40))",
+  graySoft: "rgb(var(--ent-surface))",
+  grayBorder: "rgb(var(--ent-hairline))",
 };
 
 // ───────────────────────────── UTILS ─────────────────────────────
@@ -190,9 +186,8 @@ function Avatar({
         width: size,
         height: size,
         fontSize: size * 0.36,
-        background: "linear-gradient(135deg, #ff99c7 0%, #ff0080 100%)",
-        color: "#FFF",
-        boxShadow: "0 4px 12px rgba(255, 0, 128, 0.25)",
+        background: "rgb(var(--ent-ink))",
+        color: "rgb(var(--ent-bg))",
       }}
     >
       {initials || "?"}
@@ -227,17 +222,16 @@ function CreatorCard({ creator, delay }: { creator: Creator; delay: number }) {
       style={{
         background: THEME.bgCard,
         border: `1px solid ${THEME.border}`,
-        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.3)",
+        boxShadow: "0 1px 2px rgba(28,27,24,0.05)",
         animation: `cardIn 520ms ${ES} ${delay}ms both`,
       }}
     >
-      {/* Hover halo sutil */}
+      {/* Hover: borde levemente más marcado, sin glow */}
       <div
         aria-hidden
-        className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"
         style={{
-          background:
-            "linear-gradient(135deg, rgba(255, 0, 128, 0.04) 0%, transparent 60%)",
+          boxShadow: `inset 0 0 0 1px ${THEME.borderStrong}`,
           transition: `opacity 320ms ${ES}`,
         }}
       />
@@ -347,22 +341,14 @@ function CreatorCard({ creator, delay }: { creator: Creator; delay: number }) {
           <span
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10.5px] font-semibold tracking-tight"
             style={{
-              background:
-                "linear-gradient(135deg, rgba(255,0,128,0.10), rgba(168,85,247,0.08), rgba(0,212,255,0.10))",
-              border: "1px solid rgba(168,85,247,0.28)",
+              background: THEME.bgSoft,
+              border: `1px solid ${THEME.border}`,
+              color: THEME.textSecondary,
             }}
             title={`Ventana de atribución personalizada: ${creator.attributionWindowDays} días (Powered by NitroPixel)`}
           >
-            <Target size={10} strokeWidth={2.4} style={{ color: "#ff0080" }} />
-            <span
-              className="bg-clip-text text-transparent tabular-nums"
-              style={{
-                backgroundImage:
-                  "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
-              }}
-            >
-              {creator.attributionWindowDays}d
-            </span>
+            <Target size={10} strokeWidth={2.4} style={{ color: THEME.textTertiary }} />
+            <span className="tabular-nums">{creator.attributionWindowDays}d</span>
           </span>
           <div className="text-[11px] tracking-tight" style={{ color: THEME.textTertiary }}>
             {fmtDaysAgo(creator.lastSaleAt)}
@@ -412,7 +398,7 @@ function FilterChip({
       <span
         className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full text-[10.5px] font-semibold tabular-nums"
         style={{
-          background: active ? "#151521" : THEME.bgSoft,
+          background: active ? "rgb(var(--ent-bg))" : THEME.bgSoft,
           color: active ? toneColors.c : THEME.textTertiary,
           border: `1px solid ${active ? toneColors.b : THEME.border}`,
         }}
@@ -508,15 +494,7 @@ export default function CreadoresPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: THEME.bgPage,
-        color: THEME.textPrimary,
-        fontFamily:
-          "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif",
-      }}
-    >
+    <div className="min-h-screen bg-canvas" style={{ color: THEME.textPrimary }}>
       <style>{`
         @keyframes cardIn {
           from { opacity: 0; transform: translateY(12px); }
@@ -544,12 +522,7 @@ export default function CreadoresPage() {
               </div>
               <h1
                 className="text-[34px] font-semibold tracking-tight leading-none"
-                style={{
-                  background: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                  WebkitBackgroundClip: "text",
-                  backgroundClip: "text",
-                  color: "transparent",
-                }}
+                style={{ color: THEME.textPrimary }}
               >
                 Creadores
               </h1>
@@ -607,14 +580,7 @@ export default function CreadoresPage() {
                   que aprobar-postulación). Ya no crea creadores sin comisión. */}
               <Link
                 href="/aura/creadores/nuevo"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all hover:brightness-110"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                  color: "#FFF",
-                  boxShadow:
-                    "0 4px 20px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
-                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all bg-ink text-white"
               >
                 <Plus size={14} strokeWidth={2.4} />
                 Nuevo creador

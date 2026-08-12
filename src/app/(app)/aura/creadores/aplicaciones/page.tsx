@@ -38,16 +38,16 @@ import {
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
+  bgPage: "rgb(var(--ent-bg))",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  gold: "rgb(var(--ent-accent))",
   goldSoft: "rgba(255, 0, 128, 0.10)",
   goldBorder: "rgba(255, 0, 128, 0.28)",
   green: "#4ade80",
@@ -59,8 +59,8 @@ const THEME = {
   gray: "#9ca3af",
   graySoft: "rgba(156, 163, 175, 0.08)",
   grayBorder: "rgba(156, 163, 175, 0.22)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080, #00d4ff)",
+  gradient: "rgb(var(--ent-ink))",
+  gradientText: "rgb(var(--ent-ink))",
 };
 
 type Application = {
@@ -209,7 +209,7 @@ export default function AplicacionesPage() {
             <h1
               className="text-[32px] font-semibold tracking-tight leading-none"
               style={{
-                background: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+                background: "rgb(var(--ent-ink))",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",
@@ -256,7 +256,7 @@ export default function AplicacionesPage() {
                       }).catch(() => {});
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white shrink-0 transition-all hover:brightness-110"
-                    style={{ background: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)" }}
+                    style={{ background: "rgb(var(--ent-ink))" }}
                   >
                     {copied ? <Check size={13} strokeWidth={2.4} /> : <Copy size={13} strokeWidth={2.2} />}
                     {copied ? "Copiado" : "Copiar"}
@@ -517,7 +517,7 @@ function ApplicationCard({
             width: 36,
             height: 36,
             fontSize: 13,
-            background: "linear-gradient(135deg, #ff99c7 0%, #ff0080 100%)",
+            background: "rgb(var(--ent-ink))",
             color: "#FFF",
           }}
         >

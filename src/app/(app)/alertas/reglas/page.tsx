@@ -86,29 +86,26 @@ type CatalogPrimitive = {
   naturalExamples: string[];
 };
 
-const MODULE_META: Record<
-  string,
-  { label: string; Icon: any; gradient: string; tone: string }
-> = {
-  finanzas: { label: "Finanzas", Icon: TrendingUp, gradient: "linear-gradient(135deg, #6366f1, #8b5cf6)", tone: "#6366f1" },
-  fiscal: { label: "Fiscal", Icon: FileText, gradient: "linear-gradient(135deg, #0ea5e9, #06b6d4)", tone: "#0ea5e9" },
-  orders: { label: "Ventas", Icon: ShoppingCart, gradient: "linear-gradient(135deg, #10b981, #14b8a6)", tone: "#10b981" },
-  ml: { label: "MercadoLibre", Icon: Activity, gradient: "linear-gradient(135deg, #f59e0b, #f97316)", tone: "#f59e0b" },
-  ads: { label: "Publicidad", Icon: Megaphone, gradient: "linear-gradient(135deg, #ec4899, #f43f5e)", tone: "#ec4899" },
-  products: { label: "Productos", Icon: Package, gradient: "linear-gradient(135deg, #14b8a6, #0d9488)", tone: "#14b8a6" },
-  aura: { label: "Aura (Creators)", Icon: Sparkles, gradient: "linear-gradient(135deg, #ff0080, #a855f7)", tone: "#ec4899" },
-  competencia: { label: "Competencia", Icon: Users, gradient: "linear-gradient(135deg, #8b5cf6, #6366f1)", tone: "#8b5cf6" },
-  sistema: { label: "Sistema", Icon: Server, gradient: "linear-gradient(135deg, #64748b, #475569)", tone: "#64748b" },
-  security: { label: "Seguridad", Icon: Shield, gradient: "linear-gradient(135deg, #ef4444, #f43f5e)", tone: "#ef4444" },
+// Tratamiento neutro compartido — todos los módulos usan el mismo ink,
+// se diferencian por icono + label, no por color (sin arcoíris por módulo).
+const MODULE_ICON_BG = "rgb(var(--ent-ink))";
+const MODULE_ICON_BORDER = "rgba(28,27,24,0.16)";
+
+const MODULE_META: Record<string, { label: string; Icon: any }> = {
+  finanzas: { label: "Finanzas", Icon: TrendingUp },
+  fiscal: { label: "Fiscal", Icon: FileText },
+  orders: { label: "Ventas", Icon: ShoppingCart },
+  ml: { label: "MercadoLibre", Icon: Activity },
+  ads: { label: "Publicidad", Icon: Megaphone },
+  products: { label: "Productos", Icon: Package },
+  aura: { label: "Aura (Creators)", Icon: Sparkles },
+  competencia: { label: "Competencia", Icon: Users },
+  sistema: { label: "Sistema", Icon: Server },
+  security: { label: "Seguridad", Icon: Shield },
 };
 
 function moduleMeta(module: string) {
-  return MODULE_META[module] ?? {
-    label: module,
-    Icon: Settings2,
-    gradient: "linear-gradient(135deg, #94a3b8, #64748b)",
-    tone: "#64748b",
-  };
+  return MODULE_META[module] ?? { label: module, Icon: Settings2 };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -303,7 +300,7 @@ export default function AlertasReglasPage() {
           href="/alertas"
           style={{
             fontSize: 12,
-            color: "#94a3b8",
+            color: "rgb(var(--ent-ink-40))",
             textDecoration: "none",
             display: "inline-flex",
             alignItems: "center",
@@ -311,8 +308,8 @@ export default function AlertasReglasPage() {
             marginBottom: 18,
             transition: "color 0.15s",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "rgb(var(--ent-ink-60))")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "rgb(var(--ent-ink-40))")}
         >
           <ArrowLeft size={13} /> Alertas
         </Link>
@@ -356,14 +353,14 @@ export default function AlertasReglasPage() {
                   fontSize: 24,
                   fontWeight: 700,
                   letterSpacing: "-0.02em",
-                  color: "#0f172a",
+                  color: "rgb(var(--ent-ink))",
                   margin: 0,
                   marginBottom: 4,
                 }}
               >
                 Reglas personalizadas
               </h1>
-              <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5, maxWidth: 480 }}>
+              <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", lineHeight: 1.5, maxWidth: 480 }}>
                 Tu inventario de monitoreos automáticos. Crealos con el wizard o pedíselos a Aurum en el chat.
               </div>
             </div>
@@ -434,7 +431,7 @@ export default function AlertasReglasPage() {
 
         {/* Loading */}
         {loading && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 40, justifyContent: "center", color: "#94a3b8" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 40, justifyContent: "center", color: "rgb(var(--ent-ink-40))" }}>
             <Loader2 size={18} className="spin" />
             <span style={{ fontSize: 14 }}>Cargando tus reglas…</span>
             <style jsx>{`
@@ -503,11 +500,11 @@ export default function AlertasReglasPage() {
             >
               <Sparkles size={16} />
             </div>
-            <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
-              <b style={{ color: "#0f172a" }}>¿Querés crear otra regla?</b>{" "}
+            <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", lineHeight: 1.5 }}>
+              <b style={{ color: "rgb(var(--ent-ink))" }}>¿Querés crear otra regla?</b>{" "}
               Usá <b style={{ color: "#1C1B18" }}>"+ Nueva regla"</b> arriba para el wizard guiado paso a paso,
               o pedísela a Aurum en el chat con lenguaje natural — ej:{" "}
-              <i style={{ color: "#475569" }}>"avisame si las cancelaciones de ML pasan el 5%"</i>.
+              <i style={{ color: "rgb(var(--ent-ink-60))" }}>"avisame si las cancelaciones de ML pasan el 5%"</i>.
             </div>
           </div>
         )}
@@ -598,14 +595,14 @@ function KpiCardPremium({
       />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "rgb(var(--ent-ink-40))", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
             {label}
           </div>
           <div
             style={{
               fontSize: 32,
               fontWeight: 700,
-              color: "#0f172a",
+              color: "rgb(var(--ent-ink))",
               fontVariantNumeric: "tabular-nums",
               letterSpacing: "-0.03em",
               lineHeight: 1,
@@ -613,7 +610,7 @@ function KpiCardPremium({
           >
             {value}
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>{sub}</div>
+          <div style={{ fontSize: 12, color: "rgb(var(--ent-ink-60))", marginTop: 6 }}>{sub}</div>
         </div>
         <div
           style={{
@@ -663,21 +660,21 @@ function ModuleGroup({
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: meta.gradient,
+            background: MODULE_ICON_BG,
+            border: `1px solid ${MODULE_ICON_BORDER}`,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             color: "white",
-            boxShadow: `0 4px 14px ${meta.tone}30`,
           }}
         >
           <Icon size={18} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "rgb(var(--ent-ink))", letterSpacing: "-0.01em" }}>
             {meta.label}
           </div>
-          <div style={{ fontSize: 11, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ fontSize: 11, color: "rgb(var(--ent-ink-40))", fontVariantNumeric: "tabular-nums" }}>
             {rules.length} {rules.length === 1 ? "regla activa" : "reglas activas"}
           </div>
         </div>
@@ -693,7 +690,6 @@ function ModuleGroup({
               key={rule.id}
               rule={rule}
               primitive={prim}
-              moduleTone={meta.tone}
               onToggle={() => onToggle(rule)}
               onDelete={() => onDelete(rule)}
               onPreview={() => onPreview(rule)}
@@ -709,7 +705,6 @@ function ModuleGroup({
 function RuleCard({
   rule,
   primitive,
-  moduleTone,
   onToggle,
   onDelete,
   onPreview,
@@ -717,7 +712,6 @@ function RuleCard({
 }: {
   rule: Rule;
   primitive?: CatalogPrimitive;
-  moduleTone: string;
   onToggle: () => void;
   onDelete: () => void;
   onPreview: () => void;
@@ -758,7 +752,7 @@ function RuleCard({
           top: 0,
           bottom: 0,
           width: 4,
-          background: rule.enabled ? sevColor : "#cbd5e1",
+          background: rule.enabled ? sevColor : "rgb(var(--ent-hairline-2))",
         }}
       />
 
@@ -767,14 +761,14 @@ function RuleCard({
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "rgb(var(--ent-ink))", letterSpacing: "-0.01em" }}>
                 {rule.name}
               </div>
-              <Badge label={isSchedule ? "Reporte" : "Condición"} tone={isSchedule ? "#0ea5e9" : "#f43f5e"} />
+              <Badge label={isSchedule ? "Reporte" : "Condición"} tone="rgb(var(--ent-ink-60))" />
               <Badge label={sevLabel} tone={sevColor} />
-              {!rule.enabled && <Badge label="Pausada" tone="#94a3b8" />}
+              {!rule.enabled && <Badge label="Pausada" tone="rgb(var(--ent-ink-40))" />}
             </div>
-            <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5, paddingRight: 16 }}>
+            <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", lineHeight: 1.5, paddingRight: 16 }}>
               {description}
             </div>
           </div>
@@ -783,28 +777,28 @@ function RuleCard({
           <ToggleSwitch enabled={rule.enabled} onClick={onToggle} />
         </div>
 
-        {/* DETAIL CHIPS con backgrounds suaves */}
+        {/* DETAIL CHIPS — tono neutro, el color se reserva para status real */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 14 }}>
           {isSchedule && rule.schedule && (
-            <DetailChip Icon={Calendar} text={describeSchedule(rule.schedule)} tone="#0ea5e9" />
+            <DetailChip Icon={Calendar} text={describeSchedule(rule.schedule)} tone="rgb(var(--ent-ink-60))" />
           )}
           {!isSchedule && Object.keys(rule.params || {}).length > 0 && (
-            <DetailChip Icon={Activity} text={describeParams(rule.params)} tone="#6366f1" />
+            <DetailChip Icon={Activity} text={describeParams(rule.params)} tone="rgb(var(--ent-ink-60))" />
           )}
           <DetailChip
             Icon={channels.includes("email") ? Mail : Bell}
             text={channels.length > 0 ? channels.join(" + ") : "in_app"}
-            tone="#8b5cf6"
+            tone="rgb(var(--ent-ink-60))"
           />
           {rule.lastFiredAt && (
             <DetailChip
               Icon={CheckCircle2}
               text={`Última: ${formatRelative(rule.lastFiredAt)}`}
-              tone="#10b981"
+              tone="rgb(var(--ent-ink-60))"
             />
           )}
           {isSchedule && rule.nextFireAt && (
-            <DetailChip Icon={Clock} text={`Próxima: ${formatDate(rule.nextFireAt)}`} tone="#f59e0b" />
+            <DetailChip Icon={Clock} text={`Próxima: ${formatDate(rule.nextFireAt)}`} tone="rgb(var(--ent-ink-60))" />
           )}
         </div>
 
@@ -882,12 +876,12 @@ function ToggleSwitch({ enabled, onClick }: { enabled: boolean; onClick: () => v
         width: 38,
         height: 22,
         borderRadius: 999,
-        background: enabled ? "linear-gradient(135deg, #10b981, #14b8a6)" : "#cbd5e1",
+        background: enabled ? "rgb(var(--ent-accent))" : "rgb(var(--ent-hairline-2))",
         border: "none",
         cursor: "pointer",
         flexShrink: 0,
         transition: "background 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-        boxShadow: enabled ? "0 2px 8px rgba(16, 185, 129, 0.35)" : "inset 0 1px 2px rgba(28,27,24,0.06)",
+        boxShadow: enabled ? "0 2px 8px rgba(47,145,83,0.35)" : "inset 0 1px 2px rgba(28,27,24,0.06)",
         padding: 0,
       }}
     >
@@ -930,7 +924,7 @@ function IconButton({
         gap: 6,
         padding: "7px 12px",
         background: "transparent",
-        color: "#64748b",
+        color: "rgb(var(--ent-ink-60))",
         border: "1px solid rgba(28,27,24, 0.08)",
         borderRadius: 8,
         cursor: "pointer",
@@ -945,7 +939,7 @@ function IconButton({
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.color = "#64748b";
+        e.currentTarget.style.color = "rgb(var(--ent-ink-60))";
         e.currentTarget.style.borderColor = "rgba(28,27,24, 0.08)";
       }}
     >
@@ -981,14 +975,14 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
       >
         <Sparkles size={28} />
       </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color: "rgb(var(--ent-ink))", marginBottom: 8 }}>
         Todavía no tenés reglas
       </div>
-      <div style={{ fontSize: 14, color: "#64748b", marginBottom: 24, maxWidth: 480, margin: "0 auto 24px", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 14, color: "rgb(var(--ent-ink-60))", marginBottom: 24, maxWidth: 480, margin: "0 auto 24px", lineHeight: 1.5 }}>
         Las reglas son monitoreos automáticos: NitroSales chequea tus datos y te avisa solo cuando algo importante pasa, o te manda un reporte programado.
       </div>
 
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "rgb(var(--ent-ink-40))", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
         Inspiración: pediselo así a Aurum
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 480, margin: "0 auto 24px" }}>
@@ -1049,7 +1043,7 @@ function ExampleChip({ text }: { text: string }) {
         border: "1px solid rgba(28,27,24, 0.06)",
         borderRadius: 8,
         fontSize: 12,
-        color: "#475569",
+        color: "rgb(var(--ent-ink-60))",
         textAlign: "left",
         fontStyle: "italic",
       }}
@@ -1074,7 +1068,7 @@ function PreviewModal({
   return (
     <ModalShell title={`Preview · ${rule.name}`} onClose={onClose}>
       {loading && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 30, justifyContent: "center", color: "#94a3b8" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 30, justifyContent: "center", color: "rgb(var(--ent-ink-40))" }}>
           <Loader2 size={18} className="spin" />
           <span style={{ fontSize: 13 }}>Evaluando ahora mismo…</span>
         </div>
@@ -1088,7 +1082,7 @@ function PreviewModal({
 
       {!loading && data?.preview && (
         <>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: "rgb(var(--ent-ink-60))", marginBottom: 12 }}>
             Así se vería la alerta en <b>/alertas</b> con tus datos actuales:
           </div>
           <div
@@ -1100,10 +1094,10 @@ function PreviewModal({
               borderLeft: `4px solid ${data.preview.severity === "critical" ? "#ef4444" : data.preview.severity === "warning" ? "#f59e0b" : "#0ea5e9"}`,
             }}
           >
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "rgb(var(--ent-ink))", marginBottom: 8 }}>
               {data.preview.title}
             </div>
-            <div style={{ fontSize: 13, color: "#475569", fontVariantNumeric: "tabular-nums", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", fontVariantNumeric: "tabular-nums", lineHeight: 1.6 }}>
               {data.preview.body}
             </div>
             {data.preview.cta && data.preview.ctaHref && (
@@ -1142,10 +1136,10 @@ function ConfirmDeleteModal({
 }) {
   return (
     <ModalShell title="Borrar regla" onClose={onCancel}>
-      <div style={{ fontSize: 14, color: "#475569", marginBottom: 8, lineHeight: 1.5 }}>
-        Vas a borrar la regla <b style={{ color: "#0f172a" }}>"{rule.name}"</b>.
+      <div style={{ fontSize: 14, color: "rgb(var(--ent-ink-60))", marginBottom: 8, lineHeight: 1.5 }}>
+        Vas a borrar la regla <b style={{ color: "rgb(var(--ent-ink))" }}>"{rule.name}"</b>.
       </div>
-      <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
+      <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", marginBottom: 20 }}>
         No vas a recibir más alertas de este tipo. Esta acción no se puede deshacer.
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -1154,7 +1148,7 @@ function ConfirmDeleteModal({
           style={{
             padding: "8px 16px",
             background: "transparent",
-            color: "#64748b",
+            color: "rgb(var(--ent-ink-60))",
             border: "1px solid rgba(28,27,24,0.1)",
             borderRadius: 8,
             cursor: "pointer",
@@ -1195,7 +1189,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
         position: "fixed",
         inset: 0,
         background: "rgba(28,27,24, 0.4)",
-        backdropFilter: "blur(4px)",
+        
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1217,7 +1211,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{title}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "rgb(var(--ent-ink))" }}>{title}</div>
           <button
             onClick={onClose}
             style={{
@@ -1226,7 +1220,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
               borderRadius: 7,
               background: "transparent",
               border: "none",
-              color: "#94a3b8",
+              color: "rgb(var(--ent-ink-40))",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -1305,7 +1299,7 @@ function EditDrawer({
         position: "fixed",
         inset: 0,
         background: "rgba(28,27,24, 0.4)",
-        backdropFilter: "blur(4px)",
+        
         zIndex: 110,
         display: "flex",
         justifyContent: "flex-end",
@@ -1340,13 +1334,13 @@ function EditDrawer({
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgb(var(--ent-ink-40))", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
               Editar regla
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "rgb(var(--ent-ink))" }}>
               {primitive?.label ?? rule.primitiveKey}
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "rgb(var(--ent-ink-60))", marginTop: 2 }}>
               {primitive?.description ?? "Sin descripción"}
             </div>
           </div>
@@ -1358,7 +1352,7 @@ function EditDrawer({
               borderRadius: 7,
               background: "transparent",
               border: "none",
-              color: "#94a3b8",
+              color: "rgb(var(--ent-ink-40))",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -1495,7 +1489,7 @@ function EditDrawer({
                   onChange={(e) => setCooldown(Number(e.target.value))}
                   style={{ ...inputStyle, maxWidth: 120 }}
                 />
-                <span style={{ fontSize: 13, color: "#64748b" }}>minutos</span>
+                <span style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))" }}>minutos</span>
               </div>
             </Field>
           )}
@@ -1536,7 +1530,7 @@ function EditDrawer({
             style={{
               padding: "9px 16px",
               background: "transparent",
-              color: "#64748b",
+              color: "rgb(var(--ent-ink-60))",
               border: "1px solid rgba(28,27,24,0.1)",
               borderRadius: 8,
               cursor: saving ? "not-allowed" : "pointer",
@@ -1704,7 +1698,7 @@ function CreateWizard({
         position: "fixed",
         inset: 0,
         background: "rgba(28,27,24, 0.4)",
-        backdropFilter: "blur(4px)",
+        
         zIndex: 110,
         display: "flex",
         justifyContent: "flex-end",
@@ -1736,10 +1730,10 @@ function CreateWizard({
         >
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "rgb(var(--ent-ink-40))", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
                 Nueva regla · paso {step} de 4
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "rgb(var(--ent-ink))", letterSpacing: "-0.01em" }}>
                 {step === 1 && "¿Qué querés monitorear?"}
                 {step === 2 && `Elegí qué tipo de alerta`}
                 {step === 3 && "Configurá los detalles"}
@@ -1754,7 +1748,7 @@ function CreateWizard({
                 borderRadius: 7,
                 background: "transparent",
                 border: "none",
-                color: "#94a3b8",
+                color: "rgb(var(--ent-ink-40))",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
@@ -1788,7 +1782,7 @@ function CreateWizard({
           {/* PASO 1: Elegir módulo */}
           {step === 1 && (
             <>
-              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 18, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", marginBottom: 18, lineHeight: 1.5 }}>
                 Elegí el área de NitroSales que querés monitorear. Cada área tiene varias alertas pre-armadas listas para usar.
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1815,7 +1809,7 @@ function CreateWizard({
                         transition: "all 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = `${meta.tone}40`;
+                        e.currentTarget.style.borderColor = "rgba(28,27,24,0.32)";
                         e.currentTarget.style.transform = "translateY(-1px)";
                       }}
                       onMouseLeave={(e) => {
@@ -1828,7 +1822,7 @@ function CreateWizard({
                           width: 36,
                           height: 36,
                           borderRadius: 9,
-                          background: meta.gradient,
+                          background: MODULE_ICON_BG,
                           color: "white",
                           display: "inline-flex",
                           alignItems: "center",
@@ -1839,14 +1833,14 @@ function CreateWizard({
                         <Icon size={16} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "rgb(var(--ent-ink))" }}>
                           {meta.label}
                         </div>
-                        <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                        <div style={{ fontSize: 11, color: "rgb(var(--ent-ink-40))" }}>
                           {count} alertas disponibles
                         </div>
                       </div>
-                      <ArrowRight size={14} style={{ color: "#cbd5e1" }} />
+                      <ArrowRight size={14} style={{ color: "rgb(var(--ent-hairline-2))" }} />
                     </button>
                   );
                 })}
@@ -1857,13 +1851,13 @@ function CreateWizard({
           {/* PASO 2: Elegir primitiva */}
           {step === 2 && moduleSel && (
             <>
-              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
-                Elegí qué tipo de alerta querés crear dentro de <b style={{ color: "#0f172a" }}>{moduleMeta(moduleSel).label}</b>.
+              <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", marginBottom: 14, lineHeight: 1.5 }}>
+                Elegí qué tipo de alerta querés crear dentro de <b style={{ color: "rgb(var(--ent-ink))" }}>{moduleMeta(moduleSel).label}</b>.
               </div>
 
               {/* Search */}
               <div style={{ position: "relative", marginBottom: 14 }}>
-                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgb(var(--ent-ink-40))" }} />
                 <input
                   type="text"
                   value={searchQuery}
@@ -1876,14 +1870,14 @@ function CreateWizard({
                     border: "1px solid rgba(28,27,24,0.08)",
                     borderRadius: 8,
                     fontSize: 13,
-                    color: "#0f172a",
+                    color: "rgb(var(--ent-ink))",
                     outline: "none",
                   }}
                 />
               </div>
 
               {filteredPrimitives.length === 0 && (
-                <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                <div style={{ padding: 24, textAlign: "center", color: "rgb(var(--ent-ink-40))", fontSize: 13 }}>
                   No hay primitivas que matcheen "{searchQuery}". Probá con otra palabra.
                 </div>
               )}
@@ -1892,7 +1886,7 @@ function CreateWizard({
                 {filteredPrimitives.map((p) => {
                   const TypeIcon = p.type === "schedule" ? Clock : p.type === "anomaly" ? Bolt : AlertTriangle;
                   const typeLabel = p.type === "schedule" ? "Reporte" : p.type === "anomaly" ? "Anomalía" : "Condición";
-                  const typeColor = p.type === "schedule" ? "#0ea5e9" : p.type === "anomaly" ? "#f59e0b" : "#f43f5e";
+                  const typeColor = "rgb(var(--ent-ink-60))";
                   return (
                     <button
                       key={p.key}
@@ -1935,21 +1929,21 @@ function CreateWizard({
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "rgb(var(--ent-ink))" }}>
                             {p.label}
                           </div>
                           <Badge label={typeLabel} tone={typeColor} />
                         </div>
-                        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 12, color: "rgb(var(--ent-ink-60))", lineHeight: 1.5 }}>
                           {p.description}
                         </div>
                         {p.naturalExamples?.[0] && (
-                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6, fontStyle: "italic" }}>
+                          <div style={{ fontSize: 11, color: "rgb(var(--ent-ink-40))", marginTop: 6, fontStyle: "italic" }}>
                             ej: "{p.naturalExamples[0]}"
                           </div>
                         )}
                       </div>
-                      <ArrowRight size={14} style={{ color: "#cbd5e1", flexShrink: 0, marginTop: 6 }} />
+                      <ArrowRight size={14} style={{ color: "rgb(var(--ent-hairline-2))", flexShrink: 0, marginTop: 6 }} />
                     </button>
                   );
                 })}
@@ -1971,12 +1965,12 @@ function CreateWizard({
                   alignItems: "center",
                   gap: 10,
                   fontSize: 12,
-                  color: "#475569",
+                  color: "rgb(var(--ent-ink-60))",
                 }}
               >
                 <Check size={14} style={{ color: "#1C1B18", flexShrink: 0 }} />
                 <div>
-                  <b style={{ color: "#0f172a" }}>{primitive.label}</b> — {primitive.description}
+                  <b style={{ color: "rgb(var(--ent-ink))" }}>{primitive.label}</b> — {primitive.description}
                 </div>
               </div>
 
@@ -2095,7 +2089,7 @@ function CreateWizard({
                       onChange={(e) => setCooldown(Number(e.target.value))}
                       style={{ ...inputStyle, maxWidth: 120 }}
                     />
-                    <span style={{ fontSize: 13, color: "#64748b" }}>minutos</span>
+                    <span style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))" }}>minutos</span>
                   </div>
                 </Field>
               )}
@@ -2105,7 +2099,7 @@ function CreateWizard({
           {/* PASO 4: Resumen + crear */}
           {step === 4 && primitive && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))", lineHeight: 1.5 }}>
                 Revisá y confirmá. Una vez creada, podés editarla o pausarla cuando quieras.
               </div>
 
@@ -2208,7 +2202,7 @@ function CreateWizard({
             style={{
               padding: "9px 16px",
               background: "transparent",
-              color: "#64748b",
+              color: "rgb(var(--ent-ink-60))",
               border: "1px solid rgba(28,27,24,0.1)",
               borderRadius: 8,
               cursor: saving ? "not-allowed" : "pointer",
@@ -2227,7 +2221,7 @@ function CreateWizard({
                 style={{
                   padding: "9px 16px",
                   background: name.trim() ? "#1C1B18" : "#EDEAE3",
-                  color: name.trim() ? "white" : "#94a3b8",
+                  color: name.trim() ? "white" : "rgb(var(--ent-ink-40))",
                   border: "none",
                   borderRadius: 8,
                   cursor: name.trim() ? "pointer" : "not-allowed",
@@ -2288,8 +2282,8 @@ function CreateWizard({
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", fontSize: 12 }}>
-      <span style={{ color: "#94a3b8", fontWeight: 600 }}>{label}</span>
-      <span style={{ color: "#0f172a", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</span>
+      <span style={{ color: "rgb(var(--ent-ink-40))", fontWeight: 600 }}>{label}</span>
+      <span style={{ color: "rgb(var(--ent-ink))", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</span>
     </div>
   );
 }
@@ -2303,7 +2297,7 @@ const inputStyle: any = {
   border: "1px solid rgba(28,27,24,0.12)",
   borderRadius: 8,
   fontSize: 13,
-  color: "#0f172a",
+  color: "rgb(var(--ent-ink))",
   outline: "none",
   fontFamily: "inherit",
   fontVariantNumeric: "tabular-nums",
@@ -2312,11 +2306,11 @@ const inputStyle: any = {
 function Field({ label, hint, children }: { label: string; hint?: string; children: any }) {
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", marginBottom: 4 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "rgb(var(--ent-ink))", marginBottom: 4 }}>
         {label}
       </div>
       {hint && (
-        <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ fontSize: 11, color: "rgb(var(--ent-ink-40))", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
           <Info size={11} /> {hint}
         </div>
       )}
@@ -2337,7 +2331,7 @@ function Section({ title, Icon, children }: { title: string; Icon: any; children
         gap: 12,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "rgb(var(--ent-ink-60))", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
         <Icon size={12} />
         {title}
       </div>
@@ -2385,7 +2379,7 @@ function ParamField({
       <Field label={label} hint={hint || undefined}>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
           <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
-          <span style={{ fontSize: 13, color: "#475569" }}>{value ? "Activado" : "Desactivado"}</span>
+          <span style={{ fontSize: 13, color: "rgb(var(--ent-ink-60))" }}>{value ? "Activado" : "Desactivado"}</span>
         </label>
       </Field>
     );
@@ -2413,7 +2407,7 @@ function ParamField({
   // Fallback: array u otros tipos no soportados aún en UI
   return (
     <Field label={label} hint={hint || `Tipo "${def.type}" se edita por chat de Aurum por ahora`}>
-      <div style={{ ...inputStyle, color: "#94a3b8", background: "#f1f5f9" }}>
+      <div style={{ ...inputStyle, color: "rgb(var(--ent-ink-40))", background: "#f1f5f9" }}>
         {JSON.stringify(value) || "—"}
       </div>
     </Field>
@@ -2460,7 +2454,7 @@ function ChannelToggle({
           width: 28,
           height: 28,
           borderRadius: 7,
-          background: checked ? "#1C1B18" : "#cbd5e1",
+          background: checked ? "#1C1B18" : "rgb(var(--ent-hairline-2))",
           color: "white",
           display: "inline-flex",
           alignItems: "center",
@@ -2470,8 +2464,8 @@ function ChannelToggle({
         <Icon size={13} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{label}</div>
-        <div style={{ fontSize: 11, color: "#64748b" }}>{sub}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "rgb(var(--ent-ink))" }}>{label}</div>
+        <div style={{ fontSize: 11, color: "rgb(var(--ent-ink-60))" }}>{sub}</div>
       </div>
     </label>
   );
@@ -2498,7 +2492,7 @@ function SeverityChip({
         flex: 1,
         padding: "8px 10px",
         background: active ? `${tone}15` : "white",
-        color: active ? tone : "#64748b",
+        color: active ? tone : "rgb(var(--ent-ink-60))",
         border: `1px solid ${active ? `${tone}40` : "rgba(28,27,24,0.1)"}`,
         borderRadius: 8,
         cursor: "pointer",

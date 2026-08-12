@@ -13,16 +13,16 @@ import { useCallback, useEffect, useState } from "react";
 import { Wallet, Plus, Check } from "lucide-react";
 
 const THEME = {
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
   green: "#4ade80",
-  cyan: "#00d4ff",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
+  cyan: "rgb(var(--ent-ink-40))",
+  gradient: "rgb(var(--ent-ink))",
 };
 
 const METHODS = ["TRANSFER", "MERCADOPAGO", "CASH", "CRYPTO", "OTHER"] as const;

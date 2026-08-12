@@ -1146,7 +1146,7 @@ const INBOX_THEME: Record<
     bg: "linear-gradient(160deg, rgba(251,113,133,0.08) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
     glow: "rgba(251,113,133,0.4)",
-    text: "#9A978D",
+    text: "#83807A",
     halo: "radial-gradient(circle at 30% 20%, rgba(251,113,133,0.35) 0%, transparent 60%)",
   },
 };
@@ -1485,7 +1485,7 @@ const FLIGHT_STATUS: Record<
     accent: "#fb7185",
     bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
-    text: "#9A978D",
+    text: "#83807A",
     glow: "rgba(251,113,133,0.35)",
     icon: "at_risk",
   },
@@ -1930,7 +1930,7 @@ const PLATFORM_THEME: Record<
   },
   TIKTOK: {
     label: "TikTok",
-    accent: "#00d4ff",
+    accent: "rgb(var(--ent-ink-40))",
     bg: "linear-gradient(165deg, rgba(0, 212, 255,0.1) 0%, rgba(0, 212, 255,0.02) 100%)",
     border: "rgba(0, 212, 255,0.28)",
     text: "#80eaff",
@@ -1940,7 +1940,7 @@ const PLATFORM_THEME: Record<
     accent: "#fb7185",
     bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
-    text: "#9A978D",
+    text: "#83807A",
   },
   OTHER: {
     label: "Otro",
@@ -2380,7 +2380,7 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         <Flame size={12} color="#6B685F" strokeWidth={2.2} />
         <span
           className="text-[10.5px] uppercase tracking-[0.18em] font-bold"
-          style={{ color: "#9A978D" }}
+          style={{ color: "#83807A" }}
         >
           Piezas que están prendiendo
         </span>
@@ -2472,7 +2472,7 @@ const INSIGHT_THEME: Record<
     accent: "#fb7185",
     bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
     border: "rgba(251,113,133,0.28)",
-    text: "#9A978D",
+    text: "#83807A",
     glow: "rgba(251,113,133,0.32)",
   },
   green: {

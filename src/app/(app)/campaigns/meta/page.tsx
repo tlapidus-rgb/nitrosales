@@ -58,7 +58,7 @@ const FUNNEL_STAGES: Array<{
     key: "TOF",
     label: "Top of Funnel",
     sublabel: "Awareness",
-    hex: "#9A978D",
+    hex: "#83807A",
     text: "text-ink-40",
     soft: "bg-surface",
   },
@@ -1051,13 +1051,13 @@ function MetaCampaignsInner() {
                 <XAxis
                   dataKey="date"
                   tickFormatter={(d) => (d || "").slice(5)}
-                  tick={{ fontSize: 10, fill: "#9A978D" }}
+                  tick={{ fontSize: 10, fill: "#83807A" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(n) => formatCompact(n)}
-                  tick={{ fontSize: 10, fill: "#9A978D" }}
+                  tick={{ fontSize: 10, fill: "#83807A" }}
                   axisLine={false}
                   tickLine={false}
                   width={40}

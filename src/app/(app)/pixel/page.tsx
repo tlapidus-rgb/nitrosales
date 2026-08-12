@@ -5,6 +5,7 @@ import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 import { TooltipPortal } from "@/components/ui/TooltipPortal";
+import { LivePulse } from "@/components/enterprise/ui";
 
 // ══════════════════════════════════════════════════════════════
 // NitroPixel — Atribución · Dark Premium
@@ -549,12 +550,6 @@ export default function PixelPage() {
         </div>
       </div>
 
-      {/* ── Background ambient ── */}
-      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <div className="absolute inset-0 attr-grid-bg opacity-[0.03]" />
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(229,225,216,0.08) 0%, transparent 70%)", filter: "blur(80px)" }} />
-        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(229,225,216,0.05) 0%, transparent 70%)", filter: "blur(80px)" }} />
-      </div>
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* BLOQUE 0 — STICKY HEADER                                 */}
@@ -576,8 +571,8 @@ export default function PixelPage() {
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-medium transition-all hover:scale-[1.02]"
             style={{
               background: "rgba(245,243,238,0.6)",
-              border: "1px solid rgba(229,225,216,0.15)",
-              color: "rgba(148,163,184,0.85)",
+              border: "1px solid rgb(var(--ent-hairline))",
+              color: "rgb(var(--ent-ink-60))",
             }}
             title="Cambiar modelo y ventanas en Configuración"
           >
@@ -595,26 +590,22 @@ export default function PixelPage() {
 
           {/* Right — Date + Live */}
           <div className="flex items-center gap-3">
-            {data?.liveStatus?.status === "LIVE" && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
-                </span>
-                <span className="text-[10px] font-medium text-emerald-400">LIVE</span>
-              </div>
-            )}
+            {data?.liveStatus?.status === "LIVE" && <LivePulse status="LIVE" />}
             <div className="flex items-center gap-1">
               {[7, 30, 90].map(d => (
-                <button key={d} onClick={() => setQuickRange(d)} className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all" style={activeQuickRange === d ? { background: "rgba(229,225,216,0.15)", color: "#67e8f9", border: "1px solid rgba(229,225,216,0.3)" } : { color: "rgba(148,163,184,0.5)" }}>
+                <button
+                  key={d}
+                  onClick={() => setQuickRange(d)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors duration-150 ${
+                    activeQuickRange === d ? "bg-ink text-white" : "text-ink-40 hover:bg-surface hover:text-ink"
+                  }`}
+                >
                   {d}d
                 </button>
               ))}
             </div>
           </div>
         </div>
-        {/* Rainbow line */}
-        <div className="h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(229,225,216,0.4) 20%, rgba(139,92,246,0.4) 50%, rgba(249,115,22,0.4) 80%, transparent)" }} />
       </div>
 
       {/* ══════════════════════════════════════════════════════════ */}
@@ -1366,7 +1357,7 @@ export default function PixelPage() {
                   <>
                     <svg className="w-4 h-4" viewBox="0 0 36 36">
                       <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.1)"} strokeWidth="3" />
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "#f87171" : "#9A978D"} strokeWidth="3" strokeDasharray={`${(rate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "#f87171" : "#83807A"} strokeWidth="3" strokeDasharray={`${(rate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
                     </svg>
                     <div>
                       <p className={`text-xs font-bold ${lowCoverage ? "text-red-400" : "text-violet-400"}`}>{rate}%</p>
@@ -1501,7 +1492,7 @@ export default function PixelPage() {
                 {[
                   { label: "Revenue Atribuido", value: fmtCompact(channelRevenue), color: info.color, tip: `Plata generada por las órdenes que ${info.label} ayudó a cerrar (según el modelo de atribución activo). En este canal específicamente.` },
                   { label: "Órdenes", value: fmt(channelOrders), color: "#2F9153", tip: `Cantidad de órdenes en el rango actual donde ${info.label} aparece como uno de los touchpoints del recorrido del cliente.` },
-                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#9A978D", tip: "Average Order Value — ticket promedio de las órdenes de este canal. Revenue dividido órdenes. Útil para saber si el canal trae compras grandes o chicas." },
+                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#83807A", tip: "Average Order Value — ticket promedio de las órdenes de este canal. Revenue dividido órdenes. Útil para saber si el canal trae compras grandes o chicas." },
                   { label: "Inversión", value: ch.spend > 0 ? fmtCompact(ch.spend) : "—", color: "#f97316", tip: "Plata invertida en este canal en el período. Para canales pagos (Meta/Google/etc) viene de la integración con la plataforma. Para canales orgánicos es 0." },
                   { label: "ROAS Pixel", value: ch.pixelRoas > 0 ? `${ch.pixelRoas.toFixed(1)}x` : "—", color: "#10b981", tip: "Return On Ad Spend según NitroPixel. Revenue Atribuido ÷ Inversión. 3.5x = ganaste $3.5 por cada $1 invertido. Es la verdad real, no la inflada que reportan las plataformas." },
                   { label: "CPA", value: cpa > 0 ? fmtCompact(Math.round(cpa)) : "—", color: "#ec4899", tip: "Cost Per Acquisition — cuánto te cuesta cada orden de este canal. Inversión ÷ Órdenes. Usalo para comparar eficiencia entre canales pagos." },

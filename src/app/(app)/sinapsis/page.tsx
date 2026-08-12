@@ -51,7 +51,7 @@ const CATEGORY_INFO: Record<
   CORRECTION: {
     label: "Corrección",
     short: "Corrección",
-    color: "#9A978D",
+    color: "#6B685F",
     description: "Hecho que Aurum debe recordar",
     angle: 180,
   },

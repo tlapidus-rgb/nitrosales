@@ -43,7 +43,6 @@ interface TabDef {
   label: string;
   description: string;
   icon: React.ComponentType<any>;
-  accent: string;
   kind: TabKind;
 }
 
@@ -53,7 +52,6 @@ const TABS: TabDef[] = [
     label: "Organización",
     description: "Nombre, logo, dominio",
     icon: Building2,
-    accent: "#0ea5e9",
     kind: "productive",
   },
   {
@@ -61,7 +59,6 @@ const TABS: TabDef[] = [
     label: "Team & Permisos",
     description: "Miembros y roles",
     icon: Users,
-    accent: "#8b5cf6",
     kind: "productive",
   },
   {
@@ -69,7 +66,6 @@ const TABS: TabDef[] = [
     label: "Integraciones",
     description: "VTEX · MELI · Ads · GSC · GA4",
     icon: Plug,
-    accent: "#10b981",
     kind: "productive",
   },
   {
@@ -77,7 +73,6 @@ const TABS: TabDef[] = [
     label: "Billing",
     description: "Plan y facturación",
     icon: CreditCard,
-    accent: "#f59e0b",
     kind: "placeholder",
   },
   {
@@ -85,7 +80,6 @@ const TABS: TabDef[] = [
     label: "Seguridad",
     description: "Password y logs de acceso",
     icon: ShieldCheck,
-    accent: "#ef4444",
     kind: "productive",
   },
   {
@@ -93,7 +87,6 @@ const TABS: TabDef[] = [
     label: "API Keys",
     description: "Tokens para integraciones",
     icon: KeyRound,
-    accent: "#64748b",
     kind: "productive",
   },
 ];
@@ -108,39 +101,16 @@ export default function SettingsLayout({
   return (
     <div className="relative">
       {/* Header comun */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white mb-6 p-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at 85% 0%, rgba(14,165,233,0.06) 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(139,92,246,0.04) 0%, transparent 55%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(14,165,233,0.3) 25%, rgba(139,92,246,0.3) 50%, rgba(16,185,129,0.3) 75%, transparent 100%)",
-          }}
-        />
+      <div className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated mb-6 p-6">
         <div className="relative flex items-center gap-3">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{
-              background: "rgba(14,165,233,0.06)",
-              border: "1px solid rgba(14,165,233,0.22)",
-              color: "#0ea5e9",
-            }}
-          >
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-hairline bg-surface text-ink">
             <SettingsIcon className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">
+            <h1 className="text-[22px] font-semibold tracking-tight text-ink">
               Configuración
             </h1>
-            <p className="text-[13px] text-slate-500">
+            <p className="text-[13px] text-ink-60">
               Tu organización, equipo, integraciones y más.
             </p>
           </div>
@@ -158,60 +128,43 @@ export default function SettingsLayout({
               <Link
                 key={tab.href}
                 href={tab.href}
-                className="group relative flex items-start gap-3 rounded-xl border px-3 py-2.5 transition"
-                style={{
-                  borderColor: isActive
-                    ? `${tab.accent}40`
-                    : "rgba(226,232,240,0.8)",
-                  background: isActive ? `${tab.accent}0a` : "white",
-                  transition: `all 160ms ${ES}`,
-                  boxShadow: isActive
-                    ? `0 1px 2px ${tab.accent}14, 0 4px 12px ${tab.accent}08`
-                    : "0 1px 2px rgba(15,23,42,0.03)",
-                }}
+                className={`group relative flex items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
+                  isActive
+                    ? "border-hairline bg-ink/5"
+                    : "border-transparent bg-transparent hover:bg-ink/[0.03]"
+                }`}
+                style={{ transition: `all 160ms ${ES}` }}
               >
                 {isActive && (
                   <span
                     aria-hidden
-                    className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full"
-                    style={{ background: tab.accent }}
+                    className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full bg-ink/40"
                   />
                 )}
                 <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                  style={{
-                    background: isActive
-                      ? `${tab.accent}15`
-                      : "rgba(241,245,249,0.7)",
-                    color: isActive ? tab.accent : "#64748b",
-                    transition: `all 160ms ${ES}`,
-                  }}
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                    isActive ? "bg-ink/10 text-ink" : "bg-surface text-ink-60"
+                  }`}
+                  style={{ transition: `all 160ms ${ES}` }}
                 >
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className="text-[13px] font-semibold tracking-tight"
-                      style={{
-                        color: isActive ? "#0f172a" : "#334155",
-                      }}
+                      className={`text-[13px] font-semibold tracking-tight ${
+                        isActive ? "text-ink" : "text-ink-60"
+                      }`}
                     >
                       {tab.label}
                     </span>
                     {tab.kind === "placeholder" && (
-                      <span
-                        className="rounded-full px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em]"
-                        style={{
-                          background: "rgba(148,163,184,0.12)",
-                          color: "#64748b",
-                        }}
-                      >
+                      <span className="rounded-full bg-ink/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-ink-60">
                         Pronto
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-slate-500 truncate">
+                  <div className="mt-0.5 text-[11px] text-ink-40 truncate">
                     {tab.description}
                   </div>
                 </div>

@@ -41,7 +41,7 @@ interface PublicacionesData {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "#10b981", paused: "#f59e0b", closed: "#9A978D", under_review: "#8b5cf6",
+  active: "#10b981", paused: "#f59e0b", closed: "#83807A", under_review: "#8b5cf6",
 };
 const STATUS_LABELS: Record<string, string> = {
   active: "Activa", paused: "Pausada", closed: "Cerrada", under_review: "En revisión",
@@ -53,7 +53,7 @@ const LISTING_TYPE_LABELS: Record<string, string> = {
 
 const LISTING_TYPE_COLORS: Record<string, string> = {
   gold_special: "#fbbf24", gold_pro: "#f59e0b", gold: "#f97316",
-  silver: "#9A978D", bronze: "#a16207", free: "#9A978D",
+  silver: "#83807A", bronze: "#a16207", free: "#83807A",
 };
 
 export default function PublicacionesPage() {
@@ -97,7 +97,7 @@ export default function PublicacionesPage() {
       {/* KPIs PREMIUM */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
         <KpiPremium label="Activas" value={kpis.active.toLocaleString("es-AR")} sub={`${kpis.total} total`} tone="#10b981" Icon={Eye} />
-        <KpiPremium label="Pausadas" value={kpis.paused.toLocaleString("es-AR")} sub={kpis.paused > 0 ? "revisar" : "todo activo"} tone={kpis.paused > 0 ? "#f59e0b" : "#9A978D"} Icon={EyeOff} />
+        <KpiPremium label="Pausadas" value={kpis.paused.toLocaleString("es-AR")} sub={kpis.paused > 0 ? "revisar" : "todo activo"} tone={kpis.paused > 0 ? "#f59e0b" : "#83807A"} Icon={EyeOff} />
         <KpiPremium label="Precio promedio" value={formatARS(kpis.avgPrice)} sub="por publicación" tone="#8b5cf6" Icon={Tag} />
         <KpiPremium label="Stock total" value={formatCompact(kpis.totalStock)} sub="unidades" tone="#3b82f6" Icon={Package} />
         <KpiPremium label="Envío gratis" value={`${kpis.freeShippingPct}%`} sub={`${kpis.freeShipping.toLocaleString("es-AR")} pubs`} tone="#06b6d4" Icon={Truck} />
@@ -123,7 +123,7 @@ export default function PublicacionesPage() {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {data.listingTypes.map((lt) => {
-              const tone = LISTING_TYPE_COLORS[lt.type] || "#9A978D";
+              const tone = LISTING_TYPE_COLORS[lt.type] || "#83807A";
               return (
                 <div key={lt.type} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 12px", background: `${tone}10`, border: `1px solid ${tone}25`, borderRadius: 8 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 999, background: tone }} />
@@ -143,7 +143,7 @@ export default function PublicacionesPage() {
             { value: "all", label: "Todas", tone: ML_PRIMARY },
             { value: "active", label: "Activas", tone: "#10b981" },
             { value: "paused", label: "Pausadas", tone: "#f59e0b" },
-            { value: "closed", label: "Cerradas", tone: "#9A978D" },
+            { value: "closed", label: "Cerradas", tone: "#83807A" },
           ].map((s) => (
             <FilterPill key={s.value} active={status === s.value} onClick={() => { setStatus(s.value); setPage(1); }} tone={s.tone}>
               {s.label}
@@ -152,7 +152,7 @@ export default function PublicacionesPage() {
         </div>
 
         <div style={{ position: "relative" }}>
-          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9A978D" }} />
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#83807A" }} />
           <input
             type="text" placeholder="Buscar por título o MLA…"
             value={searchInput}
@@ -195,7 +195,7 @@ export default function PublicacionesPage() {
               ))}
               {listings.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: 60, fontSize: 13, color: "#9A978D" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: 60, fontSize: 13, color: "#83807A" }}>
                     {kpis.total === 0 ? "Sin publicaciones sincronizadas. Sincronizá MELI desde el dashboard." : "No se encontraron resultados con esos filtros."}
                   </td>
                 </tr>
@@ -206,7 +206,7 @@ export default function PublicacionesPage() {
 
         {pagination.totalPages > 1 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderTop: "1px solid rgba(28,27,24,.06)" }}>
-            <div style={{ fontSize: 12, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ fontSize: 12, color: "#83807A", fontVariantNumeric: "tabular-nums" }}>
               Página <b style={{ color: "#6B685F" }}>{pagination.page}</b> de {pagination.totalPages}
               <span style={{ marginLeft: 8 }}>· {pagination.totalCount.toLocaleString("es-AR")} publicaciones</span>
             </div>
@@ -230,7 +230,7 @@ export default function PublicacionesPage() {
 function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
   const stockTone = l.availableQty <= 3 ? "#ef4444" : l.availableQty <= 10 ? "#f59e0b" : "#6B685F";
   const stockBg = l.availableQty <= 3 ? "rgba(239,68,68,.08)" : l.availableQty <= 10 ? "rgba(245,158,11,.08)" : "transparent";
-  const typeColor = LISTING_TYPE_COLORS[l.listingType] || "#9A978D";
+  const typeColor = LISTING_TYPE_COLORS[l.listingType] || "#83807A";
 
   return (
     <tr
@@ -244,18 +244,18 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
       <Td>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", background: "#EDEAE3", flexShrink: 0 }}>
-            {l.thumbnailUrl ? <img src={l.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} style={{ color: "#9A978D", margin: "11px auto" }} />}
+            {l.thumbnailUrl ? <img src={l.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} style={{ color: "#83807A", margin: "11px auto" }} />}
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#1C1B18", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{l.title}</div>
-            <div style={{ fontSize: 10, color: "#9A978D", fontFamily: "monospace" }}>{l.mlItemId}</div>
+            <div style={{ fontSize: 10, color: "#83807A", fontFamily: "monospace" }}>{l.mlItemId}</div>
           </div>
         </div>
       </Td>
       <Td align="right">
         <div style={{ fontSize: 12, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.price)}</div>
         {l.originalPrice && l.originalPrice > l.price && (
-          <div style={{ fontSize: 10, color: "#9A978D", textDecoration: "line-through", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.originalPrice)}</div>
+          <div style={{ fontSize: 10, color: "#83807A", textDecoration: "line-through", fontVariantNumeric: "tabular-nums" }}>{formatARS(l.originalPrice)}</div>
         )}
       </Td>
       <Td align="center">
@@ -273,7 +273,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
         </span>
       </Td>
       <Td align="center">
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 8px", borderRadius: 5, background: `${STATUS_COLORS[l.status] || "#9A978D"}15`, color: STATUS_COLORS[l.status] || "#9A978D" }}>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 8px", borderRadius: 5, background: `${STATUS_COLORS[l.status] || "#83807A"}15`, color: STATUS_COLORS[l.status] || "#83807A" }}>
           {STATUS_LABELS[l.status] || l.status}
         </span>
       </Td>
@@ -282,7 +282,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
           {l.freeShipping && <AttrBadge label="Gratis" tone="#10b981" />}
           {l.fulfillment === "fulfillment" && <AttrBadge label="Full" tone="#3b82f6" />}
           {l.catalogListing && <AttrBadge label="Cat" tone="#8b5cf6" />}
-          {!l.freeShipping && l.fulfillment !== "fulfillment" && !l.catalogListing && <span style={{ fontSize: 10, color: "#9A978D" }}>—</span>}
+          {!l.freeShipping && l.fulfillment !== "fulfillment" && !l.catalogListing && <span style={{ fontSize: 10, color: "#83807A" }}>—</span>}
         </div>
       </Td>
       <Td align="center">
@@ -293,11 +293,11 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
             style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               width: 28, height: 28, borderRadius: 7,
-              color: "#9A978D", background: "transparent",
+              color: "#83807A", background: "transparent",
               transition: "all 0.15s",
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = `${ML_PRIMARY}12`; e.currentTarget.style.color = ML_PRIMARY; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9A978D"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#83807A"; }}
           >
             <ExternalLink size={13} />
           </a>
@@ -313,7 +313,7 @@ function ListingRow({ l, isLast }: { l: any; isLast: boolean }) {
 
 function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" | "center" }) {
   return (
-    <th style={{ textAlign: align as any, fontSize: 10, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", padding: "12px 14px" }}>
+    <th style={{ textAlign: align as any, fontSize: 10, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", padding: "12px 14px" }}>
       {children}
     </th>
   );
@@ -338,7 +338,7 @@ function FilterPill({ children, active, onClick, tone }: { children: React.React
       style={{
         padding: "7px 13px",
         background: active ? `${tone}12` : "white",
-        color: active ? tone : "#9A978D",
+        color: active ? tone : "#83807A",
         border: `1px solid ${active ? `${tone}30` : "rgba(28,27,24,.08)"}`,
         borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
         transition: "all 0.15s cubic-bezier(0.16,1,0.3,1)",
@@ -365,11 +365,11 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#83807A", marginTop: 6 }}>{sub}</div>}
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: `${tone}12`, color: tone, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={15} />
@@ -402,7 +402,7 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
       </div>
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>{title}</h1>
-        <div style={{ fontSize: 13, color: "#9A978D", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
+        <div style={{ fontSize: 13, color: "#83807A", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
       </div>
     </div>
   );
@@ -412,9 +412,9 @@ function Breadcrumb() {
   return (
     <Link
       href="/mercadolibre"
-      style={{ fontSize: 12, color: "#9A978D", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
+      style={{ fontSize: 12, color: "#83807A", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
       onMouseEnter={(e) => (e.currentTarget.style.color = "#6B685F")}
-      onMouseLeave={(e) => (e.currentTarget.style.color = "#9A978D")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#83807A")}
     >
       <ArrowLeft size={13} /> MercadoLibre
     </Link>
@@ -428,7 +428,7 @@ function PagBtn({ children, onClick, disabled }: { children: React.ReactNode; on
       disabled={disabled}
       style={{
         display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px",
-        background: "white", color: disabled ? "#9A978D" : "#6B685F",
+        background: "white", color: disabled ? "#83807A" : "#6B685F",
         border: "1px solid rgba(28,27,24,.1)", borderRadius: 8,
         cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600,
         transition: "all 0.15s",
@@ -441,7 +441,7 @@ function PagBtn({ children, onClick, disabled }: { children: React.ReactNode; on
 
 function LoadingState({ text }: { text: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#83807A" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>{text}</span>
       <style jsx>{`

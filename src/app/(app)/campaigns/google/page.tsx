@@ -67,7 +67,7 @@ const TYPE_CONFIG: TypeConfig[] = [
     key: "SEARCH",
     label: "Search",
     sublabel: "Intención directa",
-    hex: "#9A978D",
+    hex: "#83807A",
     text: "text-ink-60",
     soft: "bg-surface",
     Icon: SearchIcon,
@@ -76,7 +76,7 @@ const TYPE_CONFIG: TypeConfig[] = [
     key: "SHOPPING",
     label: "Shopping",
     sublabel: "Catálogo de productos",
-    hex: "#9A978D",
+    hex: "#83807A",
     text: "text-ink-60",
     soft: "bg-surface",
     Icon: ShoppingBag,
@@ -85,7 +85,7 @@ const TYPE_CONFIG: TypeConfig[] = [
     key: "PMAX",
     label: "Performance Max",
     sublabel: "AI multi-canal",
-    hex: "#9A978D",
+    hex: "#83807A",
     text: "text-ink-60",
     soft: "bg-surface",
     Icon: Zap,
@@ -94,7 +94,7 @@ const TYPE_CONFIG: TypeConfig[] = [
     key: "DISPLAY",
     label: "Display",
     sublabel: "Red de contenido",
-    hex: "#9A978D",
+    hex: "#83807A",
     text: "text-ink-60",
     soft: "bg-surface",
     Icon: Monitor,
@@ -103,7 +103,7 @@ const TYPE_CONFIG: TypeConfig[] = [
     key: "VIDEO",
     label: "Video",
     sublabel: "YouTube",
-    hex: "#9A978D",
+    hex: "#83807A",
     text: "text-ink-60",
     soft: "bg-surface",
     Icon: Youtube,
@@ -291,7 +291,7 @@ function classifyCampaign(c: {
 function QualityScoreBar({ score }: { score: number }) {
   const clamped = Math.max(0, Math.min(10, score));
   const color =
-    clamped >= 8 ? "#10b981" : clamped >= 5 ? "#f59e0b" : clamped > 0 ? "#ef4444" : "#9A978D";
+    clamped >= 8 ? "#10b981" : clamped >= 5 ? "#f59e0b" : clamped > 0 ? "#ef4444" : "#83807A";
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-1">
@@ -321,7 +321,7 @@ function ImpressionShareBar({ share }: { share: number }) {
   // share viene en 0-1 (ratio) o 0-100 (%). Aceptamos ambos.
   const pct = share > 1 ? share : share * 100;
   const clamped = Math.max(0, Math.min(100, pct));
-  const color = clamped >= 60 ? "#10b981" : clamped >= 30 ? "#f59e0b" : clamped > 0 ? "#ef4444" : "#9A978D";
+  const color = clamped >= 60 ? "#10b981" : clamped >= 30 ? "#f59e0b" : clamped > 0 ? "#ef4444" : "#83807A";
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-1">
@@ -1268,13 +1268,13 @@ function GoogleCampaignsInner() {
                 <XAxis
                   dataKey="date"
                   tickFormatter={(d) => (d || "").slice(5)}
-                  tick={{ fontSize: 10, fill: "#9A978D" }}
+                  tick={{ fontSize: 10, fill: "#83807A" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(n) => formatCompact(n)}
-                  tick={{ fontSize: 10, fill: "#9A978D" }}
+                  tick={{ fontSize: 10, fill: "#83807A" }}
                   axisLine={false}
                   tickLine={false}
                   width={40}

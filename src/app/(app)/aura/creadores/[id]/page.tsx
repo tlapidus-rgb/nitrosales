@@ -74,31 +74,28 @@ import {
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
-// ───────────────────────── THEME (LIGHT) ─────────────────────────
+// ───────────────────────── THEME (Enterprise · tokens --ent-*) ─────────────────────────
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  bgSoft: "rgba(255, 255, 255, 0.02)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  gray: "#9ca3af",
-  graySoft: "rgba(156, 163, 175, 0.08)",
-  grayBorder: "rgba(156, 163, 175, 0.22)",
-  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
-  gradientText: "linear-gradient(90deg, #ff0080, #00d4ff)",
+  bgCard: "rgb(var(--ent-elevated))",
+  bgSoft: "rgb(var(--ent-surface))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  gold: "rgb(var(--ent-ink))",
+  goldSoft: "rgb(var(--ent-surface))",
+  goldBorder: "rgb(var(--ent-hairline))",
+  green: "rgb(var(--ent-accent))",
+  greenSoft: "rgba(47,145,83,0.10)",
+  greenBorder: "rgba(47,145,83,0.28)",
+  rose: "#B91C1C",
+  roseSoft: "rgba(185,28,28,0.08)",
+  roseBorder: "rgba(185,28,28,0.24)",
+  gray: "rgb(var(--ent-ink-40))",
+  graySoft: "rgb(var(--ent-surface))",
+  grayBorder: "rgb(var(--ent-hairline))",
 };
 
 // ───────────────────────── UTILS ─────────────────────────
@@ -264,7 +261,7 @@ function Avatar({ name, url, size = 80 }: { name: string; url: string | null; si
         src={url}
         alt={name}
         className="object-cover rounded-full"
-        style={{ width: size, height: size, border: `2px solid ${THEME.bgCard}`, boxShadow: "0 8px 24px rgba(255, 0, 128, 0.15)" }}
+        style={{ width: size, height: size, border: `2px solid ${THEME.bgCard}` }}
       />
     );
   }
@@ -280,9 +277,8 @@ function Avatar({ name, url, size = 80 }: { name: string; url: string | null; si
         width: size,
         height: size,
         fontSize: size * 0.38,
-        background: "linear-gradient(135deg, #ff99c7 0%, #ff0080 100%)",
-        color: "#FFF",
-        boxShadow: "0 8px 24px rgba(255, 0, 128, 0.25)",
+        background: "rgb(var(--ent-ink))",
+        color: "rgb(var(--ent-bg))",
       }}
     >
       {initials || "?"}
@@ -443,12 +439,7 @@ function DashboardAccessSection({
         <button
           onClick={sendLink}
           disabled={sending || !creator.email}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
-          style={{
-            background: "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-            color: "#fff",
-            boxShadow: "0 4px 12px rgba(255,0,128,0.25)",
-          }}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-ink text-white"
           title={creator.email ? `Enviar link de acceso a ${creator.email}` : "Sin email"}
         >
           <Mail size={13} strokeWidth={2.4} className={sending ? "animate-pulse" : ""} />
@@ -545,8 +536,8 @@ export default function CreatorProfilePage() {
   if (state.status === "loading") {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: THEME.bgPage, color: THEME.textSecondary }}
+        className="min-h-screen bg-canvas flex items-center justify-center"
+        style={{ color: THEME.textSecondary }}
       >
         <div className="text-[14px] tracking-tight">Cargando perfil...</div>
       </div>
@@ -555,10 +546,7 @@ export default function CreatorProfilePage() {
 
   if (state.status === "error") {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: THEME.bgPage }}
-      >
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div
           className="rounded-2xl p-8 text-center max-w-md"
           style={{
@@ -585,15 +573,7 @@ export default function CreatorProfilePage() {
   const { creator, kpis, campaigns, content, activity } = state;
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: THEME.bgPage,
-        color: THEME.textPrimary,
-        fontFamily:
-          "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif",
-      }}
-    >
+    <div className="min-h-screen bg-canvas" style={{ color: THEME.textPrimary }}>
       <style>{`
         @keyframes cardIn {
           from { opacity: 0; transform: translateY(10px); }
@@ -625,21 +605,6 @@ export default function CreatorProfilePage() {
             animation: `cardIn 520ms ${ES} both`,
           }}
         >
-          {/* Halo decorativo (más grande y suave para que no se vea cortado) */}
-          <div
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{
-              top: "-40%",
-              right: "-20%",
-              width: "70%",
-              height: "220%",
-              background:
-                "radial-gradient(ellipse at 70% 50%, rgba(255, 0, 128, 0.14) 0%, rgba(168, 85, 247, 0.08) 30%, rgba(0, 212, 255, 0.04) 55%, transparent 75%)",
-              filter: "blur(24px)",
-            }}
-          />
-
           <div className="relative flex items-start justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-5">
               <Avatar name={creator.name} url={creator.profileImage} size={72} />
@@ -647,12 +612,7 @@ export default function CreatorProfilePage() {
                 <div className="flex items-center gap-2 mb-1">
                   <h1
                     className="text-[26px] font-semibold tracking-tight leading-none"
-                    style={{
-                      background: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                      WebkitBackgroundClip: "text",
-                      backgroundClip: "text",
-                      color: "transparent",
-                    }}
+                    style={{ color: THEME.textPrimary }}
                   >
                     {creator.name}
                   </h1>
@@ -702,34 +662,17 @@ export default function CreatorProfilePage() {
                   <button
                     onClick={() => setEditOpen(true)}
                     title="Ventana de atribución — click para editar"
-                    className="inline-flex items-center gap-1 px-[3px] py-[3px] rounded-lg text-[12px] tracking-tight transition hover:brightness-110"
+                    className="inline-flex items-center gap-1 px-2 py-[3px] rounded-lg text-[12px] font-semibold tracking-tight transition"
                     style={{
-                      background:
-                        "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                      boxShadow:
-                        "0 2px 10px rgba(168,85,247,0.28), inset 0 1px 0 rgba(255,255,255,0.18)",
+                      background: THEME.bgSoft,
+                      border: `1px solid ${THEME.border}`,
+                      color: THEME.textPrimary,
                     }}
                   >
-                    <span
-                      className="inline-flex items-center gap-1 px-2 py-[3px] rounded-[6px] font-semibold"
-                      style={{
-                        background: THEME.bgPage,
-                        color: THEME.textPrimary,
-                      }}
-                    >
-                      <Target size={11} strokeWidth={2.6} style={{ color: "#ff0080" }} />
-                      <span
-                        className="bg-clip-text text-transparent"
-                        style={{
-                          backgroundImage:
-                            "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
-                        }}
-                      >
-                        {creator.attributionWindowDays}d
-                      </span>
-                      <span style={{ color: THEME.textTertiary, fontWeight: 500 }}>
-                        atribución
-                      </span>
+                    <Target size={11} strokeWidth={2.6} style={{ color: THEME.textTertiary }} />
+                    <span>{creator.attributionWindowDays}d</span>
+                    <span style={{ color: THEME.textTertiary, fontWeight: 500 }}>
+                      atribución
                     </span>
                   </button>
                   {creator.email ? (
@@ -836,14 +779,7 @@ export default function CreatorProfilePage() {
               </button>
               <button
                 onClick={() => setEditOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight transition hover:brightness-110"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-                  color: "#FFF",
-                  boxShadow:
-                    "0 4px 16px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
-                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight transition bg-ink text-white"
               >
                 <Pencil size={13} strokeWidth={2.4} />
                 Editar
@@ -885,7 +821,7 @@ export default function CreatorProfilePage() {
             sub={`${fmtNum(kpis.lifetime.orders)} órdenes · ${fmtARS(kpis.lifetime.commissionEarned)} en comisiones`}
             icon={<Trophy size={14} strokeWidth={2.2} />}
           />
-          {/* Attribution window — destacado con borde gradient. Display no
+          {/* Attribution window — destacado con acento sutil. Display no
               interactivo: la edición salió del modal de creador (item 10). */}
           <div
             className="relative p-4 text-left"
@@ -894,33 +830,20 @@ export default function CreatorProfilePage() {
             }}
           >
             <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(255,0,128,0.06) 0%, rgba(168,85,247,0.05) 50%, rgba(0,212,255,0.06) 100%)",
-              }}
-            />
-            <div
               className="absolute top-0 left-0 right-0 h-[2px]"
-              style={{
-                background:
-                  "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
-              }}
+              style={{ background: THEME.textPrimary }}
             />
             <div className="relative">
               <div
                 className="flex items-center gap-1.5 text-[10.5px] tracking-[0.12em] uppercase font-semibold mb-2"
                 style={{ color: THEME.textMuted }}
               >
-                <Target size={12} strokeWidth={2.4} style={{ color: "#ff0080" }} />
+                <Target size={12} strokeWidth={2.4} style={{ color: THEME.textTertiary }} />
                 Ventana atribución
               </div>
               <div
-                className="text-[22px] font-semibold leading-none tracking-tight bg-clip-text text-transparent"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
-                }}
+                className="text-[22px] font-semibold leading-none tracking-tight"
+                style={{ color: THEME.textPrimary }}
               >
                 {creator.attributionWindowDays} días
               </div>
@@ -1925,7 +1848,7 @@ function EditModal({
             className="px-4 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight hover:brightness-110"
             style={{
               background:
-                "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+                "rgb(var(--ent-ink))",
               color: "#FFF",
               opacity: saving ? 0.6 : 1,
               boxShadow:
@@ -1964,12 +1887,12 @@ const DEAL_TYPE_META: Record<
   COMMISSION: {
     label: "Comisión %",
     icon: <Percent size={12} strokeWidth={2.4} />,
-    tone: { color: "#a855f7", bg: "rgba(168, 85, 247, 0.10)", border: "rgba(168, 85, 247, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-40))", bg: "rgba(168, 85, 247, 0.10)", border: "rgba(168, 85, 247, 0.26)" },
   },
   FLAT_FEE: {
     label: "Monto fijo",
     icon: <DollarSign size={12} strokeWidth={2.4} />,
-    tone: { color: "#00d4ff", bg: "rgba(0, 212, 255, 0.10)", border: "rgba(0, 212, 255, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-40))", bg: "rgba(0, 212, 255, 0.10)", border: "rgba(0, 212, 255, 0.26)" },
   },
   PERFORMANCE_BONUS: {
     label: "Bono por objetivo",
@@ -1979,7 +1902,7 @@ const DEAL_TYPE_META: Record<
   TIERED_COMMISSION: {
     label: "Comisión escalonada",
     icon: <Layers size={12} strokeWidth={2.4} />,
-    tone: { color: "#ff0080", bg: "rgba(255, 0, 128, 0.10)", border: "rgba(255, 0, 128, 0.26)" },
+    tone: { color: "rgb(var(--ent-accent))", bg: "rgba(255, 0, 128, 0.10)", border: "rgba(255, 0, 128, 0.26)" },
   },
   CPM: {
     label: "CPM",
@@ -1994,7 +1917,7 @@ const DEAL_TYPE_META: Record<
   HYBRID: {
     label: "Híbrido",
     icon: <Shuffle size={12} strokeWidth={2.4} />,
-    tone: { color: "#f5f5f7", bg: "rgba(245, 245, 247, 0.06)", border: "rgba(245, 245, 247, 0.18)" },
+    tone: { color: "rgb(var(--ent-ink))", bg: "rgba(245, 245, 247, 0.06)", border: "rgba(245, 245, 247, 0.18)" },
   },
 };
 

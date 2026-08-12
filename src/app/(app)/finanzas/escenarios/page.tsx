@@ -813,7 +813,7 @@ function KpiCell({
       <div
         className="mt-0.5 truncate text-base font-semibold tabular-nums tracking-tight"
         style={{
-          color: accent ?? (dim ? "#9A978D" : "#1C1B18"),
+          color: accent ?? (dim ? "#83807A" : "#1C1B18"),
         }}
       >
         {value}

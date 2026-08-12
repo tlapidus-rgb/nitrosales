@@ -34,7 +34,7 @@ const CHANNEL_COLORS: Record<string, string> = {
   "Google Organic": "#34A853",
   "Directo": "#6B7280",
   "TikTok": "#000000",
-  "Paid Otro": "#9A978D",
+  "Paid Otro": "#83807A",
   "Sin datos": "#D1D5DB",
 };
 
@@ -505,7 +505,7 @@ export default function LtvPage() {
           <KpiTile
             icon={Sparkles}
             iconBg="rgba(168,85,247,0.10)"
-            iconColor="#9A978D"
+            iconColor="#83807A"
             label="VISITANTES HIGH-SCORE"
             value={behavioralCount}
             loading={loading}
@@ -1393,10 +1393,10 @@ export default function LtvPage() {
                         : item.type === "cart_add"
                         ? "#f59e0b"
                         : item.type === "identify"
-                        ? "#9A978D"
+                        ? "#83807A"
                         : item.type === "product_view"
                         ? "#2F9153"
-                        : "#9A978D";
+                        : "#83807A";
                     const date = new Date(item.timestamp);
                     return (
                       <div

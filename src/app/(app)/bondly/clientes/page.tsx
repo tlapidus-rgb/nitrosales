@@ -79,12 +79,12 @@ function avatarGradientFor(id: string): string {
     "linear-gradient(135deg, #2F9153 0%, #6366f1 100%)",
     "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
     "linear-gradient(135deg, #10b981 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #9A978D 0%, #ec4899 100%)",
+    "linear-gradient(135deg, #83807A 0%, #ec4899 100%)",
     "linear-gradient(135deg, #3b82f6 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #ec4899 0%, #9A978D 100%)",
+    "linear-gradient(135deg, #ec4899 0%, #83807A 100%)",
     "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
     "linear-gradient(135deg, #14b8a6 0%, #0891b2 100%)",
-    "linear-gradient(135deg, #6366f1 0%, #9A978D 100%)",
+    "linear-gradient(135deg, #6366f1 0%, #83807A 100%)",
     "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
   ];
   let h = 0;
@@ -305,7 +305,7 @@ export default function ClientesPage() {
               label="NUEVOS 7 DÍAS"      value={kpis.new7d}        loading={loading && !data} />
             <KpiTile icon={Activity}   iconBg="#ecfdf5" iconColor="#10b981"
               label="NAVEGANDO AHORA"   value={kpis.activeNow}    loading={loading && !data} live={kpis.activeNow > 0} />
-            <KpiTile icon={Crown}      iconBg="#f5f3ff" iconColor="#9A978D"
+            <KpiTile icon={Crown}      iconBg="#f5f3ff" iconColor="#83807A"
               label="VIP (DECIL TOP)"   value={kpis.vipCount}     loading={loading && !data} />
           </div>
         </div>
@@ -743,7 +743,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
   const tier = TIER_CONFIG[c.tier] || TIER_CONFIG.Regular;
   const TierIcon = tier.icon;
   const avatarGrad = isAnon
-    ? "linear-gradient(135deg, #9A978D 0%, #9A978D 100%)"
+    ? "linear-gradient(135deg, #83807A 0%, #83807A 100%)"
     : avatarGradientFor(c.id);
 
   const primaryFlag = c.flags?.find((f: string) => ["vip", "browsing_now", "cart_abandoned", "reappeared", "new_7d"].includes(f));

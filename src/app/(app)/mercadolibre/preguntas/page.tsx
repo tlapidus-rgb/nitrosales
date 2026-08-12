@@ -49,7 +49,7 @@ function urgencyBadge(dateCreated: string, status: string) {
   if (status !== "UNANSWERED") return null;
   const elapsedHours = (Date.now() - new Date(dateCreated).getTime()) / 3600000;
   const remainingHours = 24 - elapsedHours;
-  if (remainingHours <= 0) return { tone: "#9A978D", label: "Ventana cerrada", urgent: false };
+  if (remainingHours <= 0) return { tone: "#83807A", label: "Ventana cerrada", urgent: false };
   if (remainingHours < 2) return { tone: "#ef4444", label: `${Math.floor(remainingHours * 60)}min restantes`, urgent: true };
   if (remainingHours < 12) return { tone: "#f59e0b", label: `${Math.floor(remainingHours)}h restantes`, urgent: true };
   return { tone: "#0ea5e9", label: `${Math.floor(remainingHours)}h restantes`, urgent: false };
@@ -162,15 +162,15 @@ export default function PreguntasPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {data.questionsByItem.map((item, i) => (
               <div key={item.mlItemId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", borderRadius: 8, transition: "background 0.15s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "#F5F3EE")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#83807A", width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div style={{ width: 32, height: 32, borderRadius: 7, overflow: "hidden", background: "#EDEAE3", flexShrink: 0 }}>
-                  {item.thumbnail ? <img src={item.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MessageSquare size={14} style={{ color: "#9A978D", margin: "8px auto" }} />}
+                  {item.thumbnail ? <img src={item.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MessageSquare size={14} style={{ color: "#83807A", margin: "8px auto" }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#1C1B18", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
-                  <div style={{ fontSize: 10, color: "#9A978D", fontFamily: "monospace" }}>{item.mlItemId}</div>
+                  <div style={{ fontSize: 10, color: "#83807A", fontFamily: "monospace" }}>{item.mlItemId}</div>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, color: ML_PRIMARY, background: `${ML_PRIMARY}12`, padding: "3px 9px", borderRadius: 999, fontVariantNumeric: "tabular-nums" }}>
                   {item.count} {item.count === 1 ? "pregunta" : "preguntas"}
@@ -209,7 +209,7 @@ export default function PreguntasPage() {
               display: "inline-flex", alignItems: "center", gap: 5,
               padding: "7px 11px",
               background: view === "list" ? `${ML_PRIMARY}12` : "transparent",
-              color: view === "list" ? ML_PRIMARY : "#9A978D",
+              color: view === "list" ? ML_PRIMARY : "#83807A",
               border: `1px solid ${view === "list" ? `${ML_PRIMARY}30` : "rgba(28,27,24,.08)"}`,
               borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
             }}
@@ -223,7 +223,7 @@ export default function PreguntasPage() {
               display: "inline-flex", alignItems: "center", gap: 5,
               padding: "7px 11px",
               background: view === "grouped" ? `${ML_PRIMARY}12` : "transparent",
-              color: view === "grouped" ? ML_PRIMARY : "#9A978D",
+              color: view === "grouped" ? ML_PRIMARY : "#83807A",
               border: `1px solid ${view === "grouped" ? `${ML_PRIMARY}30` : "rgba(28,27,24,.08)"}`,
               borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
             }}
@@ -234,7 +234,7 @@ export default function PreguntasPage() {
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div style={{ position: "relative" }}>
-            <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9A978D" }} />
+            <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#83807A" }} />
             <input
               type="text" placeholder="Buscar en preguntas…"
               value={searchInput}
@@ -262,13 +262,13 @@ export default function PreguntasPage() {
             <div key={item.id}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 7, overflow: "hidden", background: "#EDEAE3", flexShrink: 0 }}>
-                  {item.thumbnail ? <img src={item.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MessageSquare size={14} style={{ color: "#9A978D", margin: "8px auto" }} />}
+                  {item.thumbnail ? <img src={item.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MessageSquare size={14} style={{ color: "#83807A", margin: "8px auto" }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#1C1B18", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.title}
                   </div>
-                  <div style={{ fontSize: 11, color: "#9A978D" }}>
+                  <div style={{ fontSize: 11, color: "#83807A" }}>
                     {qs.length} {qs.length === 1 ? "pregunta" : "preguntas"}
                   </div>
                 </div>
@@ -290,7 +290,7 @@ export default function PreguntasPage() {
       {/* Pagination */}
       {pagination.totalPages > 1 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24, padding: "16px 0" }}>
-          <div style={{ fontSize: 12, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ fontSize: 12, color: "#83807A", fontVariantNumeric: "tabular-nums" }}>
             Página <b style={{ color: "#6B685F" }}>{pagination.page}</b> de {pagination.totalPages}
             <span style={{ marginLeft: 8 }}>· {pagination.totalCount.toLocaleString("es-AR")} preguntas</span>
           </div>
@@ -316,7 +316,7 @@ export default function PreguntasPage() {
 
 function QuestionCard({ q, compact }: { q: any; compact?: boolean }) {
   const urgency = urgencyBadge(q.dateCreated, q.status);
-  const sevColor = STATUS_COLORS[q.status] || "#9A978D";
+  const sevColor = STATUS_COLORS[q.status] || "#83807A";
 
   return (
     <div
@@ -345,7 +345,7 @@ function QuestionCard({ q, compact }: { q: any; compact?: boolean }) {
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           {!compact && (
             <div style={{ width: 44, height: 44, borderRadius: 9, overflow: "hidden", background: "#EDEAE3", flexShrink: 0 }}>
-              {q.itemThumbnail ? <img src={q.itemThumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MessageSquare size={18} style={{ color: "#9A978D", margin: "13px auto" }} />}
+              {q.itemThumbnail ? <img src={q.itemThumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MessageSquare size={18} style={{ color: "#83807A", margin: "13px auto" }} />}
             </div>
           )}
 
@@ -353,16 +353,16 @@ function QuestionCard({ q, compact }: { q: any; compact?: boolean }) {
             {/* Item title + status + urgency */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
               {!compact && (
-                <span style={{ fontSize: 11, color: "#9A978D", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                <span style={{ fontSize: 11, color: "#83807A", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
                   {q.itemTitle}
                 </span>
               )}
               <Badge label={STATUS_LABELS[q.status] || q.status} tone={sevColor} />
               {urgency && <Badge label={urgency.label} tone={urgency.tone} pulse={urgency.urgent} />}
               {q.itemPermalink && (
-                <a href={q.itemPermalink} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#9A978D", fontSize: 11, fontWeight: 600, textDecoration: "none", padding: "3px 7px", borderRadius: 6, transition: "all 0.15s" }}
+                <a href={q.itemPermalink} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#83807A", fontSize: 11, fontWeight: 600, textDecoration: "none", padding: "3px 7px", borderRadius: 6, transition: "all 0.15s" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = `${ML_PRIMARY}12`; e.currentTarget.style.color = ML_PRIMARY; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9A978D"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#83807A"; }}
                 >
                   Responder en MELI <ExternalLink size={11} />
                 </a>
@@ -380,7 +380,7 @@ function QuestionCard({ q, compact }: { q: any; compact?: boolean }) {
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                 <User size={11} style={{ color: ML_PRIMARY }} />
                 <span style={{ fontSize: 10, color: ML_PRIMARY, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Comprador</span>
-                <span style={{ fontSize: 10, color: "#9A978D", marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{formatDate(q.dateCreated)}</span>
+                <span style={{ fontSize: 10, color: "#83807A", marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{formatDate(q.dateCreated)}</span>
               </div>
               <div style={{ fontSize: 13, color: "#1C1B18", lineHeight: 1.5 }}>{q.text}</div>
             </div>
@@ -398,7 +398,7 @@ function QuestionCard({ q, compact }: { q: any; compact?: boolean }) {
                   <CheckCircle2 size={11} style={{ color: "#10b981" }} />
                   <span style={{ fontSize: 10, color: "#10b981", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tu respuesta</span>
                   {q.answerDate && (
-                    <span style={{ fontSize: 10, color: "#9A978D", marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{formatDate(q.answerDate)}</span>
+                    <span style={{ fontSize: 10, color: "#83807A", marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{formatDate(q.answerDate)}</span>
                   )}
                 </div>
                 <div style={{ fontSize: 13, color: "#1C1B18", lineHeight: 1.5 }}>{q.answerText}</div>
@@ -434,7 +434,7 @@ function FilterPill({ children, active, onClick, tone }: { children: React.React
       style={{
         padding: "7px 13px",
         background: active ? `${tone}12` : "white",
-        color: active ? tone : "#9A978D",
+        color: active ? tone : "#83807A",
         border: `1px solid ${active ? `${tone}30` : "rgba(28,27,24,.08)"}`,
         borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
         transition: "all 0.15s cubic-bezier(0.16,1,0.3,1)",
@@ -461,11 +461,11 @@ function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: s
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
           <div style={{ fontSize: 26, fontWeight: 700, color: "#1C1B18", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#83807A", marginTop: 6 }}>{sub}</div>}
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: `${tone}12`, color: tone, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={15} />
@@ -503,7 +503,7 @@ function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>
           {title}
         </h1>
-        <div style={{ fontSize: 13, color: "#9A978D", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
+        <div style={{ fontSize: 13, color: "#83807A", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
       </div>
     </div>
   );
@@ -513,9 +513,9 @@ function Breadcrumb() {
   return (
     <Link
       href="/mercadolibre"
-      style={{ fontSize: 12, color: "#9A978D", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
+      style={{ fontSize: 12, color: "#83807A", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
       onMouseEnter={(e) => (e.currentTarget.style.color = "#6B685F")}
-      onMouseLeave={(e) => (e.currentTarget.style.color = "#9A978D")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#83807A")}
     >
       <ArrowLeft size={13} /> MercadoLibre
     </Link>
@@ -531,7 +531,7 @@ function PagBtn({ children, onClick, disabled }: { children: React.ReactNode; on
         display: "inline-flex", alignItems: "center", gap: 5,
         padding: "7px 12px",
         background: "white",
-        color: disabled ? "#9A978D" : "#6B685F",
+        color: disabled ? "#83807A" : "#6B685F",
         border: "1px solid rgba(28,27,24,.1)",
         borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer",
         fontSize: 12, fontWeight: 600,
@@ -551,8 +551,8 @@ function EmptyState({ total }: { total: number }) {
         padding: 48, textAlign: "center",
       }}
     >
-      <MessageSquare size={32} style={{ color: "#9A978D", margin: "0 auto 8px" }} />
-      <div style={{ fontSize: 13, color: "#9A978D" }}>
+      <MessageSquare size={32} style={{ color: "#83807A", margin: "0 auto 8px" }} />
+      <div style={{ fontSize: 13, color: "#83807A" }}>
         {total === 0 ? "Sin preguntas sincronizadas. Sincronizá MELI desde el dashboard." : "No se encontraron preguntas con esos filtros."}
       </div>
     </div>
@@ -561,7 +561,7 @@ function EmptyState({ total }: { total: number }) {
 
 function LoadingState({ text }: { text: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#83807A" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>{text}</span>
       <style jsx>{`

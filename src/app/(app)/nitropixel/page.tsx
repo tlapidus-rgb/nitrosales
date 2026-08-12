@@ -42,8 +42,8 @@ const STAGES = [
   { key: "GENESIS", name: "Génesis", color: "#2F9153", min: 0 },
   { key: "AWAKENING", name: "Awakening", color: "#2F9153", min: 20 },
   { key: "SENTIENT", name: "Sentient", color: "#0ea5e9", min: 40 },
-  { key: "EVOLVED", name: "Evolved", color: "#9A978D", min: 60 },
-  { key: "SINGULARITY", name: "Singularity", color: "#9A978D", min: 80 },
+  { key: "EVOLVED", name: "Evolved", color: "#83807A", min: 60 },
+  { key: "SINGULARITY", name: "Singularity", color: "#83807A", min: 80 },
 ];
 
 function formatNumber(n: number): string {
@@ -324,7 +324,7 @@ export default function NitroPixelPage() {
                 className="h-full rounded-full transition-all duration-1000 ease-out relative"
                 style={{
                   width: `${Math.max(8, level)}%`,
-                  background: `linear-gradient(90deg, #2F9153, #9A978D, #9A978D)`,
+                  background: `linear-gradient(90deg, #2F9153, #83807A, #83807A)`,
                 }}
               >
                 {/* shimmer perpetuo: hace ver que sigue creciendo aunque visualmente este al tope */}
@@ -350,8 +350,8 @@ export default function NitroPixelPage() {
         >
           <Counter label="Eventos totales" value={formatNumber(animEvents)} accent="#2F9153" sub={`+${formatNumber(data?.asset.eventsLast24h ?? 0)} en 24h`} />
           <Counter label="Visitantes" value={formatNumber(animVisitors)} accent="#2F9153" sub={`${formatNumber(data?.asset.eventsLast7d ?? 0)} eventos · 7d`} />
-          <Counter label="Identificados" value={formatNumber(animIdentified)} accent="#9A978D" sub={`${visitors > 0 ? Math.round((identified / visitors) * 100) : 0}% del total`} />
-          <Counter label="Días vivo" value={String(daysAlive)} accent="#9A978D" sub={`Revenue: ${formatARS(revenue)}`} />
+          <Counter label="Identificados" value={formatNumber(animIdentified)} accent="#83807A" sub={`${visitors > 0 ? Math.round((identified / visitors) * 100) : 0}% del total`} />
+          <Counter label="Días vivo" value={String(daysAlive)} accent="#83807A" sub={`Revenue: ${formatARS(revenue)}`} />
         </div>
 
         {/* ═══ TIMELINE SPARKLINE ═══ */}
@@ -487,7 +487,7 @@ export default function NitroPixelPage() {
                             className="h-full rounded-full"
                             style={{
                               width: `${pct}%`,
-                              background: `linear-gradient(90deg, #2F9153, #9A978D)`,
+                              background: `linear-gradient(90deg, #2F9153, #83807A)`,
                             }}
                           />
                         </div>

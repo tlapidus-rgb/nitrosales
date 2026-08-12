@@ -123,7 +123,7 @@ function BreakevenBanner({
     healthy:   { accent: "#2F9153", ring: "border-hairline",  chipBg: "bg-[#2F9153] text-white", icon: "bg-accent-soft text-accent",  bar: ["#2F9153"] },
     edge:      { accent: "#b45309", ring: "border-hairline",  chipBg: "bg-amber-600 text-white", icon: "bg-amber-50 text-amber-700",  bar: ["#f59e0b"] },
     loss:      { accent: "#b91c1c", ring: "border-hairline",  chipBg: "bg-red-700 text-white",   icon: "bg-red-50 text-red-700",      bar: ["#dc2626"] },
-    none:      { accent: "#6B685F", ring: "border-hairline",  chipBg: "bg-surface-2 text-ink-60", icon: "bg-surface-2 text-ink-60",   bar: ["#9A978D"] },
+    none:      { accent: "#6B685F", ring: "border-hairline",  chipBg: "bg-surface-2 text-ink-60", icon: "bg-surface-2 text-ink-60",   bar: ["#83807A"] },
   } as const;
   const p = palette[status];
 

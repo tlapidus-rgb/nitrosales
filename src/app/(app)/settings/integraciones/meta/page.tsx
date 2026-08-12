@@ -403,7 +403,7 @@ export default function MetaIntegrationPage() {
             onClick={handleRequest}
             disabled={submitting || !fbEmailInput}
             className="w-full rounded-lg px-4 py-2.5 text-white font-semibold text-[13px] disabled:opacity-50"
-            style={{ background: submitting || !fbEmailInput ? "#9A978D" : "linear-gradient(135deg, #1877F2, #166fe5)" }}
+            style={{ background: submitting || !fbEmailInput ? "#83807A" : "linear-gradient(135deg, #1877F2, #166fe5)" }}
           >
             {submitting ? "Enviando…" : "Pedir autorización"}
           </button>

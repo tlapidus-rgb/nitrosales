@@ -25,21 +25,21 @@ import {
 } from "lucide-react";
 
 const THEME = {
-  bgPage: "#0a0a14",
-  bgCard: "rgba(255, 255, 255, 0.03)",
-  border: "rgba(255, 255, 255, 0.06)",
-  borderStrong: "rgba(255, 255, 255, 0.12)",
-  textPrimary: "#f5f5f7",
-  textSecondary: "rgba(245, 245, 247, 0.62)",
-  textTertiary: "rgba(245, 245, 247, 0.42)",
-  textMuted: "rgba(245, 245, 247, 0.32)",
-  gold: "#ff0080",
+  bgPage: "rgb(var(--ent-bg))",
+  bgCard: "rgb(var(--ent-elevated))",
+  border: "rgb(var(--ent-hairline))",
+  borderStrong: "rgb(var(--ent-hairline-2))",
+  textPrimary: "rgb(var(--ent-ink))",
+  textSecondary: "rgb(var(--ent-ink-60))",
+  textTertiary: "rgb(var(--ent-ink-40))",
+  textMuted: "rgb(var(--ent-ink-40))",
+  gold: "rgb(var(--ent-accent))",
   goldSoft: "rgba(255, 0, 128, 0.10)",
   goldBorder: "rgba(255, 0, 128, 0.28)",
-  purple: "#a855f7",
+  purple: "rgb(var(--ent-ink-40))",
   purpleSoft: "rgba(168, 85, 247, 0.10)",
   purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "#00d4ff",
+  cyan: "rgb(var(--ent-ink-40))",
   cyanSoft: "rgba(0, 212, 255, 0.10)",
   cyanBorder: "rgba(0, 212, 255, 0.28)",
   green: "#4ade80",
@@ -48,7 +48,7 @@ const THEME = {
   rose: "#ff6b8a",
   roseSoft: "rgba(255, 107, 138, 0.10)",
   roseBorder: "rgba(255, 107, 138, 0.28)",
-  gradientText: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+  gradientText: "rgb(var(--ent-ink))",
 };
 
 type Submission = {
@@ -516,7 +516,7 @@ function SubmissionRow({
           {s.reviewNotes ? (
             <div
               className="text-[11.5px] mt-2 p-2 rounded-lg"
-              style={{ color: THEME.textSecondary, background: "rgba(255,255,255,0.03)", border: `1px solid ${THEME.border}` }}
+              style={{ color: THEME.textSecondary, background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.border}` }}
             >
               💬 {s.reviewNotes}
             </div>

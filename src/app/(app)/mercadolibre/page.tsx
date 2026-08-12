@@ -204,7 +204,7 @@ export default function MLDashboardPage() {
             <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#1C1B18", margin: 0, marginBottom: 4 }}>
               MercadoLibre
             </h1>
-            <div style={{ fontSize: 13, color: "#9A978D", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 13, color: "#83807A", display: "flex", alignItems: "center", gap: 10 }}>
               Dashboard de tu seller en MercadoLibre
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", background: "rgba(16,185,129,.08)", borderRadius: 999, fontSize: 11, fontWeight: 600, color: "#059669" }}>
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: "#10b981", animation: "pulseDot 2s infinite" }} />
@@ -222,7 +222,7 @@ export default function MLDashboardPage() {
             display: "inline-flex", alignItems: "center", gap: 7,
             padding: "10px 16px",
             background: syncing ? "#EDEAE3" : syncMsg?.startsWith("Sincronizado") ? "linear-gradient(135deg,#10b981,#14b8a6)" : "white",
-            color: syncing ? "#9A978D" : syncMsg?.startsWith("Sincronizado") ? "white" : ML_PRIMARY,
+            color: syncing ? "#83807A" : syncMsg?.startsWith("Sincronizado") ? "white" : ML_PRIMARY,
             border: syncing ? "1px solid #E5E1D8" : `1px solid ${ML_PRIMARY}30`,
             borderRadius: 10,
             cursor: syncing ? "not-allowed" : "pointer",
@@ -291,7 +291,7 @@ export default function MLDashboardPage() {
                 <Award size={22} />
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
                   Reputación del seller
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: "#1C1B18", letterSpacing: "-0.01em" }}>
@@ -302,7 +302,7 @@ export default function MLDashboardPage() {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: "#9A978D", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                <div style={{ fontSize: 12, color: "#83807A", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
                   {reputation.totalSales.toLocaleString("es-AR")} ventas totales · {reputation.completedSales.toLocaleString("es-AR")} completadas
                 </div>
               </div>
@@ -310,9 +310,9 @@ export default function MLDashboardPage() {
 
             <div style={{ display: "flex", gap: 18, marginLeft: "auto", alignItems: "center", flexWrap: "wrap" }}>
               <RatingMetric Icon={ThumbsUp} value={reputation.positiveRatings} label="Positivas" tone="#10b981" />
-              <RatingMetric Icon={Minus} value={reputation.neutralRatings} label="Neutras" tone="#9A978D" />
+              <RatingMetric Icon={Minus} value={reputation.neutralRatings} label="Neutras" tone="#83807A" />
               <RatingMetric Icon={ThumbsDown} value={reputation.negativeRatings} label="Negativas" tone="#ef4444" />
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#9A978D", fontSize: 12, fontWeight: 600 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#83807A", fontSize: 12, fontWeight: 600 }}>
                 Ver detalle <ArrowRight size={13} />
               </div>
             </div>
@@ -391,9 +391,9 @@ export default function MLDashboardPage() {
             <XAxis
               dataKey="day"
               tickFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return `${date.getDate()}/${date.getMonth() + 1}`; } catch { return d; } }}
-              tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false}
+              tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false}
             />
-            <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11, fill: "#9A978D" }} axisLine={false} tickLine={false} width={60} />
+            <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11, fill: "#83807A" }} axisLine={false} tickLine={false} width={60} />
             <Tooltip
               formatter={(value: number) => [formatARS(value), "Facturación"]}
               labelFormatter={(d) => { try { return new Date(d + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" }); } catch { return d; } }}
@@ -420,7 +420,7 @@ export default function MLDashboardPage() {
             {data.statusBreakdown.map((s) => {
               const total = data.statusBreakdown.reduce((acc, x) => acc + x.count, 0) || 1;
               const pct = (s.count / total) * 100;
-              const color = STATUS_COLORS[s.status] || "#9A978D";
+              const color = STATUS_COLORS[s.status] || "#83807A";
               return (
                 <div key={s.status}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontSize: 12 }}>
@@ -429,7 +429,7 @@ export default function MLDashboardPage() {
                       {STATUS_LABELS[s.status] || s.status}
                     </span>
                     <span style={{ color: "#1C1B18", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                      {s.count.toLocaleString("es-AR")} <span style={{ color: "#9A978D", fontWeight: 600, marginLeft: 4 }}>{pct.toFixed(0)}%</span>
+                      {s.count.toLocaleString("es-AR")} <span style={{ color: "#83807A", fontWeight: 600, marginLeft: 4 }}>{pct.toFixed(0)}%</span>
                     </span>
                   </div>
                   <div style={{ background: "#EDEAE3", borderRadius: 999, height: 6, overflow: "hidden" }}>
@@ -494,11 +494,11 @@ export default function MLDashboardPage() {
             <span style={{ width: 7, height: 7, borderRadius: 999, background: "#10b981", animation: "pulseDot 2s infinite" }} />
             <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>Webhook activo</span>
           </span>
-          <span style={{ fontSize: 11, color: "#9A978D" }}>
+          <span style={{ fontSize: 11, color: "#83807A" }}>
             Órdenes, publicaciones y preguntas se actualizan en tiempo real vía MELI
           </span>
         </div>
-        <div style={{ textAlign: "right", fontSize: 11, color: "#9A978D", fontVariantNumeric: "tabular-nums" }}>
+        <div style={{ textAlign: "right", fontSize: 11, color: "#83807A", fontVariantNumeric: "tabular-nums" }}>
           {data.lastSync && (
             <div>Última actualización: {new Date(data.lastSync).toLocaleString("es-AR")}</div>
           )}
@@ -544,7 +544,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 function LoadingState() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#9A978D" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#83807A" }}>
       <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
       <span style={{ fontSize: 14 }}>Cargando dashboard MercadoLibre…</span>
       <style jsx>{`
@@ -603,7 +603,7 @@ function HealthBanner({ health }: { health: { score: number; status: "ok" | "war
         <div style={{ fontSize: 28, fontWeight: 700, color: config.color, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", lineHeight: 1 }}>
           {health.score}
         </div>
-        <div style={{ fontSize: 10, color: "#9A978D", fontWeight: 600, marginTop: 2 }}>SCORE / 100</div>
+        <div style={{ fontSize: 10, color: "#83807A", fontWeight: 600, marginTop: 2 }}>SCORE / 100</div>
       </div>
     </div>
   );
@@ -644,7 +644,7 @@ function KpiPremium({
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: spark ? 6 : 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9A978D", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#83807A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
             {label}
           </div>
           <div
@@ -655,7 +655,7 @@ function KpiPremium({
           >
             {value}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "#9A978D", marginTop: 6 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "#83807A", marginTop: 6 }}>{sub}</div>}
         </div>
         <div
           style={{
@@ -706,7 +706,7 @@ function RatingMetric({ Icon, value, label, tone }: { Icon: any; value: number; 
           {value.toLocaleString("es-AR")}
         </span>
       </div>
-      <div style={{ fontSize: 10, color: "#9A978D", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
+      <div style={{ fontSize: 10, color: "#83807A", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
     </div>
   );
 }
