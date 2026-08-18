@@ -404,16 +404,12 @@ export async function runRollupBackfill(params: {
         },
       };
     }
-    if (!params.org) {
-      return {
-        httpStatus: 400,
-        body: {
-          ok: false,
-          phase: "backfill",
-          error: "el modo ?table= exige también ?org= (partir por tabla sin org no acota nada).",
-        },
-      };
-    }
+    // NOTA (2026-08-18): `table` SIN `org` es un modo VÁLIDO — procesa esa tabla para
+    // TODAS las orgs (backfillDay itera orgs con el filtro de tabla). Lo usa el cron
+    // refresh-pixel-rollups en su rotación 1-tabla/invocación: una tabla × todas las
+    // orgs × 1-2 días entra holgada en el cap de 300s de Vercel (funnel ~190s el más
+    // caro), a diferencia de las 7 tablas juntas (~500s, que no entraban → cursor
+    // clavado). `org` sigue siendo opcional para acotar aún más (recompute per-org).
     table = rawTable;
   }
 
