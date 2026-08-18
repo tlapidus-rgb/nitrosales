@@ -42,7 +42,12 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { runRollupBackfill } from "@/lib/pixel/rollup-backfill";
+import {
+  runRollupBackfill,
+  ROLLUP_TABLES,
+  isRollupTable,
+  type RollupTable,
+} from "@/lib/pixel/rollup-backfill";
 import {
   buildRollupSideSql,
   buildRawSideSql,
@@ -88,14 +93,16 @@ export const maxDuration = 800;
 // Bajado a 240s para RETORNAR LIMPIO bajo el cap real de 300s (margen ~60s p/
 // coherencia + response). Un día tarda ~80-100s, así que cada corrida procesa 1-2
 // días y COMMITEA; el cron (:20,:50) encadena y tapa el hueco en pocas horas.
-// ACTUALIZACIÓN 2026-08-18: el proyecto ahora tiene Default Max Duration=800s en
-// Vercel (Settings→Functions), así que el override maxDuration=800 SÍ se respeta.
-// Subido 240s→700s: un día de la org grande (El Mundo del Juguete) tarda ~450-500s
-// (funnel+source JOINean los 3.9M de pixel_visitor_first_source, ~1M eventos/día);
-// con 240s no entraba ni un día → el cursor no avanzaba → rollups clavados (incidente
-// del 18-ago). 700s deja ~100s de headroom bajo el cap de 800s. Procesa ~1 día/run;
-// el cron cada 2h sobra para mantenerse al día (1 día nuevo/día).
-const INVOCATION_BUDGET_MS = 700_000;
+// FIX 2026-08-18 (BP-ROLLUP-TABLE-ROTATION): Vercel NO da >300s a la función pese a
+// Fluid Compute + Default Max Duration=800 + vercel.json + Node 22 (probado todo, la
+// función SIEMPRE muere a ~340s = cap 300s). Un día = 7 tablas × orgs (~500s org
+// grande) no entra → moría en el funnel → cursor clavado → nada se refrescaba
+// (incidente del 18-ago). SOLUCIÓN: procesar UNA tabla por invocación (ROLLUP_TABLES,
+// rota por tiempo abajo) — una tabla-día entra holgada en 300s (funnel ~170s el más
+// caro). El cron corre cada 30min (vercel.json) → las 7 tablas ciclan en ~3.5h, por
+// debajo del umbral de frescura de 5h. Budget 250s (bajo el cap real de 300s, con
+// margen para coherencia + response).
+const INVOCATION_BUDGET_MS = 250_000;
 // No arrancar otra tanda si no queda al menos esto. Subido de 60s: los días
 // recientes tardan ~80-100s cada uno (más tráfico), así que arrancar una tanda
 // con 60s de margen garantizaba pasarse.
@@ -105,9 +112,13 @@ const MIN_SLICE_MS = 200_000;
 // mejor que perder el cursor de reanudación.
 const COHERENCE_RESERVE_MS = 90_000;
 
-// Reconstruye HOY + los (DAYS_BACK-1) días previos (AR-date). 3 = cubre huecos
-// de hasta 3 días con un solo run (tolerante a fallos del cron).
-const DAYS_BACK = 3;
+// Reconstruye HOY + los (DAYS_BACK-1) días previos (AR-date) para las tablas FRESCAS.
+// Bajado 3→1 (rotación 1-tabla/run, 2026-08-18): reprocesar 3 días × 7 tablas a
+// 1-tabla/run haría el ciclo ~5h (al filo del umbral de frescura). Con 1 (sólo hoy),
+// el ciclo baja a ~3.5h. Los HUECOS igual se tapan: el gap-aware arranca desde el
+// MAX(day) de CADA tabla (abajo), no de DAYS_BACK. Trade-off: se reprocesan menos días
+// pasados por eventos que llegan tarde — aceptable frente a mantener la frescura.
+const DAYS_BACK = 1;
 // AUTO-REPARABLE (2026-06-21, BP-ROLLUP-CRON): si el cron de Vercel se saltea
 // ejecuciones por varios días (pasó del 16 al 21-jun: 5 días sin refresh, los
 // gráficos en 0), `DAYS_BACK=3` NO tapa el hueco solo. Por eso, si el rollup
@@ -118,6 +129,19 @@ const DAYS_BACK = 3;
 const MAX_GAP_DAYS = 14;
 // Tope de llamadas al backfill por run (3 días << este tope; evita loop infinito).
 const MAX_CALLS = 6;
+
+// Nombre real de la tabla en la DB por cada RollupTable — para el MAX(day) por tabla
+// del gap-aware. Son constantes (no input), seguras de interpolar en SQL. OJO: funnel
+// → pixel_daily_funnel_by_source (no "pixel_daily_funnel").
+const ROLLUP_DB_TABLE: Record<RollupTable, string> = {
+  aggregates: "pixel_daily_aggregates",
+  device: "pixel_daily_device",
+  type: "pixel_daily_type",
+  page: "pixel_daily_page",
+  product: "pixel_daily_product",
+  source: "pixel_daily_source",
+  funnel: "pixel_daily_funnel_by_source",
+};
 
 // Fecha AR (UTC-3) a medianoche, con offset de días hacia atrás. Mismo criterio
 // AR que /api/cron/warm-cache y que el ARDAY del backfill.
@@ -148,19 +172,44 @@ export async function GET(req: NextRequest) {
   const defaultFrom = arDate(DAYS_BACK - 1); // hoy - (N-1): comportamiento normal
   const floorFrom = arDate(MAX_GAP_DAYS - 1); // tope: nunca más de MAX_GAP_DAYS días
 
-  // Gap-aware: si el rollup quedó atrás del rango default (Vercel se salteó
-  // ejecuciones), arrancamos desde el último día presente para tapar el hueco.
-  // Las date strings YYYY-MM-DD comparan lexicográfico = cronológico.
-  // Usamos el MAX(day) GLOBAL: el cron procesa todas las orgs juntas cada run,
-  // así que cuando se corta, todas quedan en el mismo día (gap uniforme).
+  // ── Una tabla por invocación: la MÁS ATRASADA ───────────────────────────────
+  // La función capa a 300s (ver INVOCATION_BUDGET_MS), así que procesamos SÓLO una de
+  // las 7 tablas de rollup por corrida. El cron corre cada 30min → ~3.5h para ciclar
+  // las 7 (< umbral de frescura de 5h). Elegimos la más atrasada —MIN(MAX(day)), más
+  // días detrás; desempate por MIN(MAX(refreshed_at)), menos recientemente tocada— en
+  // vez de rotar por tiempo: es robusto a corridas salteadas por Vercel (el que más
+  // atrás está SIEMPRE se elige next) y a la vez cicla las frescas por el desempate.
+  // Cada tabla tiene su cursor propio (su MAX(day)), así que no se pisan.
+  // Override manual `?table=` para admins (recompute a mano de una tabla puntual).
+  const tableParam = url.searchParams.get("table");
+  let table: RollupTable;
   let lastRollupDay: string | null = null;
-  try {
-    const mr = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
-      `SELECT MAX(day)::text AS d FROM pixel_daily_aggregates`
+  if (!isVercelCron && tableParam && isRollupTable(tableParam)) {
+    table = tableParam;
+    try {
+      const mr = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
+        `SELECT MAX(day)::text AS d FROM ${ROLLUP_DB_TABLE[table]}`
+      );
+      lastRollupDay = mr?.[0]?.d || null;
+    } catch { /* default: no romper el cron */ }
+  } else {
+    // Estado de las 7 tablas en paralelo (MAX(day) + MAX(refreshed_at), index-friendly).
+    const status = await Promise.all(
+      ROLLUP_TABLES.map(async (t) => {
+        try {
+          const r = await prisma.$queryRawUnsafe<Array<{ d: string | null; r: Date | null }>>(
+            `SELECT MAX(day)::text AS d, MAX(refreshed_at) AS r FROM ${ROLLUP_DB_TABLE[t]}`
+          );
+          return { t, day: r?.[0]?.d || "0000-00-00", ref: r?.[0]?.r ? new Date(r[0].r).getTime() : 0 };
+        } catch {
+          return { t, day: "0000-00-00", ref: 0 };
+        }
+      })
     );
-    lastRollupDay = mr?.[0]?.d || null;
-  } catch {
-    // Si falla la lectura, caemos al comportamiento default (no romper el cron).
+    // Más atrasada primero: MIN(day) asc, luego MIN(refreshed_at) asc.
+    status.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.ref - b.ref));
+    table = status[0].t;
+    lastRollupDay = status[0].day === "0000-00-00" ? null : status[0].day;
   }
   let from = defaultFrom;
   if (lastRollupDay && lastRollupDay < defaultFrom) from = lastRollupDay;
@@ -222,7 +271,7 @@ export async function GET(req: NextRequest) {
     if (remainingMs < MIN_SLICE_MS) break;
     let body: any;
     try {
-      const r = await runRollupBackfill({ from, to, cursor, budgetMs: remainingMs });
+      const r = await runRollupBackfill({ from, to, cursor, table, budgetMs: remainingMs });
       body = r.body;
     } catch (e: any) {
       error = `backfill failed: ${e?.message?.slice(0, 200)}`;
@@ -268,6 +317,13 @@ export async function GET(req: NextRequest) {
   try {
     // Sólo si sobra tiempo. El 2026-07-21 este chequeo hizo dar 504 a la función
     // al correr después de un loop que ya había agotado su presupuesto.
+    // El chequeo valida pixel_daily_source (visitors) vs crudo → sólo tiene sentido
+    // cuando ESTA invocación procesó `source`. Para las otras 6 tablas se saltea
+    // (comparar source stale daría falsos "incoherente").
+    if (table !== "source") {
+      coherenceSkipped = true;
+      throw new Error("coherencia sólo aplica a la tabla source");
+    }
     if (Date.now() - startedAt > INVOCATION_BUDGET_MS - COHERENCE_RESERVE_MS) {
       coherenceSkipped = true;
       throw new Error("sin presupuesto para el chequeo de coherencia");
@@ -306,6 +362,7 @@ export async function GET(req: NextRequest) {
     {
       ok: done && !error,
       progress: !done && !error && daysProcessed > 0, // avanzó pero falta (esperado)
+      table, // tabla procesada en esta invocación (rotación 1-tabla/run)
       window: { from, to },
       startedAtCursor: manualCursor || from,
       // Dónde quedó. Si no está `done`, hay que volver a llamar CON esto: sin el
