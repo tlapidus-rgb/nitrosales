@@ -16,7 +16,33 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import { PrismaClient } from "@prisma/client";
 import { CHECKOUT_URL_REGEX, WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
+
+// ── Cliente dedicado para los INSERT de rollup (BP-PIXEL-TIMEOUT, 2026-08-18) ──
+// statement_timeout ALTO (200s): el rebuild del rollup `funnel` de la org grande
+// (El Mundo del Juguete) tarda ~70s — millones de eventos/día × 4 columnas HLL +
+// LEFT JOIN a pixel_visitor_first_source (3.9M filas) + GROUP BY. El cliente GLOBAL
+// usa statement_timeout=50s (correcto para el endpoint de clientes, que corre contra
+// una race de 50s), y ese límite MATABA el statement del funnel antes de terminar →
+// era la ÚNICA de las 7 tablas de rollup que quedaba stale (las otras completan bajo
+// 25s) → alertas de frescura + /api/metrics/pixel cayendo al cómputo de funnel EN
+// VIVO para los días stale → analytics multi-día en 0. Con 200s el funnel completa y
+// el rollup se mantiene fresco. connection_limit bajo (4): el backfill corre 1
+// statement a la vez, no necesita pool grande. 200s < maxDuration real de la función
+// (300s), así que la función retorna antes del wall de Vercel.
+let _rollupDb: PrismaClient | null = null;
+function rollupDb(): PrismaClient {
+  if (_rollupDb) return _rollupDb;
+  const raw = process.env.DATABASE_URL || "";
+  const sep = raw.includes("?") ? "&" : "?";
+  const isPooler = /-pooler\./.test(raw);
+  const pgb = isPooler && !/[?&]pgbouncer=/.test(raw) ? "&pgbouncer=true" : "";
+  _rollupDb = new PrismaClient({
+    datasourceUrl: `${raw}${sep}connection_limit=4&pool_timeout=60&statement_timeout=200000${pgb}`,
+  });
+  return _rollupDb;
+}
 
 // ── Qué cuenta como VISITA (decisión del fundador, 2026-07-22) ──────────────
 // Un retorno de pasarela / página de checkout "no es una visita, es parte del
@@ -154,7 +180,7 @@ async function backfillDayOrg(
   let touched = 0;
 
   // 1) aggregates (14,5)
-  if (run("aggregates")) touched += await prisma.$executeRawUnsafe(
+  if (run("aggregates")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_aggregates
        ("organizationId",day,total_events,page_views,events_with_clickid,
         visitors_hll,sessions_hll,pv_visitors_hll,product_visitors_hll,
@@ -186,7 +212,7 @@ async function backfillDayOrg(
   );
 
   // 2) device (14,5)
-  if (run("device")) touched += await prisma.$executeRawUnsafe(
+  if (run("device")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_device ("organizationId",day,device,visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, COALESCE("deviceType",'unknown'),
        ${HV14} FILTER (WHERE ${VISIT_PAGEVIEW_NOALIAS}), now()
@@ -198,7 +224,7 @@ async function backfillDayOrg(
   );
 
   // 3) type (16,5)
-  if (run("type")) touched += await prisma.$executeRawUnsafe(
+  if (run("type")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_type ("organizationId",day,type,event_count,visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, type, COUNT(*)::bigint, ${HV16}, now()
      FROM pixel_events WHERE ${range}
@@ -209,7 +235,7 @@ async function backfillDayOrg(
   );
 
   // 4) page (14,5) — solo PAGE_VIEW, sin checkout, URL sin querystring
-  if (run("page")) touched += await prisma.$executeRawUnsafe(
+  if (run("page")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_page ("organizationId",day,url,page_views,visitors_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, SPLIT_PART("pageUrl",'?',1), COUNT(*)::bigint, ${HV14}, now()
      FROM pixel_events
@@ -242,7 +268,7 @@ async function backfillDayOrg(
         AND d.product_name = props->>'productName')
   )`;
 
-  if (run("product")) touched += await prisma.$executeRawUnsafe(
+  if (run("product")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_product ("organizationId",day,product_id,viewers_hll,refreshed_at)
      SELECT "organizationId", ${ARDAY}, ${RESOLVED_PID}, ${HV14}, now()
      FROM pixel_events
@@ -268,7 +294,7 @@ async function backfillDayOrg(
   // Con LEFT JOIN + COALESCE caen en 'sin_clasificar' y el total cierra. Es más
   // honesto además: un visitante sin canal de marketing EXISTE, y esconderlo es
   // peor que mostrarlo en su propio bucket.
-  if (run("source")) touched += await prisma.$executeRawUnsafe(
+  if (run("source")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_source ("organizationId",day,first_source,pv_visitors_hll,refreshed_at)
      SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
        COALESCE(d.first_source, 'sin_clasificar'),
@@ -292,7 +318,7 @@ async function backfillDayOrg(
   //    consume /api/metrics/pixel/funnel?channel=... en sub-segundo (antes escaneaba
   //    pixel_events crudo → >75s en rangos amplios). Misma precisión (14,5) que la
   //    tabla, para poder unir los HLL entre días.
-  if (run("funnel")) touched += await prisma.$executeRawUnsafe(
+  if (run("funnel")) touched += await rollupDb().$executeRawUnsafe(
     `INSERT INTO pixel_daily_funnel_by_source ("organizationId",day,first_source,pv_hll,vp_hll,atc_hll,co_hll,refreshed_at)
      SELECT pe."organizationId", (pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
        COALESCE(d.first_source, 'sin_clasificar'),
