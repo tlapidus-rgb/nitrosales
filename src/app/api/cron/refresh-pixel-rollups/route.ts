@@ -80,11 +80,15 @@ export const maxDuration = 800;
 // interno de 250s → 6×250s podía superar largo el maxDuration → 504. Ahora cada
 // llamada recibe el tiempo RESTANTE como budget, garantizando que la función retorne
 // antes del wall.
-// 660s de 800 disponibles. Bajado de 720s el 2026-07-21: el chequeo de coherencia
-// que se agregó al final (escanea pixel_events de un día) se comía el margen y la
-// función daba 504 SIN DEVOLVER NADA — o sea sin cursor para reanudar, que es el
-// peor resultado posible en un proceso resumible.
-const INVOCATION_BUDGET_MS = 660_000;
+// FIX 2026-08 (BP-ROLLUP-TIMEOUT): el override `maxDuration = 800` NO se estaba
+// aplicando en prod — el default del proyecto en Vercel es 300s, y la observability
+// mostraba 100% timeout (504 FUNCTION_INVOCATION_TIMEOUT) en TODAS las corridas del
+// cron: budgeteaba 660s pero Vercel la mataba a los 300s SIN commitear → tablas
+// (pixel_daily_source, pixel_daily_funnel_by_source) nunca se refrescaban → alertas.
+// Bajado a 240s para RETORNAR LIMPIO bajo el cap real de 300s (margen ~60s p/
+// coherencia + response). Un día tarda ~80-100s, así que cada corrida procesa 1-2
+// días y COMMITEA; el cron (:20,:50) encadena y tapa el hueco en pocas horas.
+const INVOCATION_BUDGET_MS = 240_000;
 // No arrancar otra tanda si no queda al menos esto. Subido de 60s: los días
 // recientes tardan ~80-100s cada uno (más tráfico), así que arrancar una tanda
 // con 60s de margen garantizaba pasarse.
