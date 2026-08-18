@@ -45,7 +45,7 @@ export const revalidate = 0;
 // Subido 60→90 (2026-08-18, BP-PIXEL-TIMEOUT): con GLOBAL_TIMEOUT_MS a 50s la
 // función necesita headroom sobre la race para serializar la respuesta (~878KB en
 // 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
-export const maxDuration = 90;
+export const maxDuration = 120;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // ══════════════════════════════════════════════════════════════
@@ -79,7 +79,7 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 // cachea. 30d (~3-4x el trabajo) puede seguir sobre 50s → FOLLOW-UP: gatear esas
 // queries unnest detrás de gold/rollup (BP-PIXEL-TIMEOUT #2). REQUIERE
 // statement_timeout=50000 en client.ts (si no, PG mata la query a los 25s igual).
-const GLOBAL_TIMEOUT_MS = 50000;
+const GLOBAL_TIMEOUT_MS = 85000;
 
 // Techo de seguridad, NO un recorte de producto — mismo criterio y mismo valor
 // que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
