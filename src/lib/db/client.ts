@@ -32,8 +32,15 @@ function createPrismaClient(): PrismaClient {
   // (El "8" histórico de REGLA #3b es previo al diseño de queries en paralelo y
   // causaba pool timeouts; ver evolución 8→12 commit 608646a → 24.) El endpoint
   // de Neon es el -pooler, así que 24 conexiones lógicas son seguras.
-  // pool_timeout=30 da margen antes de que Prisma tire "timed out".
-  // statement_timeout=25000 mata una query colgada → safeQuery usa su fallback.
+  // pool_timeout=55 da margen antes de que Prisma tire "timed out". Subido 30→55
+  // (2026-08-18, BP-PIXEL-TIMEOUT): con statement_timeout a 50s, las queries lentas
+  // retienen conexión más tiempo; /api/metrics/pixel dispara ~29 queries en paralelo
+  // (> connection_limit=24), así que las que sobran ESPERAN conexión — con 30s podían
+  // morir esperando en rangos multi-día. 55 < maxDuration del endpoint (90).
+  // statement_timeout=50000 mata una query colgada → safeQuery usa su fallback. Subido
+  // 25s→50s (BP-PIXEL-TIMEOUT): a 25s PG mataba el compute de 7d/14d de la org grande
+  // ANTES de terminar → el endpoint devolvía mock vacío → warm-cache cacheaba el vacío
+  // → analytics en 0. Va de la mano con GLOBAL_TIMEOUT_MS=50000 en metrics/pixel.
   const rawUrl = process.env.DATABASE_URL || "";
   const sep = rawUrl.includes("?") ? "&" : "?";
   // ⚠️ pgbouncer=true cuando el endpoint es el -pooler de Neon (2026-07-24).
@@ -49,7 +56,7 @@ function createPrismaClient(): PrismaClient {
   //   necesita y no debe llevarlo).
   const isPooler = /-pooler\./.test(rawUrl);
   const pgbouncer = isPooler && !/[?&]pgbouncer=/.test(rawUrl) ? "&pgbouncer=true" : "";
-  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=30&statement_timeout=25000${pgbouncer}`;
+  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=55&statement_timeout=50000${pgbouncer}`;
 
   const client = new PrismaClient({
     datasourceUrl: dsUrl,

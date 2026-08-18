@@ -41,8 +41,11 @@ import {
 
 export const revalidate = 0;
 // Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
-// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (25s) corta antes.
-export const maxDuration = 60;
+// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (50s) corta antes.
+// Subido 60→90 (2026-08-18, BP-PIXEL-TIMEOUT): con GLOBAL_TIMEOUT_MS a 50s la
+// función necesita headroom sobre la race para serializar la respuesta (~878KB en
+// 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
+export const maxDuration = 90;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // ══════════════════════════════════════════════════════════════
@@ -66,9 +69,17 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 
 // Red de seguridad: si el endpoint no responde en N ms, devuelve un mock vacío en
 // vez de colgar la función (degradación graciosa, nunca un 500/cuelgue). Combinado
-// con maxDuration como techo duro de Vercel. Con los rollups de Fase 2 todos los
-// rangos responden muy por debajo de este techo; queda como red de seguridad.
-const GLOBAL_TIMEOUT_MS = 25000;
+// con maxDuration como techo duro de Vercel.
+// Subido 25s→50s (2026-08-18, BP-PIXEL-TIMEOUT): para la org grande (El Mundo del
+// Juguete) el compute de 7d/14d queda pegado a ~21-25s — varias queries desanidan
+// pa.touchpoints EN VIVO (sólo 4 van por gold detrás de PIXEL_USE_GOLD). A 25s la
+// race mataba el compute ANTES de terminar → devolvía el mock vacío → el warm-cache
+// cacheaba ESE mock → analytics en 0 para TODO rango multi-día. A 50s (bajo
+// maxDuration=90) el compute termina y devuelve data real, que el warm-cache sí
+// cachea. 30d (~3-4x el trabajo) puede seguir sobre 50s → FOLLOW-UP: gatear esas
+// queries unnest detrás de gold/rollup (BP-PIXEL-TIMEOUT #2). REQUIERE
+// statement_timeout=50000 en client.ts (si no, PG mata la query a los 25s igual).
+const GLOBAL_TIMEOUT_MS = 50000;
 
 // Techo de seguridad, NO un recorte de producto — mismo criterio y mismo valor
 // que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
