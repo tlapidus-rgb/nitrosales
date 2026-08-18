@@ -88,11 +88,18 @@ export const maxDuration = 800;
 // Bajado a 240s para RETORNAR LIMPIO bajo el cap real de 300s (margen ~60s p/
 // coherencia + response). Un día tarda ~80-100s, así que cada corrida procesa 1-2
 // días y COMMITEA; el cron (:20,:50) encadena y tapa el hueco en pocas horas.
-const INVOCATION_BUDGET_MS = 240_000;
+// ACTUALIZACIÓN 2026-08-18: el proyecto ahora tiene Default Max Duration=800s en
+// Vercel (Settings→Functions), así que el override maxDuration=800 SÍ se respeta.
+// Subido 240s→700s: un día de la org grande (El Mundo del Juguete) tarda ~450-500s
+// (funnel+source JOINean los 3.9M de pixel_visitor_first_source, ~1M eventos/día);
+// con 240s no entraba ni un día → el cursor no avanzaba → rollups clavados (incidente
+// del 18-ago). 700s deja ~100s de headroom bajo el cap de 800s. Procesa ~1 día/run;
+// el cron cada 2h sobra para mantenerse al día (1 día nuevo/día).
+const INVOCATION_BUDGET_MS = 700_000;
 // No arrancar otra tanda si no queda al menos esto. Subido de 60s: los días
 // recientes tardan ~80-100s cada uno (más tráfico), así que arrancar una tanda
 // con 60s de margen garantizaba pasarse.
-const MIN_SLICE_MS = 120_000;
+const MIN_SLICE_MS = 200_000;
 // Presupuesto reservado para el auto-chequeo de coherencia del final. Si no
 // queda, se saltea: es diagnóstico, y perder el diagnóstico es infinitamente
 // mejor que perder el cursor de reanudación.

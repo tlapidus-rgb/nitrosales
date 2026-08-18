@@ -20,17 +20,17 @@ import { PrismaClient } from "@prisma/client";
 import { CHECKOUT_URL_REGEX, WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
 
 // ── Cliente dedicado para los INSERT de rollup (BP-PIXEL-TIMEOUT, 2026-08-18) ──
-// statement_timeout ALTO (200s): el rebuild del rollup `funnel` de la org grande
-// (El Mundo del Juguete) tarda ~70s — millones de eventos/día × 4 columnas HLL +
-// LEFT JOIN a pixel_visitor_first_source (3.9M filas) + GROUP BY. El cliente GLOBAL
-// usa statement_timeout=50s (correcto para el endpoint de clientes, que corre contra
-// una race de 50s), y ese límite MATABA el statement del funnel antes de terminar →
-// era la ÚNICA de las 7 tablas de rollup que quedaba stale (las otras completan bajo
-// 25s) → alertas de frescura + /api/metrics/pixel cayendo al cómputo de funnel EN
-// VIVO para los días stale → analytics multi-día en 0. Con 200s el funnel completa y
-// el rollup se mantiene fresco. connection_limit bajo (4): el backfill corre 1
-// statement a la vez, no necesita pool grande. 200s < maxDuration real de la función
-// (300s), así que la función retorna antes del wall de Vercel.
+// statement_timeout ALTO (500s): el rebuild del rollup `funnel`/`source` de la org
+// grande (El Mundo del Juguete) tarda ~150-500s — ~1M eventos/día × HLL + LEFT JOIN a
+// pixel_visitor_first_source (3.9M filas) + GROUP BY. El cliente GLOBAL usa
+// statement_timeout=85s (correcto para el endpoint de clientes, que corre contra una
+// race), y ese límite MATABA el statement del funnel antes de terminar → era la ÚNICA
+// de las 7 tablas de rollup que quedaba stale (las otras completan más rápido) →
+// alertas de frescura + /api/metrics/pixel cayendo al cómputo EN VIVO para los días
+// stale → analytics multi-día en 0 (incidente del 18-ago). Con 500s el statement
+// completa. connection_limit bajo (4): el backfill corre 1 statement a la vez, no
+// necesita pool grande. 500s < maxDuration del proyecto (800s, Settings→Functions),
+// así que la función retorna antes del wall de Vercel.
 let _rollupDb: PrismaClient | null = null;
 function rollupDb(): PrismaClient {
   if (_rollupDb) return _rollupDb;
@@ -39,7 +39,7 @@ function rollupDb(): PrismaClient {
   const isPooler = /-pooler\./.test(raw);
   const pgb = isPooler && !/[?&]pgbouncer=/.test(raw) ? "&pgbouncer=true" : "";
   _rollupDb = new PrismaClient({
-    datasourceUrl: `${raw}${sep}connection_limit=4&pool_timeout=60&statement_timeout=200000${pgb}`,
+    datasourceUrl: `${raw}${sep}connection_limit=4&pool_timeout=60&statement_timeout=500000${pgb}`,
   });
   return _rollupDb;
 }
