@@ -56,7 +56,7 @@ function createPrismaClient(): PrismaClient {
   //   necesita y no debe llevarlo).
   const isPooler = /-pooler\./.test(rawUrl);
   const pgbouncer = isPooler && !/[?&]pgbouncer=/.test(rawUrl) ? "&pgbouncer=true" : "";
-  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=90&statement_timeout=85000${pgbouncer}`;
+  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=160&statement_timeout=150000${pgbouncer}`;
 
   const client = new PrismaClient({
     datasourceUrl: dsUrl,
