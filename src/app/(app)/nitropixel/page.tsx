@@ -190,7 +190,7 @@ export default function NitroPixelPage() {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                background: "#2F9153",
+                background: "#2F9153",
                 animation: "pixelHeartbeat 1.6s ease-in-out infinite",
               }}
             />
@@ -218,49 +218,10 @@ export default function NitroPixelPage() {
           </div>
         </div>
 
-        {/* ═══ HERO PIXEL BRAIN ═══ */}
-        <div
-          className="relative flex flex-col items-center justify-center mb-12"
-          style={{ animation: "pixelFadeUp 800ms ease-out both" }}
-        >
-          <PixelBrain
-            level={level}
-            stage={stage?.key ?? "GENESIS"}
-            color={stageColor}
-            heartbeat={tick}
-          />
-
-          {/* Stage label */}
-          <div className="text-center mt-2">
-            <div
-              className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.4em]"
-              style={{ color: stageColor, textShadow: `0 0 12px ${stageColor}80` }}
-            >
-              <span
-                className="w-1 h-1 rounded-full"
-                style={{ background: stageColor, animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
-              />
-              <span>STAGE</span>
-              <span className="opacity-30">·</span>
-              <span>{stage?.key ?? "GENESIS"}</span>
-              <span className="opacity-30">·</span>
-              <span style={{ animation: "pixelBreath 2.8s ease-in-out infinite" }}>EVOLVING</span>
-            </div>
-            <div
-              className="text-base lg:text-lg font-medium mt-2 tracking-wide text-ink"
-            >
-              {stage?.tagline ?? "El núcleo despierta"}
-            </div>
-            <div className="flex items-center justify-center gap-2 mt-3">
-              <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-40">
-                Próxima evolución
-              </span>
-              <span className="text-[9px] font-mono text-ink-60">
-                {stage?.key === "SINGULARITY" ? "∞ infinita" : "en proceso →"}
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* HERO PIXEL BRAIN removido (2026-08-18, pedido de Tomy): se sacó el orbe
+            «núcleo» + el label STAGE/EVOLVING/«El núcleo despierta». El resto del
+            hero (valuación + nivel) queda. Si más adelante se quiere reponer, ver
+            el componente PixelBrain. */}
 
         {/* ═══ DUAL VALUATION ═══ */}
         <div
@@ -324,7 +285,7 @@ export default function NitroPixelPage() {
                 className="h-full rounded-full transition-all duration-1000 ease-out relative"
                 style={{
                   width: `${Math.max(8, level)}%`,
-                  background: `linear-gradient(90deg, #2F9153, #83807A, #83807A)`,
+                  background: `linear-gradient(90deg, #2F9153, #83807A, #83807A)`,
                 }}
               >
                 {/* shimmer perpetuo: hace ver que sigue creciendo aunque visualmente este al tope */}
@@ -409,7 +370,7 @@ export default function NitroPixelPage() {
               <span
                 className="w-1.5 h-1.5 rounded-full"
                 style={{
-                  background: "#22c55e",
+                  background: "#22c55e",
                   animation: "pixelHeartbeat 1.6s ease-in-out infinite",
                 }}
               />
@@ -487,7 +448,7 @@ export default function NitroPixelPage() {
                             className="h-full rounded-full"
                             style={{
                               width: `${pct}%`,
-                              background: `linear-gradient(90deg, #2F9153, #83807A)`,
+                              background: `linear-gradient(90deg, #2F9153, #83807A)`,
                             }}
                           />
                         </div>

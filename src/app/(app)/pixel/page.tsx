@@ -5,6 +5,7 @@ import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 import { TooltipPortal } from "@/components/ui/TooltipPortal";
+import { PageLoader } from "@/components/PageLoader";
 import { LivePulse } from "@/components/enterprise/ui";
 
 // ══════════════════════════════════════════════════════════════
@@ -502,18 +503,12 @@ export default function PixelPage() {
   const revCountUp = useCountUp(bk.pixelRevenue);
   const roasCountUp = useCountUp(bk.pixelRoas, 600);
 
-  // ── LOADING STATE (dark) ──
+  // ── LOADING STATE (unificado: PageLoader sobrio, el mismo en todo el panel) ──
   if (loading && !data) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#FBFAF7" }}>
         <DarkStyles />
-        <div className="flex flex-col items-center gap-5">
-          <PixelBrainMini size={80} />
-          <div className="text-center">
-            <p className="text-sm font-semibold text-ink tracking-tight">NitroPixel</p>
-            <p className="text-xs text-ink-40 mt-1">Cargando atribuciones...</p>
-          </div>
-        </div>
+        <PageLoader label="Cargando atribuciones…" minHeight="auto" />
       </div>
     );
   }
