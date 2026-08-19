@@ -42,6 +42,7 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { sendEmail } from "@/lib/email/send";
 import {
   runRollupBackfill,
   ROLLUP_TABLES,
@@ -56,6 +57,40 @@ import {
   formatCoherenceSummary,
   type CoherenceRow,
 } from "@/lib/pipeline/coherence";
+
+// ── Alerta de INCOHERENCIA (2026-08-19, BP-ROLLUP-STUCK) ─────────────────────
+// El auto-chequeo de coherencia detecta "tabla fresca, contenido viejo" (el bug
+// del 2026-07-21: pixel_daily_source con 10.315 visitantes donde el crudo tenía
+// 104.454). Antes SÓLO lo logueaba → moría en los logs del server y nadie se
+// enteraba. Ahora además manda mail: es exactamente la preocupación de "info mal
+// recogida". Cooldown en memoria para no spamear (el cron corre cada 15 min).
+const INCOHERENCE_ALERT_TO = "tlapidus@99media.com.ar";
+const INCOHERENCE_COOLDOWN_H = 6;
+let lastIncoherenceAlertSent = 0;
+
+async function alertIncoherence(rows: CoherenceRow[], checkDay: string) {
+  if (Date.now() - lastIncoherenceAlertSent < INCOHERENCE_COOLDOWN_H * 3600_000) return;
+  lastIncoherenceAlertSent = Date.now(); // marcar ANTES del await (evita doble envío en carrera)
+  const bad = rows.filter((c) => c.incoherent);
+  const lines = bad
+    .map(
+      (c) =>
+        `<li>org <code>${c.org}</code>: rollup <b>${c.rollupVisitors}</b> vs crudo <b>${c.rawVisitors}</b> visitantes</li>`
+    )
+    .join("");
+  try {
+    await sendEmail({
+      to: INCOHERENCE_ALERT_TO,
+      subject: `🔴 NitroSales: rollup del pixel INCOHERENTE (${checkDay})`,
+      html: `<p>El auto-chequeo detectó que <code>pixel_daily_source</code> se escribió con datos que NO coinciden con el crudo para el día <b>${checkDay}</b>:</p>
+<ul>${lines}</ul>
+<p>Esto NO es un problema de frescura (la tabla está al día) sino de <b>contenido mal recogido</b>. Acción: revisar el rebuild de <code>source</code>/<code>first-source</code> para esa org y re-correr el backfill de ese día si hace falta.</p>`,
+      context: "rollup-incoherence-alert",
+    });
+  } catch (e: any) {
+    console.error("[refresh-pixel-rollups] alerta de incoherencia falló:", e?.message);
+  }
+}
 
 /**
  * Último día efectivamente reconstruido en esta invocación. El cursor apunta al
@@ -353,6 +388,8 @@ export async function GET(req: NextRequest) {
       console.error(
         `[refresh-pixel-rollups] ⚠️ ROLLUP INCOHERENTE:\n${formatCoherenceSummary(coherence)}`
       );
+      // "info mal recogida": no morir en los logs — avisar por mail (con cooldown).
+      await alertIncoherence(coherence, checkDay);
     }
   } catch {
     /* diagnóstico: si falla no invalida el rebuild que sí se hizo */
