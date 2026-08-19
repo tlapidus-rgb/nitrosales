@@ -88,7 +88,11 @@ se ve la contradicción "tag Orgánico" al lado del canal "Meta Ads" (bug que re
 
 ## Roadmap
 
-- **Fase A** (esta): reglas consistentes con este modelo (tests-invariante) + label por eje resuelto
+- **Fase A** ✅: reglas consistentes con este modelo (tests-invariante) + label por eje resuelto
   + garantía "nunca Meta Orgánico". Sin tocar el ingest.
-- **Fase B**: `paid_signal` (presencia de click-id) calculado y persistido en la dim del ingest,
-  pasado como 4ta señal a las reglas → cierra el caso `facebook + fbclid` sin medium.
+- **Fase B** ✅: la señal fuerte de pago (click-id) se aplica en el **ingest**. `first-source-batch`
+  deriva `medium_raw='paid'` cuando hay un click-id de pauta (`PAID_CLICK_ID_PREDICATE`:
+  fbclid/gclid/ttclid/msclkid/li_fat_id) → el canal resuelve a "…Ads" para TODAS las plataformas
+  (antes `gclid`/`ttclid` sin `utm_medium` caían orgánico porque el source `google`/`tiktok` es
+  ambiguo). NO toca `attribution.ts` (CORE). **Backfill:** aplica a visitantes NUEVOS al toque;
+  para los existentes hay que reconstruir la dim (re-correr la fase `first-source`).

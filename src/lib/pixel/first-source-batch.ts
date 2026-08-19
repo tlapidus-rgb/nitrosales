@@ -26,6 +26,7 @@
 import {
   FIRST_SOURCE_MARKETING_CASE_FILTERED,
   WEBHOOK_SESSION_FILTER,
+  PAID_CLICK_ID_PREDICATE,
 } from "@/lib/pixel/first-source-sql";
 
 /**
@@ -94,7 +95,11 @@ ev AS (
     SELECT pe."visitorId" AS vid, pe.timestamp AS ts,
            (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS marketing_source,
            NULLIF(LOWER(pe."utmParams"->>'source'), '') AS utm_source_raw,
-           LOWER(COALESCE(pe."utmParams"->>'medium', '')) AS medium_raw,
+           -- Fase B: un click-id de pauta ES la señal fuerte de PAGO → medium='paid'
+           -- (override del utm_medium crudo). Así gclid/ttclid/fbclid sin utm_medium
+           -- resuelven a "…Ads" en vez de caer orgánico. Ver PAID_CLICK_ID_PREDICATE.
+           CASE WHEN ${PAID_CLICK_ID_PREDICATE} THEN 'paid'
+                ELSE LOWER(COALESCE(pe."utmParams"->>'medium', '')) END AS medium_raw,
            NULLIF(pe."utmParams"->>'campaign', '') AS campaign_raw
     FROM pixel_events pe
     JOIN cand c ON c.vid = pe."visitorId"
@@ -154,7 +159,11 @@ WITH ev AS (
     SELECT pe."visitorId" AS vid, pe.timestamp AS ts,
            (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS marketing_source,
            NULLIF(LOWER(pe."utmParams"->>'source'), '') AS utm_source_raw,
-           LOWER(COALESCE(pe."utmParams"->>'medium', '')) AS medium_raw,
+           -- Fase B: un click-id de pauta ES la señal fuerte de PAGO → medium='paid'
+           -- (override del utm_medium crudo). Así gclid/ttclid/fbclid sin utm_medium
+           -- resuelven a "…Ads" en vez de caer orgánico. Ver PAID_CLICK_ID_PREDICATE.
+           CASE WHEN ${PAID_CLICK_ID_PREDICATE} THEN 'paid'
+                ELSE LOWER(COALESCE(pe."utmParams"->>'medium', '')) END AS medium_raw,
            NULLIF(pe."utmParams"->>'campaign', '') AS campaign_raw
     FROM pixel_events pe
     WHERE pe."organizationId" = $1

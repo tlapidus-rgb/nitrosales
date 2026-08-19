@@ -35,6 +35,24 @@ export const GATEWAY_REFERRER_REGEX =
 export const CHECKOUT_URL_REGEX = "/checkout/|orderPlaced|gatewayCallback";
 const EMPTY_CLICKIDS = `("clickIds" IS NULL OR "clickIds"::text IN ('{}','null'))`;
 
+/**
+ * Fase B (metodología 2-ejes): un click-id de anuncio es la señal FUERTE de PAGO
+ * (solo lo pone la plataforma de ads en el redirect de un click pago). Debe estar
+ * en sync con las ramas de click-id del CASE de source (fbclid/gclid/ttclid/
+ * msclkid/li_fat_id). Se usa en el ingest para derivar `medium_raw='paid'` cuando
+ * está presente → las reglas resuelven el canal a "…Ads" para TODAS las
+ * plataformas de forma uniforme (antes gclid/ttclid sin utm_medium caían orgánico
+ * porque el source 'google'/'tiktok' es ambiguo). Ver docs/CANALES-METODOLOGIA.md.
+ * Columna sin alias → resuelve a `pixel_events` en un FROM de una sola tabla.
+ */
+export const PAID_CLICK_ID_PREDICATE = `(
+  (("clickIds"->>'fbclid')    IS NOT NULL AND ("clickIds"->>'fbclid')    != '')
+  OR (("clickIds"->>'gclid')     IS NOT NULL AND ("clickIds"->>'gclid')     != '')
+  OR (("clickIds"->>'ttclid')    IS NOT NULL AND ("clickIds"->>'ttclid')    != '')
+  OR (("clickIds"->>'msclkid')   IS NOT NULL AND ("clickIds"->>'msclkid')   != '')
+  OR (("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '')
+)`;
+
 /** Un `utm_source` de pasarela, en cualquiera de sus tres formas. */
 const GATEWAY_SOURCE_PREDICATE = `(
   LOWER(COALESCE("utmParams"->>'source', '')) IN (${GATEWAY_UTM_SQL_IN})
