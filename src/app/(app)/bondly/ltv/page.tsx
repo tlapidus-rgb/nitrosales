@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { PageLoader } from "@/components/PageLoader";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -367,14 +368,7 @@ export default function LtvPage() {
   // ─────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[60vh]">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
-          <p className="text-ink-40 font-mono text-sm tracking-wider uppercase">Calculando Lifetime Value...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader label="Calculando Lifetime Value…" minHeight="60vh" />;
   }
 
   if (error) {

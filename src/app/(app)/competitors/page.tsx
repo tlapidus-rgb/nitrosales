@@ -6,6 +6,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { PageLoader } from "@/components/PageLoader";
 
 const fmt = (n: number) => n?.toLocaleString("es-AR") ?? "0";
 const fmtARS = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n || 0);
@@ -274,7 +275,7 @@ export default function CompetitorsPage() {
   const alerts: Alert[] = data?.alerts || [];
   const changes: Change[] = data?.recentChanges || [];
 
-  if (loading) return <div className="min-h-screen"><p className="text-ink-40 p-8">Cargando datos de competencia...</p></div>;
+  if (loading) return <PageLoader label="Cargando datos de competencia…" minHeight="70vh" />;
   if (error) return <div className="min-h-screen"><p className="text-red-500 p-8">{error}</p></div>;
 
   const hasData = stores.length > 0;

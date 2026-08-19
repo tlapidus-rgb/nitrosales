@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { PageLoader } from "@/components/PageLoader";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, BarChart, Bar, Cell, LineChart, Line,
@@ -1323,12 +1324,7 @@ export default function CampaignsPage() {
 
   /* ── Loading ───────────────────────────────────── */
   if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink mr-3" />
-        <span className="text-ink-60">Cargando Resumen...</span>
-      </div>
-    );
+    return <PageLoader label="Cargando resumen…" minHeight="60vh" />;
   }
 
   /* ── Render ────────────────────────────────────── */

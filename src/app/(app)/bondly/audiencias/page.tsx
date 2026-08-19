@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { PageLoader } from "@/components/PageLoader";
 
 // ══════════════════════════════════════════════════════════════
 // AUDIENCE SYNC — UI World-Class v2
@@ -299,14 +300,7 @@ export default function AudienceSyncPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
-          <span className="text-gray-400 text-sm">Cargando Audience Sync...</span>
-        </div>
-      </div>
-    );
+    return <PageLoader label="Cargando Audience Sync…" minHeight="70vh" />;
   }
 
   return (
