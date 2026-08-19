@@ -60,3 +60,34 @@ export function sourceDisplayName(raw: string | null | undefined): string {
   if (words.length === 0) return "Sin origen";
   return words.map(capWord).join(" ");
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Label legible del MEDIUM — para desambiguar el mismo source (2026-08-18).
+// ══════════════════════════════════════════════════════════════════════════
+// Problema (Tomy): "google" viene de Google Ads (medium cpc) Y de Google Orgánico
+// (medium organic); "ig" de Meta Ads Y de Instagram Orgánico. Con source solo son
+// indistinguibles. La unidad correcta es (source, medium) —igual que Triple Whale/
+// GA4—. Este helper bucketea el medium crudo en un label corto para el panel.
+// Los buckets espejan PAID_MEDIUMS / organic de las reglas seed (channel-rules.ts).
+const PAID_MEDIUMS_SET = new Set([
+  "paid", "cpc", "ppc", "paid_social", "social-paid", "paid-social",
+  "trafico", "video", "paidsocial", "paidsearch", "display",
+]);
+const ORGANIC_MEDIUMS_SET = new Set([
+  "organic", "social", "organic-social", "organic_social", "referral", "referrer",
+]);
+
+/**
+ * Medium crudo → label corto para desambiguar el source en el panel.
+ *   'cpc' | 'paid' | 'paid_social' → 'Ads'
+ *   'organic' | 'social' | 'referral' → 'Orgánico'
+ *   'email' → 'Email'  ·  '' | null → 'Directo'
+ *   cualquier otro → capitalizado tal cual (honesto, el cliente lo renombra).
+ */
+export function mediumDisplayLabel(raw: string | null | undefined): string {
+  const m = (raw ?? "").trim().toLowerCase();
+  if (!m) return "Directo";
+  if (PAID_MEDIUMS_SET.has(m)) return "Ads";
+  if (ORGANIC_MEDIUMS_SET.has(m)) return "Orgánico";
+  return capWord(m);
+}

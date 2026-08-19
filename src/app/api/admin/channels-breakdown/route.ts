@@ -33,7 +33,7 @@ import {
   type ChannelRuleRow,
 } from "@/lib/pixel/channel-rules-store";
 import { DIM_RULE_EXPRS } from "@/lib/pixel/channel-rollup";
-import { sourceDisplayName } from "@/lib/pixel/source-display-name";
+import { sourceDisplayName, mediumDisplayLabel } from "@/lib/pixel/source-display-name";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -86,38 +86,58 @@ async function breakdown(orgId: string, min: number) {
     orgId
   )) as Array<{ channel: string; visitantes: number }>;
 
-  // Todos los orígenes con su canal RESUELTO — para el drill-down (clic en un
-  // canal → sus orígenes). `mapped` distingue los resueltos por regla del
-  // passthrough. El canal de un origen sin mapear es null (va a "para consolidar").
+  // Todos los orígenes con su canal RESUELTO, al grano (source, medium) — para el
+  // drill-down. GRANO source+medium (2026-08-18, pedido de Tomy): "google" viene de
+  // Google Ads (medium cpc) Y Google Orgánico (medium organic); "ig" de Meta Ads Y
+  // Instagram Orgánico. Con source solo son indistinguibles; con (source, medium) el
+  // cliente los separa y clasifica cada uno. `mapped` distingue resueltos del
+  // passthrough. Es el mismo modelo (source/medium) que Triple Whale / GA4.
   const originsRaw = (await prisma.$queryRawUnsafe(
-    `SELECT d.source_raw AS codigo, ${channelCase} AS channel, (${isMapped}) AS mapped, COUNT(*)::int AS visitantes
+    `SELECT d.source_raw AS codigo, d.medium_raw AS medium, ${channelCase} AS channel, (${isMapped}) AS mapped, COUNT(*)::int AS visitantes
      FROM pixel_visitor_first_source d
      WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL
-     GROUP BY 1, 2, 3 ORDER BY 4 DESC`,
+     GROUP BY 1, 2, 3, 4 ORDER BY 5 DESC`,
     orgId
-  )) as Array<{ codigo: string; channel: string; mapped: boolean; visitantes: number }>;
+  )) as Array<{ codigo: string; medium: string | null; channel: string; mapped: boolean; visitantes: number }>;
+
+  // ¿Qué sources tienen MÁS DE UN medium? Sólo para esos mostramos el label del
+  // medium (Ads/Orgánico/…) — así "Directo" o "Icomm" (un solo medium) quedan
+  // limpios y sólo se desambigua lo que confunde (conveniencia pedida por Tomy).
+  const mediumsBySource = new Map<string, Set<string>>();
+  for (const o of originsRaw) {
+    if (!mediumsBySource.has(o.codigo)) mediumsBySource.set(o.codigo, new Set());
+    mediumsBySource.get(o.codigo)!.add((o.medium ?? "").toLowerCase());
+  }
+  const isAmbiguous = (codigo: string) => (mediumsBySource.get(codigo)?.size ?? 0) > 1;
+
   const origins = originsRaw.map((o) => ({
     codigo: o.codigo,
+    medium: o.medium ?? "", // viaja para armar la regla (source+medium) al mapear
     nombre: sourceDisplayName(o.codigo),
+    mediumLabel: isAmbiguous(o.codigo) ? mediumDisplayLabel(o.medium) : null,
     channel: o.mapped ? o.channel : null,
     mapped: o.mapped,
     visitantes: o.visitantes,
   }));
 
-  // Bandeja "sin mapear": los que NINGUNA regla agarra (passthrough), por volumen.
+  // Bandeja "sin mapear": los que NINGUNA regla agarra (passthrough), por volumen,
+  // al MISMO grano (source, medium) — así paid vs orgánico del mismo source son filas
+  // separadas y clasificables por separado.
   const sinMapear = (await prisma.$queryRawUnsafe(
-    `SELECT d.source_raw AS codigo, COUNT(*)::int AS visitantes
+    `SELECT d.source_raw AS codigo, d.medium_raw AS medium, COUNT(*)::int AS visitantes
      FROM pixel_visitor_first_source d
      WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL AND NOT (${isMapped})
-     GROUP BY 1 HAVING COUNT(*) >= $2 ORDER BY 2 DESC`,
+     GROUP BY 1, 2 HAVING COUNT(*) >= $2 ORDER BY 3 DESC`,
     orgId,
     min
-  )) as Array<{ codigo: string; visitantes: number }>;
-  // La "izquierda" del panel: el usuario ve el NOMBRE limpio (Tomy), y el
-  // `codigo` crudo viaja para armar la regla al mapearlo.
+  )) as Array<{ codigo: string; medium: string | null; visitantes: number }>;
+  // La "izquierda" del panel: el usuario ve el NOMBRE limpio (Tomy) + el label del
+  // medium cuando desambigua; el `codigo`+`medium` crudos viajan para armar la regla.
   const sinMapearUI = sinMapear.map((s) => ({
     codigo: s.codigo,
+    medium: s.medium ?? "",
     nombre: sourceDisplayName(s.codigo),
+    mediumLabel: isAmbiguous(s.codigo) ? mediumDisplayLabel(s.medium) : null,
     visitantes: s.visitantes,
   }));
 

@@ -71,6 +71,16 @@ function esSinSentido(codigo: string): boolean {
   return false;
 }
 
+// Key ÚNICA de un origen = (source, medium) (2026-08-18). El panel muestra los
+// orígenes al grano source+medium (google/cpc vs google/organic), así que `codigo`
+// solo ya no identifica una fila. Se usa para React keys, selección y `saving`.
+const okey = (o: any) => `${o?.codigo ?? ""}${o?.medium ?? ""}`;
+// Medium a mandar en la regla: SOLO si el origen viene DESAMBIGUADO por medium
+// (mediumLabel != null) → regla `source AND medium` (agarra esa variante). Si no,
+// undefined → regla source-only (más amplia, agarra todo el source). El '' es un
+// medium legítimo (sin utm_medium), por eso se distingue de undefined.
+const ruleMedium = (o: any): string | undefined => (o?.mediumLabel != null ? String(o.medium ?? "") : undefined);
+
 export default function Page() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -220,8 +230,15 @@ export default function Page() {
 
   // id de la regla PROPIA de un origen (para poder "sacarlo" del canal). null si
   // lo mapea una regla global (seed) → ese solo se puede MOVER, no desconectar.
-  const userRuleIdFor = (codigo: string) => {
-    const m = misMapeos.find((r: any) => r.source === (codigo || "").toLowerCase());
+  const userRuleIdFor = (o: any) => {
+    const src = (o?.codigo || "").toLowerCase();
+    // Origen desambiguado por medium → busca la regla source+medium; si no, la
+    // source-only (r.medium null). Así "Sacar" borra la variante correcta.
+    const med = o?.mediumLabel != null ? String(o.medium ?? "").toLowerCase() : null;
+    const m = misMapeos.find((r: any) =>
+      r.source === src &&
+      (med == null ? r.medium == null : String(r.medium ?? "").toLowerCase() === med)
+    );
     return m ? m.id : null;
   };
 
@@ -232,11 +249,12 @@ export default function Page() {
 
   // POST puro de un mapeo (sin refetch ni UI). Devuelve el id de la regla creada
   // (para poder deshacer) o lanza. Reutilizado por `asignar` (1 fila) y por el bulk.
-  async function postRule(codigo: string, channel: string): Promise<string> {
+  async function postRule(codigo: string, channel: string, medium?: string): Promise<string> {
     const res = await fetch(`/api/admin/channel-rules`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: codigo, channel: channel.trim() }),
+      // medium presente (incluso '') → regla source+medium; ausente → source-only.
+      body: JSON.stringify({ source: codigo, channel: channel.trim(), ...(medium !== undefined ? { medium } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -248,26 +266,27 @@ export default function Page() {
 
   // Devuelve true si grabó; deja el error visible (y el input intacto) si falló.
   // En éxito muestra un toast con "Deshacer" (borra la regla recién creada).
-  async function asignar(codigo: string, channel: string): Promise<boolean> {
+  async function asignar(o: any, channel: string): Promise<boolean> {
     if (!channel?.trim()) return false;
+    const k = okey(o);
     setRowError(null);
-    setSaving((prev) => new Set(prev).add(codigo));
+    setSaving((prev) => new Set(prev).add(k));
     try {
-      const id = await postRule(codigo, channel);
+      const id = await postRule(o.codigo, channel, ruleMedium(o));
       refetch();
       setRowOk({
-        msg: `Se agrupó «${codigo}» en ${channel.trim()}`,
+        msg: `Se agrupó «${o.nombre || o.codigo}» en ${channel.trim()}`,
         undo: id ? () => desconectar(id) : undefined,
       });
       return true;
     } catch (err: any) {
       console.error("Error asignando canal:", err);
-      setRowError(`No se pudo asignar "${codigo}": ${err?.message || "error"}`);
+      setRowError(`No se pudo asignar "${o.nombre || o.codigo}": ${err?.message || "error"}`);
       return false;
     } finally {
       setSaving((prev) => {
         const n = new Set(prev);
-        n.delete(codigo);
+        n.delete(k);
         return n;
       });
     }
@@ -278,29 +297,32 @@ export default function Page() {
   async function asignarLote(channel: string) {
     const c = channel.trim();
     if (!c) return;
-    const codigos = [...seleccion];
-    if (codigos.length === 0) return;
+    const keys = [...seleccion];
+    if (keys.length === 0) return;
+    // Resolver las keys seleccionadas → orígenes (source+medium) de la lista visible.
+    const byKey = new Map(sinMapearVisible.map((s: any) => [okey(s), s]));
+    const items = keys.map((k) => byKey.get(k)).filter(Boolean) as any[];
     setRowError(null);
-    setSaving((prev) => new Set([...prev, ...codigos]));
+    setSaving((prev) => new Set([...prev, ...keys]));
     let ok = 0;
     const errores: string[] = [];
-    for (const codigo of codigos) {
+    for (const o of items) {
       try {
-        await postRule(codigo, c);
+        await postRule(o.codigo, c, ruleMedium(o));
         ok++;
       } catch (err: any) {
-        errores.push(codigo);
+        errores.push(o.nombre || o.codigo);
       }
     }
     setSaving((prev) => {
       const n = new Set(prev);
-      codigos.forEach((x) => n.delete(x));
+      keys.forEach((x) => n.delete(x));
       return n;
     });
     setSeleccion(new Set());
     setBulkCanal("");
     refetch();
-    if (errores.length) setRowError(`No se pudieron asignar ${errores.length} de ${codigos.length} orígenes.`);
+    if (errores.length) setRowError(`No se pudieron asignar ${errores.length} de ${items.length} orígenes.`);
     if (ok) setRowOk({ msg: `Se agruparon ${ok} ${ok === 1 ? "origen" : "orígenes"} en ${c}` });
   }
 
@@ -515,25 +537,26 @@ export default function Page() {
                         className="accent-slate-900 w-3.5 h-3.5"
                         checked={seleccion.size > 0 && seleccion.size === sinMapearVisible.length}
                         ref={(el) => { if (el) el.indeterminate = seleccion.size > 0 && seleccion.size < sinMapearVisible.length; }}
-                        onChange={(e) => setSeleccion(e.target.checked ? new Set(sinMapearVisible.map((s: any) => s.codigo)) : new Set())}
+                        onChange={(e) => setSeleccion(e.target.checked ? new Set(sinMapearVisible.map(okey)) : new Set())}
                       />
                       Seleccionar todos
                     </label>
                   )}
                   {sinMapearVisible.map((s: any) => (
                     <FilaOrigen
-                      key={s.codigo}
+                      key={okey(s)}
                       o={s}
                       canales={canales}
                       saving={saving}
                       onAsignar={asignar}
-                      onExcluir={() => asignar(s.codigo, CATCH)}
+                      onExcluir={() => asignar(s, CATCH)}
                       accion="Conectar"
                       placeholder="Asignar a canal…"
-                      checked={seleccion.has(s.codigo)}
+                      checked={seleccion.has(okey(s))}
                       onToggle={() => setSeleccion((prev) => {
                         const n = new Set(prev);
-                        n.has(s.codigo) ? n.delete(s.codigo) : n.add(s.codigo);
+                        const k = okey(s);
+                        n.has(k) ? n.delete(k) : n.add(k);
                         return n;
                       })}
                     />
@@ -558,14 +581,14 @@ export default function Page() {
                   )}
                   {originesDelCanal.map((o: any) => (
                     <FilaOrigen
-                      key={o.codigo}
+                      key={okey(o)}
                       o={o}
                       canales={canales}
                       saving={saving}
                       onAsignar={asignar}
                       accion="Mover"
                       placeholder="Mover a…"
-                      ruleId={userRuleIdFor(o.codigo)}
+                      ruleId={userRuleIdFor(o)}
                       onSacar={desconectar}
                     />
                   ))}
@@ -619,9 +642,9 @@ function ItemCanal({ nombre, visitantes, badge, draft, selected, muted, onClick 
 // de a dónde va antes de aplicar.
 function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placeholder, ruleId, onSacar, checked, onToggle }: any) {
   const [val, setVal] = useState("");
-  const busy = saving.has(o.codigo) || (ruleId && saving.has(ruleId));
+  const busy = saving.has(okey(o)) || (ruleId && saving.has(ruleId));
   const aplicar = async () => {
-    const ok = await onAsignar(o.codigo, val);
+    const ok = await onAsignar(o, val);
     if (ok) setVal(""); // sólo limpia si grabó; si falló, deja lo escrito
   };
   const v = val.trim();
@@ -642,8 +665,13 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
           />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-slate-800 truncate" title={o.nombre}>{o.nombre}</div>
-          <div className="text-[11px] text-slate-500 truncate">{o.codigo} · {fmt(o.visitantes)} visitantes</div>
+          <div className="text-[13px] font-medium text-slate-800 truncate flex items-center gap-1.5" title={o.mediumLabel ? `${o.nombre} · ${o.mediumLabel}` : o.nombre}>
+            <span className="truncate">{o.nombre}</span>
+            {o.mediumLabel && (
+              <span className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500">{o.mediumLabel}</span>
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500 truncate">{o.codigo}{o.medium ? ` · ${o.medium}` : ""} · {fmt(o.visitantes)} visitantes</div>
         </div>
         <input
           list="canales-existentes"

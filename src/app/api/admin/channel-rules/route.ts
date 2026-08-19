@@ -56,6 +56,10 @@ export async function GET() {
       scope: r.organizationId ? "org" : "global",
       source: r.source_pattern,
       match: r.source_match,
+      // medium de la regla — la UI lo necesita para matchear un origen (source,medium)
+      // con SU regla (desconectar la variante correcta). null = regla source-only.
+      medium: r.medium_pattern,
+      mediumMatch: r.medium_match,
       channel: r.channel,
     })),
   });
@@ -76,9 +80,19 @@ export async function POST(req: NextRequest) {
       organizationId: orgId, // de la sesión, NUNCA del body
       source: body?.source,
       channel: body?.channel,
+      // medium OPCIONAL: presente (incluso '') cuando el panel muestra el origen
+      // partido por medium → la regla agarra solo esa variante (google/cpc vs
+      // google/organic). Ausente = regla source-only (comportamiento histórico).
+      medium: body?.medium,
     });
     await prisma.$executeRawUnsafe(INSERT_CHANNEL_RULE_SQL, ...ruleInsertParams(rule));
-    return NextResponse.json({ ok: true, id: rule.id, source: rule.source?.pattern, channel: rule.channel });
+    return NextResponse.json({
+      ok: true,
+      id: rule.id,
+      source: rule.source?.pattern,
+      medium: rule.medium?.pattern ?? null,
+      channel: rule.channel,
+    });
   } catch (e) {
     if (e instanceof UserRuleError) return NextResponse.json({ error: e.message }, { status: 400 });
     throw e;
@@ -91,10 +105,13 @@ export async function DELETE(req: NextRequest) {
   const { orgId } = g;
   const url = new URL(req.url);
   const source = url.searchParams.get("source");
+  // medium: null = ausente (regla source-only); '' o valor = regla source+medium.
+  // Debe matchear cómo se creó el id (userRuleId) para borrar la variante correcta.
+  const medium = url.searchParams.get("medium");
   let id = url.searchParams.get("id");
   if (!id) {
     if (!source) return NextResponse.json({ error: "id, o source, requerido" }, { status: 400 });
-    id = userRuleId(orgId, source.toLowerCase().trim());
+    id = userRuleId(orgId, source.toLowerCase().trim(), medium == null ? null : medium.toLowerCase().trim());
   }
   // Scope a la org de la sesión: NUNCA una global (organizationId IS NOT NULL) y
   // NUNCA la de otra org (organizationId = orgId), aunque manden un ?id= arbitrario.
