@@ -178,14 +178,25 @@ const META_PAID_SOURCES = [
   "audiencenetwork", "audience_network", "meta_business", "metabusiness",
   "fb_reels", "ig_reels", "facebook_reels", "instagram_reels", "reels",
 ].join("|");
+// Mediums que señalan PAUTA. OJO (fix 2026-08-19, BP-CANALES-VIDEO): `video` y
+// `trafico` NO son señales de pago — son tipo-de-contenido/genéricos que el
+// marketing ORGÁNICO de redes usa todo el tiempo (TikTok/Meta/YouTube orgánico
+// taggea utm_medium=video). Estaban acá y clasificaban tráfico orgánico como
+// "…Ads" (caso EMDJ: `tiktok·video` → "TikTok Ads" sin tener pauta). Triple Whale
+// separa pago/orgánico por SEÑAL (UTM/ad-id reconocido), no por un medium de
+// contenido. Se quitaron `video` y `trafico`. `display` sí es pauta (display ads).
 const PAID_MEDIUMS =
-  "paid|cpc|ppc|paid_social|social-paid|paid-social|trafico|video|paidsocial|paidsearch|display";
+  "paid|cpc|ppc|paid_social|social-paid|paid-social|paidsocial|paidsearch|display";
 
 // Variantes estándar de Google Ads (además de GOOGLE_UTM_ALIASES, que va a CORE).
 const GOOGLE_ADS_SOURCES =
   "gads|google-adwords|googleadwords|google_cpc|google_ads_cpc|pmax|performance_max|performancemax|gdn|google_display|googledisplay|google_search|googlesearch";
-// Variantes estándar de TikTok.
-const TIKTOK_SOURCES = "tiktok|tt|tiktok_ads|tiktok-ads|tiktokads|tt_ads|tik_tok|tik-tok";
+// Variantes estándar de TikTok. OJO (fix 2026-08-19): se quitó el token suelto
+// `tt` — es una abreviatura ambigua de 2 letras que colisiona con códigos propios
+// de clientes. Triple Whale tampoco lo acepta (su allowlist solo toma `tiktok`).
+// TikTok pago real llega como `tiktok`/`tiktok_ads`, no como `tt` pelado. Si un
+// cliente usa `tt` para TikTok, lo mapea desde el panel (regla por-org).
+const TIKTOK_SOURCES = "tiktok|tiktok_ads|tiktok-ads|tiktokads|tt_ads|tik_tok|tik-tok";
 
 export const SEED_CHANNEL_RULES: ChannelRule[] = [
   // ── Decisión 1+2: Meta unificado, pago vs orgánico separados ──
@@ -223,11 +234,15 @@ export const SEED_CHANNEL_RULES: ChannelRule[] = [
   { id: "g-bing-ads-cpc", priority: 34, source: { match: "in", pattern: "bing|msn|microsoft" }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "Microsoft Ads" },
 
   // ── Referrers sociales/orgánicos (los deriva el first-source del referrer) ──
-  { id: "g-youtube", priority: 36, source: { match: "in", pattern: "youtube|yt|youtube_ads|youtube-ads" }, channel: "YouTube" },
-  { id: "g-whatsapp", priority: 36, source: { match: "in", pattern: "whatsapp|wa|whatsapp_business" }, channel: "WhatsApp" },
+  // OJO (fix 2026-08-19): se quitaron los tokens sueltos de 2 letras `yt`/`wa`/`pin`
+  // de estas reglas source-only (sin guarda de medium disparan sobre cualquier fila
+  // con ese source exacto → colisionan con códigos propios de clientes). Se dejan
+  // los nombres completos. Alineado con Triple Whale (allowlist sin tokens ambiguos).
+  { id: "g-youtube", priority: 36, source: { match: "in", pattern: "youtube|youtube_ads|youtube-ads" }, channel: "YouTube" },
+  { id: "g-whatsapp", priority: 36, source: { match: "in", pattern: "whatsapp|whatsapp_business" }, channel: "WhatsApp" },
   { id: "g-twitter", priority: 36, source: { match: "in", pattern: "twitter|twitter_ads|twitter-ads|x_ads" }, channel: "Twitter/X" },
   { id: "g-linkedin", priority: 36, source: { match: "in", pattern: "linkedin|linkedin_ads|linkedin-ads" }, channel: "LinkedIn" },
-  { id: "g-pinterest", priority: 36, source: { match: "in", pattern: "pinterest|pin|pinterest_ads|pinterest-ads|pin_ads" }, channel: "Pinterest" },
+  { id: "g-pinterest", priority: 36, source: { match: "in", pattern: "pinterest|pinterest_ads|pinterest-ads|pin_ads" }, channel: "Pinterest" },
   { id: "g-snapchat", priority: 36, source: { match: "in", pattern: "snapchat|snap|snapchat_ads|snap_ads|snapchatads" }, channel: "Snapchat" },
   { id: "g-reddit", priority: 36, source: { match: "in", pattern: "reddit|reddit_ads|reddit-ads" }, channel: "Reddit" },
 

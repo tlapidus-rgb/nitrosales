@@ -35,6 +35,27 @@ const CASES: Array<{
   { source: "iconmarketing", medium: null, campaign: null, channel: "iconmarketing", sub: "" },
   { source: "tiktok", medium: "paid", campaign: null, channel: "TikTok Ads", sub: "" },
   { source: "google_organic", medium: null, campaign: null, channel: "Google Orgánico", sub: "" }, // se junta con el organico por-utm
+
+  // ── Regresión BP-CANALES-VIDEO (2026-08-19) ──────────────────────────────
+  // El bug de EMDJ: `video`/`trafico` estaban en PAID_MEDIUMS → tráfico ORGÁNICO
+  // de TikTok (link/post taggeado utm_medium=video) caía en "TikTok Ads". Ahora
+  // `video`/`trafico` NO son pago → cae en "TikTok Orgánico". El test viejo solo
+  // cubría medium="paid", por eso el bug pasó.
+  { source: "tiktok", medium: "video", campaign: null, channel: "TikTok Orgánico", sub: "" }, // ← el caso exacto de EMDJ
+  { source: "tiktok", medium: "trafico", campaign: null, channel: "TikTok Orgánico", sub: "" },
+  { source: "tiktok", medium: "cpc", campaign: null, channel: "TikTok Ads", sub: "" }, // pauta REAL sigue andando
+  // ── Regresión tokens ambiguos quitados (fix 2026-08-19) ──────────────────
+  // Antes: `tt`→TikTok, `pin`→Pinterest, `wa`→WhatsApp, `yt`→YouTube. Ahora los
+  // tokens sueltos de 2 letras NO matchean → passthrough (source crudo = "sin mapear",
+  // que el cliente mapea si corresponde). Nombres completos siguen andando.
+  { source: "tt", medium: "video", campaign: null, channel: "tt", sub: "" }, // antes "TikTok Ads"
+  { source: "pin", medium: null, campaign: null, channel: "pin", sub: "" },
+  { source: "wa", medium: null, campaign: null, channel: "wa", sub: "" },
+  { source: "yt", medium: null, campaign: null, channel: "yt", sub: "" },
+  { source: "tiktok_ads", medium: null, campaign: null, channel: "TikTok Orgánico", sub: "" }, // nombre completo: sigue siendo TikTok (sin medium pago → orgánico)
+  // ── Regresión BTRIM (fix 2026-08-19): espacios accidentales en el tagging ──
+  // Antes ` tiktok`/`cpc ` no matcheaban (solo LOWER, sin trim) → "sin mapear".
+  { source: " tiktok", medium: "cpc ", campaign: null, channel: "TikTok Ads", sub: "" },
 ];
 
 describe("F3.2 — resolución de canal sobre la dim (reglas seed)", () => {
