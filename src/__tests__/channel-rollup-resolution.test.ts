@@ -56,6 +56,13 @@ const CASES: Array<{
   // ── Regresión BTRIM (fix 2026-08-19): espacios accidentales en el tagging ──
   // Antes ` tiktok`/`cpc ` no matcheaban (solo LOWER, sin trim) → "sin mapear".
   { source: " tiktok", medium: "cpc ", campaign: null, channel: "TikTok Ads", sub: "" },
+  { source: "\ttiktok", medium: "cpc", campaign: null, channel: "TikTok Ads", sub: "" }, // tab (no solo espacio)
+  // ── Regresión video/trafico orgánico en Meta (findings del code-review) ──
+  // Tras sacar video/trafico de PAID, Meta no tenía fallback source-only como
+  // TikTok → caían en passthrough. Se sumaron a los orgánicos sociales.
+  { source: "facebook", medium: "video", campaign: null, channel: "Facebook Orgánico", sub: "" },
+  { source: "instagram", medium: "trafico", campaign: null, channel: "Instagram Orgánico", sub: "" },
+  { source: "facebook", medium: "cpc", campaign: null, channel: "Meta Ads", sub: "" }, // pauta real de Meta intacta
 ];
 
 describe("F3.2 — resolución de canal sobre la dim (reglas seed)", () => {

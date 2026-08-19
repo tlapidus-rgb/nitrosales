@@ -328,6 +328,17 @@ async function backfillDayOrg(
   if (run("channel")) {
     try {
       const { channelCase, subChannelCase } = await loadOrgChannelCases(org);
+      // DELETE-then-insert (NO upsert puro como las otras tablas): en
+      // pixel_daily_channel el `channel` es parte de la PK y CAMBIA cuando cambian
+      // las reglas. Un upsert por (org,day,channel) dejaría viva la fila del canal
+      // VIEJO (ej. 'TikTok Ads') junto a la del nuevo ('TikTok Orgánico') → el mismo
+      // visitante contado en dos canales. Limpiar el día del org antes de
+      // re-materializar lo evita. Idempotente igual (si muere entre DELETE e INSERT,
+      // el próximo run re-arma el día). Args = $1 org, $4/$5 rango de día AR.
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM pixel_daily_channel WHERE "organizationId"=$1 AND day >= $4::date AND day < $5::date`,
+        ...args
+      );
       touched += await prisma.$executeRawUnsafe(
         buildChannelRollupStatement(channelCase, subChannelCase, VISIT_PAGEVIEW),
         ...args

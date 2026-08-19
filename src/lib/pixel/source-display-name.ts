@@ -68,13 +68,18 @@ export function sourceDisplayName(raw: string | null | undefined): string {
 // (medium organic); "ig" de Meta Ads Y de Instagram Orgánico. Con source solo son
 // indistinguibles. La unidad correcta es (source, medium) —igual que Triple Whale/
 // GA4—. Este helper bucketea el medium crudo en un label corto para el panel.
-// Los buckets espejan PAID_MEDIUMS / organic de las reglas seed (channel-rules.ts).
+// Los buckets espejan PAID_MEDIUMS / organic de las reglas seed (channel-rules.ts)
+// — DEBEN mantenerse en sync. OJO (fix 2026-08-19, BP-CANALES-VIDEO): `video` y
+// `trafico` se movieron de PAID a ORGANIC acá también (antes el panel mostraba tag
+// "Ads" al lado de un canal "Orgánico" — la misma confusión pago/orgánico que el fix
+// elimina). Son tipo-de-contenido/genéricos que usa el orgánico de redes, no pauta.
 const PAID_MEDIUMS_SET = new Set([
   "paid", "cpc", "ppc", "paid_social", "social-paid", "paid-social",
-  "trafico", "video", "paidsocial", "paidsearch", "display",
+  "paidsocial", "paidsearch", "display",
 ]);
 const ORGANIC_MEDIUMS_SET = new Set([
   "organic", "social", "organic-social", "organic_social", "referral", "referrer",
+  "video", "trafico",
 ]);
 
 /**

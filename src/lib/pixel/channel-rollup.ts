@@ -43,13 +43,15 @@ CREATE TABLE IF NOT EXISTS pixel_daily_channel (
 //   - BTRIM (fix 2026-08-19): el contrato del matcher (channel-rules.ts) promete
 //     lower+trim, pero el ingest solo hacía LOWER. Un ` tiktok`/`cpc ` con espacios
 //     accidentales (común en tagging manual) no matcheaba → caía a "sin mapear".
-//     El trim va acá (una sola fuente) → aplica igual al rollup Y al preview.
+//     El trim va acá (una sola fuente) → aplica igual al rollup Y al preview. Se
+//     recorta espacio + tab + newline + CR (E' \t\n\r'), como el .trim() de JS; el
+//     NBSP (U+00A0) queda fuera a propósito (no aparece en tags de UTM reales).
 //   - campaign para MATCHEAR va en minúscula (los patrones se comparan lower);
 //     campaignRaw para el SUB-canal preserva mayúsculas (AXN/TNT, decisión 4).
 export const DIM_RULE_EXPRS: RuleExprs = {
-  source: `BTRIM(d.source_raw)`,
-  medium: `BTRIM(COALESCE(d.medium_raw, ''))`,
-  campaign: `LOWER(BTRIM(COALESCE(d.campaign_raw, '')))`,
+  source: `BTRIM(d.source_raw, E' \\t\\n\\r')`,
+  medium: `BTRIM(COALESCE(d.medium_raw, ''), E' \\t\\n\\r')`,
+  campaign: `LOWER(BTRIM(COALESCE(d.campaign_raw, ''), E' \\t\\n\\r'))`,
   campaignRaw: `d.campaign_raw`,
 };
 

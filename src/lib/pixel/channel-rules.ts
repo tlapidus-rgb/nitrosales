@@ -201,11 +201,14 @@ const TIKTOK_SOURCES = "tiktok|tiktok_ads|tiktok-ads|tiktokads|tt_ads|tik_tok|ti
 export const SEED_CHANNEL_RULES: ChannelRule[] = [
   // ── Decisión 1+2: Meta unificado, pago vs orgánico separados ──
   { id: "g-meta-ads", priority: 10, source: { match: "in", pattern: META_PAID_SOURCES }, medium: { match: "in", pattern: PAID_MEDIUMS }, channel: "Meta Ads" },
-  { id: "g-fb-organico", priority: 20, source: { match: "in", pattern: "facebook|fb" }, medium: { match: "in", pattern: "social|organic|" }, channel: "Facebook Orgánico" },
+  // `video|trafico` en el medium (fix 2026-08-19): tras sacarlos de PAID_MEDIUMS, un
+  // `facebook·video` orgánico caía en passthrough (Meta no tiene fallback source-only
+  // como TikTok). Se suman acá para que caiga en su Orgánico, consistente con TikTok.
+  { id: "g-fb-organico", priority: 20, source: { match: "in", pattern: "facebook|fb" }, medium: { match: "in", pattern: "social|organic|video|trafico|" }, channel: "Facebook Orgánico" },
   // 'ig' es el alias estándar de Instagram (Arredo: 89.341 visitantes caían en
   // passthrough porque la regla sólo miraba 'instagram' exacto). El 'ig' pago ya
   // lo agarra g-meta-ads (está en META_PAID_SOURCES); el resto es orgánico.
-  { id: "g-ig-organico", priority: 20, source: { match: "in", pattern: "instagram|ig" }, medium: { match: "in", pattern: "social|organic|organic-social|" }, channel: "Instagram Orgánico" },
+  { id: "g-ig-organico", priority: 20, source: { match: "in", pattern: "instagram|ig" }, medium: { match: "in", pattern: "social|organic|organic-social|video|trafico|" }, channel: "Instagram Orgánico" },
 
   // Meta "pelado" (utm_source=meta, sin medium de pago): una source taggeada
   // 'meta' es una campaña = pago. Consistente con "Meta unificado" (decisión 1).
