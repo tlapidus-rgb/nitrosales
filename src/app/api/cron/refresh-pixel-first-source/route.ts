@@ -91,9 +91,11 @@ const REPORTING_HORIZON_DAYS = 90;
 // Budget → 240s (una pasada tarda ~200s con lotes de 10k, entra sobrada bajo el cap
 // de 300s), MIN_SLICE → 180s. Cada corrida hace 1 pasada y COMMITEA; resumible por
 // org vía cursor, el cron (:7,:37) encadena y tapa el hueco.
-// Subido 240s→700s (2026-08-18): el proyecto ahora tiene Default Max Duration=800s
-// en Vercel, así que maxDuration=800 se respeta. 240s era el workaround del cap de 300s.
-const INVOCATION_BUDGET_MS = 700_000;
+// REVERTIDO a 240s (2026-08-18): Vercel NO da >300s pese a Fluid + Default Max
+// Duration=800 + vercel.json + Node 22 (probado, la función muere a ~340s = cap 300s).
+// El maxDuration=800 NO se respeta. 240s es el valor correcto bajo el cap real de 300s
+// (una pasada ~200s + margen). Resumible por org (cursor), el cron (:7,:37) encadena.
+const INVOCATION_BUDGET_MS = 240_000;
 // No arrancar otra pasada si no queda al menos esto: una pasada que se corta a
 // la mitad por el wall no devuelve nada y pierde el trabajo de todo el request.
 const MIN_SLICE_MS = 180_000;
