@@ -46,6 +46,7 @@ import {
   runRollupBackfill,
   ROLLUP_TABLES,
   isRollupTable,
+  addDays,
   type RollupTable,
 } from "@/lib/pixel/rollup-backfill";
 import {
@@ -212,7 +213,14 @@ export async function GET(req: NextRequest) {
     lastRollupDay = status[0].day === "0000-00-00" ? null : status[0].day;
   }
   let from = defaultFrom;
-  if (lastRollupDay && lastRollupDay < defaultFrom) from = lastRollupDay;
+  // FIX 2026-08-19 (BP-ROLLUP-STUCK): arrancar en el PRIMER día FALTANTE (MAX(day)+1),
+  // NO re-hacer el último día presente. BUG: con `from = lastRollupDay`, si la tabla
+  // estaba 1 día atrás (MAX=ayer), cada corrida RE-PROCESABA ayer (source/funnel ~192s/
+  // día casi agotan el budget de 250s) y NUNCA llegaba a hoy → MAX(day) no avanzaba →
+  // la próxima corrida re-hacía ayer OTRA VEZ → tabla CLAVADA 1 día atrás → mails de
+  // frescura recurrentes. Con MAX+1 cada pick AVANZA un día (llega a hoy en 1 corrida).
+  if (lastRollupDay && lastRollupDay < defaultFrom) from = addDays(lastRollupDay, 1);
+  if (from > to) from = to; // nunca pasar de hoy (MAX+1 podría igualar a `to`, ok)
   if (from < floorFrom) from = floorFrom; // tope de seguridad
 
   // Override manual del rango (?from=YYYY-MM-DD), solo con ADMIN key — el cron
