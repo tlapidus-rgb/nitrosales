@@ -18,7 +18,7 @@ import { SEED_CHANNEL_RULES } from "@/lib/pixel/channel-rules";
 const { channelCase } = channelCasesFromRules(SEED_CHANNEL_RULES);
 
 describe("Fase B — click-id de pauta → medium 'paid' → canal Ads", () => {
-  it("gclid/ttclid/fbclid/msclkid sin utm_medium resuelven a Ads (no orgánico)", async () => {
+  it("gclid/ttclid/msclkid ad-only sin utm_medium resuelven a Ads; fbclid NO (es ambiguo)", async () => {
     const db = new PGlite();
     await db.query(
       `CREATE TABLE e (id int, source_raw text, "clickIds" jsonb, utm_medium text)`
@@ -27,8 +27,10 @@ describe("Fase B — click-id de pauta → medium 'paid' → canal Ads", () => {
       // id, source, clickIds, utm_medium, canal esperado
       [1, "google", `{"gclid":"X"}`, null, "Google Ads"], // ← antes "Google Orgánico"
       [2, "tiktok", `{"ttclid":"X"}`, null, "TikTok Ads"], // ← antes "TikTok Orgánico"
-      [3, "facebook", `{"fbclid":"X"}`, null, "Meta Ads"], // ← antes "Facebook Orgánico"
-      [4, "bing", `{"msclkid":"X"}`, null, "Microsoft Ads"],
+      [3, "bing", `{"msclkid":"X"}`, null, "Microsoft Ads"],
+      // fbclid NO es señal de pago (FB/IG lo ponen en clicks ORGÁNICOS también) →
+      // NO deriva 'paid' → un origen facebook con solo fbclid queda ORGÁNICO.
+      [4, "facebook", `{"fbclid":"X"}`, null, "Facebook Orgánico"],
       [5, "google", `{}`, "organic", "Google Orgánico"], // sin click-id → orgánico real
       [6, "facebook", `{}`, null, "Facebook Orgánico"], // referrer orgánico, sin click-id
     ];
@@ -49,8 +51,9 @@ describe("Fase B — click-id de pauta → medium 'paid' → canal Ads", () => {
       .filter((r) => r.ch !== rows[r.id - 1][4])
       .map((r) => `id=${r.id} (med=${r.medium_raw}): got ${r.ch}, want ${rows[r.id - 1][4]}`);
     expect(bad, bad.join(" | ")).toEqual([]);
-    // Sanity: los 4 con click-id derivan 'paid'; los 2 sin click-id NO.
-    expect(res.rows.filter((r) => r.medium_raw === "paid").map((r) => r.id)).toEqual([1, 2, 3, 4]);
+    // Sanity: solo los ad-only (gclid/ttclid/msclkid) derivan 'paid'; fbclid y los
+    // sin click-id NO.
+    expect(res.rows.filter((r) => r.medium_raw === "paid").map((r) => r.id)).toEqual([1, 2, 3]);
     await db.close();
   });
 });

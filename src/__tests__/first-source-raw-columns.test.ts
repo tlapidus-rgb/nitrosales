@@ -99,16 +99,16 @@ describe("F3.1 — crudos del primer toque en la dim", () => {
     expect((await dimRow(db, "v1")).campaign_raw).toBe("AXN");
   });
 
-  it("sin utm_source pero con fbclid: source_raw cae al resuelto (meta) + medium='paid' (Fase B)", async () => {
+  it("sin utm_source pero con fbclid: source_raw cae al resuelto (meta)", async () => {
     await addVisitor(db, "v1");
     await evt(db, "v1", 100, null, { clickIds: { fbclid: "abc" } });
     await runBatch(db);
     const r = await dimRow(db, "v1");
     expect(r.first_source).toBe("meta");
     expect(r.source_raw).toBe("meta"); // fallback al resuelto, no NULL
-    // Fase B: el fbclid es señal FUERTE de pago → medium='paid' (aunque no venga
-    // utm_medium) → el canal resuelve a "Meta Ads", no orgánico. Ver PAID_CLICK_ID_PREDICATE.
-    expect(r.medium_raw).toBe("paid");
+    // fbclid NO deriva medium='paid' (Fase B): FB/IG lo ponen en clicks orgánicos
+    // también → no prueba pago. medium queda '' (no vino utm_medium).
+    expect(r.medium_raw).toBe("");
     expect(r.campaign_raw).toBeNull();
   });
 

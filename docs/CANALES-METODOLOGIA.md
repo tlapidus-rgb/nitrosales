@@ -24,7 +24,7 @@ Una tabla `source → familia` (NO `source → canal`):
 
 ### Eje B — PAGO u ORGÁNICO (*cómo* llegó) — por SEÑAL, en jerarquía de confianza
 
-1. **Click-id** (`fbclid`/`gclid`/`ttclid`/`msclkid`) presente → **PAGO** (prueba, no heurística). *[Fase B: vive en el ingest]*
+1. **Click-id ad-only** (`gclid`/`ttclid`/`msclkid`/`li_fat_id`) → **PAGO** (lo genera el sistema de ads solo en un click de anuncio). *[Fase B: vive en el ingest]* ⚠️ **`fbclid` NO cuenta** — FB/IG lo agregan a clicks orgánicos también (posts, link-in-bio), no prueba pago.
 2. **Medium de pauta** — regex GA4 `^(.*cp.*|ppc|retargeting|paid.*|paid_social)$` → **PAGO**.
 3. **Source = marca de pauta** (`meta`, `adwords`, `gads`, `pmax`, `*_ads`) → **PAGO**.
 4. **Nada de lo anterior** → **ORGÁNICO** (default).
