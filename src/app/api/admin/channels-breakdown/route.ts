@@ -33,7 +33,7 @@ import {
   type ChannelRuleRow,
 } from "@/lib/pixel/channel-rules-store";
 import { DIM_RULE_EXPRS } from "@/lib/pixel/channel-rollup";
-import { sourceDisplayName, mediumDisplayLabel } from "@/lib/pixel/source-display-name";
+import { sourceDisplayName, mediumAxisLabel } from "@/lib/pixel/source-display-name";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -114,7 +114,8 @@ async function breakdown(orgId: string, min: number) {
     codigo: o.codigo,
     medium: o.medium ?? "", // viaja para armar la regla (source+medium) al mapear
     nombre: sourceDisplayName(o.codigo),
-    mediumLabel: isAmbiguous(o.codigo) ? mediumDisplayLabel(o.medium) : null,
+    // Label del eje DERIVADO del canal resuelto (no puede contradecir al canal).
+    mediumLabel: isAmbiguous(o.codigo) ? mediumAxisLabel(o.mapped ? o.channel : null, o.medium) : null,
     channel: o.mapped ? o.channel : null,
     mapped: o.mapped,
     visitantes: o.visitantes,
@@ -137,7 +138,8 @@ async function breakdown(orgId: string, min: number) {
     codigo: s.codigo,
     medium: s.medium ?? "",
     nombre: sourceDisplayName(s.codigo),
-    mediumLabel: isAmbiguous(s.codigo) ? mediumDisplayLabel(s.medium) : null,
+    // sinMapear: sin canal resuelto → el label cae al hint por medium (no contradice).
+    mediumLabel: isAmbiguous(s.codigo) ? mediumAxisLabel(null, s.medium) : null,
     visitantes: s.visitantes,
   }));
 

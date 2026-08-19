@@ -1,5 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { sourceDisplayName } from "@/lib/pixel/source-display-name";
+import { sourceDisplayName, mediumAxisLabel } from "@/lib/pixel/source-display-name";
+
+// El label del eje pago/orgánico DERIVA del canal resuelto (metodología 2-ejes)
+// → nunca contradice al canal. Bug que arreglaba: meta·trafico mostraba "Orgánico"
+// al lado del canal "Meta Ads".
+describe("mediumAxisLabel — el canal resuelto manda sobre el medium", () => {
+  it("canal 'Ads' → 'Ads' aunque el medium diga otra cosa", () => {
+    expect(mediumAxisLabel("Meta Ads", "trafico")).toBe("Ads"); // ← el bug de Tomy
+    expect(mediumAxisLabel("Google Ads", "organic")).toBe("Ads"); // el canal gana
+    expect(mediumAxisLabel("TikTok Ads", "video")).toBe("Ads");
+  });
+  it("canal 'Orgánico' → 'Orgánico'", () => {
+    expect(mediumAxisLabel("Facebook Orgánico", "trafico")).toBe("Orgánico");
+    expect(mediumAxisLabel("Instagram Orgánico", "video")).toBe("Orgánico");
+  });
+  it("sin canal (origen no mapeado) → hint por medium", () => {
+    expect(mediumAxisLabel(null, "cpc")).toBe("Ads");
+    expect(mediumAxisLabel(null, "trafico")).toBe("Orgánico");
+    expect(mediumAxisLabel(null, "")).toBe("Directo");
+  });
+  it("canal que no es Ads/Orgánico (Email, GoCuotas…) → hint por medium", () => {
+    expect(mediumAxisLabel("Email", "newsletter")).toBe("Newsletter");
+  });
+});
 
 // PIVOT v2 (Tomy): la plataforma muestra el origen con nombre limpio; el usuario
 // lo mapea a su canal. Este helper es SÓLO presentación del nombre.

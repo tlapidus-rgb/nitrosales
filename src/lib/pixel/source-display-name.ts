@@ -96,3 +96,23 @@ export function mediumDisplayLabel(raw: string | null | undefined): string {
   if (ORGANIC_MEDIUMS_SET.has(m)) return "Orgánico";
   return capWord(m);
 }
+
+/**
+ * Label del eje pago/orgánico para el panel, DERIVADO del canal ya resuelto → NO
+ * puede contradecirlo (fix 2026-08-19, metodología 2-ejes: `meta·trafico` cae en
+ * canal "Meta Ads" pero el label por-medium mostraba "Orgánico"). Ver
+ * docs/CANALES-METODOLOGIA.md §"El label del medium". Si el origen NO está mapeado
+ * (channel null) cae al hint por medium, que no contradice a nadie (no hay canal).
+ */
+export function mediumAxisLabel(
+  channel: string | null | undefined,
+  medium: string | null | undefined
+): string {
+  if (channel) {
+    if (/Ads$/.test(channel)) return "Ads"; // "Meta Ads", "Google Ads", …
+    if (channel.includes("Orgánico")) return "Orgánico"; // "Facebook Orgánico", …
+    // Otros canales (Email, GoCuotas, Klaviyo…): su propio nombre ya dice qué es;
+    // el label del eje no aporta → cae al hint por medium.
+  }
+  return mediumDisplayLabel(medium);
+}

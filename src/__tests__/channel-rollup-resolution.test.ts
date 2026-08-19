@@ -141,6 +141,42 @@ describe("F3.2 — resolución de canal sobre la dim (reglas seed)", () => {
     await db.close();
   });
 
+  // ── Metodología 2-ejes (docs/CANALES-METODOLOGIA.md) — matriz de Tomy ──────
+  // Invariante: TODOS estos casos salen de la MISMA función (plataforma + eje
+  // pago/orgánico por señal). Lo que cambia es la señal, no un método por
+  // plataforma. Y "Meta Orgánico" NO existe: meta (marca de pauta) → siempre Ads.
+  it("resuelve la matriz de metodología (plataforma × pago/orgánico) y nunca emite 'Meta Orgánico'", async () => {
+    const M: Array<{ source: string; medium: string | null; ch: string }> = [
+      { source: "meta", medium: null, ch: "Meta Ads" }, // marca de pauta → pago
+      { source: "meta", medium: "cpc", ch: "Meta Ads" },
+      { source: "meta", medium: "trafico", ch: "Meta Ads" }, // trafico neutro, pero meta=pauta
+      { source: "meta", medium: "organic", ch: "Meta Ads" }, // ← NUNCA "Meta Orgánico"
+      { source: "facebook", medium: "cpc", ch: "Meta Ads" }, // superficie + medium pago → consolida
+      { source: "facebook", medium: "trafico", ch: "Facebook Orgánico" }, // neutro → superficie orgánica
+      { source: "facebook", medium: null, ch: "Facebook Orgánico" },
+      { source: "instagram", medium: "video", ch: "Instagram Orgánico" },
+      { source: "google", medium: "cpc", ch: "Google Ads" },
+      { source: "google", medium: "organic", ch: "Google Orgánico" },
+      { source: "google", medium: null, ch: "Google Orgánico" },
+      { source: "tiktok", medium: "video", ch: "TikTok Orgánico" },
+      { source: "tiktok", medium: "cpc", ch: "TikTok Ads" },
+    ];
+    const db = new PGlite();
+    await db.query(`CREATE TABLE d (id int PRIMARY KEY, source_raw text, medium_raw text, campaign_raw text)`);
+    for (let i = 0; i < M.length; i++) {
+      await db.query(`INSERT INTO d VALUES ($1,$2,$3,NULL)`, [i, M[i].source, M[i].medium]);
+    }
+    const res = await db.query<{ id: number; ch: string }>(
+      `SELECT id, COALESCE(${channelCase}, 'sin_clasificar') AS ch FROM d ORDER BY id`
+    );
+    const bad = res.rows
+      .filter((r) => r.ch !== M[r.id].ch)
+      .map((r) => `${M[r.id].source}·${M[r.id].medium}: got ${r.ch}, want ${M[r.id].ch}`);
+    expect(bad, bad.join(" | ")).toEqual([]);
+    expect(res.rows.some((r) => r.ch === "Meta Orgánico")).toBe(false); // invariante duro
+    await db.close();
+  });
+
   it("el statement del rollup tiene el grain y el upsert correctos", () => {
     const sql = buildChannelRollupStatement(channelCase, subChannelCase, "TRUE");
     expect(sql).toContain("INSERT INTO pixel_daily_channel");
