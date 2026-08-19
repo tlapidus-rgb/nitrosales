@@ -97,12 +97,27 @@ function dimCondSql(expr: string, dim: RuleDim): string {
  * DESPUÉS las globales (por priority). Una regla de la org gana sobre la global
  * aunque tenga peor priority — por eso el desempate por org va antes.
  */
+/** Cuántas dimensiones restringe la regla (más = más específica). */
+function ruleSpecificity(r: ChannelRule): number {
+  return (r.source ? 1 : 0) + (r.medium ? 1 : 0) + (r.campaign ? 1 : 0);
+}
+
 function sortRules(rules: ChannelRule[]): ChannelRule[] {
   return [...rules].sort((a, b) => {
     const aOrg = a.organizationId ? 0 : 1;
     const bOrg = b.organizationId ? 0 : 1;
     if (aOrg !== bOrg) return aOrg - bOrg;
-    return a.priority - b.priority;
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    // Desempate (fix 2026-08-19): la MÁS específica primero. Las reglas del usuario
+    // son TODAS priority 5 → sin esto el orden entre una source-only y una
+    // source+medium del mismo origen era indefinido, y la source-only podía tapar
+    // a la source+medium (esta última NUNCA disparaba). Con el desempate, una regla
+    // `google+cpc` gana sobre `google` a secas para las filas cpc, y `google` a
+    // secas agarra el resto. En las globales de igual prioridad casi no aplica; el
+    // único solapamiento (g-microsoft-ads source-only vs g-bing-ads-cpc en
+    // source=microsoft/msn, ambos priority 34) resuelve al MISMO canal
+    // ("Microsoft Ads"), así que reordenarlas no cambia el resultado.
+    return ruleSpecificity(b) - ruleSpecificity(a);
   });
 }
 

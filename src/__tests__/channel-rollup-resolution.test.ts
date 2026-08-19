@@ -5,6 +5,7 @@ import {
   buildChannelRollupStatement,
 } from "@/lib/pixel/channel-rollup";
 import { SEED_CHANNEL_RULES } from "@/lib/pixel/channel-rules";
+import { buildUserChannelRule } from "@/lib/pixel/user-channel-rule";
 
 // ══════════════════════════════════════════════════════════════════════════
 // F3.2 — el rollup resuelve el canal sobre los crudos de la dim
@@ -118,6 +119,25 @@ describe("F3.2 — resolución de canal sobre la dim (reglas seed)", () => {
     );
     expect(res.rows[0]).toMatchObject({ ch: "TV", sub: "AXN" }); // mayúsculas preservadas
     expect(res.rows[1]).toMatchObject({ ch: "TV", sub: "TNT" });
+    await db.close();
+  });
+
+  it("anti-shadowing: regla source+medium gana sobre source-only de igual prioridad", async () => {
+    // Bug (fix 2026-08-19): las reglas del usuario son TODAS priority 5. Sin
+    // desempate por especificidad, una source-only (`google`→X) podía tapar a una
+    // source+medium (`google`+`cpc`→Y) → la específica NUNCA disparaba. Se pasan en
+    // orden ADVERSO (source-only primero) para probar que el desempate manda.
+    const bare = buildUserChannelRule({ organizationId: "o", source: "google", channel: "Google (todo)" });
+    const specific = buildUserChannelRule({ organizationId: "o", source: "google", channel: "Google Ads (cpc)", medium: "cpc" });
+    const { channelCase: cc } = channelCasesFromRules([bare, specific]);
+    const db = new PGlite();
+    await db.query(`CREATE TABLE d (id int PRIMARY KEY, source_raw text, medium_raw text, campaign_raw text)`);
+    await db.query(`INSERT INTO d VALUES (1,'google','cpc',NULL),(2,'google','organic',NULL)`);
+    const res = await db.query<{ id: number; ch: string }>(
+      `SELECT id, ${cc} AS ch FROM d ORDER BY id`
+    );
+    expect(res.rows[0].ch).toBe("Google Ads (cpc)"); // cpc → la específica gana
+    expect(res.rows[1].ch).toBe("Google (todo)");     // organic → la source-only agarra el resto
     await db.close();
   });
 
