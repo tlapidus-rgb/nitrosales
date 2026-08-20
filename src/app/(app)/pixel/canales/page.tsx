@@ -14,7 +14,8 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
-import { sourceGlossaryTip, mediumGlossaryTip } from "@/lib/pixel/channel-glossary";
+import { createPortal } from "react-dom";
+import { sourceGlossaryTip } from "@/lib/pixel/channel-glossary";
 
 // Enterprise sobrio (Linear/Vercel): elevación por BORDE, sombra apenas perceptible,
 // radios contenidos. Nada de halos de color ni esquinas muy redondeadas.
@@ -654,6 +655,23 @@ function InfoDot({ tip }: { tip?: string | null }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   if (!tip) return null;
   const show = (e: any) => setPos({ x: e.clientX, y: e.clientY });
+  // Portal al body: un ancestro con `transform` convierte a `fixed` en relativo y
+  // lo clippea (por eso el cartel salía cortado). En el body no lo clippea nadie.
+  const tooltip =
+    pos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed z-[9999] pointer-events-none w-max max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 text-white text-[11px] leading-snug px-2.5 py-1.5 shadow-xl"
+            style={{
+              left: Math.min(pos.x + 12, window.innerWidth - 292),
+              top: Math.min(pos.y + 16, window.innerHeight - 90),
+            }}
+          >
+            {tip}
+          </div>,
+          document.body
+        )
+      : null;
   return (
     <>
       <button
@@ -665,17 +683,7 @@ function InfoDot({ tip }: { tip?: string | null }) {
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); pos ? setPos(null) : show(e); }}
         aria-label="Más información"
       >i</button>
-      {pos && (
-        <div
-          className="fixed z-[9999] pointer-events-none max-w-[260px] rounded-lg bg-slate-900 text-white text-[11px] leading-snug px-2.5 py-1.5 shadow-xl"
-          style={{
-            left: Math.min(pos.x + 12, (typeof window !== "undefined" ? window.innerWidth - 272 : pos.x + 12)),
-            top: pos.y + 16,
-          }}
-        >
-          {tip}
-        </div>
-      )}
+      {tooltip}
     </>
   );
 }
@@ -707,13 +715,12 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-medium text-slate-800 truncate flex items-center gap-1.5">
             <span className="truncate">{o.nombre}</span>
-            {/* Info del ORIGEN: explicación del glosario o, si es código propio, genérica. */}
+            {/* UN solo ícono de info, al lado del nombre: explica el origen (del
+                glosario, o genérico si es un código propio del cliente). */}
             <InfoDot tip={sourceGlossaryTip(o.codigo) ?? GENERIC_SOURCE_TIP} />
             {o.mediumLabel && (
               <span className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500">{o.mediumLabel}</span>
             )}
-            {/* Info del MEDIUM (solo si lo conocemos). */}
-            <InfoDot tip={mediumGlossaryTip(o.medium)} />
           </div>
           <div className="text-[11px] text-slate-500 truncate">{o.codigo}{o.medium ? ` · ${o.medium}` : ""} · {fmt(o.visitantes)} visitantes</div>
         </div>
