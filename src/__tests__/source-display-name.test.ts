@@ -14,6 +14,11 @@ describe("glosario — nombres entendibles + tooltips", () => {
     expect(sourceDisplayName("icommarketing")).toBe("Icommarketing");
     expect(sourceDisplayName("wa_mkt")).toBe("Wa Mkt");
   });
+  it("códigos ilegibles (bytes de control / U+FFFD) → 'Origen ilegible'", () => {
+    expect(sourceDisplayName("�W82y<�2")).toBe("Origen ilegible");
+    expect(sourceDisplayName("facebook-chat")).toBe("Facebook Chat"); // el guión NO es ilegible
+    expect(sourceDisplayName("meta ads")).toBe("Meta Ads"); // el espacio tampoco
+  });
   it("los tips explican qué es y de dónde viene", () => {
     expect(sourceGlossaryTip("an")).toMatch(/Meta/);
     expect(sourceDisplayName("th")).toBe("Threads"); // label entendible

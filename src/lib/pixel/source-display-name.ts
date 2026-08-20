@@ -52,6 +52,10 @@ export function sourceDisplayName(raw: string | null | undefined): string {
   const s = (raw ?? "").trim();
   if (!s) return "Sin origen";
 
+  // Códigos ilegibles (bytes de control / U+FFFD por UTM binario corrupto): nombre
+  // limpio en vez de cajitas (Tomy 2026-08-19). Char codes numéricos (no regex).
+  if ([...s].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 0xfffd)) return "Origen ilegible";
+
   // Glosario: si es un código conocido (an, fb, pmax…) usar su nombre entendible
   // (Tomy 2026-08-19). Si no, cae a la capitalización genérica de abajo.
   const g = sourceGlossaryLabel(s);
