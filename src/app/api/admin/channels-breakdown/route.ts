@@ -115,7 +115,11 @@ async function breakdown(orgId: string, min: number) {
     medium: o.medium ?? "", // viaja para armar la regla (source+medium) al mapear
     nombre: sourceDisplayName(o.codigo),
     // Label del eje DERIVADO del canal resuelto (no puede contradecir al canal).
-    mediumLabel: isAmbiguous(o.codigo) ? mediumAxisLabel(o.mapped ? o.channel : null, o.medium) : null,
+    // SIEMPRE presente (Tomy 2026-08-19: etiqueta a todo, obvio o no; todo lo paid → "Ads").
+    mediumLabel: mediumAxisLabel(o.mapped ? o.channel : null, o.medium),
+    // Señal SEPARADA para la granularidad de la regla (source+medium vs source-only):
+    // solo cuando el source tiene >1 medium. Antes se infería de mediumLabel!=null.
+    ambiguous: isAmbiguous(o.codigo),
     channel: o.mapped ? o.channel : null,
     mapped: o.mapped,
     visitantes: o.visitantes,
@@ -139,7 +143,9 @@ async function breakdown(orgId: string, min: number) {
     medium: s.medium ?? "",
     nombre: sourceDisplayName(s.codigo),
     // sinMapear: sin canal resuelto → el label cae al hint por medium (no contradice).
-    mediumLabel: isAmbiguous(s.codigo) ? mediumAxisLabel(null, s.medium) : null,
+    // SIEMPRE presente; `ambiguous` separado para la granularidad de la regla.
+    mediumLabel: mediumAxisLabel(null, s.medium),
+    ambiguous: isAmbiguous(s.codigo),
     visitantes: s.visitantes,
   }));
 

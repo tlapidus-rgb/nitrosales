@@ -13,6 +13,8 @@
 // (productosentv), capitaliza la primera letra y listo — el usuario lo renombra.
 // ══════════════════════════════════════════════════════════════════════════
 
+import { sourceGlossaryLabel } from "@/lib/pixel/channel-glossary";
+
 // Siglas/marcas que quedan en mayúscula (o su casing propio) si aparecen enteras.
 const KNOWN_CASING: Record<string, string> = {
   tv: "TV",
@@ -49,6 +51,11 @@ function capWord(w: string): string {
 export function sourceDisplayName(raw: string | null | undefined): string {
   const s = (raw ?? "").trim();
   if (!s) return "Sin origen";
+
+  // Glosario: si es un código conocido (an, fb, pmax…) usar su nombre entendible
+  // (Tomy 2026-08-19). Si no, cae a la capitalización genérica de abajo.
+  const g = sourceGlossaryLabel(s);
+  if (g) return g;
 
   // Dominios (chatgpt.com, copilot.com): capitalizar el nombre, dejar el TLD.
   const domainMatch = s.match(/^([a-z0-9-]+)\.([a-z]{2,})$/i);

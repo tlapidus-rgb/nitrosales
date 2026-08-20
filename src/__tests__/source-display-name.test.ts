@@ -1,5 +1,27 @@
 import { describe, it, expect } from "vitest";
 import { sourceDisplayName, mediumAxisLabel } from "@/lib/pixel/source-display-name";
+import { sourceGlossaryTip, mediumGlossaryTip } from "@/lib/pixel/channel-glossary";
+
+// Glosario (Tomy 2026-08-19): códigos crudos → nombre entendible + explicación.
+describe("glosario — nombres entendibles + tooltips", () => {
+  it("sourceDisplayName usa el nombre entendible para códigos conocidos", () => {
+    expect(sourceDisplayName("an")).toBe("Audience Network");
+    expect(sourceDisplayName("pmax")).toBe("Performance Max");
+    expect(sourceDisplayName("ig")).toBe("Instagram");
+    expect(sourceDisplayName("AN")).toBe("Audience Network"); // case-insensitive
+  });
+  it("códigos desconocidos caen a la capitalización genérica (sin cambios)", () => {
+    expect(sourceDisplayName("icommarketing")).toBe("Icommarketing");
+    expect(sourceDisplayName("wa_mkt")).toBe("Wa Mkt");
+  });
+  it("los tips explican qué es y de dónde viene", () => {
+    expect(sourceGlossaryTip("an")).toMatch(/Meta/);
+    expect(sourceDisplayName("th")).toBe("Threads"); // label entendible
+    expect(sourceGlossaryTip("th")).toMatch(/Meta/); // el tip explica que es de Meta
+    expect(mediumGlossaryTip("paid_social")).toMatch(/pago/i);
+    expect(sourceGlossaryTip("codigo-inventado")).toBeUndefined();
+  });
+});
 
 // El label del eje pago/orgánico DERIVA del canal resuelto (metodología 2-ejes)
 // → nunca contradice al canal. Bug que arreglaba: meta·trafico mostraba "Orgánico"

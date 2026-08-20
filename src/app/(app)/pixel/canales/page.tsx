@@ -14,6 +14,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
+import { sourceGlossaryTip, mediumGlossaryTip } from "@/lib/pixel/channel-glossary";
 
 // Enterprise sobrio (Linear/Vercel): elevación por BORDE, sombra apenas perceptible,
 // radios contenidos. Nada de halos de color ni esquinas muy redondeadas.
@@ -79,7 +80,7 @@ const okey = (o: any) => `${o?.codigo ?? ""}${o?.medium ?? ""}`;
 // (mediumLabel != null) → regla `source AND medium` (agarra esa variante). Si no,
 // undefined → regla source-only (más amplia, agarra todo el source). El '' es un
 // medium legítimo (sin utm_medium), por eso se distingue de undefined.
-const ruleMedium = (o: any): string | undefined => (o?.mediumLabel != null ? String(o.medium ?? "") : undefined);
+const ruleMedium = (o: any): string | undefined => (o?.ambiguous ? String(o.medium ?? "") : undefined);
 
 export default function Page() {
   const [data, setData] = useState<any>(null);
@@ -234,7 +235,7 @@ export default function Page() {
     const src = (o?.codigo || "").toLowerCase();
     // Origen desambiguado por medium → busca la regla source+medium; si no, la
     // source-only (r.medium null). Así "Sacar" borra la variante correcta.
-    const med = o?.mediumLabel != null ? String(o.medium ?? "").toLowerCase() : null;
+    const med = o?.ambiguous ? String(o.medium ?? "").toLowerCase() : null;
     const m = misMapeos.find((r: any) =>
       r.source === src &&
       (med == null ? r.medium == null : String(r.medium ?? "").toLowerCase() === med)
@@ -665,13 +666,24 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
           />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-slate-800 truncate flex items-center gap-1.5" title={o.mediumLabel ? `${o.nombre} · ${o.mediumLabel}` : o.nombre}>
+          <div className="text-[13px] font-medium text-slate-800 truncate flex items-center gap-1.5">
             <span className="truncate">{o.nombre}</span>
+            {/* Ícono de info (Tomy): explica QUÉ es y DE DÓNDE viene el origen. */}
+            {sourceGlossaryTip(o.codigo) && (
+              <span className="shrink-0 text-slate-400 hover:text-slate-600 cursor-help text-[11px] leading-none" title={sourceGlossaryTip(o.codigo)} aria-label="Qué es este origen">ⓘ</span>
+            )}
             {o.mediumLabel && (
-              <span className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500">{o.mediumLabel}</span>
+              <span
+                className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500 cursor-help"
+                title={mediumGlossaryTip(o.medium) || undefined}
+              >{o.mediumLabel}</span>
             )}
           </div>
-          <div className="text-[11px] text-slate-500 truncate">{o.codigo}{o.medium ? ` · ${o.medium}` : ""} · {fmt(o.visitantes)} visitantes</div>
+          <div className="text-[11px] text-slate-500 truncate">
+            <span className={sourceGlossaryTip(o.codigo) ? "cursor-help" : ""} title={sourceGlossaryTip(o.codigo) || undefined}>{o.codigo}</span>
+            {o.medium ? <> · <span className={mediumGlossaryTip(o.medium) ? "cursor-help" : ""} title={mediumGlossaryTip(o.medium) || undefined}>{o.medium}</span></> : ""}
+            {" "}· {fmt(o.visitantes)} visitantes
+          </div>
         </div>
         <input
           list="canales-existentes"
