@@ -641,6 +641,45 @@ function ItemCanal({ nombre, visitantes, badge, draft, selected, muted, onClick 
 // (+ "Excluir" para mandarlo a Otros orígenes); dentro de un canal es "Mover"
 // (+ "Sacar" si el origen lo mapea una regla propia). Muestra un PREVIEW en vivo
 // de a dónde va antes de aplicar.
+// Texto genérico para orígenes que NO están en el glosario (códigos propios del
+// cliente): igual mostramos info, no dejamos ninguno sin explicación (Tomy).
+const GENERIC_SOURCE_TIP =
+  "Es un código propio, definido por vos o tu herramienta de marketing. Conectalo a un canal si querés agruparlo.";
+
+// Tooltip REAL (no el `title` nativo del browser, que es lento y a veces no
+// aparece — Tomy reportó que no mostraba nada). Ícono "i" en círculo (renderiza
+// siempre, no depende de la fuente) + popover de posición FIJA (no lo clippea el
+// scroll del panel), al pasar el mouse o clickear.
+function InfoDot({ tip }: { tip?: string | null }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  if (!tip) return null;
+  const show = (e: any) => setPos({ x: e.clientX, y: e.clientY });
+  return (
+    <>
+      <button
+        type="button"
+        tabIndex={-1}
+        className="shrink-0 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-300 text-slate-400 hover:text-slate-700 hover:border-slate-400 text-[9px] font-bold leading-none cursor-help select-none"
+        onMouseEnter={show}
+        onMouseLeave={() => setPos(null)}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); pos ? setPos(null) : show(e); }}
+        aria-label="Más información"
+      >i</button>
+      {pos && (
+        <div
+          className="fixed z-[9999] pointer-events-none max-w-[260px] rounded-lg bg-slate-900 text-white text-[11px] leading-snug px-2.5 py-1.5 shadow-xl"
+          style={{
+            left: Math.min(pos.x + 12, (typeof window !== "undefined" ? window.innerWidth - 272 : pos.x + 12)),
+            top: pos.y + 16,
+          }}
+        >
+          {tip}
+        </div>
+      )}
+    </>
+  );
+}
+
 function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placeholder, ruleId, onSacar, checked, onToggle }: any) {
   const [val, setVal] = useState("");
   const busy = saving.has(okey(o)) || (ruleId && saving.has(ruleId));
@@ -668,22 +707,15 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-medium text-slate-800 truncate flex items-center gap-1.5">
             <span className="truncate">{o.nombre}</span>
-            {/* Ícono de info (Tomy): explica QUÉ es y DE DÓNDE viene el origen. */}
-            {sourceGlossaryTip(o.codigo) && (
-              <span className="shrink-0 text-slate-400 hover:text-slate-600 cursor-help text-[11px] leading-none" title={sourceGlossaryTip(o.codigo)} aria-label="Qué es este origen">ⓘ</span>
-            )}
+            {/* Info del ORIGEN: explicación del glosario o, si es código propio, genérica. */}
+            <InfoDot tip={sourceGlossaryTip(o.codigo) ?? GENERIC_SOURCE_TIP} />
             {o.mediumLabel && (
-              <span
-                className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500 cursor-help"
-                title={mediumGlossaryTip(o.medium) || undefined}
-              >{o.mediumLabel}</span>
+              <span className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500">{o.mediumLabel}</span>
             )}
+            {/* Info del MEDIUM (solo si lo conocemos). */}
+            <InfoDot tip={mediumGlossaryTip(o.medium)} />
           </div>
-          <div className="text-[11px] text-slate-500 truncate">
-            <span className={sourceGlossaryTip(o.codigo) ? "cursor-help" : ""} title={sourceGlossaryTip(o.codigo) || undefined}>{o.codigo}</span>
-            {o.medium ? <> · <span className={mediumGlossaryTip(o.medium) ? "cursor-help" : ""} title={mediumGlossaryTip(o.medium) || undefined}>{o.medium}</span></> : ""}
-            {" "}· {fmt(o.visitantes)} visitantes
-          </div>
+          <div className="text-[11px] text-slate-500 truncate">{o.codigo}{o.medium ? ` · ${o.medium}` : ""} · {fmt(o.visitantes)} visitantes</div>
         </div>
         <input
           list="canales-existentes"
