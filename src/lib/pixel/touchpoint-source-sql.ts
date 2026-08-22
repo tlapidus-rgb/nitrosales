@@ -1,3 +1,10 @@
+import { Prisma } from "@prisma/client";
+import {
+  GOOGLE_UTM_SQL_IN,
+  META_UTM_SQL_IN,
+  INSTAGRAM_UTM_SQL_IN,
+} from "@/lib/pixel/first-source-sql";
+
 // ══════════════════════════════════════════════════════════════════════════
 // NitroPixel — clasificación de source A NIVEL TOUCHPOINT (JSONB)
 // ══════════════════════════════════════════════════════════════════════════
@@ -12,14 +19,58 @@
 //
 // `tpExpr` = la expresión SQL del touchpoint (ej. "tp"). Devuelve el bucket:
 //   - "<source>_organic" si medium ∈ (organic/social/referral) y source es un buscador
-//   - LOWER(source) si no, defaulteando a 'direct'
+//   - el canal canónico (con alias google/meta/instagram) si no; vacío/NULL → 'direct'
 // ══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Source → canal canónico: aplica los alias google/meta/instagram. FUENTE ÚNICA
+ * de los alias, compartida con `FIRST_SOURCE_MARKETING_CASE` (mismos
+ * `*_UTM_SQL_IN`) y con `canonicalMarketingSource` de source-classification.ts
+ * (JS, mismos `*_UTM_SET` — ambos derivan de `*_UTM_ALIASES`).
+ *
+ * ⚠️ BUG (b) que arregla (Fase 1 canales, 2026-07-25): antes `touchpointSourceCase`
+ * hacía sólo `LOWER(source)` SIN alias, así que el lado de ATRIBUCIÓN (revenue)
+ * mostraba `adwords` (los $406M de TeVe), `fb`, etc. como canales propios,
+ * separados de `google`/`meta` — mientras el lado de VISITANTES (first-source) SÍ
+ * aliaseaba. El mismo tráfico se agrupaba distinto según qué query respondía.
+ * Paridad verificada en `clasificacion-paridad.test.ts`.
+ */
+export function canonicalSourceSql(sourceExpr: string): string {
+  // Espejo EXACTO de normalizeSourceKey: lower + trim, y vacío/espacios → 'direct'
+  // (como el `|| "direct"` del JS). COALESCE solo no alcanza: no atrapa el string
+  // vacío, y ahí divergiría del clasificador JS.
+  const s = `COALESCE(NULLIF(LOWER(TRIM(${sourceExpr})), ''), 'direct')`;
+  return `CASE
+    WHEN ${s} IN (${GOOGLE_UTM_SQL_IN}) THEN 'google'
+    WHEN ${s} IN (${META_UTM_SQL_IN}) THEN 'meta'
+    WHEN ${s} IN (${INSTAGRAM_UTM_SQL_IN}) THEN 'instagram'
+    ELSE ${s}
+  END`;
+}
+
 export function touchpointSourceCase(tpExpr: string): string {
+  const canonical = canonicalSourceSql(`${tpExpr}->>'source'`);
   return `CASE
     WHEN LOWER(COALESCE(${tpExpr}->>'medium','')) IN ('organic','social','referral')
-      AND LOWER(COALESCE(${tpExpr}->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-    THEN LOWER(COALESCE(${tpExpr}->>'source','direct')) || '_organic'
-    ELSE LOWER(COALESCE(${tpExpr}->>'source', 'direct'))
+      AND (${canonical}) IN ('google','bing','yahoo','duckduckgo')
+    THEN (${canonical}) || '_organic'
+    ELSE (${canonical})
   END`;
+}
+
+/**
+ * Igual que `touchpointSourceCase` pero envuelto en `Prisma.raw`, para
+ * interpolar dentro de un tagged template `prisma.$queryRaw`...``.
+ *
+ * POR QUÉ (P1 canales, 2026-07-26): el serve `metrics/pixel/route.ts` tenía ~8
+ * copias inline del CASE VIEJO sin alias (mostraban `adwords`/`fb` como canales
+ * propios — los $406M de TeVe), mientras F1 ya había aliaseado el rollup Gold.
+ * Con `PIXEL_USE_GOLD=true` eso daba divergencia DENTRO de la misma página. En
+ * un tagged template, `${string}` se bindea como parámetro `$1`, así que el SQL
+ * crudo del CASE hay que inyectarlo con `Prisma.raw` (mismo patrón que
+ * `ordersValidWhere`). El output es 100% literales (sin input de usuario), así
+ * que `Prisma.raw` es seguro acá.
+ */
+export function touchpointSourceSql(tpExpr: string): Prisma.Sql {
+  return Prisma.raw(touchpointSourceCase(tpExpr));
 }

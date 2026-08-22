@@ -47,6 +47,7 @@ CREATE TABLE pixel_events (
 );
 CREATE TABLE pixel_visitor_first_source (
   "organizationId" text NOT NULL, "visitorId" text NOT NULL, first_source text NOT NULL,
+  source_raw text, medium_raw text, campaign_raw text,
   PRIMARY KEY ("organizationId","visitorId")
 );
 CREATE TABLE pixel_visitor_no_source (

@@ -18,6 +18,10 @@
 import { prisma } from "@/lib/db/client";
 import { PrismaClient } from "@prisma/client";
 import { CHECKOUT_URL_REGEX, WEBHOOK_SESSION_FILTER } from "@/lib/pixel/first-source-sql";
+import {
+  buildChannelRollupStatement,
+  loadOrgChannelCases,
+} from "@/lib/pixel/channel-rollup";
 
 // ── Cliente dedicado para los INSERT de rollup (BP-PIXEL-TIMEOUT, 2026-08-18) ──
 // statement_timeout ALTO (500s): el rebuild del rollup `funnel`/`source` de la org
@@ -125,6 +129,7 @@ export const ROLLUP_TABLES = [
   "product",
   "source",
   "funnel",
+  "channel",
 ] as const;
 export type RollupTable = (typeof ROLLUP_TABLES)[number];
 
@@ -340,6 +345,34 @@ async function backfillDayOrg(
        pv_hll=EXCLUDED.pv_hll, vp_hll=EXCLUDED.vp_hll, atc_hll=EXCLUDED.atc_hll, co_hll=EXCLUDED.co_hll, refreshed_at=now()`,
     ...args
   );
+
+  // 8) channel (F3.2) — CANAL RESUELTO por channel_rule sobre los crudos de la
+  //    dim (source_raw/medium_raw/campaign_raw). Tabla PARALELA a
+  //    pixel_daily_source: aditivo, el serve la lee detrás de flag. Resiliente:
+  //    si pixel_daily_channel o channel_rule no existen todavía (prod pre-DDL),
+  //    no rompe el resto de los rollups.
+  if (run("channel")) {
+    try {
+      const { channelCase, subChannelCase } = await loadOrgChannelCases(org);
+      // DELETE-then-insert (NO upsert puro como las otras tablas): en
+      // pixel_daily_channel el `channel` es parte de la PK y CAMBIA cuando cambian
+      // las reglas. Un upsert por (org,day,channel) dejaría viva la fila del canal
+      // VIEJO (ej. 'TikTok Ads') junto a la del nuevo ('TikTok Orgánico') → el mismo
+      // visitante contado en dos canales. Limpiar el día del org antes de
+      // re-materializar lo evita. Idempotente igual (si muere entre DELETE e INSERT,
+      // el próximo run re-arma el día). Args = $1 org, $4/$5 rango de día AR.
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM pixel_daily_channel WHERE "organizationId"=$1 AND day >= $4::date AND day < $5::date`,
+        ...args
+      );
+      touched += await prisma.$executeRawUnsafe(
+        buildChannelRollupStatement(channelCase, subChannelCase, VISIT_PAGEVIEW),
+        ...args
+      );
+    } catch {
+      // Tabla ausente → F3.2 todavía no está aplicado en esta DB. No-op.
+    }
+  }
 
   return touched;
 }

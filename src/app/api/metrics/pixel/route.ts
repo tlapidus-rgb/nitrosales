@@ -24,6 +24,10 @@ import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
+import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
+import { touchpointChannelSql } from "@/lib/pixel/touchpoint-channel-sql";
+import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
+import type { ChannelRule } from "@/lib/pixel/channel-rules";
 import {
   loadProductSkuMap,
   foldPurchasesToProductGrain,
@@ -280,6 +284,35 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ? pixelInstalledAt
       : dateFrom;
 
+    // ── Canales en el serve (F4), detrás de flag propio, OFF por default ──
+    // Con el flag OFF el comportamiento es IDÉNTICO (agrupa por source, como
+    // siempre). Con el flag ON agrupa por el CANAL resuelto por channel_rule
+    // (mismas reglas que el panel /pixel/canales). Es SOLO lectura: re-agrupa la
+    // misma plata ya atribuida — NO toca attribution.ts. Resiliente: si
+    // channel_rule no existe, cae a passthrough (source). Ver
+    // canales-serve-integration.local.md.
+    const usePixelChannels = process.env.PIXEL_USE_CHANNELS === "true";
+    let channelRules: ChannelRule[] = [];
+    if (usePixelChannels) {
+      try {
+        const rows = (await prisma.$queryRawUnsafe(LOAD_CHANNEL_RULES_SQL, ORG_ID)) as ChannelRuleRow[];
+        channelRules = rows.map(rowToChannelRule);
+      } catch {
+        channelRules = []; // tabla ausente → passthrough, no rompe el serve
+      }
+    }
+    // source (default) o canal (flag ON) para un touchpoint. Misma firma → drop-in.
+    const tpSourceOrChannel = (tp: string) =>
+      usePixelChannels ? touchpointChannelSql(channelRules, tp) : touchpointSourceSql(tp);
+
+    // Las 4 queries de atribución tienen una rama Gold que lee gold_attribution_source
+    // (grain por SOURCE, sin medium → no se puede resolver el canal ahí). Cuando los
+    // canales están ON, se PREFIERE la rama Bronze (touchpoint, que sí tiene
+    // source/medium/campaign) para resolver el canal fiel al panel. Trade-off: esas
+    // 4 queries pierden la perf del rollup Gold mientras los canales estén ON (el fix
+    // "de fondo" perf+canal sería un rollup Gold por CANAL — pendiente).
+    const useGoldSource = usePixelGold && !usePixelChannels;
+
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
     // ══════════════════════════════════════════════════════════
@@ -448,7 +481,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
       // 9. Attribution by source (weighted for NITRO, simple for others)
       // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(orders)::int as orders,
@@ -462,12 +495,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(
                 CASE
@@ -499,12 +527,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "LAST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -527,12 +550,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "FIRST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -554,12 +572,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `
         : prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
             FROM pixel_attributions pa
@@ -805,7 +818,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // segun la logica de cada modelo (last_click / first_click / linear / nitro).
       // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
       // la tarjeta de revenue por canal por dia.
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, source, orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
@@ -816,12 +829,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${tpSourceOrChannel("tp")} as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(
             pa."attributedValue" * (
@@ -877,7 +885,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ` as Promise<Array<{ day: string; source: string; spend: number }>>,
 
       // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(first_touch_count)::int as "firstTouch",
@@ -891,12 +899,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
       : prisma.$queryRaw`
         SELECT
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${tpSourceOrChannel("tp")} as source,
           COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
           COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < pa."touchpointCount")::int as "assistTouch",
           COUNT(*) FILTER (WHERE tp_ord = pa."touchpointCount" AND pa."touchpointCount" > 1)::int as "lastTouch",
@@ -1078,18 +1081,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
       prisma.$queryRaw`
         SELECT
-          CASE
-            WHEN COALESCE(pa.touchpoints::jsonb->0->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pa.touchpoints::jsonb->0->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pa.touchpoints::jsonb->0->>'source','') || '_organic'
-            ELSE COALESCE(pa.touchpoints::jsonb->0->>'source', 'direct')
-          END as first_channel,
-          CASE
-            WHEN COALESCE(pa.touchpoints::jsonb->(-1)->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') || '_organic'
-            ELSE COALESCE(pa.touchpoints::jsonb->(-1)->>'source', 'direct')
-          END as last_channel,
+          ${tpSourceOrChannel("pa.touchpoints::jsonb->0")} as first_channel,
+          ${tpSourceOrChannel("pa.touchpoints::jsonb->(-1)")} as last_channel,
           COUNT(*)::int as journeys,
           SUM(pa."attributedValue")::float as revenue,
           AVG(pa."attributedValue")::float as aov
@@ -1112,7 +1105,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
       // la formula de cada modelo para repartir el attributedValue por canal.
       // GROUP BY (model, source) → ~4 modelos × N canales rows.
-      (usePixelGold
+      (useGoldSource
         ? prisma.$queryRawUnsafe(`
             WITH src AS (
               SELECT source,
@@ -1143,12 +1136,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           pa.model::text as model,
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${tpSourceOrChannel("tp")} as source,
           SUM(
             pa."attributedValue" * (
               CASE

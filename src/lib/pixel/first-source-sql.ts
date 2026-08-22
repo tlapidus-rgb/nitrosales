@@ -35,6 +35,28 @@ export const GATEWAY_REFERRER_REGEX =
 export const CHECKOUT_URL_REGEX = "/checkout/|orderPlaced|gatewayCallback";
 const EMPTY_CLICKIDS = `("clickIds" IS NULL OR "clickIds"::text IN ('{}','null'))`;
 
+/**
+ * Fase B (metodología 2-ejes): click-ids que son señal FUERTE de PAGO — los genera
+ * el SISTEMA DE ADS solo en un click de anuncio (auto-tagging), no en un click
+ * orgánico. Se usan en el ingest para derivar `medium_raw='paid'` → las reglas
+ * resuelven el canal a "…Ads" (antes gclid/ttclid sin utm_medium caían orgánico
+ * porque el source 'google'/'tiktok' es ambiguo). Ver docs/CANALES-METODOLOGIA.md.
+ *
+ * ⚠️ `fbclid` NO está acá A PROPÓSITO: Facebook/Instagram lo agregan a CASI TODOS
+ * los clicks salientes (posts orgánicos, link-in-bio, DMs), no solo anuncios →
+ * NO prueba pago. Meterlo clasificaría tráfico orgánico de Meta como "Meta Ads".
+ * Para Meta, el pago se prueba por utm_medium (cpc/paid) o utm_source (fb_ads/
+ * meta_ads), no por fbclid. gclid/ttclid/msclkid/li_fat_id SÍ son ad-only.
+ *
+ * Columna sin alias → resuelve a `pixel_events` en un FROM de una sola tabla.
+ */
+export const PAID_CLICK_ID_PREDICATE = `(
+  (("clickIds"->>'gclid')     IS NOT NULL AND ("clickIds"->>'gclid')     != '')
+  OR (("clickIds"->>'ttclid')    IS NOT NULL AND ("clickIds"->>'ttclid')    != '')
+  OR (("clickIds"->>'msclkid')   IS NOT NULL AND ("clickIds"->>'msclkid')   != '')
+  OR (("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '')
+)`;
+
 /** Un `utm_source` de pasarela, en cualquiera de sus tres formas. */
 const GATEWAY_SOURCE_PREDICATE = `(
   LOWER(COALESCE("utmParams"->>'source', '')) IN (${GATEWAY_UTM_SQL_IN})

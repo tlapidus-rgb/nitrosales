@@ -26,7 +26,7 @@ describe("backfill por tabla — decisión de qué corre", () => {
     expect(tablesToRun("page")).toEqual(["page"]);
   });
 
-  it("sin table conserva el contrato: las 7 en orden", () => {
+  it("sin table conserva el contrato: las 8 en orden", () => {
     expect(tablesToRun(undefined)).toEqual([
       "aggregates",
       "device",
@@ -35,6 +35,7 @@ describe("backfill por tabla — decisión de qué corre", () => {
       "product",
       "source",
       "funnel",
+      "channel", // F3.2 — canal resuelto (paralelo a source)
     ]);
     // Y es exactamente ROLLUP_TABLES (misma fuente).
     expect(tablesToRun(undefined)).toEqual([...ROLLUP_TABLES]);
@@ -48,7 +49,7 @@ describe("backfill por tabla — decisión de qué corre", () => {
     expect(run).toContain("page");
   });
 
-  it("isRollupTable reconoce las 7 y rechaza el resto", () => {
+  it("isRollupTable reconoce las 8 y rechaza el resto", () => {
     for (const t of ROLLUP_TABLES) expect(isRollupTable(t)).toBe(true);
     expect(isRollupTable("aggregate")).toBe(false); // singular, typo común
     expect(isRollupTable("pixel_daily_source")).toBe(false);
