@@ -84,13 +84,21 @@ const MAX_CALLS = 30;
 // visitantes sin clasificar (2026-07-22).
 const REPORTING_HORIZON_DAYS = 90;
 
-// Presupuesto COMPARTIDO de la invocación, con margen bajo el maxDuration de 800s
-// para la query de `pendingByOrg` y el cierre. Cada pasada al setup tarda ~200s
-// con lotes de 10k, así que entran ~3 por request.
-const INVOCATION_BUDGET_MS = 700_000;
+// FIX 2026-08 (BP-ROLLUP-TIMEOUT): mismo bug que refresh-pixel-rollups — el
+// override maxDuration=800 NO se aplica en prod (default del proyecto = 300s), así
+// que budgetear 700s daba 504 el 100% de las corridas → pixel_visitor_first_source
+// nunca se refrescaba → el breakdown de canales de /pixel/analytics en 0.
+// Budget → 240s (una pasada tarda ~200s con lotes de 10k, entra sobrada bajo el cap
+// de 300s), MIN_SLICE → 180s. Cada corrida hace 1 pasada y COMMITEA; resumible por
+// org vía cursor, el cron (:7,:37) encadena y tapa el hueco.
+// REVERTIDO a 240s (2026-08-18): Vercel NO da >300s pese a Fluid + Default Max
+// Duration=800 + vercel.json + Node 22 (probado, la función muere a ~340s = cap 300s).
+// El maxDuration=800 NO se respeta. 240s es el valor correcto bajo el cap real de 300s
+// (una pasada ~200s + margen). Resumible por org (cursor), el cron (:7,:37) encadena.
+const INVOCATION_BUDGET_MS = 240_000;
 // No arrancar otra pasada si no queda al menos esto: una pasada que se corta a
 // la mitad por el wall no devuelve nada y pierde el trabajo de todo el request.
-const MIN_SLICE_MS = 260_000;
+const MIN_SLICE_MS = 180_000;
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);

@@ -45,8 +45,11 @@ import {
 
 export const revalidate = 0;
 // Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
-// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (25s) corta antes.
-export const maxDuration = 60;
+// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (50s) corta antes.
+// Subido 60→90 (2026-08-18, BP-PIXEL-TIMEOUT): con GLOBAL_TIMEOUT_MS a 50s la
+// función necesita headroom sobre la race para serializar la respuesta (~878KB en
+// 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
+export const maxDuration = 200;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // ══════════════════════════════════════════════════════════════
@@ -70,9 +73,17 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 
 // Red de seguridad: si el endpoint no responde en N ms, devuelve un mock vacío en
 // vez de colgar la función (degradación graciosa, nunca un 500/cuelgue). Combinado
-// con maxDuration como techo duro de Vercel. Con los rollups de Fase 2 todos los
-// rangos responden muy por debajo de este techo; queda como red de seguridad.
-const GLOBAL_TIMEOUT_MS = 25000;
+// con maxDuration como techo duro de Vercel.
+// Subido 25s→50s (2026-08-18, BP-PIXEL-TIMEOUT): para la org grande (El Mundo del
+// Juguete) el compute de 7d/14d queda pegado a ~21-25s — varias queries desanidan
+// pa.touchpoints EN VIVO (sólo 4 van por gold detrás de PIXEL_USE_GOLD). A 25s la
+// race mataba el compute ANTES de terminar → devolvía el mock vacío → el warm-cache
+// cacheaba ESE mock → analytics en 0 para TODO rango multi-día. A 50s (bajo
+// maxDuration=90) el compute termina y devuelve data real, que el warm-cache sí
+// cachea. 30d (~3-4x el trabajo) puede seguir sobre 50s → FOLLOW-UP: gatear esas
+// queries unnest detrás de gold/rollup (BP-PIXEL-TIMEOUT #2). REQUIERE
+// statement_timeout=50000 en client.ts (si no, PG mata la query a los 25s igual).
+const GLOBAL_TIMEOUT_MS = 85000;
 
 // Techo de seguridad, NO un recorte de producto — mismo criterio y mismo valor
 // que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
@@ -127,9 +138,21 @@ function buildEmptyMockResponse() {
 }
 
 export async function GET(request: NextRequest) {
+  // Warm-cache: SIN race (BP-PIXEL-TIMEOUT, 2026-08-18). El cron warm-cache pre-siembra
+  // el shared cache llamando este endpoint por cada org/rango, SECUENCIALMENTE. Si lo
+  // raceáramos a 85s, para las orgs grandes (compute >85s) devolvería el mock y —peor—
+  // el warm seguiría al próximo rango disparando otro compute en background → N computes
+  // paralelos = thundering-herd que satura la DB (justo lo que el diseño secuencial del
+  // warm-cache evita). Sin race, el warm ESPERA cada compute (~120s), lo escribe en el
+  // cache y recién ahí sigue → secuencial, sin solaparse. Corre bajo maxDuration (<300s
+  // cap real). Los clientes leen el cache ya sembrado → instantáneo. Sólo aplica al warm
+  // (key interna WARM_CACHE_KEY), nunca a usuarios (que mantienen la red de 85s).
+  const { searchParams } = new URL(request.url);
+  const isWarm = !!searchParams.get("orgId") && searchParams.get("key") === WARM_CACHE_KEY;
+
   // Red de seguridad: corre el handler contra un timeout global; si el handler no
   // responde a tiempo, devuelve un mock vacío en vez de colgar (nunca 500/cuelgue).
-  if (GLOBAL_TIMEOUT_MS > 0) {
+  if (!isWarm && GLOBAL_TIMEOUT_MS > 0) {
     const realPromise = (async () => realHandler(request))();
     const timeoutPromise = new Promise<NextResponse>((resolve) =>
       setTimeout(() => resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: GLOBAL_TIMEOUT_MS })), GLOBAL_TIMEOUT_MS)
@@ -1851,8 +1874,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
     // SWR serve: hit (fresh o stale) → instant; stale → refresh background con lock; miss → bloqueante.
     // Dos niveles: memoria de esta instancia, y si no, el caché compartido.
+    // Warm-cache: NO servir stale (dispararía refresh en bg y el warm seguiría al
+    // próximo rango → N refresh en paralelo = herd que satura la DB). En stale/miss el
+    // warm cae al compute SÍNCRONO de abajo (isWarm ⇒ sin race) y mantiene su
+    // secuencialidad. Usuarios: SWR normal (sirve stale al toque + refresh en bg).
+    const isWarmCall = !!queryOrgId && queryKey === WARM_CACHE_KEY;
     const cached = await getSharedCachedSWR("pixel", ...cacheKey);
-    if (cached?.data) {
+    if (cached?.data && !(isWarmCall && cached.isStale)) {
       if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
         waitUntil(
           computeAndCache()
@@ -1862,8 +1890,31 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       }
       return NextResponse.json(cached.data);
     }
-    const freshResponse = await computeAndCache();
-    return NextResponse.json(freshResponse);
+    // ── CACHE MISS ────────────────────────────────────────────────────────────
+    // BP-PIXEL-TIMEOUT (2026-08-18): el compute de las orgs grandes (El Mundo del
+    // Juguete, Arredo) tarda >85s — más que la red de seguridad GLOBAL_TIMEOUT_MS.
+    // Antes esto era `await computeAndCache()` a secas: la race global devolvía el
+    // mock a los 85s y el compute quedaba COLGADO sin waitUntil → Vercel congelaba
+    // la función al responder → setSharedCache NUNCA corría → cold-miss eterno (el
+    // cache jamás se sembraba y cada request pagaba el timeout completo).
+    // Ahora el compute se registra en waitUntil: aunque la race global devuelva el
+    // mock antes, Fluid Compute mantiene viva la función post-response y el compute
+    // termina (~120s) y ESCRIBE el cache compartido → el request siguiente (y el
+    // warm-cache) leen data real instantánea. En orgs chicas (compute <85s) el
+    // `await` devuelve data real directo, como antes. El lock evita thundering-herd:
+    // si otro request ya está sembrando esta key, este devuelve el mock sin recomputar.
+    if (tryAcquireRefreshLock("pixel", ...cacheKey)) {
+      const missCompute = computeAndCache()
+        .catch((e) => {
+          console.error("[pixel] cache-miss seed failed:", e);
+          return buildEmptyMockResponse();
+        })
+        .finally(() => releaseRefreshLock("pixel", ...cacheKey));
+      waitUntil(missCompute);
+      const freshResponse = await missCompute;
+      return NextResponse.json(freshResponse);
+    }
+    return NextResponse.json(buildEmptyMockResponse());
   } catch (error) {
     console.error("[Pixel Metrics API] Error:", error);
 

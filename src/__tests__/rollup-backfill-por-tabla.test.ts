@@ -70,14 +70,9 @@ describe("backfill por tabla — validación de params (sin tocar la DB)", () =>
     expect(String((r.body as any).error)).toContain("table inválida");
   });
 
-  it("`table` sin `org` devuelve 400", async () => {
-    const r = await runRollupBackfill({
-      from: "2026-05-12",
-      to: "2026-05-12",
-      cursor: "2026-05-12",
-      table: "source",
-    });
-    expect(r.httpStatus).toBe(400);
-    expect(String((r.body as any).error)).toContain("exige también ?org=");
-  });
+  // NOTA (2026-08-18): se eliminó el test "`table` sin `org` devuelve 400". Ese guard
+  // se relajó: `table` SIN `org` es ahora un modo VÁLIDO (procesa esa tabla para TODAS
+  // las orgs — lo usa el cron refresh-pixel-rollups en su rotación 1-tabla/invocación).
+  // No se puede testear el camino feliz acá porque el backfill usa hll (PGlite no lo
+  // tiene). La validación que queda testeable es la de `table` inválida (arriba).
 });
