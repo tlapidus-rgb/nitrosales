@@ -104,6 +104,21 @@ export async function DELETE(req: NextRequest) {
   if (g instanceof NextResponse) return g;
   const { orgId } = g;
   const url = new URL(req.url);
+
+  // Borrar un CANAL ENTERO (todas las reglas de la org que lo definen). Los
+  // orígenes que quedaban en él vuelven al passthrough → "Sin clasificar" para que
+  // el usuario los reclasifique. Scopeado a la org: NUNCA toca reglas globales
+  // (organizationId NULL), así que un canal built-in (Meta Ads, etc.) no se puede
+  // romper desde acá — solo desaparecen los mapeos PROPIOS de la org.
+  const channel = url.searchParams.get("channel");
+  if (channel != null) {
+    if (!channel.trim()) return NextResponse.json({ error: "channel vacío" }, { status: 400 });
+    const n = await prisma.$executeRaw`
+      DELETE FROM channel_rule
+      WHERE channel = ${channel.trim()} AND "organizationId" = ${orgId}`;
+    return NextResponse.json({ ok: true, deleted: n, channel: channel.trim() });
+  }
+
   const source = url.searchParams.get("source");
   // medium: null = ausente (regla source-only); '' o valor = regla source+medium.
   // Debe matchear cómo se creó el id (userRuleId) para borrar la variante correcta.
@@ -119,4 +134,29 @@ export async function DELETE(req: NextRequest) {
     DELETE FROM channel_rule
     WHERE id = ${id} AND "organizationId" = ${orgId}`;
   return NextResponse.json({ ok: true, deleted: n });
+}
+
+// ── PATCH: renombrar (editar) un canal ───────────────────────────────────────
+// Cambia el nombre en TODAS las reglas de la org que apuntan a ese canal. El `id`
+// de la regla no incluye el canal (incluye el source), así que renombrar no
+// re-genera ids. Scopeado a la org → no toca canales built-in (globales).
+export async function PATCH(req: NextRequest) {
+  const g = await gate("write");
+  if (g instanceof NextResponse) return g;
+  const { orgId } = g;
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "body JSON inválido" }, { status: 400 });
+  }
+  const from = String(body?.from ?? "").trim();
+  const to = String(body?.to ?? "").trim();
+  if (!from || !to) return NextResponse.json({ error: "from y to requeridos" }, { status: 400 });
+  if (to.length > 120) return NextResponse.json({ error: "nombre demasiado largo" }, { status: 400 });
+  if (from === to) return NextResponse.json({ ok: true, updated: 0, channel: to });
+  const n = await prisma.$executeRaw`
+    UPDATE channel_rule SET channel = ${to}, updated_at = now()
+    WHERE channel = ${from} AND "organizationId" = ${orgId}`;
+  return NextResponse.json({ ok: true, updated: n, channel: to });
 }

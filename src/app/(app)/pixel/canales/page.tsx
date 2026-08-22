@@ -107,6 +107,11 @@ export default function Page() {
   // Selección múltiple en "Sin clasificar" (bulk assign): set de códigos tildados.
   const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set());
   const [bulkCanal, setBulkCanal] = useState("");
+  // CRUD de canales (Tomy): canal pendiente de borrar (abre modal de confirmación),
+  // y canal en edición de nombre (input inline) con su valor.
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [nombreEdit, setNombreEdit] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -352,6 +357,60 @@ export default function Page() {
     }
   }
 
+  // ── CRUD de canales (Tomy) ──────────────────────────────────────────────────
+  // Un canal es "propio" (editable/eliminable) si la org tiene reglas suyas o es
+  // un borrador. Los built-in (globales, ej. "Meta Ads") no se tocan desde acá.
+  const esPropio = (canal: string | null) =>
+    !!canal && canal !== CATCH && (borradores.includes(canal) || misMapeos.some((r: any) => r.channel === canal));
+
+  async function eliminarCanal(canal: string) {
+    setConfirmDel(null);
+    setRowError(null);
+    const tieneReglas = misMapeos.some((r: any) => r.channel === canal);
+    setBorradores((prev) => prev.filter((b) => b !== canal)); // sacar borrador si estaba
+    try {
+      if (tieneReglas) {
+        const res = await fetch(`/api/admin/channel-rules?channel=${encodeURIComponent(canal)}`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error || `HTTP ${res.status}`);
+        }
+      }
+      setSelected(null);
+      refetch();
+      setRowOk({ msg: `Canal «${canal}» eliminado. Sus orígenes quedaron en "Sin clasificar".` });
+    } catch (err: any) {
+      setRowError(`No se pudo eliminar «${canal}»: ${err?.message || "error"}`);
+    }
+  }
+
+  async function renombrarCanal(from: string, toRaw: string) {
+    const to = toRaw.trim();
+    setEditando(null);
+    if (!to || to === from) return;
+    setRowError(null);
+    const tieneReglas = misMapeos.some((r: any) => r.channel === from);
+    setBorradores((prev) => prev.map((b) => (b === from ? to : b))); // renombrar borrador si estaba
+    try {
+      if (tieneReglas) {
+        const res = await fetch(`/api/admin/channel-rules`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from, to }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error || `HTTP ${res.status}`);
+        }
+      }
+      setSelected(to);
+      refetch();
+      setRowOk({ msg: `Canal renombrado a «${to}».` });
+    } catch (err: any) {
+      setRowError(`No se pudo renombrar: ${err?.message || "error"}`);
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-1">
@@ -568,14 +627,41 @@ export default function Page() {
             ) : (
               <>
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                       <button onClick={() => setSelected(null)} className={`text-slate-500 hover:text-slate-800 transition-colors rounded ${focusRing}`} title="Volver a sin clasificar" aria-label="Volver">←</button>
-                      <span className={`truncate ${selected === CATCH ? "italic text-slate-500" : ""}`}>{selected}</span>
+                      {editando === selected ? (
+                        <input
+                          autoFocus
+                          value={nombreEdit}
+                          onChange={(e) => setNombreEdit(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") renombrarCanal(selected!, nombreEdit); if (e.key === "Escape") setEditando(null); }}
+                          onBlur={() => renombrarCanal(selected!, nombreEdit)}
+                          className={`text-sm font-semibold border border-slate-300 rounded-lg px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 ${focusRing}`}
+                        />
+                      ) : (
+                        <span className={`truncate ${selected === CATCH ? "italic text-slate-500" : ""}`}>{selected}</span>
+                      )}
                     </h2>
                     <p className="text-[11px] text-slate-500 mt-0.5">Orígenes agrupados en este canal. Movelos a otro canal o sacalos.</p>
                   </div>
-                  <span className="text-[11px] text-slate-500 shrink-0 tabular-nums">{originesDelCanal.length}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {esPropio(selected) && editando !== selected && (
+                      <>
+                        <button
+                          onClick={() => { setEditando(selected); setNombreEdit(selected || ""); }}
+                          className={`text-[11px] text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-2 py-1 transition-colors ${focusRing}`}
+                          title="Renombrar canal"
+                        >Renombrar</button>
+                        <button
+                          onClick={() => setConfirmDel(selected)}
+                          className={`text-[11px] text-rose-500 hover:text-rose-700 border border-rose-200 hover:border-rose-300 rounded-lg px-2 py-1 transition-colors ${focusRing}`}
+                          title="Eliminar canal"
+                        >Eliminar</button>
+                      </>
+                    )}
+                    <span className="text-[11px] text-slate-500 tabular-nums">{originesDelCanal.length}</span>
+                  </div>
                 </div>
                 <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
                   {originesDelCanal.length === 0 && (
@@ -614,6 +700,23 @@ export default function Page() {
       ) : !error ? (
         <div className="text-slate-500 text-sm py-16 text-center">Sin datos.</div>
       ) : null}
+
+      {/* Confirmación de eliminación de canal (Tomy): avisa que los orígenes vuelven
+          a "Sin clasificar". */}
+      {confirmDel && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setConfirmDel(null)}>
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900">Eliminar el canal «{confirmDel}»</h3>
+            <p className="text-[13px] text-slate-600 mt-2 leading-snug">
+              Sus <b>{(data?.origins || []).filter((o: any) => o.channel === confirmDel).length}</b> orígenes van a volver a <b>«Sin clasificar»</b> para que los reclasifiques. Los datos no se pierden.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setConfirmDel(null)} className={`text-xs text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors ${focusRing}`}>Cancelar</button>
+              <button onClick={() => eliminarCanal(confirmDel)} className={`text-xs text-white bg-rose-600 hover:bg-rose-700 rounded-lg px-3 py-1.5 transition-colors ${focusRing}`}>Eliminar canal</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
