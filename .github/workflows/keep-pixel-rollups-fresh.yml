@@ -1,0 +1,51 @@
+name: keep-pixel-rollups-fresh
+
+# Disparador EXTERNO de los crons pesados del pixel, independiente del scheduler de
+# Vercel. Motivo (2026-08-23): Vercel dejó de disparar `refresh-pixel-rollups`
+# específicamente (los otros crons seguían corriendo), dejando las 7 tablas del
+# pixel stale ~22h → mails de frescura al cliente. El watchdog interno (warm-cache)
+# no ayuda si Vercel también saltea warm-cache. GitHub Actions corre afuera de
+# Vercel → red de seguridad real.
+#
+# Setup (una vez): en el repo → Settings → Secrets and variables → Actions →
+#   New repository secret: NITRO_CRON_KEY = <ADMIN_API_KEY de prod>
+#
+# Nota: los cron de GitHub Actions son best-effort (pueden atrasarse minutos bajo
+# carga), pero corren aunque Vercel no dispare nada. En conjunto con los crons de
+# Vercel (cuando andan) mantienen los rollups frescos.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # cada 15 min (UTC)
+  workflow_dispatch: {} # permite dispararlo a mano desde la pestaña Actions
+
+concurrency:
+  group: keep-pixel-rollups-fresh
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh pixel rollups (1 tabla por hit — varios hits por corrida)
+        env:
+          KEY: ${{ secrets.NITRO_CRON_KEY }}
+          BASE: https://app.nitrosales.ai
+        run: |
+          if [ -z "$KEY" ]; then echo "Falta el secret NITRO_CRON_KEY"; exit 1; fi
+          # El cron procesa la tabla MÁS atrasada por hit (rotación). Hay 8 tablas
+          # (7 monitoreadas + channel), así que pegamos varias veces para ciclarlas
+          # y recuperar rápido tras un hueco. Idempotente.
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -sS -o /tmp/out.json -w "%{http_code}" -m 290 \
+              "$BASE/api/cron/refresh-pixel-rollups?key=$KEY" || echo "000")
+            echo "hit $i → HTTP $code"; head -c 400 /tmp/out.json; echo
+            sleep 5
+          done
+      - name: Warm cache (siembra el SWR + self-heal de respaldo)
+        env:
+          KEY: ${{ secrets.NITRO_CRON_KEY }}
+          BASE: https://app.nitrosales.ai
+        run: |
+          curl -sS -o /dev/null -w "warm-cache → HTTP %{http_code}\n" -m 290 \
+            "$BASE/api/cron/warm-cache?key=$KEY" || true
