@@ -312,6 +312,16 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // 4 queries pierden la perf del rollup Gold mientras los canales estén ON (el fix
     // "de fondo" perf+canal sería un rollup Gold por CANAL — pendiente).
     const useGoldSource = usePixelGold && !usePixelChannels;
+    // FIX perf+canal (2026-08-23): rollup Gold POR CANAL. Con canales ON + Gold ON
+    // las 4 queries de atribución leen gold_attribution_channel (materializado por
+    // el cron refresh-gold-attribution-channel) en vez de escanear pa.touchpoints en
+    // vivo (Bronze), que en 30d de la org grande se pasaba del timeout → mock en 0.
+    // El total es idéntico (test de paridad). Gateado detrás de su PROPIO flag
+    // (default OFF) para poder deployar el código ANTES de crear+backfillear la tabla
+    // en prod, y prenderlo recién cuando el rollup ya tenga datos → cero riesgo de
+    // leer una tabla vacía. Cuando esté todo, `PIXEL_USE_GOLD_CHANNEL=true`.
+    const useGoldChannel =
+      usePixelGold && usePixelChannels && process.env.PIXEL_USE_GOLD_CHANNEL === "true";
 
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
@@ -481,7 +491,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
       // 9. Attribution by source (weighted for NITRO, simple for others)
       // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
-      (useGoldSource
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            SELECT channel AS source,
+              SUM(orders)::int as orders,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float as revenue
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY channel
+            ORDER BY revenue DESC
+            LIMIT 10
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; orders: number; revenue: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(orders)::int as orders,
@@ -818,7 +839,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // segun la logica de cada modelo (last_click / first_click / linear / nitro).
       // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
       // la tarjeta de revenue por canal por dia.
-      (useGoldSource
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, channel AS source, orders,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            ORDER BY day DESC, revenue DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, source, orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
@@ -885,7 +914,19 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ` as Promise<Array<{ day: string; source: string; spend: number }>>,
 
       // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
-      (useGoldSource
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            SELECT channel AS source,
+              SUM(first_touch_count)::int as "firstTouch",
+              SUM(assist_touch_count)::int as "assistTouch",
+              SUM(last_touch_count)::int as "lastTouch",
+              SUM(solo_touch_count)::int as "soloTouch"
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY channel
+            ORDER BY "firstTouch" DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(first_touch_count)::int as "firstTouch",
@@ -1105,7 +1146,35 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
       // la formula de cada modelo para repartir el attributedValue por canal.
       // GROUP BY (model, source) → ~4 modelos × N canales rows.
-      (useGoldSource
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            WITH src AS (
+              SELECT channel AS source,
+                SUM(nitro_single) nitro_single, SUM(nitro_first2) nitro_first2,
+                SUM(nitro_last2) nitro_last2, SUM(nitro_first_n) nitro_first_n,
+                SUM(nitro_last_n) nitro_last_n, SUM(nitro_middle_n) nitro_middle_n,
+                SUM(last_click_revenue) last_click_revenue,
+                SUM(first_click_revenue) first_click_revenue,
+                SUM(linear_revenue) linear_revenue
+              FROM gold_attribution_channel
+              WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+              GROUP BY channel
+            )
+            SELECT model, source, revenue FROM (
+              SELECT m.model, s.source,
+                (CASE m.model
+                  WHEN 'LAST_CLICK'  THEN ${goldModelRevenueSql("LAST_CLICK", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  WHEN 'FIRST_CLICK' THEN ${goldModelRevenueSql("FIRST_CLICK", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  WHEN 'LINEAR'      THEN ${goldModelRevenueSql("LINEAR", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  ELSE ${goldModelRevenueSql("NITRO", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                END)::float as revenue
+              FROM src s
+              CROSS JOIN (VALUES ('LAST_CLICK'),('FIRST_CLICK'),('LINEAR'),('NITRO')) m(model)
+            ) t
+            WHERE revenue > 0
+            ORDER BY model, revenue DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ model: string; source: string; revenue: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             WITH src AS (
               SELECT source,
