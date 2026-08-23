@@ -53,6 +53,7 @@ export const PIPELINE_FRESHNESS_TARGETS: readonly FreshnessTarget[] = [
   { table: "gold_customer_daily", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue" },
   // Gold de atribución — refresh-gold-attribution
   { table: "gold_attribution_source", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution" },
+  { table: "gold_attribution_channel", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution-channel" },
   // Rollups del pixel — refresh-pixel-rollups. Se vigilan TODOS y no sólo
   // `aggregates` (ampliado 2026-07-21): el cron corre 7 statements y cada uno
   // puede fallar por separado sin tumbar los demás. Con un solo centinela, un

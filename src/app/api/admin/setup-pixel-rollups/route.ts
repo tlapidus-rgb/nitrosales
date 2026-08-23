@@ -117,6 +117,12 @@ const DDL: string[] = [
     "organizationId" text NOT NULL, "visitorId" text NOT NULL, first_source text NOT NULL,
     source_raw text, medium_raw text, campaign_raw text,
     PRIMARY KEY ("organizationId", "visitorId"))`,
+  // F3.1: si la tabla YA existía (prod pre-canales), el CREATE IF NOT EXISTS de
+  // arriba NO agrega las columnas crudas → hay que ALTER explícito. Idempotente.
+  `ALTER TABLE pixel_visitor_first_source
+     ADD COLUMN IF NOT EXISTS source_raw   text,
+     ADD COLUMN IF NOT EXISTS medium_raw   text,
+     ADD COLUMN IF NOT EXISTS campaign_raw text`,
   // 6b) Visitantes YA EVALUADOS que no tienen canal de marketing (todos sus
   //     eventos clasifican a NULL: pasarelas de pago, vueltas de checkout).
   //     Sin esta tabla volvían a ser candidatos en cada pasada y el backfill no
