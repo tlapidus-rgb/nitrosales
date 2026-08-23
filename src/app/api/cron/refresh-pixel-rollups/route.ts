@@ -177,6 +177,13 @@ const ROLLUP_DB_TABLE: Record<RollupTable, string> = {
   product: "pixel_daily_product",
   source: "pixel_daily_source",
   funnel: "pixel_daily_funnel_by_source",
+  // FIX 2026-08-23 (BP-ROLLUP-CHANNEL-STARVATION): `channel` ESTABA en ROLLUP_TABLES
+  // pero NO acá → el status `SELECT MAX(day) FROM undefined` tiraba error → el catch la
+  // marcaba "0000-00-00" (infinitamente atrasada) → `channel` GANABA la elección de "más
+  // atrasada" en CADA corrida → las 7 tablas monitoreadas nunca recibían turno → stale
+  // 22→27h → mails de frescura. Con el nombre real, channel lee su MAX(day) posta y rota
+  // JUSTO con las otras 7 (su cursor propio, no las pisa).
+  channel: "pixel_daily_channel",
 };
 
 // Fecha AR (UTC-3) a medianoche, con offset de días hacia atrás. Mismo criterio
