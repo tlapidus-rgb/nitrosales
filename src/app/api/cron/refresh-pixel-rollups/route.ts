@@ -186,6 +186,20 @@ const ROLLUP_DB_TABLE: Record<RollupTable, string> = {
   channel: "pixel_daily_channel",
 };
 
+// FIX 2026-08-24 (BP-ROLLUP-CHANNEL-STARVATION-2, DEFINITIVO): el AUTO-selector rota
+// SOLO estas 7 tablas monitoreadas — `channel` EXCLUIDO A PROPÓSITO. El fix del 23-ago
+// (leer su MAX(day) real) fue necesario pero INSUFICIENTE: `pixel_daily_channel` está
+// VACÍA porque su rollup es un no-op silencioso (escribe 0 filas, el error lo traga un
+// try/catch en rollup-backfill) → MAX(day) NULL → channel es ETERNAMENTE "la más
+// atrasada" → se elige en CADA corrida (verificado en prod: table:"channel",
+// lastRollupDay:null, 377ms) → las 7 nunca reciben turno → mails de frescura recurrentes.
+// Es el BUG1 "tabla veneno" materializado. Vercel SÍ dispara el cron (gold/silver
+// frescos), así que basta con que channel NO compita: excluyéndola, cada corrida elige
+// una de las 7 reales y se mantienen frescas. channel se puede refrescar aparte con
+// ?table=channel (override manual, sigue permitido abajo). NUNCA vuelve a la rotación
+// hasta que su no-op esté resuelto (follow-up: por qué pixel_daily_channel queda vacía).
+const ROTATION_TABLES = ROLLUP_TABLES.filter((t) => t !== "channel");
+
 // Fecha AR (UTC-3) a medianoche, con offset de días hacia atrás. Mismo criterio
 // AR que /api/cron/warm-cache y que el ARDAY del backfill.
 function arDate(offsetDays = 0): string {
@@ -237,8 +251,9 @@ export async function GET(req: NextRequest) {
     } catch { /* default: no romper el cron */ }
   } else {
     // Estado de las 7 tablas en paralelo (MAX(day) + MAX(refreshed_at), index-friendly).
+    // ROTATION_TABLES excluye `channel` (tabla veneno, ver arriba).
     const status = await Promise.all(
-      ROLLUP_TABLES.map(async (t) => {
+      ROTATION_TABLES.map(async (t) => {
         try {
           const r = await prisma.$queryRawUnsafe<Array<{ d: string | null; r: Date | null }>>(
             `SELECT MAX(day)::text AS d, MAX(refreshed_at) AS r FROM ${ROLLUP_DB_TABLE[t]}`
