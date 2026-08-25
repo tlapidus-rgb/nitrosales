@@ -27,7 +27,7 @@ export default function NarrativeHero({ narrative, loading }: NarrativeHeroProps
         className="h-24 rounded-2xl"
         style={{
           background:
-            "linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%)",
+            "linear-gradient(90deg, rgba(28,27,24,0.04) 0%, rgba(28,27,24,0.08) 50%, rgba(28,27,24,0.04) 100%)",
           backgroundSize: "200% 100%",
           animation: "narrShimmer 1.4s ease-in-out infinite",
         }}
@@ -57,20 +57,10 @@ export default function NarrativeHero({ narrative, loading }: NarrativeHeroProps
         borderColor: palette.ring,
         background: `linear-gradient(135deg, ${palette.bg} 0%, rgba(255,255,255,0.6) 100%)`,
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -14px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -14px rgba(28,27,24,0.08)",
         transition: `all 400ms ${ES}`,
       }}
     >
-      {/* Halo de color */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full blur-3xl"
-        style={{
-          background: palette.accent,
-          opacity: 0.08,
-        }}
-      />
-
       <div className="relative flex items-start gap-4">
         {/* Icono de severidad */}
         <div
@@ -98,20 +88,20 @@ export default function NarrativeHero({ narrative, loading }: NarrativeHeroProps
             />
             <span
               className="text-[10px] uppercase tracking-wider"
-              style={{ color: "rgba(15,23,42,0.4)" }}
+              style={{ color: "rgba(28,27,24,0.4)" }}
             >
               Narrativa del Pulso
             </span>
           </div>
           <h2
             className="mt-1 text-lg font-bold tracking-tight sm:text-xl"
-            style={{ letterSpacing: "-0.02em", color: "#0f172a" }}
+            style={{ letterSpacing: "-0.02em", color: "#1C1B18" }}
           >
             {narrative.title}
           </h2>
           <p
             className="mt-1 text-[13px] leading-relaxed"
-            style={{ color: "rgba(15,23,42,0.72)" }}
+            style={{ color: "rgba(28,27,24,0.72)" }}
           >
             {narrative.body}
           </p>

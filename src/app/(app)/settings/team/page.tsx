@@ -487,11 +487,6 @@ export default function TeamPage() {
             className="h-1.5 w-1.5 rounded-full"
             style={{
               background: toast.kind === "ok" ? "#10b981" : "#ef4444",
-              boxShadow:
-                toast.kind === "ok"
-                  ? "0 0 8px rgba(16,185,129,0.7)"
-                  : "0 0 8px rgba(239,68,68,0.7)",
-              animation: "pulseDotTeam 1.4s ease-in-out infinite",
             }}
           />
           {toast.kind === "ok" ? (
@@ -503,12 +498,6 @@ export default function TeamPage() {
         </div>
       )}
 
-      <style jsx global>{`
-        @keyframes pulseDotTeam {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.55; transform: scale(1.4); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -607,7 +596,7 @@ function InviteModal({
                 className="flex h-9 w-9 items-center justify-center rounded-xl"
                 style={{
                   background: "rgba(28,27,24,0.05)",
-                  color: "#1C1B18",
+                  color: "var(--ent-ink)",
                   border: "1px solid rgba(28,27,24,0.14)",
                 }}
               >
@@ -676,7 +665,7 @@ function InviteModal({
                       <span
                         className="text-[11px] font-semibold"
                         style={{
-                          color: active ? ROLE_META[r].color : "#6B685F",
+                          color: active ? ROLE_META[r].color : "var(--ent-ink-60)",
                         }}
                       >
                         {ROLE_META[r].label}
@@ -717,7 +706,7 @@ function InviteModal({
                           <span
                             className="truncate text-[11px] font-semibold"
                             style={{
-                              color: active ? color : "#6B685F",
+                              color: active ? color : "var(--ent-ink-60)",
                             }}
                           >
                             {cr.name}

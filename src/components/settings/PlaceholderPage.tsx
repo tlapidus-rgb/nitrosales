@@ -28,14 +28,7 @@ export default function PlaceholderPage({
   sketches: { icon: React.ComponentType<any>; label: string; lines: string[] }[];
 }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `radial-gradient(ellipse at 85% 0%, ${accent}12 0%, transparent 55%)`,
-        }}
-      />
+    <div className="relative overflow-hidden rounded-3xl border border-hairline bg-white p-8 shadow-sm">
       <div className="relative">
         <div
           className="inline-flex items-center gap-2 rounded-full border px-3 py-1"
@@ -46,11 +39,7 @@ export default function PlaceholderPage({
         >
           <span
             className="h-1.5 w-1.5 rounded-full"
-            style={{
-              background: accent,
-              boxShadow: `0 0 10px ${accent}80`,
-              animation: "placeholderPing 1.8s ease-in-out infinite",
-            }}
+            style={{ background: accent }}
           />
           <span
             className="text-[10px] font-semibold uppercase tracking-[0.14em]"
@@ -60,11 +49,11 @@ export default function PlaceholderPage({
           </span>
         </div>
 
-        <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-900">
+        <h1 className="mt-5 text-3xl font-bold tracking-tight text-ink">
           {title}
         </h1>
-        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-slate-600">
+        <p className="mt-1 text-sm text-ink-40">{subtitle}</p>
+        <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-ink-60">
           {description}
         </p>
 
@@ -74,10 +63,10 @@ export default function PlaceholderPage({
             return (
               <div
                 key={i}
-                className="rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-sm"
+                className="rounded-xl border border-hairline bg-white/70 p-4 backdrop-blur-sm"
                 style={{
                   boxShadow:
-                    "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+                    "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
                 }}
               >
                 <div
@@ -90,14 +79,14 @@ export default function PlaceholderPage({
                 >
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                <div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
                   {s.label}
                 </div>
                 <div className="mt-1 space-y-0.5">
                   {s.lines.map((l, j) => (
                     <div
                       key={j}
-                      className="text-[13px] font-semibold tabular-nums tracking-tight text-slate-700"
+                      className="text-[13px] font-semibold tabular-nums tracking-tight text-ink-60"
                     >
                       {l}
                     </div>
@@ -108,20 +97,6 @@ export default function PlaceholderPage({
           })}
         </div>
       </div>
-
-      <style jsx global>{`
-        @keyframes placeholderPing {
-          0%,
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.5);
-            opacity: 0.55;
-          }
-        }
-      `}</style>
     </div>
   );
 }

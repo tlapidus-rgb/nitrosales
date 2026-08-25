@@ -217,37 +217,6 @@ export default function WaterfallHero({
       role="img"
       aria-label={ariaLabel}
     >
-      {/* Aurora radial sutil — crea ambiente sin pesar visualmente */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl"
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: "-20%",
-            left: "-5%",
-            width: "45%",
-            height: "120%",
-            background:
-              "radial-gradient(circle, rgba(34,211,238,0.08) 0%, transparent 65%)",
-            filter: "blur(50px)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "-10%",
-            right: "-10%",
-            width: "55%",
-            height: "110%",
-            background:
-              "radial-gradient(circle, rgba(167,139,250,0.09) 0%, transparent 65%)",
-            filter: "blur(55px)",
-          }}
-        />
-      </div>
-
       {/* SVG waterfall — responsive via viewBox */}
       <svg
         className="relative w-full"

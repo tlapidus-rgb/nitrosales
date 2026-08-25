@@ -73,23 +73,14 @@ function initialsFrom(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// Gradient colors deterministic from customer id
-function avatarGradientFor(id: string): string {
-  const GRADIENTS = [
-    "linear-gradient(135deg, #2F9153 0%, #6366f1 100%)",
-    "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
-    "linear-gradient(135deg, #10b981 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #83807A 0%, #ec4899 100%)",
-    "linear-gradient(135deg, #3b82f6 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #ec4899 0%, #83807A 100%)",
-    "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
-    "linear-gradient(135deg, #14b8a6 0%, #0891b2 100%)",
-    "linear-gradient(135deg, #6366f1 0%, #83807A 100%)",
-    "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
-  ];
+// Flat warm-ink avatar tone, deterministic from customer id. Enterprise-sober:
+// no multicolor gradients — a subtle spread of near-black warm neutrals keeps
+// per-customer variety while staying monochrome. White initials read on all.
+function avatarToneFor(id: string): string {
+  const TONES = ["#1C1B18", "#33312C", "#47443E", "#57544C", "#6B685F"];
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return GRADIENTS[h % GRADIENTS.length];
+  return TONES[h % TONES.length];
 }
 
 function formatRelative(iso: string | null): string {
@@ -257,7 +248,7 @@ export default function ClientesPage() {
         style={{
           background: "linear-gradient(180deg, #ffffff 0%, #F5F3EE 100%)",
           boxShadow:
-            "0 1px 0 rgba(245,243,238,0.06), 0 14px 38px -18px rgba(245,243,238,0.18), 0 34px 60px -40px rgba(245,243,238,0.18)",
+            "0 1px 2px rgba(28,27,24,0.04), 0 14px 38px -18px rgba(28,27,24,0.08), 0 34px 60px -40px rgba(28,27,24,0.06)",
         }}
       >
         <div className="relative px-6 md:px-8 pt-7 pb-8">
@@ -269,7 +260,7 @@ export default function ClientesPage() {
                 style={{
                   background: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(47,145,83,0.10))",
                   color: "#1C1B18",
-                  border: "1px solid rgba(245,243,238,0.08)",
+                  border: "1px solid #E5E1D8",
                 }}
               >
                 <Heart size={11} style={{ color: "#10b981" }} />
@@ -299,13 +290,13 @@ export default function ClientesPage() {
 
           {/* KPI tiles */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            <KpiTile icon={Users}      iconBg="#eef2ff" iconColor="#6366f1"
+            <KpiTile icon={Users}      iconBg="#F5F3EE" iconColor="#83807A"
               label="PERSONAS EN PERÍODO" value={kpis.totalCustomers} loading={loading && !data} />
-            <KpiTile icon={Sparkles}   iconBg="#ecfeff" iconColor="#2F9153"
+            <KpiTile icon={Sparkles}   iconBg="#F5F3EE" iconColor="#83807A"
               label="NUEVOS 7 DÍAS"      value={kpis.new7d}        loading={loading && !data} />
-            <KpiTile icon={Activity}   iconBg="#ecfdf5" iconColor="#10b981"
+            <KpiTile icon={Activity}   iconBg="#EDF3EE" iconColor="#2F9153"
               label="NAVEGANDO AHORA"   value={kpis.activeNow}    loading={loading && !data} live={kpis.activeNow > 0} />
-            <KpiTile icon={Crown}      iconBg="#f5f3ff" iconColor="#83807A"
+            <KpiTile icon={Crown}      iconBg="#F5F3EE" iconColor="#83807A"
               label="VIP (DECIL TOP)"   value={kpis.vipCount}     loading={loading && !data} />
           </div>
         </div>
@@ -317,8 +308,8 @@ export default function ClientesPage() {
       <div
         className="rounded-2xl bg-elevated px-3 py-2.5 flex flex-col lg:flex-row lg:items-center gap-3"
         style={{
-          border: "1px solid rgba(245,243,238,0.06)",
-          boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 12px 30px -18px rgba(245,243,238,0.12)",
+          border: "1px solid #E5E1D8",
+          boxShadow: "0 1px 2px rgba(28,27,24,0.04), 0 12px 30px -18px rgba(28,27,24,0.08)",
         }}
       >
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -341,7 +332,7 @@ export default function ClientesPage() {
                 style={{
                   background: active ? "#1C1B18" : "#F5F3EE",
                   color: active ? "#ffffff" : "#6B685F",
-                  border: active ? "1px solid transparent" : "1px solid rgba(245,243,238,0.06)",
+                  border: active ? "1px solid transparent" : "1px solid #E5E1D8",
                   transition: `all 200ms ${ES}`,
                 }}
               >
@@ -358,7 +349,7 @@ export default function ClientesPage() {
               max={dateTo}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-lg px-2 py-1.5 text-[12px] bg-surface text-ink outline-none"
-              style={{ border: "1px solid rgba(245,243,238,0.08)" }}
+              style={{ border: "1px solid #E5E1D8" }}
             />
             <span className="text-ink-40 text-xs">→</span>
             <input
@@ -368,7 +359,7 @@ export default function ClientesPage() {
               max={toDateInputValue(new Date())}
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-lg px-2 py-1.5 text-[12px] bg-surface text-ink outline-none"
-              style={{ border: "1px solid rgba(245,243,238,0.08)" }}
+              style={{ border: "1px solid #E5E1D8" }}
             />
           </div>
         )}
@@ -394,10 +385,10 @@ export default function ClientesPage() {
                 style={{
                   background: active ? cfg.gradient : "#ffffff",
                   color: active ? "#ffffff" : "#1C1B18",
-                  border: active ? "1px solid transparent" : "1px solid rgba(245,243,238,0.08)",
+                  border: active ? "1px solid transparent" : "1px solid #E5E1D8",
                   boxShadow: active
                     ? `0 8px 24px -10px ${cfg.solid}80, 0 2px 0 rgba(255,255,255,0.2) inset`
-                    : "0 1px 0 rgba(245,243,238,0.04)",
+                    : "0 1px 2px rgba(28,27,24,0.04)",
                   transition: `all 220ms ${ES}`,
                   animation: `bondlySlideIn 420ms ${ES} ${idx * 40}ms both`,
                 }}
@@ -407,17 +398,15 @@ export default function ClientesPage() {
                 <span
                   className="text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-md"
                   style={{
-                    background: active ? "rgba(255,255,255,0.22)" : "rgba(245,243,238,0.04)",
+                    background: active ? "rgba(255,255,255,0.22)" : "rgba(28,27,24,0.04)",
                     color: active ? "#ffffff" : "#6B685F",
                   }}
                 >
                   {seg.count.toLocaleString("es-AR")}
                 </span>
                 {seg.key === "browsing_now" && seg.count > 0 && (
-                  <span className="relative flex h-2 w-2 ml-0.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
-                      style={{ background: active ? "#ffffff" : "#2F9153" }} />
-                    <span className="relative inline-flex rounded-full h-2 w-2"
+                  <span className="relative inline-flex h-1.5 w-1.5 ml-0.5">
+                    <span className="inline-flex rounded-full h-1.5 w-1.5"
                       style={{ background: active ? "#ffffff" : "#2F9153" }} />
                   </span>
                 )}
@@ -433,8 +422,8 @@ export default function ClientesPage() {
       <div
         className="rounded-2xl bg-elevated p-3 flex flex-col md:flex-row md:items-center gap-3"
         style={{
-          border: "1px solid rgba(245,243,238,0.06)",
-          boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 12px 30px -18px rgba(245,243,238,0.12)",
+          border: "1px solid #E5E1D8",
+          boxShadow: "0 1px 2px rgba(28,27,24,0.04), 0 12px 30px -18px rgba(28,27,24,0.08)",
         }}
       >
         {/* Search */}
@@ -447,17 +436,17 @@ export default function ClientesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-surface text-ink placeholder-ink-40 outline-none"
             style={{
-              border: "1px solid rgba(245,243,238,0.06)",
+              border: "1px solid #E5E1D8",
               transition: `all 200ms ${ES}`,
             }}
             onFocus={(e) => {
               e.currentTarget.style.background = "#ffffff";
-              e.currentTarget.style.borderColor = "rgba(245,243,238,0.16)";
+              e.currentTarget.style.borderColor = "#DCD8CD";
               e.currentTarget.style.boxShadow = "0 0 0 4px rgba(47,145,83,0.10)";
             }}
             onBlur={(e) => {
               e.currentTarget.style.background = "#F5F3EE";
-              e.currentTarget.style.borderColor = "rgba(245,243,238,0.06)";
+              e.currentTarget.style.borderColor = "#E5E1D8";
               e.currentTarget.style.boxShadow = "none";
             }}
           />
@@ -499,7 +488,7 @@ export default function ClientesPage() {
           style={{
             background: activeFiltersCount > 0 ? "#1C1B18" : "#ffffff",
             color: activeFiltersCount > 0 ? "#ffffff" : "#1C1B18",
-            border: "1px solid rgba(245,243,238,0.08)",
+            border: "1px solid #E5E1D8",
             transition: `all 200ms ${ES}`,
           }}
         >
@@ -518,7 +507,7 @@ export default function ClientesPage() {
           disabled={!customers.length}
           className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-ink-60 bg-elevated disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface"
           style={{
-            border: "1px solid rgba(245,243,238,0.08)",
+            border: "1px solid #E5E1D8",
             transition: `all 200ms ${ES}`,
           }}
           title="Exportar CSV de la vista filtrada"
@@ -533,8 +522,8 @@ export default function ClientesPage() {
         <div
           className="rounded-2xl bg-elevated p-4 grid grid-cols-1 md:grid-cols-3 gap-3"
           style={{
-            border: "1px solid rgba(245,243,238,0.06)",
-            boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
+            border: "1px solid #E5E1D8",
+            boxShadow: "0 1px 2px rgba(28,27,24,0.04)",
             animation: `bondlyFadeSlideIn 260ms ${ES}`,
           }}
         >
@@ -618,7 +607,7 @@ export default function ClientesPage() {
           {Array.from({ length: 6 }).map((_, i) => <CustomerSkeleton key={i} />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl bg-elevated p-10 text-center" style={{ border: "1px solid rgba(245,243,238,0.06)" }}>
+        <div className="rounded-2xl bg-elevated p-10 text-center" style={{ border: "1px solid #E5E1D8" }}>
           <AlertTriangle size={32} className="text-amber-500 mx-auto mb-2" />
           <p className="text-sm font-medium text-ink">Error al cargar clientes</p>
           <p className="text-xs text-ink-40 mt-1">{error}</p>
@@ -651,8 +640,8 @@ export default function ClientesPage() {
         <div
           className="rounded-2xl bg-elevated px-4 py-3 flex items-center justify-between flex-wrap gap-3"
           style={{
-            border: "1px solid rgba(245,243,238,0.06)",
-            boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
+            border: "1px solid #E5E1D8",
+            boxShadow: "0 1px 2px rgba(28,27,24,0.04)",
           }}
         >
           <p className="text-xs text-ink-40 tabular-nums">
@@ -665,7 +654,7 @@ export default function ClientesPage() {
               disabled={page === 1}
               aria-label="Página anterior"
               className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface"
-              style={{ border: "1px solid rgba(245,243,238,0.08)", transition: `all 200ms ${ES}` }}
+              style={{ border: "1px solid #E5E1D8", transition: `all 200ms ${ES}` }}
             >
               ‹
             </button>
@@ -703,7 +692,7 @@ export default function ClientesPage() {
                     aria-current={isActive ? "page" : undefined}
                     className="h-8 min-w-[32px] px-2 flex items-center justify-center rounded-lg text-xs font-medium tabular-nums"
                     style={{
-                      border: "1px solid rgba(245,243,238,0.08)",
+                      border: "1px solid #E5E1D8",
                       background: isActive ? "#1C1B18" : "transparent",
                       color: isActive ? "#ffffff" : "#1C1B18",
                       transition: `all 200ms ${ES}`,
@@ -721,7 +710,7 @@ export default function ClientesPage() {
               disabled={page >= pagination.totalPages}
               aria-label="Página siguiente"
               className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface"
-              style={{ border: "1px solid rgba(245,243,238,0.08)", transition: `all 200ms ${ES}` }}
+              style={{ border: "1px solid #E5E1D8", transition: `all 200ms ${ES}` }}
             >
               ›
             </button>
@@ -742,9 +731,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
   const isAnon = c.kind === "anonymous" || c.tier === "Anonymous";
   const tier = TIER_CONFIG[c.tier] || TIER_CONFIG.Regular;
   const TierIcon = tier.icon;
-  const avatarGrad = isAnon
-    ? "linear-gradient(135deg, #83807A 0%, #83807A 100%)"
-    : avatarGradientFor(c.id);
+  const avatarGrad = isAnon ? "#83807A" : avatarToneFor(c.id);
 
   const primaryFlag = c.flags?.find((f: string) => ["vip", "browsing_now", "cart_abandoned", "reappeared", "new_7d"].includes(f));
 
@@ -763,8 +750,8 @@ function CustomerCard({ customer: c, index, onClick }: any) {
       disabled={isAnon}
       className="group relative text-left w-full rounded-2xl bg-elevated p-4 overflow-hidden"
       style={{
-        border: `1px solid rgba(245,243,238,0.06)`,
-        boxShadow: "0 1px 0 rgba(245,243,238,0.04), 0 10px 30px -22px rgba(245,243,238,0.20)",
+        border: `1px solid #E5E1D8`,
+        boxShadow: "0 1px 2px rgba(28,27,24,0.04), 0 10px 30px -22px rgba(28,27,24,0.10)",
         transition: `all 220ms ${ES}`,
         animation: `bondlyFadeSlideIn 420ms ${ES} ${Math.min(index * 30, 400)}ms both`,
         cursor: isAnon ? "default" : "pointer",
@@ -773,14 +760,14 @@ function CustomerCard({ customer: c, index, onClick }: any) {
       onMouseEnter={(e) => {
         if (isAnon) return;
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = `0 1px 0 rgba(245,243,238,0.06), 0 20px 40px -18px ${tier.glow}, 0 30px 60px -30px rgba(245,243,238,0.20)`;
+        e.currentTarget.style.boxShadow = `0 1px 2px rgba(28,27,24,0.05), 0 20px 40px -18px ${tier.glow}, 0 30px 60px -30px rgba(28,27,24,0.10)`;
         e.currentTarget.style.borderColor = `${tier.accent}33`;
       }}
       onMouseLeave={(e) => {
         if (isAnon) return;
         e.currentTarget.style.transform = "";
-        e.currentTarget.style.boxShadow = "0 1px 0 rgba(245,243,238,0.04), 0 10px 30px -22px rgba(245,243,238,0.20)";
-        e.currentTarget.style.borderColor = "rgba(245,243,238,0.06)";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(28,27,24,0.04), 0 10px 30px -22px rgba(28,27,24,0.10)";
+        e.currentTarget.style.borderColor = "#E5E1D8";
       }}
     >
       {/* Tier accent line */}
@@ -867,7 +854,7 @@ function CustomerCard({ customer: c, index, onClick }: any) {
               className="rounded-lg px-2.5 py-2 mb-2.5 text-[11px] text-ink-40"
               style={{
                 background: "#F5F3EE",
-                border: "1px dashed rgba(245,243,238,0.08)",
+                border: "1px dashed #DCD8CD",
               }}
             >
               <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-40">COMMERCE</span>
@@ -963,8 +950,8 @@ function CustomerSkeleton() {
     <div
       className="rounded-2xl bg-elevated p-4"
       style={{
-        border: "1px solid rgba(245,243,238,0.06)",
-        boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
+        border: "1px solid #E5E1D8",
+        boxShadow: "0 1px 2px rgba(28,27,24,0.04)",
       }}
     >
       <div className="flex gap-3">
@@ -1004,8 +991,8 @@ function EmptyState({ quickSegment, onReset }: any) {
     <div
       className="rounded-2xl bg-elevated p-12 text-center"
       style={{
-        border: "1px solid rgba(245,243,238,0.06)",
-        boxShadow: "0 1px 0 rgba(245,243,238,0.04)",
+        border: "1px solid #E5E1D8",
+        boxShadow: "0 1px 2px rgba(28,27,24,0.04)",
       }}
     >
       <div
@@ -1042,7 +1029,7 @@ function SelectDropdown({ icon: Icon, label, value, options, onChange }: any) {
         onChange={(e) => onChange(e.target.value)}
         className="appearance-none pl-7 pr-7 py-2 rounded-xl text-sm font-medium text-ink bg-elevated min-w-[160px] cursor-pointer"
         style={{
-          border: "1px solid rgba(245,243,238,0.08)",
+          border: "1px solid #E5E1D8",
           transition: `all 200ms ${ES}`,
         }}
       >
@@ -1065,7 +1052,7 @@ function FieldSelect({ label, value, onChange, options }: any) {
           onChange={(e) => onChange(e.target.value)}
           className="appearance-none w-full px-3 pr-8 py-2 rounded-xl text-sm text-ink bg-surface cursor-pointer"
           style={{
-            border: "1px solid rgba(245,243,238,0.06)",
+            border: "1px solid #E5E1D8",
             transition: `all 200ms ${ES}`,
           }}
         >

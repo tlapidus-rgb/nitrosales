@@ -190,12 +190,12 @@ export default function AnalyticsPage() {
             },
           ].map((kpi) => (
             <div key={kpi.label} className="bg-elevated rounded-xl border border-hairline p-4">
-              <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#9CA3AF" }}>{kpi.label}</p>
+              <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#83807A" }}>{kpi.label}</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-lg font-bold" style={{ color: "#111827" }}>{kpi.value}</p>
                 {kpi.change !== undefined && <ChangeBadge value={kpi.change} />}
               </div>
-              {kpi.sub && <p className="text-[10px] mt-1" style={{ color: "#9CA3AF" }}>{kpi.sub}</p>}
+              {kpi.sub && <p className="text-[10px] mt-1" style={{ color: "#83807A" }}>{kpi.sub}</p>}
             </div>
           ))}
         </div>
@@ -252,7 +252,7 @@ export default function AnalyticsPage() {
                     style={{ height: `${Math.max((c.total / maxCohortRevenue) * 120, 4)}px` }}
                   />
                 </div>
-                <p className="text-[10px] font-mono" style={{ color: "#9CA3AF" }}>
+                <p className="text-[10px] font-mono" style={{ color: "#83807A" }}>
                   {shortMonth(c.month)}
                 </p>
               </div>
@@ -298,7 +298,7 @@ export default function AnalyticsPage() {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-medium text-sm" style={{ color: "#111827" }}>{c.name}</p>
-                    <p className="text-[10px]" style={{ color: "#9CA3AF" }}>
+                    <p className="text-[10px]" style={{ color: "#83807A" }}>
                       {c.influencer} · {c.status === "ACTIVE" ? "Activa" : c.status === "COMPLETED" ? "Completada" : "Pausada"}
                     </p>
                   </div>
@@ -315,19 +315,19 @@ export default function AnalyticsPage() {
 
                 <div className="grid grid-cols-4 gap-3 text-xs">
                   <div>
-                    <p style={{ color: "#9CA3AF" }}>Ventas</p>
+                    <p style={{ color: "#83807A" }}>Ventas</p>
                     <p className="font-semibold" style={{ color: "#111827" }}>{fmtARS(c.revenue)}</p>
                   </div>
                   <div>
-                    <p style={{ color: "#9CA3AF" }}>Comisión</p>
+                    <p style={{ color: "#83807A" }}>Comisión</p>
                     <p className="font-semibold" style={{ color: "#F97316" }}>{fmtARS(c.commission)}</p>
                   </div>
                   <div>
-                    <p style={{ color: "#9CA3AF" }}>Costo total</p>
+                    <p style={{ color: "#83807A" }}>Costo total</p>
                     <p className="font-semibold" style={{ color: "#111827" }}>{fmtARS(c.totalCost)}</p>
                   </div>
                   <div>
-                    <p style={{ color: "#9CA3AF" }}>Conversiones</p>
+                    <p style={{ color: "#83807A" }}>Conversiones</p>
                     <p className="font-semibold" style={{ color: "#111827" }}>{fmt(c.conversions)}</p>
                   </div>
                 </div>
@@ -335,7 +335,7 @@ export default function AnalyticsPage() {
                 {c.progress !== null && (
                   <div className="mt-3">
                     <div className="flex justify-between text-[10px] mb-1">
-                      <span style={{ color: "#9CA3AF" }}>Objetivo: {fmtARS(c.bonusTarget || 0)}</span>
+                      <span style={{ color: "#83807A" }}>Objetivo: {fmtARS(c.bonusTarget || 0)}</span>
                       <span style={{ color: c.progress >= 100 ? "#22C55E" : "#F97316" }}>{c.progress.toFixed(0)}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">

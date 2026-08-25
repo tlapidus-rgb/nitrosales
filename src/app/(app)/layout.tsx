@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useState, useMemo } from "react";
 import { AurumProvider } from "@/components/aurum/AurumContext";
 import FloatingAurum from "@/components/aurum/FloatingAurum";
-import { AurumOrb } from "@/components/aurum/AurumOrb";
 import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@/hooks/usePermissions";
 import AlertsBadge from "@/components/alerts/AlertsBadge";
 import { PixelInstallBanner } from "@/components/PixelInstallBanner";
@@ -19,6 +18,7 @@ import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { LivePulse } from "@/components/enterprise/ui";
+import { PageLoader } from "@/components/PageLoader";
 
 // NitroPixel es el único item premium sin `children` en NAV_GROUPS (sus sub-pantallas
 // vivían hardcodeadas en la premium-card). En el sidebar sobrio siempre-expandido las
@@ -36,7 +36,7 @@ type NavItem = {
   label: string;
   icon: string;
   children?: { href: string; label: string; group?: string }[];
-  premium?: { badge: string; badgeColor: string; glowColor: string; description: string };
+  premium?: { badge: string; description: string };
 };
 
 type NavGroup = {
@@ -53,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/nitropixel",
         label: "NitroPixel",
         icon: "M13 10V3L4 14h7v7l9-11h-7z",
-        premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
+        premium: { badge: "ASSET", description: "Tu activo digital vivo" },
       },
       // Aurum oculto por pedido de Tomy (reunión 08/07/26): no se muestra en
       // ningún lado pero NO se elimina — reactivar descomentando este item.
@@ -61,7 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
       //   href: "/chat",
       //   label: "Aurum",
       //   icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
-      //   premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
+      //   premium: { badge: "INTELLIGENCE", description: "Inteligencia dorada del negocio" },
       // },
     ],
   },
@@ -96,8 +96,6 @@ const NAV_GROUPS: NavGroup[] = [
         icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
         premium: {
           badge: "LOYALTY",
-          badgeColor: "#10b981",
-          glowColor: "rgba(16,185,129,0.32)",
           description: "Clientes, LTV y audiencias.",
         },
         children: [
@@ -114,8 +112,6 @@ const NAV_GROUPS: NavGroup[] = [
         icon: "M12 3a9 9 0 100 18 9 9 0 000-18zm0 4a5 5 0 110 10 5 5 0 010-10zm0 3a2 2 0 100 4 2 2 0 000-4z",
         premium: {
           badge: "NEW",
-          badgeColor: "#f472b6",
-          glowColor: "rgba(244,114,182,0.38)",
           description: "Tu nuevo canal de ventas.",
         },
         // Separadores de grupo ("CREADORES", "PAGOS", …) quitados por pedido de
@@ -231,55 +227,6 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 
-// ── PixelBrain animated icon for sidebar ──
-function PixelBrainSidebar({ size = 28 }: { size?: number }) {
-  return (
-    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-      {/* Glow background */}
-      <div className="absolute inset-[-4px] rounded-full" style={{ background: "radial-gradient(circle, rgba(6,182,212,0.25) 0%, transparent 70%)", animation: "pixelBreath 3s ease-in-out infinite" }} />
-      <svg width={size} height={size} viewBox="0 0 200 200" className="relative" style={{ filter: "drop-shadow(0 0 4px rgba(6,182,212,0.4))" }}>
-        <defs>
-          <radialGradient id="sbCore" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#e0f7fa" stopOpacity="1" />
-            <stop offset="40%" stopColor="#06b6d4" stopOpacity="0.95" />
-            <stop offset="80%" stopColor="#0e7490" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        {/* Outer orbit */}
-        <g style={{ transformOrigin: "100px 100px", animation: "pixelOrbitReverse 18s linear infinite" }}>
-          <circle cx="100" cy="100" r="88" fill="none" stroke="#06b6d4" strokeOpacity="0.3" strokeWidth="1.5" strokeDasharray="5 8" />
-          <circle cx="188" cy="100" r="4" fill="#22d3ee" opacity="0.9" style={{ filter: "drop-shadow(0 0 3px #06b6d4)" }} />
-        </g>
-        {/* Inner orbit */}
-        <g style={{ transformOrigin: "100px 100px", animation: "pixelOrbit 12s linear infinite" }}>
-          <circle cx="100" cy="100" r="68" fill="none" stroke="#8b5cf6" strokeOpacity="0.25" strokeWidth="1.5" strokeDasharray="4 6" />
-          <circle cx="32" cy="100" r="3.5" fill="#a855f7" opacity="0.8" style={{ filter: "drop-shadow(0 0 3px #8b5cf6)" }} />
-        </g>
-        {/* Neurons — larger, brighter */}
-        {[0,1,2,3,4,5].map((i: number) => {
-          const angle = (i / 6) * Math.PI * 2;
-          const x = 100 + Math.cos(angle) * 58;
-          const y = 100 + Math.sin(angle) * 58;
-          return <circle key={i} cx={x} cy={y} r="4" fill="#22d3ee" opacity="0.8" style={{ animation: `pixelNeuronPulse 2s ease-in-out infinite ${i * 280}ms`, filter: "drop-shadow(0 0 2px #06b6d4)" }} />;
-        })}
-        {/* Synapses connecting neurons */}
-        {[0,1,2,3,4,5].map((i: number) => {
-          const a1 = (i / 6) * Math.PI * 2;
-          const a2 = ((i + 2) % 6 / 6) * Math.PI * 2;
-          return <line key={`s${i}`} x1={100 + Math.cos(a1) * 58} y1={100 + Math.sin(a1) * 58} x2={100 + Math.cos(a2) * 58} y2={100 + Math.sin(a2) * 58} stroke="#06b6d4" strokeOpacity="0.2" strokeWidth="0.8" strokeDasharray="80" style={{ animation: `pixelSynapseFlow 3s ease-in-out infinite ${i * 200}ms` }} />;
-        })}
-        {/* Core — bigger, brighter */}
-        <g style={{ transformOrigin: "100px 100px", animation: "pixelBreath 2.8s ease-in-out infinite" }}>
-          <circle cx="100" cy="100" r="38" fill="url(#sbCore)" />
-          <circle cx="100" cy="100" r="22" fill="#a5f3fc" opacity="0.9" />
-          <circle cx="100" cy="100" r="12" fill="#ffffff" opacity="0.95" />
-        </g>
-      </svg>
-    </div>
-  );
-}
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
@@ -290,11 +237,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-nitro-bg flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse-live" />
-          <p className="text-nitro-text2 font-mono text-sm tracking-wider uppercase">Cargando</p>
-        </div>
+      <div className="min-h-screen bg-canvas text-ink-40">
+        <PageLoader label="Cargando" minHeight="100vh" />
       </div>
     );
   }
@@ -312,158 +256,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Aurum oculto por pedido de Tomy (reunión 08/07/26): botón flotante
           desactivado. El provider/contexto queda para reactivar sin romper nada. */}
       {/* <FloatingAurum /> */}
-      {/* Aurum global animations */}
+      {/* Keyframes globales heredados. Los decorativos del look viejo (glow cyan, holo
+          arcoíris + veil oscuro, shimmer, órbitas, sinapsis, breath, journey-dot…) se
+          eliminaron al migrar al design system enterprise sobrio. Quedan solo los nombres
+          que BrandLogo (NITROPIXEL) todavía referencia — NEUTRALIZADOS a inertes para no
+          romperlo mientras se migra ese componente. pixelGlow también queda neutralizado
+          (sin box-shadow cyan) por la migración concurrente de NitroPixel. */}
       <style jsx global>{`
-        @keyframes aurumShimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
+        /* Neutralizado: era un glow cyan (box-shadow 0 0 30px rgba(6,182,212,.4)). Inerte. */
+        @keyframes pixelGlow {
+          0%, 100% { box-shadow: none; }
+          50% { box-shadow: none; }
         }
-        .aurum-shimmer {
-          animation: aurumShimmer 4.5s ease-in-out infinite;
+        /* Neutralizados a inertes (sin movimiento). Nombres conservados porque
+           BrandLogo (NITROPIXEL) aún los referencia vía animation inline. */
+        @keyframes pixelBreath {
+          0%, 100% { transform: none; opacity: 1; }
         }
-        @keyframes aurumOrbit {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes aurumBreath {
-          0%, 100% { transform: scale(1); opacity: 0.9; }
-          50% { transform: scale(1.04); opacity: 1; }
-        }
-        @keyframes aurumFloat {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-3px); }
-        }
-        @keyframes aurumFadeUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes aurumPulseRing {
-          0% { transform: scale(0.95); opacity: 0.7; }
-          50% { transform: scale(1.05); opacity: 1; }
-          100% { transform: scale(0.95); opacity: 0.7; }
-        }
-        @keyframes aurumTextCycle {
-          0%, 20% { opacity: 0; transform: translateY(6px); }
-          25%, 45% { opacity: 1; transform: translateY(0); }
-          50%, 100% { opacity: 0; transform: translateY(-6px); }
-        }
-        /* ─── NitroPixel sidebar animations ─── */
-        @keyframes pixelScan {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-        .pixel-scan {
-          animation: pixelScan 5s ease-in-out infinite;
-        }
-        @keyframes pixelHeartbeat {
-          0%, 100% { transform: scale(1); opacity: 0.85; }
-          14% { transform: scale(1.5); opacity: 1; }
-          28% { transform: scale(1); opacity: 0.85; }
-          42% { transform: scale(1.35); opacity: 1; }
-          70% { transform: scale(1); opacity: 0.85; }
-        }
-        .pixel-heartbeat {
-          animation: pixelHeartbeat 1.6s ease-in-out infinite;
-        }
-        /* ─── NitroPixel page-level animations ─── */
         @keyframes pixelOrbit {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          from { transform: none; }
+          to { transform: none; }
         }
         @keyframes pixelOrbitReverse {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
-        @keyframes pixelDataFlow {
-          0% { transform: translateY(100%); opacity: 0; }
-          15% { opacity: 1; }
-          85% { opacity: 1; }
-          100% { transform: translateY(-100%); opacity: 0; }
-        }
-        @keyframes pixelBreath {
-          0%, 100% { transform: scale(1); opacity: 0.9; filter: brightness(1); }
-          50% { transform: scale(1.05); opacity: 1; filter: brightness(1.15); }
-        }
-        @keyframes pixelGlow {
-          0%, 100% { box-shadow: 0 0 30px rgba(6,182,212,0.4), 0 0 60px rgba(6,182,212,0.2), inset 0 0 20px rgba(6,182,212,0.1); }
-          50% { box-shadow: 0 0 50px rgba(6,182,212,0.6), 0 0 100px rgba(139,92,246,0.3), inset 0 0 30px rgba(6,182,212,0.2); }
-        }
-        @keyframes pixelFadeUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pixelCounter {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.04); color: #a5f3fc; }
-          100% { transform: scale(1); }
-        }
-        @keyframes pixelGridShift {
-          0% { background-position: 0 0; }
-          100% { background-position: 40px 40px; }
-        }
-        @keyframes pixelNeuronPulse {
-          0%, 100% { opacity: 0.35; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.6); }
-        }
-        @keyframes pixelSynapseFlow {
-          0% { stroke-dashoffset: 100; opacity: 0; }
-          20% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { stroke-dashoffset: 0; opacity: 0; }
-        }
-        @keyframes pixelShimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        @keyframes pixelJourneyDot {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139,92,246,0.5); }
-          50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(139,92,246,0); }
-        }
-        /* ═══ Aura holográfico ═══ */
-        @keyframes auraHoloRotate {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        @keyframes auraTitleShift {
-          0%, 100% { background-position: 0% 50%; }
-          50%      { background-position: 100% 50%; }
-        }
-        @keyframes livePulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.45; transform: scale(0.82); }
-        }
-        .aura-holo-card { position: relative; isolation: isolate; }
-        .aura-holo-conic::before {
-          content: '';
-          position: absolute;
-          inset: -40%;
-          background: conic-gradient(from 0deg at 50% 50%,
-            rgba(255,0,128,0.18),
-            rgba(168,85,247,0.18),
-            rgba(0,212,255,0.18),
-            rgba(168,85,247,0.18),
-            rgba(255,0,128,0.18));
-          opacity: 0.55;
-          animation: auraHoloRotate 14s linear infinite;
-          pointer-events: none;
-          z-index: 0;
-        }
-        .aura-holo-veil::after {
-          content: '';
-          position: absolute;
-          inset: 1px;
-          background: linear-gradient(180deg, rgba(10,7,20,0.82) 0%, rgba(10,7,20,0.94) 100%);
-          border-radius: 11px;
-          pointer-events: none;
-          z-index: 1;
-        }
-        .aura-holo-title {
-          background: linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%);
-          background-size: 220% 100%;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: auraTitleShift 7s ease-in-out infinite;
+          from { transform: none; }
+          to { transform: none; }
         }
       `}</style>
       {/* Mobile overlay */}

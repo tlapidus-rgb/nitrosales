@@ -9,12 +9,12 @@
  * Fase 0 del rediseño (ver PROPUESTA_PNL_REORG.md).
  * Vocabulario y orden decidido en sesión 41 con Tomy.
  *
- * Decisiones visuales (UI_VISION_NITROSALES.md):
- *   - Tab activo: gradient dorado + dot pulsante + tracking-tight
- *   - Tab inactivo: slate-500, hover sutil con blur background
- *   - Easing: cubic-bezier(0.16, 1, 0.3, 1) — signature curve del producto
- *   - Fondo: blanco puro con aurora radial dorada abajo izquierda
- *   - Prism delimiter debajo de los tabs (cyan → violet → orange)
+ * Decisiones visuales (design system enterprise-sobrio):
+ *   - Tab activo: ink + dot estático + tracking-tight
+ *   - Tab inactivo: ink-60, hover sutil
+ *   - Easing: cubic-bezier(0.16, 1, 0.3, 1)
+ *   - Fondo: canvas plano (sin aurora)
+ *   - Delimitador hairline debajo de los tabs
  */
 
 import React from "react";
@@ -72,43 +72,18 @@ export default function FinanzasLayout({
   };
 
   return (
-    <div className="relative min-h-screen">
-      {/* Aurora dorada sutil — signature de Finanzas */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          background:
-            "radial-gradient(circle at 10% 95%, rgba(251,191,36,0.08) 0%, transparent 55%), radial-gradient(circle at 95% 5%, rgba(139,92,246,0.06) 0%, transparent 50%)",
-        }}
-      />
-
+    <div className="relative min-h-screen bg-canvas">
       <div className="relative z-10">
         {/* ═══════ HEADER ═══════ */}
-        <header
-          className="sticky top-0 z-40 backdrop-blur-md"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.78) 100%)",
-            borderBottom: "1px solid rgba(226,232,240,0.8)",
-          }}
-        >
+        <header className="sticky top-0 z-40 bg-canvas border-b border-hairline">
           <div className="mx-auto max-w-7xl px-6 pt-6 pb-0">
             {/* Breadcrumb + título */}
             <div className="flex items-center gap-3 mb-1">
-              <span
-                className="text-[10px] font-semibold tracking-[0.18em] uppercase"
-                style={{
-                  background: "rgb(var(--ent-ink))",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
+              <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-ink">
                 FINANZAS
               </span>
-              <span className="text-xs text-slate-400">·</span>
-              <span className="text-xs text-slate-500 tracking-tight">
+              <span className="text-xs text-ink-40">·</span>
+              <span className="text-xs text-ink-60 tracking-tight">
                 Control financiero tri-moneda
               </span>
             </div>
@@ -135,19 +110,13 @@ export default function FinanzasLayout({
                           height: 6,
                           background: active
                             ? "rgb(var(--ent-ink))"
-                            : "rgba(148,163,184,0.35)",
-                          boxShadow: active
-                            ? "0 0 10px rgba(251,191,36,0.6)"
-                            : "none",
-                          animation: active
-                            ? "finanzasDotPulse 2.4s ease-in-out infinite"
-                            : "none",
-                          transition: `background 240ms ${ES}, box-shadow 240ms ${ES}`,
+                            : "rgb(var(--ent-ink-40))",
+                          transition: `background 240ms ${ES}`,
                         }}
                       />
                       <span
                         className={`text-sm font-semibold tracking-tight ${
-                          active ? "text-slate-900" : "text-slate-500"
+                          active ? "text-ink" : "text-ink-60"
                         }`}
                         style={{
                           transition: `color 200ms ${ES}`,
@@ -160,7 +129,7 @@ export default function FinanzasLayout({
                     {/* Descripción sutil */}
                     <span
                       className={`mt-0.5 ml-4 text-[11px] tracking-tight ${
-                        active ? "text-slate-500" : "text-slate-400"
+                        active ? "text-ink-60" : "text-ink-40"
                       }`}
                       style={{ transition: `color 200ms ${ES}` }}
                     >
@@ -185,35 +154,14 @@ export default function FinanzasLayout({
               })}
             </nav>
 
-            {/* Prism delimiter — línea horizontal multi-color fina */}
-            <div
-              aria-hidden
-              className="h-px w-full"
-              style={{
-                background:
-                  "linear-gradient(90deg, rgba(6,182,212,0) 0%, rgba(6,182,212,0.45) 20%, rgba(139,92,246,0.55) 50%, rgba(249,115,22,0.45) 80%, rgba(249,115,22,0) 100%)",
-              }}
-            />
+            {/* Delimitador — línea fina sobria */}
+            <div aria-hidden className="h-px w-full bg-hairline" />
           </div>
         </header>
 
         {/* ═══════ CONTENIDO ═══════ */}
         <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
       </div>
-
-      <style jsx global>{`
-        @keyframes finanzasDotPulse {
-          0%,
-          100% {
-            transform: scale(1);
-            filter: brightness(1);
-          }
-          50% {
-            transform: scale(1.25);
-            filter: brightness(1.18);
-          }
-        }
-      `}</style>
     </div>
   );
 }

@@ -235,13 +235,6 @@ function ScenarioPanel({
     >
       {/* Header */}
       <div className="relative p-4">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-8 h-20"
-          style={{
-            background: `radial-gradient(ellipse at 50% 0%, ${color}22 0%, transparent 70%)`,
-          }}
-        />
         <div className="relative flex items-center gap-2">
           <span
             className="h-2 w-2 rounded-full"

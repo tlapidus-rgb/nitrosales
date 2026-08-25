@@ -34,20 +34,20 @@ const THEME = {
   textTertiary: "rgb(var(--ent-ink-40))",
   textMuted: "rgb(var(--ent-ink-40))",
   gold: "rgb(var(--ent-accent))",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
+  goldSoft: "rgba(47, 145, 83, 0.10)",
+  goldBorder: "rgba(47, 145, 83, 0.28)",
   purple: "rgb(var(--ent-ink-40))",
-  purpleSoft: "rgba(168, 85, 247, 0.10)",
-  purpleBorder: "rgba(168, 85, 247, 0.28)",
-  cyan: "rgb(var(--ent-ink-40))",
-  cyanSoft: "rgba(0, 212, 255, 0.10)",
-  cyanBorder: "rgba(0, 212, 255, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
+  purpleSoft: "rgba(28, 27, 24, 0.05)",
+  purpleBorder: "rgba(28, 27, 24, 0.12)",
+  cyan: "rgb(var(--ent-amber))",
+  cyanSoft: "rgba(201, 138, 26, 0.10)",
+  cyanBorder: "rgba(201, 138, 26, 0.28)",
+  green: "#047857",
+  greenSoft: "rgba(4, 120, 87, 0.10)",
+  greenBorder: "rgba(4, 120, 87, 0.28)",
+  rose: "#b91c1c",
+  roseSoft: "rgba(185, 28, 28, 0.08)",
+  roseBorder: "rgba(185, 28, 28, 0.24)",
   gradientText: "rgb(var(--ent-ink))",
 };
 
@@ -578,8 +578,8 @@ function SubmissionRow({
           onClick={() => setNotesOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl p-5"
-            style={{ background: "#14141f", border: `1px solid ${THEME.borderStrong}` }}
+            className="w-full max-w-md rounded-2xl p-5 shadow-ent-soft"
+            style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-4">

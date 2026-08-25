@@ -19,46 +19,34 @@ import { SourceLogo, CHANNEL_LABEL, CHANNEL_TINT } from "@/components/bondly/Sou
 // Constantes visuales Bondly
 // ═══════════════════════════════════════════════════════════════════
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
-const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #2F9153 50%, #6366f1 100%)";
-const VIP_GRAD = "linear-gradient(135deg, #83807A 0%, #ec4899 50%, #f97316 100%)";
-const GOLD_GRAD = "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)";
 
-const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gradient: string; label: string; bg: string }> = {
+// Enterprise-sober: tier identity encoded with a single flat ink/accent tone,
+// no multicolor gradients, no colored glows. New = accent green (positive
+// status), At Risk = amber (semantic warning), the rest = warm neutral ink.
+const TIER_CONFIG: Record<string, { icon: any; accent: string; gradient: string; label: string; bg: string }> = {
   VIP: {
-    icon: Crown, accent: "#83807A", glow: "rgba(168,85,247,0.45)",
-    gradient: "linear-gradient(135deg, #83807A 0%, #ec4899 50%, #f97316 100%)",
-    bg: "linear-gradient(135deg, rgba(168,85,247,0.10), rgba(236,72,153,0.08))",
-    label: "VIP",
+    icon: Crown, accent: "#1C1B18", gradient: "#1C1B18",
+    bg: "#F5F3EE", label: "VIP",
   },
   Loyal: {
-    icon: Heart, accent: "#ec4899", glow: "rgba(236,72,153,0.35)",
-    gradient: "linear-gradient(135deg, #ec4899 0%, #83807A 100%)",
-    bg: "linear-gradient(135deg, rgba(236,72,153,0.08), rgba(168,85,247,0.06))",
-    label: "LEAL",
+    icon: Heart, accent: "#6B685F", gradient: "#6B685F",
+    bg: "#F5F3EE", label: "LEAL",
   },
   Regular: {
-    icon: Users, accent: "#6366f1", glow: "rgba(99,102,241,0.30)",
-    gradient: "linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)",
-    bg: "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(59,130,246,0.05))",
-    label: "REGULAR",
+    icon: Users, accent: "#83807A", gradient: "#83807A",
+    bg: "#F5F3EE", label: "REGULAR",
   },
   New: {
-    icon: Sparkles, accent: "#2F9153", glow: "rgba(229,225,216,0.35)",
-    gradient: "linear-gradient(135deg, #2F9153 0%, #3b82f6 100%)",
-    bg: "linear-gradient(135deg, rgba(229,225,216,0.08), rgba(59,130,246,0.06))",
-    label: "NUEVO",
+    icon: Sparkles, accent: "#2F9153", gradient: "#2F9153",
+    bg: "#EDF3EE", label: "NUEVO",
   },
   "At Risk": {
-    icon: AlertTriangle, accent: "#f59e0b", glow: "rgba(245,158,11,0.40)",
-    gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
-    bg: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(239,68,68,0.06))",
-    label: "EN RIESGO",
+    icon: AlertTriangle, accent: "#C98A1A", gradient: "#C98A1A",
+    bg: "#F6EDD8", label: "EN RIESGO",
   },
   Dormant: {
-    icon: Moon, accent: "#83807A", glow: "rgba(154,151,141,0.30)",
-    gradient: "linear-gradient(135deg, #83807A 0%, #6B685F 100%)",
-    bg: "linear-gradient(135deg, rgba(154,151,141,0.06), rgba(107,104,95,0.05))",
-    label: "DORMIDO",
+    icon: Moon, accent: "#83807A", gradient: "#83807A",
+    bg: "#F5F3EE", label: "DORMIDO",
   },
 };
 
@@ -169,24 +157,6 @@ function initialsFrom(name: string): string {
   if (parts.length === 0) return "·";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function avatarGradientFor(id: string): string {
-  const GRADIENTS = [
-    "linear-gradient(135deg, #2F9153 0%, #6366f1 100%)",
-    "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
-    "linear-gradient(135deg, #10b981 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #83807A 0%, #ec4899 100%)",
-    "linear-gradient(135deg, #3b82f6 0%, #2F9153 100%)",
-    "linear-gradient(135deg, #ec4899 0%, #83807A 100%)",
-    "linear-gradient(135deg, #f97316 0%, #fbbf24 100%)",
-    "linear-gradient(135deg, #14b8a6 0%, #0891b2 100%)",
-    "linear-gradient(135deg, #6366f1 0%, #83807A 100%)",
-    "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
-  ];
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return GRADIENTS[h % GRADIENTS.length];
 }
 
 function formatRelative(iso: string | null): string {
@@ -351,10 +321,9 @@ export default function ClienteDetailPage() {
             {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div
-                className="relative w-28 h-28 md:w-32 md:h-32 rounded-3xl flex items-center justify-center text-white font-bold text-3xl md:text-4xl tracking-tight"
+                className="relative w-28 h-28 md:w-32 md:h-32 rounded-3xl flex items-center justify-center bg-ink text-white font-bold text-3xl md:text-4xl tracking-tight"
                 style={{
-                  background: avatarGradientFor(customer.id),
-                  boxShadow: `0 20px 50px -12px ${tierCfg.glow}, 0 0 0 4px white, 0 0 0 5px ${tierCfg.accent}22`,
+                  boxShadow: "0 1px 2px rgba(28,27,24,0.06), 0 0 0 4px white, 0 0 0 5px rgba(28,27,24,0.06)",
                   transform: "rotate(-2deg)",
                 }}
               >
@@ -377,7 +346,7 @@ export default function ClienteDetailPage() {
                 className="absolute -top-2 -left-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white tracking-wide"
                 style={{
                   background: tierCfg.gradient,
-                  boxShadow: `0 6px 18px ${tierCfg.glow}`,
+                  boxShadow: "0 1px 2px rgba(28,27,24,0.06)",
                   transform: "rotate(-6deg)",
                 }}
               >
@@ -394,10 +363,9 @@ export default function ClienteDetailPage() {
                 </h1>
                 {isVIP && (
                   <span
-                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold text-white"
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold text-white bg-ink"
                     style={{
-                      background: VIP_GRAD,
-                      boxShadow: "0 6px 18px rgba(236,72,153,0.30)",
+                      boxShadow: "0 1px 2px rgba(28,27,24,0.06)",
                     }}
                   >
                     <Crown className="w-3 h-3" />
@@ -595,7 +563,7 @@ export default function ClienteDetailPage() {
                     className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white"
                     style={{
                       background: tierCfg.gradient,
-                      boxShadow: `0 8px 22px -6px ${tierCfg.glow}`,
+                      boxShadow: "0 1px 2px rgba(28,27,24,0.06)",
                     }}
                   >
                     <TierIcon className="w-5 h-5" />
@@ -759,25 +727,24 @@ function KpiTile({
 }: { icon: React.ReactNode; label: string; value: React.ReactNode; accent: string; delay?: number }) {
   return (
     <div
-      className="relative rounded-2xl bg-elevated border border-hairline p-4 overflow-hidden"
+      className="relative rounded-2xl bg-elevated border border-hairline p-4 overflow-hidden shadow-ent-xs"
       style={{
-        boxShadow: "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.10)",
         animation: `bondlyFadeSlideIn 500ms ${ES} ${delay}ms both`,
         transition: `all 280ms ${ES}`,
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
-        (e.currentTarget as HTMLElement).style.boxShadow = `0 1px 2px rgba(245,243,238,0.04), 0 16px 38px -18px ${accent}55`;
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 2px rgba(28,27,24,0.05), 0 8px 24px -12px rgba(28,27,24,0.12)";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 2px rgba(245,243,238,0.04), 0 10px 30px -15px rgba(245,243,238,0.10)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "";
       }}
     >
       {/* Accent bar */}
-      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: accent }} />
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-hairline" />
       <div className="relative flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-ink-40 mb-1.5">
-        <span style={{ color: accent }}>{icon}</span>
+        <span className="text-ink-40">{icon}</span>
         {label}
       </div>
       <div className="relative text-xl font-bold text-ink tabular-nums tracking-tight">
@@ -828,8 +795,8 @@ function ProbabilityBar({
   const v = Math.max(0, Math.min(100, value));
   // Banner color: if inverted (churn), red at high values, green at low.
   const severity = inverted
-    ? v >= 70 ? "#ef4444" : v >= 40 ? "#f59e0b" : "#10b981"
-    : v >= 60 ? "#10b981" : v >= 30 ? "#2F9153" : "#83807A";
+    ? v >= 70 ? "#b91c1c" : v >= 40 ? "#C98A1A" : "#2F9153"
+    : v >= 60 ? "#2F9153" : v >= 30 ? "#2F9153" : "#83807A";
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -843,12 +810,11 @@ function ProbabilityBar({
       </div>
       <div className="relative h-2 rounded-full bg-surface-2 overflow-hidden">
         <div
-          className="absolute inset-y-0 left-0 rounded-full"
+          className="absolute inset-y-0 left-0 w-full rounded-full origin-left"
           style={{
-            width: `${v}%`,
-            background: `linear-gradient(90deg, ${severity}99 0%, ${severity} 100%)`,
-            transition: `width 900ms ${ES}`,
-            boxShadow: `0 0 14px ${severity}77`,
+            background: severity,
+            transform: `scaleX(${v / 100})`,
+            transition: `transform 900ms ${ES}`,
           }}
         />
       </div>
@@ -897,7 +863,7 @@ function ProductRow({ product, rank }: { product: any; rank: number }) {
       <div
         className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
         style={{
-          background: rank === 1 ? GOLD_GRAD : rank === 2 ? "linear-gradient(135deg, #83807A 0%, #6B685F 100%)" : "linear-gradient(135deg, #DCD8CD 0%, #83807A 100%)",
+          background: rank === 1 ? "#1C1B18" : rank === 2 ? "#6B685F" : "#83807A",
         }}
       >
         {rank}
@@ -1029,7 +995,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
       {/* Bullet */}
       <span
         className="absolute -left-[25px] top-3 w-3.5 h-3.5 rounded-full flex items-center justify-center"
-        style={{ background: BONDLY_GRAD, boxShadow: "0 0 0 3px white, 0 6px 14px rgba(16,185,129,0.35)" }}
+        style={{ background: "#2F9153", boxShadow: "0 0 0 3px white" }}
       >
         <Zap className="w-2 h-2 text-white" />
       </span>
@@ -1038,7 +1004,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
           <div className="flex items-center gap-2 mb-0.5">
             <span
               className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
-              style={{ background: BONDLY_GRAD }}
+              style={{ background: "#2F9153" }}
             >
               <Zap className="w-2.5 h-2.5" />
               Compra

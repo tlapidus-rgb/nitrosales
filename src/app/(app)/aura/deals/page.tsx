@@ -123,14 +123,6 @@ export default function DealsPage() {
 
   return (
     <div className="min-h-screen px-6 py-8" style={{ background: THEME.bgPage, color: THEME.textPrimary }}>
-      {/* Aurora radial accent */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-40"
-        style={{
-          background:
-            "radial-gradient(60% 40% at 20% 0%, rgba(255,0,128,0.10), transparent), radial-gradient(50% 40% at 80% 10%, rgba(0,212,255,0.08), transparent)",
-        }}
-      />
       <div className="relative max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -165,14 +157,13 @@ export default function DealsPage() {
               <button
                 key={t.value}
                 onClick={() => setTypeFilter(active ? "" : t.value)}
-                className="text-left p-3 rounded-2xl transition-all hover:scale-[1.02]"
+                className="text-left p-3 rounded-2xl transition-colors"
                 style={{
-                  background: active ? "rgba(168, 85, 247, 0.12)" : THEME.bgCard,
-                  border: `1px solid ${active ? "rgba(168, 85, 247, 0.35)" : THEME.border}`,
-                  transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+                  background: active ? "rgba(28, 27, 24, 0.06)" : THEME.bgCard,
+                  border: `1px solid ${active ? THEME.borderStrong : THEME.border}`,
                 }}
               >
-                <Icon size={16} style={{ color: active ? THEME.purple : THEME.textTertiary }} className="mb-2" />
+                <Icon size={16} style={{ color: active ? THEME.textPrimary : THEME.textTertiary }} className="mb-2" />
                 <div className="text-[11px] uppercase tracking-wider" style={{ color: THEME.textTertiary }}>
                   {t.label}
                 </div>
@@ -265,7 +256,7 @@ function DealRow({ deal, last }: { deal: Deal; last: boolean }) {
     >
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: "rgba(168, 85, 247, 0.12)", border: "1px solid rgba(168, 85, 247, 0.2)" }}
+        style={{ background: "rgb(var(--ent-surface-2))", border: `1px solid ${THEME.border}` }}
       >
         <Icon size={16} style={{ color: THEME.purple }} />
       </div>
@@ -300,8 +291,8 @@ function DealRow({ deal, last }: { deal: Deal; last: boolean }) {
       <div
         className="text-[10px] px-2 py-0.5 rounded-full shrink-0"
         style={{
-          background: deal.status === "ACTIVE" ? "rgba(74, 222, 128, 0.12)" : "rgb(var(--ent-hairline))",
-          color: deal.status === "ACTIVE" ? "#4ade80" : THEME.textTertiary,
+          background: deal.status === "ACTIVE" ? "rgba(47, 145, 83, 0.12)" : "rgb(var(--ent-hairline))",
+          color: deal.status === "ACTIVE" ? "rgb(var(--ent-accent))" : THEME.textTertiary,
         }}
       >
         {deal.status}
@@ -411,8 +402,8 @@ function CreateDealModal({ onClose, onCreated }: { onClose: () => void; onCreate
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
-        style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}` }}
+        className="w-full max-w-xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto shadow-ent-soft"
+        style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
@@ -438,11 +429,10 @@ function CreateDealModal({ onClose, onCreated }: { onClose: () => void; onCreate
                     setType(t.value);
                     setStep("details");
                   }}
-                  className="text-left p-4 rounded-xl transition-all hover:scale-[1.02]"
+                  className="text-left p-4 rounded-xl transition-colors hover:bg-surface-2"
                   style={{
                     background: THEME.bgSoft,
                     border: `1px solid ${THEME.border}`,
-                    transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 >
                   <Icon size={18} style={{ color: THEME.purple }} className="mb-2" />
@@ -630,7 +620,7 @@ function CreateDealModal({ onClose, onCreated }: { onClose: () => void; onCreate
               />
             </Field>
 
-            {err && <p className="text-xs" style={{ color: "#f87171" }}>{err}</p>}
+            {err && <p className="text-xs" style={{ color: "#b91c1c" }}>{err}</p>}
 
             <div className="flex gap-2 pt-2">
               <button

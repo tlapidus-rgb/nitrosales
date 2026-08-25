@@ -20,7 +20,7 @@ const THEME = {
   textPrimary: "rgb(var(--ent-ink))",
   textSecondary: "rgb(var(--ent-ink-60))",
   textTertiary: "rgb(var(--ent-ink-40))",
-  green: "#4ade80",
+  green: "#047857",
   cyan: "rgb(var(--ent-ink-40))",
   gradient: "rgb(var(--ent-ink))",
 };
@@ -81,7 +81,7 @@ export function PaymentsCard({ creatorId }: { creatorId: string }) {
       </p>
 
       {error && (
-        <p className="text-xs mb-2" style={{ color: "#f87171" }}>
+        <p className="text-xs mb-2" style={{ color: "#b91c1c" }}>
           {error}
         </p>
       )}
@@ -99,7 +99,7 @@ export function PaymentsCard({ creatorId }: { creatorId: string }) {
           {months.map((m) => {
             const pending = Math.max(0, Math.round((m.owed - m.paid) * 100) / 100);
             return (
-              <div key={m.periodMonth} style={{ background: "#12121c" }}>
+              <div key={m.periodMonth} style={{ background: "rgb(var(--ent-elevated))" }}>
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium">{m.label}</div>
@@ -248,7 +248,7 @@ function RegisterPaymentForm({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="w-32 px-2.5 py-2 rounded-lg outline-none text-[13px] tabular-nums"
-            style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
+            style={{ background: "rgb(var(--ent-surface))", border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -259,7 +259,7 @@ function RegisterPaymentForm({
             value={method}
             onChange={(e) => setMethod(e.target.value)}
             className="px-2.5 py-2 rounded-lg outline-none text-[13px]"
-            style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
+            style={{ background: "rgb(var(--ent-surface))", border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
           >
             {METHODS.map((mt) => (
               <option key={mt} value={mt}>
@@ -277,7 +277,7 @@ function RegisterPaymentForm({
             onChange={(e) => setReference(e.target.value)}
             placeholder="Nº transferencia, ID MP…"
             className="w-full px-2.5 py-2 rounded-lg outline-none text-[13px]"
-            style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
+            style={{ background: "rgb(var(--ent-surface))", border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
           />
         </label>
         <button
@@ -291,7 +291,7 @@ function RegisterPaymentForm({
         </button>
       </div>
       {err && (
-        <span className="text-[11px]" style={{ color: "#f87171" }}>
+        <span className="text-[11px]" style={{ color: "#b91c1c" }}>
           {err}
         </span>
       )}

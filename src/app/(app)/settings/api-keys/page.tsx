@@ -288,11 +288,6 @@ export default function ApiKeysPage() {
             className="h-1.5 w-1.5 rounded-full"
             style={{
               background: toast.kind === "ok" ? "#10b981" : "#ef4444",
-              boxShadow:
-                toast.kind === "ok"
-                  ? "0 0 8px rgba(16,185,129,0.7)"
-                  : "0 0 8px rgba(239,68,68,0.7)",
-              animation: "pulseDotKey 1.4s ease-in-out infinite",
             }}
           />
           {toast.kind === "ok" ? (
@@ -304,12 +299,6 @@ export default function ApiKeysPage() {
         </div>
       )}
 
-      <style jsx global>{`
-        @keyframes pulseDotKey {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.55; transform: scale(1.4); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -530,14 +519,6 @@ function RevealedTokenModal({
       aria-modal="true"
     >
       <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-amber-200 bg-elevated shadow-2xl">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-px"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(245,158,11,0.5) 50%, transparent 100%)",
-          }}
-        />
         <div className="p-6">
           <div className="flex items-start gap-3">
             <div

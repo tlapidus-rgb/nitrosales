@@ -730,11 +730,6 @@ export default function PermisosPage() {
             className="h-1.5 w-1.5 rounded-full"
             style={{
               background: toast.kind === "ok" ? "#10b981" : "#ef4444",
-              boxShadow:
-                toast.kind === "ok"
-                  ? "0 0 8px rgba(16,185,129,0.7)"
-                  : "0 0 8px rgba(239,68,68,0.7)",
-              animation: "pulseDotPerm 1.4s ease-in-out infinite",
             }}
           />
           {toast.kind === "ok" ? (
@@ -746,12 +741,6 @@ export default function PermisosPage() {
         </div>
       )}
 
-      <style jsx global>{`
-        @keyframes pulseDotPerm {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.55; transform: scale(1.4); }
-        }
-      `}</style>
     </div>
   );
 }

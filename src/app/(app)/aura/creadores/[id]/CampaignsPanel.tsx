@@ -35,8 +35,8 @@ const THEME = {
   textTertiary: "rgb(var(--ent-ink-40))",
   textMuted: "rgb(var(--ent-ink-40))",
   gold: "rgb(var(--ent-accent))",
-  green: "#4ade80",
-  yellow: "#fbbf24",
+  green: "#047857",
+  yellow: "#C98A1A",
   cyan: "rgb(var(--ent-ink-40))",
   gradient: "rgb(var(--ent-ink))",
 };
@@ -129,7 +129,7 @@ export function CampaignsPanel({
   return (
     <div className="space-y-5">
       {error && (
-        <div className="rounded-xl p-3 text-[12px]" style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171" }}>
+        <div className="rounded-xl p-3 text-[12px]" style={{ background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.25)", color: "#b91c1c" }}>
           {error}
         </div>
       )}
@@ -155,7 +155,7 @@ export function CampaignsPanel({
                 onClick={finalizeActive}
                 disabled={finalizing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 transition-all hover:brightness-110 disabled:opacity-50"
-                style={{ background: "rgba(251,191,36,0.14)", color: THEME.yellow, border: `1px solid ${THEME.yellow}44` }}
+                style={{ background: "rgba(201,138,26,0.12)", color: THEME.yellow, border: `1px solid ${THEME.yellow}44` }}
               >
                 <Flag size={13} strokeWidth={2.2} />
                 {finalizing ? "Finalizando…" : "Finalizar campaña"}
@@ -183,8 +183,8 @@ export function CampaignsPanel({
             </p>
             <Link
               href={`/aura/campanas/nueva?creatorId=${creatorId}`}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-semibold text-white transition-all hover:brightness-110"
-              style={{ background: THEME.gradient, boxShadow: "0 4px 20px rgba(168,85,247,0.35)" }}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-semibold text-white transition-colors hover:brightness-110"
+              style={{ background: THEME.gradient }}
             >
               <Plus size={16} strokeWidth={2.4} />
               Comenzar campaña
@@ -245,7 +245,7 @@ export function CampaignsPanel({
         ) : (
           <div className="flex flex-col gap-px rounded-xl overflow-hidden" style={{ background: THEME.border }}>
             {history.map((c) => (
-              <div key={c.campaignId} className="flex items-center gap-3 px-4 py-3" style={{ background: "#12121c" }}>
+              <div key={c.campaignId} className="flex items-center gap-3 px-4 py-3" style={{ background: "rgb(var(--ent-elevated))" }}>
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-medium truncate" style={{ color: THEME.textPrimary }}>{c.name}</div>
                   <div className="text-[11px]" style={{ color: THEME.textTertiary }}>
@@ -393,7 +393,7 @@ function ActiveCampaignWindow({
             onClick={save}
             disabled={saving}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-50"
-            style={{ background: "rgba(74,222,128,0.14)", color: THEME.green, border: `1px solid ${THEME.green}44` }}
+            style={{ background: "rgba(4,120,87,0.12)", color: THEME.green, border: `1px solid ${THEME.green}44` }}
           >
             <Check size={12} strokeWidth={2.4} />
             {saving ? "Guardando…" : "Guardar"}
@@ -416,7 +416,7 @@ function ActiveCampaignWindow({
             Vacío = hereda la del creador ({creatorWindowDays}d).
           </p>
           {err ? (
-            <p className="w-full text-[11px]" style={{ color: "#f87171" }}>{err}</p>
+            <p className="w-full text-[11px]" style={{ color: "#b91c1c" }}>{err}</p>
           ) : null}
         </div>
       ) : (
@@ -514,7 +514,7 @@ function SettlePaymentModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }} onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl shadow-ent-soft" style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: THEME.border }}>
           <div>
             <div className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: THEME.cyan }}>Pendiente a pagar</div>
@@ -548,13 +548,13 @@ function SettlePaymentModal({
                     type="button"
                     onClick={() => toggle(c.campaignId)}
                     className="flex items-center gap-3 px-3 py-2.5 text-left transition-colors"
-                    style={{ background: on ? "rgba(0,212,255,0.06)" : "#12121c" }}
+                    style={{ background: on ? "rgba(28,27,24,0.05)" : "rgb(var(--ent-surface))" }}
                   >
                     <span
                       className="w-4 h-4 rounded flex items-center justify-center shrink-0"
-                      style={{ background: on ? THEME.cyan : "transparent", border: `1.5px solid ${on ? THEME.cyan : THEME.borderStrong}` }}
+                      style={{ background: on ? THEME.textPrimary : "transparent", border: `1.5px solid ${on ? THEME.textPrimary : THEME.borderStrong}` }}
                     >
-                      {on ? <Check size={11} strokeWidth={3} color="#0f0f1a" /> : null}
+                      {on ? <Check size={11} strokeWidth={3} color="#fff" /> : null}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="text-[12.5px] font-medium truncate" style={{ color: THEME.textPrimary }}>{c.name}</div>
@@ -610,7 +610,7 @@ function SettlePaymentModal({
               El monto supera el saldo seleccionado ({fmtARS(selectedPending)}). Se saldan esas campañas y el resto no se aplica.
             </div>
           ) : null}
-          {err ? <div className="text-[12px]" style={{ color: "#f87171" }}>{err}</div> : null}
+          {err ? <div className="text-[12px]" style={{ color: "#b91c1c" }}>{err}</div> : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 p-4 border-t" style={{ borderColor: THEME.border }}>
@@ -663,7 +663,7 @@ export function SettleForCreator({
   if (error) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
-        <div className="rounded-2xl p-6 max-w-sm text-[13px]" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}`, color: "#f87171" }} onClick={(e) => e.stopPropagation()}>
+        <div className="rounded-2xl p-6 max-w-sm text-[13px] shadow-ent-soft" style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}`, color: "#b91c1c" }} onClick={(e) => e.stopPropagation()}>
           No se pudo cargar el saldo: {error}
         </div>
       </div>
@@ -672,7 +672,7 @@ export function SettleForCreator({
   if (!data) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
-        <div className="rounded-2xl p-6 text-[13px]" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}`, color: THEME.textTertiary }}>
+        <div className="rounded-2xl p-6 text-[13px] shadow-ent-soft" style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}`, color: THEME.textTertiary }}>
           Cargando saldo…
         </div>
       </div>
@@ -682,7 +682,7 @@ export function SettleForCreator({
   if (pending.length === 0) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
-        <div className="rounded-2xl p-6 max-w-sm text-center" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
+        <div className="rounded-2xl p-6 max-w-sm text-center shadow-ent-soft" style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
           <div className="text-[14px] font-semibold mb-1" style={{ color: THEME.textPrimary }}>Sin saldo pendiente</div>
           <p className="text-[12px]" style={{ color: THEME.textTertiary }}>Este afiliado no tiene comisiones pendientes de pago.</p>
           <button onClick={onClose} className="mt-4 px-4 py-2 rounded-lg text-[12px] font-semibold text-white" style={{ background: THEME.gradient }}>Cerrar</button>

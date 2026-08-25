@@ -246,7 +246,7 @@ export default function SeguridadPage() {
                         {e.failureReason && (
                           <span
                             className="ml-2 text-[10px] font-normal"
-                            style={{ color: e.success ? "#6B685F" : "#ef4444" }}
+                            style={{ color: e.success ? "var(--ent-ink-60)" : "#ef4444" }}
                           >
                             ({e.failureReason})
                           </span>
@@ -313,11 +313,6 @@ export default function SeguridadPage() {
             className="h-1.5 w-1.5 rounded-full"
             style={{
               background: toast.kind === "ok" ? "#10b981" : "#ef4444",
-              boxShadow:
-                toast.kind === "ok"
-                  ? "0 0 8px rgba(16,185,129,0.7)"
-                  : "0 0 8px rgba(239,68,68,0.7)",
-              animation: "pulseDotSec 1.4s ease-in-out infinite",
             }}
           />
           {toast.kind === "ok" ? (
@@ -329,12 +324,6 @@ export default function SeguridadPage() {
         </div>
       )}
 
-      <style jsx global>{`
-        @keyframes pulseDotSec {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.55; transform: scale(1.4); }
-        }
-      `}</style>
     </div>
   );
 }

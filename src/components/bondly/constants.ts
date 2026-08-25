@@ -21,12 +21,14 @@ import {
 
 // ─── Easing & gradients ────────────────────────────────────────────
 export const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
+// Enterprise-sober (2026-08-25): gradientes decorativos multicolor → sólidos sobrios.
+// BONDLY = marca (ink), GOLD = champions/status (amber), VIP = ink. Sin arcoíris.
 export const BONDLY_GRAD =
-  "linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #6366f1 100%)";
+  "linear-gradient(135deg, #1C1B18 0%, #3A3833 100%)";
 export const GOLD_GRAD =
-  "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)";
+  "linear-gradient(135deg, #C98A1A 0%, #C98A1A 100%)";
 export const VIP_GRAD =
-  "linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%)";
+  "linear-gradient(135deg, #1C1B18 0%, #3A3833 100%)";
 
 // ─── Tier config (icon + accent + glow) ────────────────────────────
 export type BondlyTierKey =
@@ -42,46 +44,49 @@ export const TIER_CONFIG: Record<
   string,
   { icon: any; accent: string; glow: string; label: string }
 > = {
+  // Enterprise-sober: tier = rampa monocromo ink (ordinal de lealtad), semántico
+  // donde corresponde (New=accent verde, At Risk=amber warning). glow neutralizado
+  // (soft ink, inerte) — el sistema no usa glows de color.
   VIP: {
     icon: Crown,
-    accent: "#a855f7",
-    glow: "rgba(168,85,247,0.35)",
+    accent: "#1C1B18",
+    glow: "rgba(28,27,24,0.06)",
     label: "VIP",
   },
   Loyal: {
     icon: Heart,
-    accent: "#ec4899",
-    glow: "rgba(236,72,153,0.30)",
+    accent: "#3A3833",
+    glow: "rgba(28,27,24,0.06)",
     label: "LEAL",
   },
   Regular: {
     icon: Users,
-    accent: "#6366f1",
-    glow: "rgba(99,102,241,0.25)",
+    accent: "#6B685F",
+    glow: "rgba(28,27,24,0.06)",
     label: "REGULAR",
   },
   New: {
     icon: Sparkles,
-    accent: "#06b6d4",
-    glow: "rgba(6,182,212,0.30)",
+    accent: "#2F9153",
+    glow: "rgba(28,27,24,0.06)",
     label: "NUEVO",
   },
   "At Risk": {
     icon: AlertTriangle,
-    accent: "#f59e0b",
-    glow: "rgba(245,158,11,0.35)",
+    accent: "#C98A1A",
+    glow: "rgba(28,27,24,0.06)",
     label: "EN RIESGO",
   },
   Dormant: {
     icon: Moon,
-    accent: "#94a3b8",
-    glow: "rgba(148,163,184,0.25)",
+    accent: "#83807A",
+    glow: "rgba(28,27,24,0.06)",
     label: "DORMIDO",
   },
   Anonymous: {
     icon: UserX,
-    accent: "#64748b",
-    glow: "rgba(100,116,139,0.20)",
+    accent: "#9A978D",
+    glow: "rgba(28,27,24,0.06)",
     label: "ANÓNIMO",
   },
 };

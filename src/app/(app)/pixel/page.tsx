@@ -9,7 +9,7 @@ import { PageLoader } from "@/components/PageLoader";
 import { LivePulse } from "@/components/enterprise/ui";
 
 // ══════════════════════════════════════════════════════════════
-// NitroPixel — Atribución · Dark Premium
+// NitroPixel — Atribución
 // ══════════════════════════════════════════════════════════════
 // "Google mide para Google. Meta mide para Meta. NitroPixel mide para vos."
 
@@ -189,27 +189,6 @@ function getCreditsForModel(
   });
 }
 
-// ── Count-up animation hook ──
-function useCountUp(target: number, duration = 900) {
-  const [value, setValue] = useState(0);
-  const prevTarget = useRef(0);
-  useEffect(() => {
-    const start = prevTarget.current;
-    prevTarget.current = target;
-    if (start === target) { setValue(target); return; }
-    const startTime = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(start + (target - start) * eased);
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [target, duration]);
-  return value;
-}
-
 // ── Clean URL for display ──
 function cleanUrl(url?: string) {
   if (!url) return "";
@@ -243,36 +222,15 @@ interface PixelData {
 
 
 // ══════════════════════════════════════════════════════════════
-// DARK STYLES
+// PIXEL STYLES
 // ══════════════════════════════════════════════════════════════
-function DarkStyles() {
+function PixelStyles() {
   return (
     <style>{`
-      @keyframes attrBarGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-      @keyframes attrFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes attrPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
-      @keyframes attrGlow { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
       @keyframes attrShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-      @keyframes attrHeartbeat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
-      @keyframes attrCountUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes attrGridDrift { 0% { background-position: 0 0; } 100% { background-position: 40px 40px; } }
-      @keyframes attrJourneyDot { 0%, 100% { box-shadow: 0 0 0 0 currentColor; } 50% { box-shadow: 0 0 0 6px transparent; } }
-      @keyframes pixelOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      @keyframes pixelOrbitReverse { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-      @keyframes pixelNeuronPulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.6); } }
-      @keyframes pixelSynapseFlow { 0% { stroke-dashoffset: 100; } 50% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
-      @keyframes pixelBreath { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.05); filter: brightness(1.2); } }
       .attr-refetching { position: relative; transition: opacity 0.4s ease; }
       .attr-refetching::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 20; pointer-events: none; background: linear-gradient(90deg, transparent 0%, rgba(28,27,24,0.03) 30%, rgba(28,27,24,0.05) 50%, rgba(28,27,24,0.03) 70%, transparent 100%); background-size: 200% 100%; animation: attrShimmer 1.8s ease-in-out infinite; }
-      .attr-stagger > * { animation: attrFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
-      .attr-stagger > *:nth-child(1) { animation-delay: 0ms; }
-      .attr-stagger > *:nth-child(2) { animation-delay: 60ms; }
-      .attr-stagger > *:nth-child(3) { animation-delay: 120ms; }
-      .attr-stagger > *:nth-child(4) { animation-delay: 180ms; }
-      .attr-stagger > *:nth-child(5) { animation-delay: 240ms; }
-      .attr-stagger > *:nth-child(6) { animation-delay: 300ms; }
-      .attr-stagger > *:nth-child(7) { animation-delay: 360ms; }
-      .attr-stagger > *:nth-child(8) { animation-delay: 420ms; }
       .attr-glass { background: rgb(var(--ent-elevated)); border: 1px solid rgb(var(--ent-hairline)); box-shadow: 0 1px 2px rgba(28,27,24,.05); }
       .attr-glass:hover { border-color: rgb(var(--ent-hairline-2)); }
       .attr-grid-bg { background-image: none; }
@@ -300,13 +258,13 @@ function PixelBrainMini({ size = 32 }: { size?: number; color?: string }) {
 
 
 // ══════════════════════════════════════════════════════════════
-// DarkTip — tooltip dark consistente para KPIs
+// InfoTip — tooltip para KPIs
 // ══════════════════════════════════════════════════════════════
 // La burbuja va en un PORTAL al body. Antes era `absolute` dentro de la card y
 // quedaba tapada por las cards vecinas y por la barra de tabs: las cards del
 // dashboard tienen animación, que crea stacking context, y ahí adentro el z-50
 // no puede competir. Ver src/components/ui/TooltipPortal.tsx.
-function DarkTip({ text }: { text: string }) {
+function InfoTip({ text }: { text: string }) {
   return (
     <TooltipPortal
       width={224}
@@ -499,15 +457,11 @@ export default function PixelPage() {
   const totalPlatformRevenue = channels.reduce((s, c) => s + c.platformRevenue, 0);
   const overReportPct = totalPixelRevenue > 0 ? Math.round(((totalPlatformRevenue - totalPixelRevenue) / totalPixelRevenue) * 100) : 0;
 
-  // Count-up values
-  const revCountUp = useCountUp(bk.pixelRevenue);
-  const roasCountUp = useCountUp(bk.pixelRoas, 600);
-
   // ── LOADING STATE (unificado: PageLoader sobrio, el mismo en todo el panel) ──
   if (loading && !data) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#FBFAF7" }}>
-        <DarkStyles />
+        <PixelStyles />
         <PageLoader label="Cargando atribuciones…" minHeight="auto" />
       </div>
     );
@@ -531,7 +485,7 @@ export default function PixelPage() {
 
   return (
     <div className={`min-h-screen relative ${isRefetching ? "attr-refetching" : ""}`} style={{ background: "#FBFAF7", color: "#1C1B18" }}>
-      <DarkStyles />
+      <PixelStyles />
 
       {/* ── Refetching overlay ── */}
       {/* Recalculando pill with smooth fade */}
@@ -611,17 +565,17 @@ export default function PixelPage() {
         {/* ════════════════════════════════════════════════════════ */}
         {/* BLOQUE 1 — HERO: Revenue Attribution Map               */}
         {/* ════════════════════════════════════════════════════════ */}
-        <section style={{ animation: "attrFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both" }}>
+        <section>
           {/* Title */}
           <div className="flex items-end justify-between mb-6">
             <div>
               <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-ink-40 mb-1">Revenue Attribution Map</p>
               <div className="flex items-baseline gap-4">
-                <span className="text-4xl font-bold tracking-tight" style={{ background: "rgb(var(--ent-ink))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  {fmtCompact(Math.round(revCountUp))}
+                <span className="text-4xl font-bold tracking-tight text-ink">
+                  {fmtCompact(bk.pixelRevenue)}
                 </span>
                 <span className="text-lg font-semibold text-ink-60">
-                  ROAS <span className="text-ink">{roasCountUp.toFixed(1)}x</span>
+                  ROAS <span className="text-ink">{bk.pixelRoas.toFixed(1)}x</span>
                 </span>
               </div>
             </div>
@@ -629,7 +583,7 @@ export default function PixelPage() {
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5">
                   <p className="text-[10px] font-mono uppercase tracking-wider text-red-400/60">Plataformas reportan</p>
-                  <DarkTip text="Suma de revenue que Meta Ads y Google Ads se atribuyen a sí mismos. Tipicamente está inflado porque cada plataforma se queda con el crédito completo de cada venta (last-click), generando double-counting. NitroPixel mide la verdad: una venta = un crédito repartido según el modelo elegido." />
+                  <InfoTip text="Suma de revenue que Meta Ads y Google Ads se atribuyen a sí mismos. Tipicamente está inflado porque cada plataforma se queda con el crédito completo de cada venta (last-click), generando double-counting. NitroPixel mide la verdad: una venta = un crédito repartido según el modelo elegido." />
                 </div>
                 <p className="text-sm text-red-400/80">
                   {fmtCompact(totalPlatformRevenue)}
@@ -644,7 +598,7 @@ export default function PixelPage() {
           {/* ── The Hero Bar ── */}
           <div className="relative rounded-2xl overflow-hidden" style={{ background: "rgba(245,243,238,0.4)", border: "1px solid rgba(229,225,216,0.1)", padding: "3px" }}>
             <div className="flex rounded-[13px] overflow-hidden" style={{ height: "72px" }}>
-              {sortedChannels.filter(c => c.pixelRevenue > 0).map((ch, i) => {
+              {sortedChannels.filter(c => c.pixelRevenue > 0).map((ch) => {
                 const info = getSourceInfo(ch.source);
                 const pct = totalPixelRevenue > 0 ? (ch.pixelRevenue / totalPixelRevenue) * 100 : 0;
                 const isHovered = hoveredChannel === ch.source;
@@ -656,10 +610,9 @@ export default function PixelPage() {
                       width: `${pct}%`,
                       minWidth: pct > 3 ? "60px" : "24px",
                       background: `linear-gradient(180deg, ${info.color}dd, ${info.color}99)`,
-                      boxShadow: isHovered ? `0 0 30px ${info.color}40, inset 0 1px 0 rgba(255,255,255,0.2)` : `inset 0 1px 0 rgba(28,27,24,0.06)`,
+                      boxShadow: isHovered ? `inset 0 1px 0 rgba(255,255,255,0.2)` : `inset 0 1px 0 rgba(28,27,24,0.06)`,
                       transform: isHovered ? "scaleY(1.08)" : "scaleY(1)",
                       zIndex: isHovered ? 10 : 1,
-                      animation: `attrBarGrow 0.8s cubic-bezier(0.16,1,0.3,1) ${i * 80}ms both`,
                       transformOrigin: "left center",
                     }}
                     onMouseEnter={() => setHoveredChannel(ch.source)}
@@ -679,7 +632,7 @@ export default function PixelPage() {
                     )}
                     {/* Hover tooltip */}
                     {isHovered && (
-                      <div className="absolute -top-[88px] left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-center z-50 whitespace-nowrap" style={{ background: "rgba(245,243,238,0.95)", border: `1px solid ${info.color}40`, boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 20px ${info.color}15` }}>
+                      <div className="absolute -top-[88px] left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-center z-50 whitespace-nowrap shadow-ent-soft" style={{ background: "rgba(245,243,238,0.95)", border: `1px solid ${info.color}40` }}>
                         <p className="text-[10px] font-semibold text-ink-60 mb-1">{info.label}</p>
                         <p className="text-sm font-bold text-ink">{fmtCompact(ch.pixelRevenue)} · ROAS {ch.pixelRoas.toFixed(1)}x</p>
                         <p className="text-[10px] text-ink-60 mt-0.5">{fmt(ch.orders)} órdenes · CPA {ch.spend > 0 && ch.orders > 0 ? fmtCompact(ch.spend / ch.orders) : "—"}</p>
@@ -730,14 +683,14 @@ export default function PixelPage() {
                       {overReporting.length} {overReporting.length === 1 ? "canal infla" : "canales inflan"} sus números
                     </span>
                   )}
-                  <DarkTip text="Compara revenue real (NitroPixel) vs revenue que reportan Meta y Google. Las plataformas tipicamente inflan porque cada una se queda con el crédito completo (last-click). Si Meta dice $100 y Pixel dice $70, +43% inflado significa que Meta se atribuye ventas que también ven otros canales." />
+                  <InfoTip text="Compara revenue real (NitroPixel) vs revenue que reportan Meta y Google. Las plataformas tipicamente inflan porque cada una se queda con el crédito completo (last-click). Si Meta dice $100 y Pixel dice $70, +43% inflado significa que Meta se atribuye ventas que también ven otros canales." />
                 </div>
                 <svg className={`w-4 h-4 text-ink-40 transition-transform ${truthGapOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {truthGapOpen && (
-                <div className="px-4 pb-4 space-y-3 attr-stagger" style={{ borderTop: "1px solid rgba(229,225,216,0.08)" }}>
+                <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid rgba(229,225,216,0.08)" }}>
                   {channelsWithData.map(ch => {
                     const info = getSourceInfo(ch.source);
                     const diff = ch.diffPercent;
@@ -747,14 +700,14 @@ export default function PixelPage() {
                     return (
                       <div key={ch.source} className="attr-glass rounded-xl p-4 transition-all duration-300" style={{ borderTop: `2px solid ${info.color}60`, marginTop: "1rem" }}>
                         <div className="flex items-center gap-4">
-                          <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}20`, boxShadow: `0 0 20px ${info.color}10` }}>
+                          <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}20` }}>
                             <ChannelLogo source={ch.source} size={20} />
                           </div>
                           <div className="flex-1 min-w-0 space-y-2">
                             <div className="flex items-center gap-2">
                               <span className="text-[9px] font-mono uppercase tracking-wider text-ink-40 w-16 flex-shrink-0">Pixel</span>
                               <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(245,243,238,0.5)" }}>
-                                <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(pixelPct, 2)}%`, background: `linear-gradient(90deg, ${info.color}cc, ${info.color}88)`, boxShadow: `0 0 12px ${info.color}30` }}>
+                                <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(pixelPct, 2)}%`, background: `linear-gradient(90deg, ${info.color}cc, ${info.color}88)` }}>
                                   <span className="text-[10px] font-bold text-ink whitespace-nowrap">{fmtCompact(ch.pixelRevenue)}</span>
                                 </div>
                               </div>
@@ -802,7 +755,7 @@ export default function PixelPage() {
         {/* ════════════════════════════════════════════════════════ */}
         {/* BLOQUE 3 — KPIs Strip                                   */}
         {/* ════════════════════════════════════════════════════════ */}
-        <section className="attr-glass rounded-2xl p-5" style={{ animation: "attrFadeUp 0.6s 0.3s both" }}>
+        <section className="attr-glass rounded-2xl p-5">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
             {[
               {
@@ -839,7 +792,7 @@ export default function PixelPage() {
               <div key={i} className="text-center lg:text-left">
                 <div className="flex items-center justify-center lg:justify-start gap-1.5 mb-1">
                   <p className="text-[10px] font-mono uppercase tracking-wider text-ink-40">{kpi.label}</p>
-                  <DarkTip text={kpi.tip} />
+                  <InfoTip text={kpi.tip} />
                 </div>
                 <p className="text-xl font-semibold tracking-tight text-ink tabular-nums">{kpi.value}</p>
                 {kpi.change !== null && kpi.change !== undefined && (
@@ -909,11 +862,11 @@ export default function PixelPage() {
           };
 
           return (
-            <section className="attr-glass rounded-2xl p-5" style={{ animation: "attrFadeUp 0.6s 0.4s both" }}>
+            <section className="attr-glass rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold text-ink tracking-tight">Comparación de modelos</h2>
-                  <DarkTip text={`Cómo cambia la distribución del revenue entre canales según el modelo de atribución. El total queda igual (es la misma plata). Lo que cambia es CUÁNTO de cada canal se queda con el crédito. El modelo activo (${MODEL_LABELS[activeModel]}) se usa en todo el dashboard.`} />
+                  <InfoTip text={`Cómo cambia la distribución del revenue entre canales según el modelo de atribución. El total queda igual (es la misma plata). Lo que cambia es CUÁNTO de cada canal se queda con el crédito. El modelo activo (${MODEL_LABELS[activeModel]}) se usa en todo el dashboard.`} />
                 </div>
                 <span className="text-[10px] font-mono uppercase tracking-wider text-ink-40">
                   Activo: <span className="text-ink font-semibold">{MODEL_LABELS[activeModel]}</span>
@@ -1207,7 +1160,7 @@ export default function PixelPage() {
                   <p className="text-[11px] text-ink-40 mt-1">Probá quitando algún filtro o ampliando el rango de fechas.</p>
                 </div>
               ) : (
-                <section className="space-y-3 attr-stagger">
+                <section className="space-y-3">
                   {visibleJourneys.map(j => {
             const credits = getCreditsForModel(j.touchpoints, selectedModel, nitroWeights);
             const isExpanded = expandedJourney === j.orderId;
@@ -1236,12 +1189,11 @@ export default function PixelPage() {
                             style={{
                               background: `${info.color}25`,
                               border: `1.5px solid ${info.color}60`,
-                              boxShadow: isLast ? `0 0 12px ${info.color}40` : undefined,
                             }}
                           >
                             <ChannelLogo source={tp.source} size={12} />
                             {isLast && (
-                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400" style={{ animation: "attrHeartbeat 2s ease-in-out infinite", boxShadow: "0 0 8px rgba(34,197,94,0.5)" }} />
+                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent" />
                             )}
                           </div>
                         </div>
@@ -1324,7 +1276,7 @@ export default function PixelPage() {
         {/* BLOQUE 5 — Pixel Health Footer                          */}
         {/* ════════════════════════════════════════════════════════ */}
         {health && (
-          <section className="attr-glass rounded-2xl p-4" style={{ animation: "attrFadeUp 0.6s 0.5s both" }}>
+          <section className="attr-glass rounded-2xl p-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               {/* Status */}
               <div className="flex items-center gap-2">
@@ -1463,13 +1415,13 @@ export default function PixelPage() {
         const avgLag = lags.length > 0 ? lags.reduce((s, l) => s + l, 0) / lags.length : 0;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ animation: "attrFadeUp 0.3s ease both" }}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDrillChannel(null)} />
-            <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl" style={{ background: "rgba(237,234,227,0.98)", border: `1px solid ${info.color}40`, boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 40px ${info.color}20` }}>
+            <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-ent-soft" style={{ background: "rgba(237,234,227,0.98)", border: `1px solid ${info.color}40` }}>
               {/* Header */}
               <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b" style={{ borderColor: `${info.color}25`, background: "rgba(237,234,227,0.98)", backdropFilter: "blur(8px)" }}>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}25`, boxShadow: `0 0 20px ${info.color}30` }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}25` }}>
                     <ChannelLogo source={drillChannel} size={20} />
                   </div>
                   <div>
@@ -1497,7 +1449,7 @@ export default function PixelPage() {
                   <div key={i} className="rounded-xl p-3" style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(28,27,24,0.04)" }}>
                     <div className="flex items-center gap-1.5 mb-1">
                       <p className="text-[10px] font-mono uppercase tracking-wider text-ink-40">{kpi.label}</p>
-                      <DarkTip text={kpi.tip} />
+                      <InfoTip text={kpi.tip} />
                     </div>
                     <p className="text-lg font-bold tabular-nums" style={{ color: kpi.color }}>{kpi.value}</p>
                   </div>

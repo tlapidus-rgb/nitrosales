@@ -1478,8 +1478,8 @@ function OrderDetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl"
-        style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}`, boxShadow: "0 24px 72px rgba(0,0,0,0.55)" }}
+        className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl shadow-ent-soft"
+        style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -1504,7 +1504,7 @@ function OrderDetailModal({
         </div>
 
         {error ? (
-          <div className="p-6 text-center text-[13px]" style={{ color: "#f87171" }}>
+          <div className="p-6 text-center text-[13px]" style={{ color: "#b91c1c" }}>
             No se pudo cargar la orden: {error}
           </div>
         ) : !data ? (
@@ -1564,12 +1564,12 @@ function OrderDetailModal({
               </div>
               <div className="flex flex-col gap-px rounded-xl overflow-hidden" style={{ background: THEME.border }}>
                 {o!.items.length === 0 ? (
-                  <div className="px-4 py-4 text-[12px]" style={{ background: "#12121c", color: THEME.textTertiary }}>
+                  <div className="px-4 py-4 text-[12px]" style={{ background: "rgb(var(--ent-elevated))", color: THEME.textTertiary }}>
                     Sin detalle de ítems para esta orden.
                   </div>
                 ) : (
                   o!.items.map((it) => (
-                    <div key={it.id} className="flex items-center gap-3 px-3 py-2.5" style={{ background: "#12121c" }}>
+                    <div key={it.id} className="flex items-center gap-3 px-3 py-2.5" style={{ background: "rgb(var(--ent-elevated))" }}>
                       <div
                         className="w-11 h-11 rounded-lg flex-shrink-0 bg-center bg-cover flex items-center justify-center"
                         style={{ background: it.imageUrl ? `url(${it.imageUrl}) center/cover` : THEME.bgSoft, border: `1px solid ${THEME.border}` }}
@@ -1743,11 +1743,10 @@ function EditModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl p-6"
+        className="w-full max-w-md rounded-2xl p-6 shadow-ent-soft"
         style={{
           background: THEME.bgCard,
           border: `1px solid ${THEME.border}`,
-          boxShadow: "0 24px 72px rgba(0, 0, 0, 0.5)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1887,37 +1886,37 @@ const DEAL_TYPE_META: Record<
   COMMISSION: {
     label: "Comisión %",
     icon: <Percent size={12} strokeWidth={2.4} />,
-    tone: { color: "rgb(var(--ent-ink-40))", bg: "rgba(168, 85, 247, 0.10)", border: "rgba(168, 85, 247, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
   FLAT_FEE: {
     label: "Monto fijo",
     icon: <DollarSign size={12} strokeWidth={2.4} />,
-    tone: { color: "rgb(var(--ent-ink-40))", bg: "rgba(0, 212, 255, 0.10)", border: "rgba(0, 212, 255, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
   PERFORMANCE_BONUS: {
     label: "Bono por objetivo",
     icon: <Trophy size={12} strokeWidth={2.4} />,
-    tone: { color: "#ffb84d", bg: "rgba(255, 184, 77, 0.10)", border: "rgba(255, 184, 77, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
   TIERED_COMMISSION: {
     label: "Comisión escalonada",
     icon: <Layers size={12} strokeWidth={2.4} />,
-    tone: { color: "rgb(var(--ent-accent))", bg: "rgba(255, 0, 128, 0.10)", border: "rgba(255, 0, 128, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
   CPM: {
     label: "CPM",
     icon: <Eye size={12} strokeWidth={2.4} />,
-    tone: { color: "#4ade80", bg: "rgba(74, 222, 128, 0.10)", border: "rgba(74, 222, 128, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
   GIFTING: {
     label: "Gifting",
     icon: <Gift size={12} strokeWidth={2.4} />,
-    tone: { color: "#ff6b8a", bg: "rgba(255, 107, 138, 0.10)", border: "rgba(255, 107, 138, 0.26)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
   HYBRID: {
     label: "Híbrido",
     icon: <Shuffle size={12} strokeWidth={2.4} />,
-    tone: { color: "rgb(var(--ent-ink))", bg: "rgba(245, 245, 247, 0.06)", border: "rgba(245, 245, 247, 0.18)" },
+    tone: { color: "rgb(var(--ent-ink-60))", bg: "rgba(28, 27, 24, 0.05)", border: "rgba(28, 27, 24, 0.12)" },
   },
 };
 

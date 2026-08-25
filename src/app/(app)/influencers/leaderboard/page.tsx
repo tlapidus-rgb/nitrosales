@@ -119,7 +119,7 @@ export default function LeaderboardPage() {
             { label: "Influencers activos", value: fmt(totals.influencerCount) },
           ].map((t) => (
             <div key={t.label} className="bg-elevated rounded-xl border border-hairline p-4">
-              <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#9CA3AF" }}>{t.label}</p>
+              <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#83807A" }}>{t.label}</p>
               <p className="text-lg font-bold" style={{ color: "#111827" }}>{t.value}</p>
             </div>
           ))}
@@ -128,7 +128,7 @@ export default function LeaderboardPage() {
 
       {/* Leaderboard Table */}
       {loading ? (
-        <div className="text-center py-16" style={{ color: "#9CA3AF" }}>
+        <div className="text-center py-16" style={{ color: "#83807A" }}>
           <div className="flex items-end gap-1.5 h-8 justify-center mb-4">
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className="w-1.5 bg-orange-500 rounded-full" style={{ animation: `lbPulse 1.2s ease-in-out ${i * 0.15}s infinite`, height: "40%" }} />
@@ -167,7 +167,7 @@ export default function LeaderboardPage() {
                 {leaderboard.map((entry, idx) => (
                   <tr key={entry.id} className="border-b border-hairline hover:bg-surface/50">
                     <td className="px-4 py-3">
-                      <span className="text-lg">{idx < 3 ? MEDALS[idx] : <span className="text-xs font-mono" style={{ color: "#9CA3AF" }}>{idx + 1}</span>}</span>
+                      <span className="text-lg">{idx < 3 ? MEDALS[idx] : <span className="text-xs font-mono" style={{ color: "#83807A" }}>{idx + 1}</span>}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -180,7 +180,7 @@ export default function LeaderboardPage() {
                         )}
                         <div>
                           <p className="font-medium text-sm" style={{ color: "#111827" }}>{entry.name}</p>
-                          <p className="text-[10px] font-mono" style={{ color: "#9CA3AF" }}>{entry.commissionPercent}%</p>
+                          <p className="text-[10px] font-mono" style={{ color: "#83807A" }}>{entry.commissionPercent}%</p>
                         </div>
                       </div>
                     </td>

@@ -8,7 +8,7 @@
 // Read-only — solo consume /api/nitropixel/asset-stats.
 // ══════════════════════════════════════════════════════════════
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type AssetStats = {
@@ -38,14 +38,6 @@ type AssetStats = {
   topSources: Array<{ source: string; count: number }>;
 };
 
-const STAGES = [
-  { key: "GENESIS", name: "Génesis", color: "#2F9153", min: 0 },
-  { key: "AWAKENING", name: "Awakening", color: "#2F9153", min: 20 },
-  { key: "SENTIENT", name: "Sentient", color: "#0ea5e9", min: 40 },
-  { key: "EVOLVED", name: "Evolved", color: "#83807A", min: 60 },
-  { key: "SINGULARITY", name: "Singularity", color: "#83807A", min: 80 },
-];
-
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-AR").format(n);
 }
@@ -72,32 +64,6 @@ function timeAgo(iso: string): string {
   if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
   if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
   return `${Math.floor(ms / 86_400_000)}d`;
-}
-
-// ── Counter that animates from 0 to target ──
-function useAnimatedCounter(target: number, duration = 1400): number {
-  const [value, setValue] = useState(0);
-  const startRef = useRef<number | null>(null);
-  const fromRef = useRef(0);
-
-  useEffect(() => {
-    fromRef.current = value;
-    startRef.current = null;
-    let raf = 0;
-    const tick = (ts: number) => {
-      if (startRef.current === null) startRef.current = ts;
-      const elapsed = ts - startRef.current;
-      const t = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const next = fromRef.current + (target - fromRef.current) * eased;
-      setValue(next);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-  return Math.floor(value);
 }
 
 export default function NitroPixelPage() {
@@ -145,18 +111,6 @@ export default function NitroPixelPage() {
   const valueUsd = data?.asset.estimatedAssetValueUsd ?? 0;
   const level = data?.asset.level ?? 0;
   const daysAlive = data?.asset.daysAlive ?? 0;
-  const stage = data?.asset.stage;
-
-  const animEvents = useAnimatedCounter(events);
-  const animVisitors = useAnimatedCounter(visitors);
-  const animIdentified = useAnimatedCounter(identified);
-  const animValue = useAnimatedCounter(valueUsd);
-  const animLevel = useAnimatedCounter(level, 1800);
-
-  const stageColor = useMemo(() => {
-    if (!stage) return "#2F9153";
-    return STAGES[stage.index]?.color ?? "#2F9153";
-  }, [stage]);
 
   // Mini sparkline path
   const sparkline = useMemo(() => {
@@ -182,18 +136,9 @@ export default function NitroPixelPage() {
 
       <div className="relative max-w-6xl mx-auto px-6 lg:px-10 py-10">
         {/* ═══ HEADER ═══ */}
-        <div
-          className="flex items-center justify-between mb-8"
-          style={{ animation: "pixelFadeUp 600ms ease-out both" }}
-        >
+        <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{
-                background: "#2F9153",
-                animation: "pixelHeartbeat 1.6s ease-in-out infinite",
-              }}
-            />
+            <div className="w-2 h-2 rounded-full" style={{ background: "#2F9153" }} />
             <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-ink">
               NitroPixel · Activo Vivo
             </span>
@@ -224,25 +169,14 @@ export default function NitroPixelPage() {
             el componente PixelBrain. */}
 
         {/* ═══ DUAL VALUATION ═══ */}
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10"
-          style={{ animation: "pixelFadeUp 900ms ease-out both" }}
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
           {/* Plata */}
-          <div
-            className="relative p-6 rounded-2xl overflow-hidden"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(229,225,216,0.10), rgba(154,151,141,0.04))",
-              border: "1px solid rgba(229,225,216,0.30)",
-              animation: "pixelGlow 4s ease-in-out infinite",
-            }}
-          >
+          <div className="relative p-6 rounded-2xl overflow-hidden bg-elevated border border-hairline">
             <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60 mb-2">
               VALORACIÓN ESTIMADA
             </div>
             <div className="text-4xl lg:text-5xl font-semibold tracking-tight text-ink tabular-nums">
-              {formatUSD(animValue)}
+              {formatUSD(valueUsd)}
             </div>
             <div className="text-xs text-ink-40 font-mono mt-2">
               First-party data + revenue atribuido + comportamiento
@@ -250,14 +184,7 @@ export default function NitroPixelPage() {
           </div>
 
           {/* Nivel */}
-          <div
-            className="relative p-6 rounded-2xl overflow-hidden"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(154,151,141,0.10), rgba(229,225,216,0.04))",
-              border: "1px solid rgba(154,151,141,0.30)",
-            }}
-          >
+          <div className="relative p-6 rounded-2xl overflow-hidden bg-surface border border-hairline">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60">
                 NIVEL DEL ACTIVO
@@ -265,38 +192,23 @@ export default function NitroPixelPage() {
               <div
                 className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.25em] text-ink-40"
               >
-                <span
-                  className="w-1 h-1 rounded-full bg-violet-300"
-                  style={{ animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
-                />
-                <span style={{ animation: "pixelBreath 2.6s ease-in-out infinite" }}>EVOLVING</span>
+                <span className="w-1 h-1 rounded-full bg-ink-40" />
+                <span>EVOLVING</span>
                 <span className="text-base leading-none -mt-0.5">∞</span>
               </div>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-4xl lg:text-5xl font-bold text-ink tabular-nums">
-                {animLevel}
+                {level}
               </span>
               <span className="text-xs font-mono text-ink-40 mb-1">XP</span>
             </div>
-            {/* Level bar — siempre activa con shimmer continuo, nunca "tope" visual */}
-            <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-white/5 relative">
+            {/* Level bar — progreso estático (dato escaneado, no animado) */}
+            <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-surface-2 relative">
               <div
-                className="h-full rounded-full transition-all duration-1000 ease-out relative"
-                style={{
-                  width: `${Math.max(8, level)}%`,
-                  background: `linear-gradient(90deg, #2F9153, #83807A, #83807A)`,
-                }}
-              >
-                {/* shimmer perpetuo: hace ver que sigue creciendo aunque visualmente este al tope */}
-                <div
-                  className="absolute inset-0 rounded-full"
-                  style={{
-                    background: "linear-gradient(90deg, transparent 0%, rgba(28,27,24,0.06) 50%, transparent 100%)",
-                    animation: "pixelShimmer 2.4s linear infinite",
-                  }}
-                />
-              </div>
+                className="h-full rounded-full bg-ink-40"
+                style={{ width: `${Math.max(8, level)}%` }}
+              />
             </div>
             <div className="text-xs text-ink-40 font-mono mt-2">
               Cada evento, cada identificación, cada conversión lo hace más inteligente.
@@ -305,14 +217,11 @@ export default function NitroPixelPage() {
         </div>
 
         {/* ═══ LIVE COUNTERS ═══ */}
-        <div
-          className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-10"
-          style={{ animation: "pixelFadeUp 1000ms ease-out both" }}
-        >
-          <Counter label="Eventos totales" value={formatNumber(animEvents)} accent="#2F9153" sub={`+${formatNumber(data?.asset.eventsLast24h ?? 0)} en 24h`} />
-          <Counter label="Visitantes" value={formatNumber(animVisitors)} accent="#2F9153" sub={`${formatNumber(data?.asset.eventsLast7d ?? 0)} eventos · 7d`} />
-          <Counter label="Identificados" value={formatNumber(animIdentified)} accent="#83807A" sub={`${visitors > 0 ? Math.round((identified / visitors) * 100) : 0}% del total`} />
-          <Counter label="Días vivo" value={String(daysAlive)} accent="#83807A" sub={`Revenue: ${formatARS(revenue)}`} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
+          <Counter label="Eventos totales" value={formatNumber(events)} sub={`+${formatNumber(data?.asset.eventsLast24h ?? 0)} en 24h`} />
+          <Counter label="Visitantes" value={formatNumber(visitors)} sub={`${formatNumber(data?.asset.eventsLast7d ?? 0)} eventos · 7d`} />
+          <Counter label="Identificados" value={formatNumber(identified)} sub={`${visitors > 0 ? Math.round((identified / visitors) * 100) : 0}% del total`} />
+          <Counter label="Días vivo" value={String(daysAlive)} sub={`Revenue: ${formatARS(revenue)}`} />
         </div>
 
         {/* ═══ TIMELINE SPARKLINE ═══ */}
@@ -321,7 +230,6 @@ export default function NitroPixelPage() {
           style={{
             background: "rgba(229,225,216,0.04)",
             border: "1px solid rgba(229,225,216,0.18)",
-            animation: "pixelFadeUp 1100ms ease-out both",
           }}
         >
           <div className="flex items-center justify-between mb-4">
@@ -354,10 +262,7 @@ export default function NitroPixelPage() {
         </div>
 
         {/* ═══ LIVE EVENT FEED + TOP SOURCES ═══ */}
-        <div
-          className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-10"
-          style={{ animation: "pixelFadeUp 1200ms ease-out both" }}
-        >
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-10">
           {/* Live feed */}
           <div
             className="lg:col-span-2 rounded-2xl p-5"
@@ -369,10 +274,7 @@ export default function NitroPixelPage() {
             <div className="flex items-center gap-2 mb-4">
               <span
                 className="w-1.5 h-1.5 rounded-full"
-                style={{
-                  background: "#22c55e",
-                  animation: "pixelHeartbeat 1.6s ease-in-out infinite",
-                }}
+                style={{ background: "#2F9153" }}
               />
               <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-ink-60">
                 STREAM EN VIVO
@@ -380,14 +282,13 @@ export default function NitroPixelPage() {
             </div>
             <div className="space-y-2">
               {data?.last10Events?.length ? (
-                data.last10Events.map((e, i) => (
+                data.last10Events.map((e) => (
                   <div
                     key={e.id}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
                     style={{
                       background: "rgba(229,225,216,0.04)",
                       border: "1px solid rgba(229,225,216,0.10)",
-                      animation: `pixelFadeUp 500ms ease-out ${i * 50}ms both`,
                     }}
                   >
                     <span
@@ -443,13 +344,10 @@ export default function NitroPixelPage() {
                             {formatNumber(s.count)}
                           </span>
                         </div>
-                        <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                        <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
                           <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${pct}%`,
-                              background: `linear-gradient(90deg, #2F9153, #83807A)`,
-                            }}
+                            className="h-full rounded-full bg-ink-40"
+                            style={{ width: `${pct}%` }}
                           />
                         </div>
                       </div>
@@ -464,10 +362,7 @@ export default function NitroPixelPage() {
         </div>
 
         {/* ═══ EMOTIONAL FOOTER ═══ */}
-        <div
-          className="text-center py-8"
-          style={{ animation: "pixelFadeUp 1300ms ease-out both" }}
-        >
+        <div className="text-center py-8">
           <div
             className="inline-block px-5 py-3 rounded-xl"
             style={{
@@ -532,32 +427,20 @@ function Counter({
   label,
   value,
   sub,
-  accent,
 }: {
   label: string;
   value: string;
   sub: string;
-  accent: string;
 }) {
   return (
-    <div
-      className="relative rounded-xl p-4 overflow-hidden"
-      style={{
-        background: `linear-gradient(135deg, ${accent}10, rgba(28,27,24,0.02))`,
-        border: `1px solid ${accent}30`,
-      }}
-    >
-      <div
-        className="absolute top-0 left-2 right-2 h-[1px] opacity-50"
-        style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
-      />
-      <div className="text-[9px] font-mono uppercase tracking-[0.25em]" style={{ color: `${accent}cc` }}>
+    <div className="relative rounded-xl p-4 overflow-hidden bg-elevated border border-hairline">
+      <div className="text-[9px] font-mono uppercase tracking-[0.25em] text-ink-60">
         {label}
       </div>
       <div className="text-2xl lg:text-3xl font-bold text-ink tabular-nums mt-1">
         {value}
       </div>
-      <div className="text-[10px] font-mono mt-1" style={{ color: `${accent}80` }}>
+      <div className="text-[10px] font-mono mt-1 text-ink-40">
         {sub}
       </div>
     </div>

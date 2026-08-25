@@ -42,9 +42,9 @@ const THEME = {
   pink: "rgb(var(--ent-accent))",
   purple: "rgb(var(--ent-ink-40))",
   cyan: "rgb(var(--ent-ink-40))",
-  green: "#4ade80",
-  yellow: "#fbbf24",
-  rose: "#ff6b8a",
+  green: "#047857",
+  yellow: "#C98A1A",
+  rose: "#b91c1c",
   gradient: "rgb(var(--ent-ink))",
   gradientText: "rgb(var(--ent-ink))",
 };
@@ -224,8 +224,8 @@ export default function PagosPage() {
             {/* item 24: abre el selector de afiliado (con saldos) → modal FIFO. */}
             <button
               onClick={() => setSelectorOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
-              style={{ background: THEME.gradient, color: "#fff", boxShadow: "0 0 24px rgba(168,85,247,0.35)" }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              style={{ background: THEME.gradient, color: "#fff" }}
             >
               <Plus size={16} />
               Registrar pago
@@ -263,10 +263,10 @@ export default function PagosPage() {
               <button
                 key={s}
                 onClick={() => setStatus(s)}
-                className="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+                className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
                 style={{
-                  background: status === s ? "rgba(168,85,247,0.18)" : "transparent",
-                  color: status === s ? THEME.textPrimary : THEME.textSecondary,
+                  background: status === s ? THEME.gradient : "transparent",
+                  color: status === s ? "#fff" : THEME.textSecondary,
                 }}
               >
                 {s === "PENDING" ? "Pendientes" : "Pagados"}
@@ -384,7 +384,7 @@ function PendingAffiliateRow({ affiliate, onSettle }: { affiliate: PendingAffili
     <div className="p-4 flex items-center gap-4 hover:bg-elevated/[0.02] transition-colors">
       <div
         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
-        style={{ background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))", color: "#fff" }}
+        style={{ background: "rgb(var(--ent-surface-2))", color: "rgb(var(--ent-ink))" }}
       >
         {affiliate.name.slice(0, 1).toUpperCase()}
       </div>
@@ -426,7 +426,7 @@ function AffiliateSelectorModal({
   );
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }} onClick={onClose}>
-      <div className="w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col rounded-2xl" style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col rounded-2xl shadow-ent-soft" style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: THEME.border }}>
           <div>
             <div className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: THEME.purple }}>Registrar pago</div>
@@ -459,7 +459,7 @@ function AffiliateSelectorModal({
                   onClick={() => onSelect(a.id)}
                   className="w-full p-4 flex items-center gap-3 text-left hover:bg-elevated/[0.03] transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))", color: "#fff" }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: "rgb(var(--ent-surface-2))", color: "rgb(var(--ent-ink))" }}>
                     {a.name.slice(0, 1).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -536,8 +536,8 @@ function PayoutRow({
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
           style={{
-            background: "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(168,85,247,0.18), rgba(0,212,255,0.18))",
-            color: "#fff",
+            background: "rgb(var(--ent-surface-2))",
+            color: "rgb(var(--ent-ink))",
           }}
         >
           {payout.influencer.name.slice(0, 1).toUpperCase()}
@@ -551,7 +551,7 @@ function PayoutRow({
             {payout.deal && (
               <span
                 className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase"
-                style={{ background: "rgba(168,85,247,0.14)", color: THEME.purple }}
+                style={{ background: "rgb(var(--ent-surface-2))", color: THEME.purple }}
               >
                 {payout.deal.type.replace("_", " ")}
               </span>
@@ -585,8 +585,8 @@ function PayoutRow({
             <button
               disabled={busy}
               onClick={onPay}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:scale-[1.03] disabled:opacity-50"
-              style={{ background: "rgba(74,222,128,0.14)", color: THEME.green, border: `1px solid ${THEME.green}33` }}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+              style={{ background: "rgba(4,120,87,0.12)", color: THEME.green, border: `1px solid ${THEME.green}33` }}
             >
               Marcar pagado
             </button>
@@ -595,8 +595,8 @@ function PayoutRow({
             <button
               disabled={busy}
               onClick={onRestore}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:scale-[1.03] disabled:opacity-50"
-              style={{ background: "rgba(251,191,36,0.14)", color: THEME.yellow, border: `1px solid ${THEME.yellow}33` }}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+              style={{ background: "rgba(201,138,26,0.12)", color: THEME.yellow, border: `1px solid ${THEME.yellow}33` }}
             >
               Restaurar
             </button>
@@ -616,8 +616,8 @@ function PayoutRow({
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
                 <div
-                  className="absolute right-0 mt-1 w-40 rounded-lg overflow-hidden z-50 text-xs"
-                  style={{ background: "#14141e", border: `1px solid ${THEME.borderStrong}` }}
+                  className="absolute right-0 mt-1 w-40 rounded-lg overflow-hidden z-50 text-xs shadow-ent-soft"
+                  style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }}
                 >
                   {payout.status === "PENDING" && (
                     <button
@@ -739,8 +739,8 @@ function CreatePayoutModal({ onClose, onCreated }: { onClose: () => void; onCrea
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
       <div
-        className="w-full max-w-lg rounded-2xl overflow-hidden"
-        style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }}
+        className="w-full max-w-lg rounded-2xl overflow-hidden shadow-ent-soft"
+        style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }}
       >
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: THEME.border }}>
           <div>
@@ -943,8 +943,8 @@ function MarkPaidModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
       <div
-        className="w-full max-w-md rounded-2xl overflow-hidden"
-        style={{ background: "#0f0f1a", border: `1px solid ${THEME.borderStrong}` }}
+        className="w-full max-w-md rounded-2xl overflow-hidden shadow-ent-soft"
+        style={{ background: "rgb(var(--ent-elevated))", border: `1px solid ${THEME.borderStrong}` }}
       >
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: THEME.border }}>
           <div>
@@ -969,9 +969,9 @@ function MarkPaidModal({
                 <button
                   key={m.v}
                   onClick={() => setMethod(m.v)}
-                  className="px-2 py-2 text-xs rounded-lg transition-all"
+                  className="px-2 py-2 text-xs rounded-lg transition-colors"
                   style={{
-                    background: method === m.v ? "rgba(74,222,128,0.14)" : THEME.bgCard,
+                    background: method === m.v ? "rgba(4,120,87,0.12)" : THEME.bgCard,
                     border: `1px solid ${method === m.v ? THEME.green + "55" : THEME.border}`,
                     color: method === m.v ? THEME.green : THEME.textSecondary,
                   }}
@@ -1030,7 +1030,7 @@ function MarkPaidModal({
             onClick={save}
             disabled={saving}
             className="px-4 py-2 text-xs font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1.5"
-            style={{ background: "rgba(74,222,128,0.18)", color: THEME.green, border: `1px solid ${THEME.green}55` }}
+            style={{ background: "rgba(4,120,87,0.14)", color: THEME.green, border: `1px solid ${THEME.green}55` }}
           >
             <Check size={14} />
             {saving ? "Guardando..." : "Confirmar pago"}

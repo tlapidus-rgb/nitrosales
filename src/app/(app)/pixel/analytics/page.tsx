@@ -703,7 +703,6 @@ export default function AnalyticsPage() {
             {pixelData?.liveStatus?.status === "LIVE" && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
                 <span className="text-[11px] font-medium text-emerald-700">Pixel activo</span>
@@ -836,7 +835,7 @@ export default function AnalyticsPage() {
             const wMiddle = w?.middle ?? 30;
             const wLast = w?.last ?? 40;
             return (
-              <div className="px-6 pb-3 border-b border-gray-50 flex items-center gap-3">
+              <div className="px-6 pb-3 border-b border-hairline flex items-center gap-3">
                 <span className="text-[11px] text-ink-60 uppercase tracking-wider font-medium">Atribución:</span>
                 <div className="relative group/attr">
                   <div className="flex items-center gap-2 bg-surface rounded-lg px-3 py-1.5 cursor-default">
@@ -850,14 +849,14 @@ export default function AnalyticsPage() {
                   </div>
                   {/* Tooltip explaining the model */}
                   <div className="absolute top-full left-0 mt-2 w-64 px-3 py-2.5 bg-ink text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/attr:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
-                    <div className="absolute bottom-full left-4 border-4 border-transparent border-b-gray-900" />
+                    <div className="absolute bottom-full left-4 border-4 border-transparent border-b-ink" />
                     <div className="font-semibold mb-1">Modelo multi-touch ponderado</div>
                     <div className="space-y-0.5 text-white/70">
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent inline-block" /> Primer toque: {wFirst}%</div>
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-400 inline-block" /> Asistencias: {wMiddle}%</div>
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Último toque: {wLast}%</div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-ink-60">
+                    <div className="mt-2 pt-2 border-t border-white/15 text-[10px] text-white/60">
                       Estos pesos definen cómo se reparte el crédito de cada venta entre los canales del journey. Configuralo desde NitroPixel.
                     </div>
                   </div>
@@ -874,7 +873,7 @@ export default function AnalyticsPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] text-ink-60 uppercase tracking-wider border-b border-gray-50">
+                <tr className="text-[11px] text-ink-60 uppercase tracking-wider border-b border-hairline">
                   <th className="text-left px-6 py-3 font-medium">Canal</th>
                   <th className="text-right px-4 py-3 font-medium">Revenue Pixel</th>
                   <th className="text-right px-4 py-3 font-medium">Revenue Plataforma</th>
@@ -895,7 +894,7 @@ export default function AnalyticsPage() {
                   return (
                     <Fragment key={ch.source}>
                       <tr
-                        className={`border-b border-gray-50 transition-colors duration-200 cursor-pointer hover:bg-surface/50 ${isExpanded ? "bg-surface/50" : ""}`}
+                        className={`border-b border-hairline transition-colors duration-200 cursor-pointer hover:bg-surface/50 ${isExpanded ? "bg-surface/50" : ""}`}
                         onClick={() => setExpandedChannel(isExpanded ? null : ch.source)}
                       >
                         <td className="px-6 py-3.5">
@@ -921,14 +920,14 @@ export default function AnalyticsPage() {
                                     {dominantRole}
                                   </span>
                                   <div className="absolute top-full left-0 mt-2 w-60 px-3 py-2.5 bg-ink text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
-                                    <div className="absolute bottom-full left-4 border-4 border-transparent border-b-gray-900" />
+                                    <div className="absolute bottom-full left-4 border-4 border-transparent border-b-ink" />
                                     <div className="font-semibold mb-1.5">Rol en los journeys</div>
                                     <div className="space-y-1">
                                       <div className="flex justify-between"><span>Primer toque:</span><span className="font-medium">{pFirst}% de journeys</span></div>
                                       <div className="flex justify-between"><span>Asistencia:</span><span className="font-medium">{pAssist}% de journeys</span></div>
                                       <div className="flex justify-between"><span>Último toque:</span><span className="font-medium">{pLast}% de journeys</span></div>
                                     </div>
-                                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-white/70">
+                                    <div className="mt-2 pt-2 border-t border-white/15 text-[10px] text-white/70">
                                       {dominantRole === "Descubrimiento"
                                         ? "Este canal trae usuarios nuevos. Si su Truth Score es bajo, puede ser porque warmea audiencias que convierten por otro canal."
                                         : dominantRole === "Cierre"
@@ -1110,9 +1109,9 @@ export default function AnalyticsPage() {
         {/* BLOQUE 2 — COMPORTAMIENTO                               */}
         {/* ═══════════════════════════════════════════════════════ */}
         <div className="flex items-center gap-3 pt-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
           <span className="text-[10px] font-bold text-white/70 uppercase tracking-[0.2em]">Comportamiento</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
         </div>
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -1727,9 +1726,9 @@ export default function AnalyticsPage() {
         {/* BLOQUE 3 — INTELLIGENCE                                 */}
         {/* ═══════════════════════════════════════════════════════ */}
         <div className="flex items-center gap-3 pt-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
           <span className="text-[10px] font-bold text-white/70 uppercase tracking-[0.2em]">Intelligence</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
         </div>
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -1770,9 +1769,9 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               {/* Section header */}
               <div className="flex items-center gap-3 pt-2">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
                 <h2 className="text-xs font-semibold text-ink-60 uppercase tracking-widest">Journey Intelligence</h2>
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
               </div>
 
               {/* Row 1: KPI strip — 4 mini cards */}
@@ -1857,7 +1856,7 @@ export default function AnalyticsPage() {
                         return (
                           <div key={i} className="group">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-bold text-white/70 w-4 tabular-nums">{i + 1}</span>
+                              <span className="text-[10px] font-bold text-ink-40 w-4 tabular-nums">{i + 1}</span>
                               <ChannelBadge source={pair.first_channel} />
                               <FlowArrow />
                               <ChannelBadge source={pair.last_channel} />
@@ -1866,7 +1865,7 @@ export default function AnalyticsPage() {
                             </div>
                             <div className="flex items-center gap-2 ml-4">
                               <div className="flex-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-accent to-accent transition-all duration-500" style={{ width: `${barPct}%` }} />
+                                <div className="h-full rounded-full bg-ink transition-all duration-500" style={{ width: `${barPct}%` }} />
                               </div>
                               <span className="text-[11px] font-semibold text-ink-60 tabular-nums min-w-[50px] text-right">{fmtCompact(pair.revenue)}</span>
                             </div>
@@ -1883,7 +1882,7 @@ export default function AnalyticsPage() {
                     const topFirst = getSourceInfo(top.first_channel);
                     const topLast = getSourceInfo(top.last_channel);
                     return (
-                      <div className="mt-4 bg-gradient-to-r from-violet-50 to-transparent p-3 rounded-xl border border-violet-100/50">
+                      <div className="mt-4 bg-gradient-to-r from-surface to-transparent p-3 rounded-xl border border-hairline">
                         <p className="text-[11px] text-violet-800 leading-relaxed">
                           <span className="font-bold">Insight:</span> La ruta <span className="font-semibold">{topFirst.label} → {topLast.label}</span> es la combinación más rentable con <span className="font-bold text-violet-600">{fmtCompact(top.revenue)}</span> en revenue y AOV de {fmtCompact(top.aov)}.
                         </p>
@@ -1927,7 +1926,7 @@ export default function AnalyticsPage() {
                           ];
                           const primary = [...roles].sort((a, b) => b.val - a.val)[0];
                           return (
-                            <tr key={ch.source} className="border-b border-gray-50 last:border-0 hover:bg-surface/50 transition-colors">
+                            <tr key={ch.source} className="border-b border-hairline last:border-0 hover:bg-surface/50 transition-colors">
                               <td className="py-2.5 pr-3">
                                 <ChannelBadge source={ch.source} size="md" />
                               </td>
@@ -1989,9 +1988,9 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               {/* Section header */}
               <div className="flex items-center gap-3 pt-2">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
                 <h2 className="text-xs font-semibold text-ink-60 uppercase tracking-widest">Tasas de Conversión</h2>
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-hairline to-transparent" />
               </div>
 
               {/* Pixel coverage notice — shows when date range was auto-adjusted */}
@@ -2054,7 +2053,7 @@ export default function AnalyticsPage() {
                               ? `Otros${s.channelsMerged ? ` (${s.channelsMerged} canales)` : ""}`
                               : info.label;
                             return (
-                              <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-surface/50 transition-colors">
+                              <tr key={s.source} className="border-b border-hairline last:border-0 hover:bg-surface/50 transition-colors">
                                 <td className="py-2.5 pr-2">
                                   <div className="flex items-center gap-2">
                                     <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: isOtros ? "#94a3b8" : info.color }}>
@@ -2122,7 +2121,7 @@ export default function AnalyticsPage() {
                         const best = deviceCR[0];
                         const DLABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
                         return (
-                          <div className="bg-gradient-to-r from-gray-50 to-transparent p-2.5 rounded-xl">
+                          <div className="bg-gradient-to-r from-surface to-transparent p-2.5 rounded-xl">
                             <p className="text-[11px] text-ink-60">
                               <span className="font-semibold text-ink-60">{DLABELS[best.device] || best.device}</span> convierte {(best.cr / (deviceCR[1]?.cr || 1)).toFixed(1)}x más que {DLABELS[deviceCR[1]?.device] || deviceCR[1]?.device || "otro"}.
                             </p>

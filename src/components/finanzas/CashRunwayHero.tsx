@@ -111,29 +111,18 @@ export default function CashRunwayHero({
     <section
       className="relative overflow-hidden rounded-2xl border bg-white"
       style={{
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: "rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08), 0 24px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08), 0 24px 40px -28px rgba(28,27,24,0.08)",
         transition: `box-shadow 400ms ${ES}`,
       }}
     >
-      {/* Aurora del color del status (esquina sup. derecha) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `radial-gradient(ellipse at 95% -10%, ${palette.ring} 0%, transparent 55%)`,
-          opacity: 0.85,
-          transition: `opacity 600ms ${ES}`,
-        }}
-      />
-
       <div className="relative p-8">
         {/* Header row: label + badge fuente + pill status */}
         <div className="flex items-center gap-3">
           <span
             className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: "rgba(15,23,42,0.5)" }}
+            style={{ color: "rgba(28,27,24,0.5)" }}
           >
             Cash Runway
           </span>
@@ -166,9 +155,9 @@ export default function CashRunwayHero({
           <span
             className="rounded-full px-2 py-0.5 text-[10px] font-medium"
             style={{
-              background: "rgba(15,23,42,0.04)",
-              color: "rgba(15,23,42,0.6)",
-              border: "1px solid rgba(15,23,42,0.06)",
+              background: "rgba(28,27,24,0.04)",
+              color: "rgba(28,27,24,0.6)",
+              border: "1px solid rgba(28,27,24,0.06)",
             }}
             title={
               runway?.source === "manual"
@@ -187,7 +176,7 @@ export default function CashRunwayHero({
             style={{
               fontSize: 64,
               lineHeight: 1,
-              color: "#0f172a",
+              color: "#1C1B18",
               letterSpacing: "-0.03em",
             }}
           >
@@ -195,7 +184,7 @@ export default function CashRunwayHero({
           </span>
           <span
             className="text-xl font-medium tabular-nums tracking-tight"
-            style={{ color: "rgba(15,23,42,0.55)" }}
+            style={{ color: "rgba(28,27,24,0.55)" }}
           >
             {monthsUnit}
           </span>
@@ -204,35 +193,35 @@ export default function CashRunwayHero({
         {/* Sub-linea: cash + burn */}
         <div
           className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm tabular-nums"
-          style={{ color: "rgba(15,23,42,0.7)" }}
+          style={{ color: "rgba(28,27,24,0.7)" }}
         >
           <span className="inline-flex items-center gap-1.5">
             <span
               className="text-[11px] font-semibold uppercase tracking-wider"
-              style={{ color: "rgba(15,23,42,0.45)" }}
+              style={{ color: "rgba(28,27,24,0.45)" }}
             >
               Caja estimada
             </span>
-            <span className="font-semibold" style={{ color: "#0f172a" }}>
+            <span className="font-semibold" style={{ color: "#1C1B18" }}>
               {ready ? fm(runway?.cashBalance ?? 0) : "—"}
             </span>
           </span>
-          <span style={{ color: "rgba(15,23,42,0.2)" }}>·</span>
+          <span style={{ color: "rgba(28,27,24,0.2)" }}>·</span>
           <span className="inline-flex items-center gap-1.5">
             <span
               className="text-[11px] font-semibold uppercase tracking-wider"
-              style={{ color: "rgba(15,23,42,0.45)" }}
+              style={{ color: "rgba(28,27,24,0.45)" }}
             >
               Burn /mes
             </span>
-            <span className="font-semibold" style={{ color: "#0f172a" }}>
+            <span className="font-semibold" style={{ color: "#1C1B18" }}>
               {ready ? fm(runway?.burnRate30d ?? 0) : "—"}
             </span>
           </span>
-          <span style={{ color: "rgba(15,23,42,0.2)" }}>·</span>
+          <span style={{ color: "rgba(28,27,24,0.2)" }}>·</span>
           <span
             className="text-xs"
-            style={{ color: "rgba(15,23,42,0.45)" }}
+            style={{ color: "rgba(28,27,24,0.45)" }}
           >
             base 90 días · {mode === "USD" ? "USD" : mode === "ARS_ADJ" ? "ARS ajustado" : "ARS nominal"}
           </span>
@@ -242,7 +231,7 @@ export default function CashRunwayHero({
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <p
             className="max-w-xl text-[12px] leading-relaxed"
-            style={{ color: "rgba(15,23,42,0.5)" }}
+            style={{ color: "rgba(28,27,24,0.5)" }}
           >
             Cálculo aproximado sobre base contable devengada (revenue − costos
             YTD). No contempla inventario comprado, impuestos ni retiros.
@@ -277,13 +266,13 @@ export default function CashRunwayHero({
         </div>
 
         {/* Breakdown colapsable */}
-        <div className="mt-5 border-t pt-4" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
+        <div className="mt-5 border-t pt-4" style={{ borderColor: "rgba(28,27,24,0.06)" }}>
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
             style={{
-              color: "rgba(15,23,42,0.55)",
+              color: "rgba(28,27,24,0.55)",
               transition: `color 200ms ${ES}`,
             }}
           >
@@ -385,7 +374,7 @@ function BreakdownItem({
     <div className="flex flex-col">
       <span
         className="text-[10px] font-semibold uppercase tracking-[0.08em]"
-        style={{ color: "rgba(15,23,42,0.42)" }}
+        style={{ color: "rgba(28,27,24,0.42)" }}
       >
         {label}
       </span>
@@ -396,7 +385,7 @@ function BreakdownItem({
             ? "#0f172a"
             : positive
               ? "#065f46"
-              : "rgba(15,23,42,0.78)",
+              : "rgba(28,27,24,0.78)",
           fontSize: emphasis ? 15 : 13,
         }}
       >

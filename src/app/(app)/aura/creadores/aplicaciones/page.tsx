@@ -48,17 +48,17 @@ const THEME = {
   textTertiary: "rgb(var(--ent-ink-40))",
   textMuted: "rgb(var(--ent-ink-40))",
   gold: "rgb(var(--ent-accent))",
-  goldSoft: "rgba(255, 0, 128, 0.10)",
-  goldBorder: "rgba(255, 0, 128, 0.28)",
-  green: "#4ade80",
-  greenSoft: "rgba(74, 222, 128, 0.10)",
-  greenBorder: "rgba(74, 222, 128, 0.28)",
-  rose: "#ff6b8a",
-  roseSoft: "rgba(255, 107, 138, 0.10)",
-  roseBorder: "rgba(255, 107, 138, 0.28)",
-  gray: "#9ca3af",
-  graySoft: "rgba(156, 163, 175, 0.08)",
-  grayBorder: "rgba(156, 163, 175, 0.22)",
+  goldSoft: "rgba(47, 145, 83, 0.10)",
+  goldBorder: "rgba(47, 145, 83, 0.28)",
+  green: "#047857",
+  greenSoft: "rgba(4, 120, 87, 0.10)",
+  greenBorder: "rgba(4, 120, 87, 0.28)",
+  rose: "#b91c1c",
+  roseSoft: "rgba(185, 28, 28, 0.08)",
+  roseBorder: "rgba(185, 28, 28, 0.24)",
+  gray: "rgb(var(--ent-ink-40))",
+  graySoft: "rgb(var(--ent-surface))",
+  grayBorder: "rgb(var(--ent-hairline))",
   gradient: "rgb(var(--ent-ink))",
   gradientText: "rgb(var(--ent-ink))",
 };
@@ -694,43 +694,43 @@ const DEAL_TYPE_META: Record<
     label: "Comisión %",
     Icon: Percent,
     hint: "Le pagás un % de las ventas que genere. Ideal para performance puro.",
-    color: "#22d3ee",
+    color: "rgb(var(--ent-ink-40))",
   },
   FLAT_FEE: {
     label: "Fee fijo",
     Icon: DollarSign,
     hint: "Monto fijo por colaboración. Ideal para contenido sin exigir conversión.",
-    color: "#60a5fa",
+    color: "rgb(var(--ent-ink-40))",
   },
   PERFORMANCE_BONUS: {
     label: "Bonus por objetivo",
     Icon: Trophy,
     hint: "Pagás si alcanza un target. Mezcla fee + incentivo.",
-    color: "#facc15",
+    color: "rgb(var(--ent-ink-40))",
   },
   CPM: {
     label: "CPM",
     Icon: Eye,
     hint: "Pagás por cada 1.000 views. Ideal para creadores de alcance.",
-    color: "#a78bfa",
+    color: "rgb(var(--ent-ink-40))",
   },
   GIFTING: {
     label: "Gifting",
     Icon: Gift,
     hint: "Sin pago en efectivo, solo producto. Ideal para nanos.",
-    color: "#f472b6",
+    color: "rgb(var(--ent-ink-40))",
   },
   HYBRID: {
     label: "Híbrido",
     Icon: Shuffle,
     hint: "Combina fee fijo + comisión. Ideal para creadores top.",
-    color: "#fb7185",
+    color: "rgb(var(--ent-ink-40))",
   },
   TIERED_COMMISSION: {
     label: "Comisión por tramos",
     Icon: Layers,
     hint: "Comisión que sube según el volumen vendido.",
-    color: "#34d399",
+    color: "rgb(var(--ent-ink-40))",
   },
 };
 
@@ -832,11 +832,10 @@ function ApprovalModal({
       }}
     >
       <div
-        className="rounded-2xl w-full max-w-[720px] max-h-[92vh] overflow-y-auto"
+        className="rounded-2xl w-full max-w-[720px] max-h-[92vh] overflow-y-auto shadow-ent-soft"
         style={{
-          background: "#0e0e18",
+          background: "rgb(var(--ent-elevated))",
           border: `1px solid ${THEME.borderStrong}`,
-          boxShadow: "0 40px 120px rgba(0,0,0,0.6)",
         }}
       >
         {/* Header */}
@@ -923,7 +922,7 @@ function ApprovalModal({
                     onClick={() => setType(k)}
                     className="text-left rounded-xl p-3 transition"
                     style={{
-                      background: selected ? "rgba(255, 0, 128, 0.08)" : THEME.bgSoft,
+                      background: selected ? THEME.goldSoft : THEME.bgSoft,
                       border: selected
                         ? `1px solid ${THEME.goldBorder}`
                         : `1px solid ${THEME.border}`,
@@ -1244,7 +1243,7 @@ function Select({
       }}
     >
       {options.map((o) => (
-        <option key={o.v} value={o.v} style={{ background: "#0e0e18" }}>
+        <option key={o.v} value={o.v} style={{ background: "rgb(var(--ent-elevated))" }}>
           {o.l}
         </option>
       ))}
