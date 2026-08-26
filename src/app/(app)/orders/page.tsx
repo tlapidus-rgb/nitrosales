@@ -1212,7 +1212,7 @@ function OrdersPageInner() {
                   </div>
 
                   {/* Chevron */}
-                  <ChevronDown size={16} className={`text-ink-40 group-hover:text-ink-40 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                  <ChevronDown size={16} className={`text-ink-40 group-hover:text-ink-60 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
                     style={{ transition: "transform 280ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
                 </div>
 
