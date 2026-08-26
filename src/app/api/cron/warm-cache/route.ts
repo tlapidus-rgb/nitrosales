@@ -27,6 +27,7 @@
 
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email/send";
 import {
@@ -96,6 +97,51 @@ async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
   } catch (e: any) {
     console.error("[warm-cache] alert pipeline stale falló:", e?.message);
   }
+}
+
+// ── WATCHDOG self-healing de rollups (2026-08-19, BP-ROLLUP-STUCK) ───────────
+// Defensa DIRECTA contra que Vercel saltee el cron `refresh-pixel-rollups` (se
+// observó un gap de ~2.3h sin firing, que combinado con un bug de cursor dejó
+// tablas stale >5h y mandó mails al cliente). El umbral de alerta ahora es 8h,
+// pero no queremos ESPERAR a las 8h: si una tabla del pixel se atrasa más que un
+// ciclo normal de rotación (~1.75h) pero antes del umbral, disparamos el cron de
+// rollups nosotros mismos. warm-cache corre cada 5 min → la recuperación deja de
+// depender de que Vercel dispare el cron de 15 min a horario. El cron procesa la
+// tabla MÁS atrasada por corrida y es idempotente, así que re-disparar es seguro:
+// corridas sucesivas de warm-cache van tapando una tabla por vez.
+const ROLLUP_SELF_HEAL_TRIGGER_H = 2.5; // > ciclo normal (~1.75h), < alerta (8h)
+const ROLLUP_TRIGGER_COOLDOWN_MS = 4 * 60_000; // no re-disparar sobre una corrida en curso (~192s)
+let lastRollupTriggerAt = 0;
+
+function maybeSelfHealRollups(freshness: FreshnessRow[], baseUrl: string) {
+  const behind = freshness.filter(
+    (r) =>
+      r.refreshedBy === "refresh-pixel-rollups" &&
+      (r.hoursStale ?? 0) >= ROLLUP_SELF_HEAL_TRIGGER_H
+  );
+  if (behind.length === 0) return;
+  if (Date.now() - lastRollupTriggerAt < ROLLUP_TRIGGER_COOLDOWN_MS) return; // ya disparé hace poco
+  lastRollupTriggerAt = Date.now(); // marcar ANTES del fetch (evita doble disparo en carrera)
+  const worst = Math.max(...behind.map((r) => r.hoursStale ?? 0));
+  console.log(
+    `[warm-cache] self-heal: ${behind.length} rollup(s) atrasado(s) (peor ${worst}h ≥ ${ROLLUP_SELF_HEAL_TRIGGER_H}h) → disparo refresh-pixel-rollups`
+  );
+  const target = `${baseUrl}/api/cron/refresh-pixel-rollups?key=${WARM_CACHE_KEY}`;
+  // Fire-and-forget: NO esperamos los ~192s del rollup dentro de warm-cache.
+  // waitUntil mantiene viva la request saliente después de responder (el rollup
+  // corre como una invocación separada). Mismo bypass de Deployment Protection
+  // que los self-fetch de warm (si no hay secret en local, no se manda header).
+  waitUntil(
+    fetch(target, {
+      method: "GET",
+      cache: "no-store",
+      headers: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+        ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+        : undefined,
+    })
+      .then((r) => console.log(`[warm-cache] self-heal rollups: HTTP ${r.status}`))
+      .catch((e) => console.error(`[warm-cache] self-heal rollups falló: ${e?.message}`))
+  );
 }
 
 // Rangos comunes que precalentamos para cada org.
@@ -265,6 +311,9 @@ export async function GET(req: NextRequest) {
     try {
       freshness = await checkPipelineFreshness();
       staleTables = freshness.filter((r) => r.stale);
+      // Watchdog: recuperación PROACTIVA de rollups atrasados ANTES de que crucen
+      // el umbral de alerta (8h) — desacopla la recuperación del schedule de Vercel.
+      maybeSelfHealRollups(freshness, baseUrl);
       if (staleTables.length > 0) {
         console.error(
           `[warm-cache] ⚠️ PIPELINE STALE:\n${formatStaleSummary(freshness)}`

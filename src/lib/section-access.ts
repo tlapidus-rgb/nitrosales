@@ -63,6 +63,11 @@ const PAGE_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
   // roles (OWNER/ADMIN/MEMBER) tienen read+ en las tres → no se ven afectados.
   // OJO: acá van las PÁGINAS (/dashboard). Los endpoints /api/metrics/* que
   // alimentan el dashboard NO se listan (no empiezan con estos prefijos) → pasan.
+  // F4 (canales): gateamos SOLO el panel de canales (no todo /pixel, que tiene
+  // páginas compartidas) a la sección NitroPixel Analytics. Los endpoints ya
+  // gatean con requirePermission("pixel"); esto evita que un user sin la sección
+  // cargue la página y vea errores (lo redirige limpio).
+  { prefix: "/pixel/canales", section: "pixel" },
   { prefix: "/dashboard", section: "dashboard" },
   { prefix: "/products", section: "products" },
   { prefix: "/rentabilidad", section: "rentabilidad" },

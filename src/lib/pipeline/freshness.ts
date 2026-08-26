@@ -53,20 +53,27 @@ export const PIPELINE_FRESHNESS_TARGETS: readonly FreshnessTarget[] = [
   { table: "gold_customer_daily", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue" },
   // Gold de atribución — refresh-gold-attribution
   { table: "gold_attribution_source", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution" },
-  // Rollups del pixel — refresh-pixel-rollups, cada 2h (el que ya se vigilaba)
-  // Rollups del pixel — refresh-pixel-rollups, cada 2h.
-  // Se vigilan TODOS y no sólo `aggregates` (ampliado 2026-07-21): el cron corre
-  // 7 statements y cada uno puede fallar por separado sin tumbar los demás. Con
-  // un solo centinela, un fallo aislado —justo el de `source`, que alimenta el
-  // breakdown por canal— quedaba invisible mientras `aggregates` se refrescaba
-  // puntual. Es la variante barata del mismo agujero que costó la jornada.
-  { table: "pixel_daily_aggregates", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_source", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_funnel_by_source", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_device", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_product", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_type", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_page", column: "refreshed_at", maxHours: 5, refreshedBy: "refresh-pixel-rollups" },
+  { table: "gold_attribution_channel", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution-channel" },
+  // Rollups del pixel — refresh-pixel-rollups. Se vigilan TODOS y no sólo
+  // `aggregates` (ampliado 2026-07-21): el cron corre 7 statements y cada uno
+  // puede fallar por separado sin tumbar los demás. Con un solo centinela, un
+  // fallo aislado —justo el de `source`, que alimenta el breakdown por canal—
+  // quedaba invisible mientras `aggregates` se refrescaba puntual.
+  //
+  // maxHours=8 (recalibrado 2026-08-19, BP-ROLLUP-STUCK): el cron pasó a rotar
+  // UNA tabla por invocación (cada 15 min → ciclo completo de 7 tablas ≈ 1.75h).
+  // El costo de recuperación tras un skip de Vercel es alto: edad pre-skip ~1.75h
+  // + gap observado ~2.3h + hasta ~1.75h de ciclo hasta re-tocar esa tabla ≈ 5.8h.
+  // A 5h eso disparaba mail falso (el incidente); 8h tolera un skip + un ciclo de
+  // recuperación y SIGUE detectando un cron desagendado el mismo día. NO subir más
+  // sin bajar también la cadencia — 8h es el techo antes de perder señal útil.
+  { table: "pixel_daily_aggregates", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_source", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_funnel_by_source", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_device", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_product", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_type", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_page", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
 ];
 
 export interface FreshnessRow {

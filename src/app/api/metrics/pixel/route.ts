@@ -24,6 +24,10 @@ import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
+import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
+import { touchpointChannelSql } from "@/lib/pixel/touchpoint-channel-sql";
+import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
+import type { ChannelRule } from "@/lib/pixel/channel-rules";
 import {
   loadProductSkuMap,
   foldPurchasesToProductGrain,
@@ -41,8 +45,11 @@ import {
 
 export const revalidate = 0;
 // Techo duro de Vercel: headroom para rangos anchos sin que la función se mate
-// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (25s) corta antes.
-export const maxDuration = 60;
+// antes de tiempo. La red de seguridad GLOBAL_TIMEOUT_MS (50s) corta antes.
+// Subido 60→90 (2026-08-18, BP-PIXEL-TIMEOUT): con GLOBAL_TIMEOUT_MS a 50s la
+// función necesita headroom sobre la race para serializar la respuesta (~878KB en
+// 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
+export const maxDuration = 200;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // ══════════════════════════════════════════════════════════════
@@ -66,9 +73,17 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 
 // Red de seguridad: si el endpoint no responde en N ms, devuelve un mock vacío en
 // vez de colgar la función (degradación graciosa, nunca un 500/cuelgue). Combinado
-// con maxDuration como techo duro de Vercel. Con los rollups de Fase 2 todos los
-// rangos responden muy por debajo de este techo; queda como red de seguridad.
-const GLOBAL_TIMEOUT_MS = 25000;
+// con maxDuration como techo duro de Vercel.
+// Subido 25s→50s (2026-08-18, BP-PIXEL-TIMEOUT): para la org grande (El Mundo del
+// Juguete) el compute de 7d/14d queda pegado a ~21-25s — varias queries desanidan
+// pa.touchpoints EN VIVO (sólo 4 van por gold detrás de PIXEL_USE_GOLD). A 25s la
+// race mataba el compute ANTES de terminar → devolvía el mock vacío → el warm-cache
+// cacheaba ESE mock → analytics en 0 para TODO rango multi-día. A 50s (bajo
+// maxDuration=90) el compute termina y devuelve data real, que el warm-cache sí
+// cachea. 30d (~3-4x el trabajo) puede seguir sobre 50s → FOLLOW-UP: gatear esas
+// queries unnest detrás de gold/rollup (BP-PIXEL-TIMEOUT #2). REQUIERE
+// statement_timeout=50000 en client.ts (si no, PG mata la query a los 25s igual).
+const GLOBAL_TIMEOUT_MS = 85000;
 
 // Techo de seguridad, NO un recorte de producto — mismo criterio y mismo valor
 // que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
@@ -123,9 +138,21 @@ function buildEmptyMockResponse() {
 }
 
 export async function GET(request: NextRequest) {
+  // Warm-cache: SIN race (BP-PIXEL-TIMEOUT, 2026-08-18). El cron warm-cache pre-siembra
+  // el shared cache llamando este endpoint por cada org/rango, SECUENCIALMENTE. Si lo
+  // raceáramos a 85s, para las orgs grandes (compute >85s) devolvería el mock y —peor—
+  // el warm seguiría al próximo rango disparando otro compute en background → N computes
+  // paralelos = thundering-herd que satura la DB (justo lo que el diseño secuencial del
+  // warm-cache evita). Sin race, el warm ESPERA cada compute (~120s), lo escribe en el
+  // cache y recién ahí sigue → secuencial, sin solaparse. Corre bajo maxDuration (<300s
+  // cap real). Los clientes leen el cache ya sembrado → instantáneo. Sólo aplica al warm
+  // (key interna WARM_CACHE_KEY), nunca a usuarios (que mantienen la red de 85s).
+  const { searchParams } = new URL(request.url);
+  const isWarm = !!searchParams.get("orgId") && searchParams.get("key") === WARM_CACHE_KEY;
+
   // Red de seguridad: corre el handler contra un timeout global; si el handler no
   // responde a tiempo, devuelve un mock vacío en vez de colgar (nunca 500/cuelgue).
-  if (GLOBAL_TIMEOUT_MS > 0) {
+  if (!isWarm && GLOBAL_TIMEOUT_MS > 0) {
     const realPromise = (async () => realHandler(request))();
     const timeoutPromise = new Promise<NextResponse>((resolve) =>
       setTimeout(() => resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: GLOBAL_TIMEOUT_MS })), GLOBAL_TIMEOUT_MS)
@@ -256,6 +283,45 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     const crDateFrom = pixelInstalledAt && pixelInstalledAt.getTime() > dateFrom.getTime()
       ? pixelInstalledAt
       : dateFrom;
+
+    // ── Canales en el serve (F4), detrás de flag propio, OFF por default ──
+    // Con el flag OFF el comportamiento es IDÉNTICO (agrupa por source, como
+    // siempre). Con el flag ON agrupa por el CANAL resuelto por channel_rule
+    // (mismas reglas que el panel /pixel/canales). Es SOLO lectura: re-agrupa la
+    // misma plata ya atribuida — NO toca attribution.ts. Resiliente: si
+    // channel_rule no existe, cae a passthrough (source). Ver
+    // canales-serve-integration.local.md.
+    const usePixelChannels = process.env.PIXEL_USE_CHANNELS === "true";
+    let channelRules: ChannelRule[] = [];
+    if (usePixelChannels) {
+      try {
+        const rows = (await prisma.$queryRawUnsafe(LOAD_CHANNEL_RULES_SQL, ORG_ID)) as ChannelRuleRow[];
+        channelRules = rows.map(rowToChannelRule);
+      } catch {
+        channelRules = []; // tabla ausente → passthrough, no rompe el serve
+      }
+    }
+    // source (default) o canal (flag ON) para un touchpoint. Misma firma → drop-in.
+    const tpSourceOrChannel = (tp: string) =>
+      usePixelChannels ? touchpointChannelSql(channelRules, tp) : touchpointSourceSql(tp);
+
+    // Las 4 queries de atribución tienen una rama Gold que lee gold_attribution_source
+    // (grain por SOURCE, sin medium → no se puede resolver el canal ahí). Cuando los
+    // canales están ON, se PREFIERE la rama Bronze (touchpoint, que sí tiene
+    // source/medium/campaign) para resolver el canal fiel al panel. Trade-off: esas
+    // 4 queries pierden la perf del rollup Gold mientras los canales estén ON (el fix
+    // "de fondo" perf+canal sería un rollup Gold por CANAL — pendiente).
+    const useGoldSource = usePixelGold && !usePixelChannels;
+    // FIX perf+canal (2026-08-23): rollup Gold POR CANAL. Con canales ON + Gold ON
+    // las 4 queries de atribución leen gold_attribution_channel (materializado por
+    // el cron refresh-gold-attribution-channel) en vez de escanear pa.touchpoints en
+    // vivo (Bronze), que en 30d de la org grande se pasaba del timeout → mock en 0.
+    // El total es idéntico (test de paridad). Gateado detrás de su PROPIO flag
+    // (default OFF) para poder deployar el código ANTES de crear+backfillear la tabla
+    // en prod, y prenderlo recién cuando el rollup ya tenga datos → cero riesgo de
+    // leer una tabla vacía. Cuando esté todo, `PIXEL_USE_GOLD_CHANNEL=true`.
+    const useGoldChannel =
+      usePixelGold && usePixelChannels && process.env.PIXEL_USE_GOLD_CHANNEL === "true";
 
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
@@ -425,7 +491,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
       // 9. Attribution by source (weighted for NITRO, simple for others)
       // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
-      (usePixelGold
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            SELECT channel AS source,
+              SUM(orders)::int as orders,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float as revenue
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY channel
+            ORDER BY revenue DESC
+            LIMIT 10
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; orders: number; revenue: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(orders)::int as orders,
@@ -439,12 +516,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(
                 CASE
@@ -476,12 +548,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "LAST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -504,12 +571,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         : selectedModel === "FIRST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa
@@ -531,12 +593,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `
         : prisma.$queryRaw`
             SELECT
-              CASE
-                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-              END as source,
+              ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
             FROM pixel_attributions pa
@@ -782,7 +839,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // segun la logica de cada modelo (last_click / first_click / linear / nitro).
       // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
       // la tarjeta de revenue por canal por dia.
-      (usePixelGold
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, channel AS source, orders,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            ORDER BY day DESC, revenue DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, source, orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
@@ -793,12 +858,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${tpSourceOrChannel("tp")} as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(
             pa."attributedValue" * (
@@ -854,7 +914,19 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       ` as Promise<Array<{ day: string; source: string; spend: number }>>,
 
       // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
-      (usePixelGold
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            SELECT channel AS source,
+              SUM(first_touch_count)::int as "firstTouch",
+              SUM(assist_touch_count)::int as "assistTouch",
+              SUM(last_touch_count)::int as "lastTouch",
+              SUM(solo_touch_count)::int as "soloTouch"
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY channel
+            ORDER BY "firstTouch" DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(first_touch_count)::int as "firstTouch",
@@ -868,12 +940,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
       : prisma.$queryRaw`
         SELECT
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${tpSourceOrChannel("tp")} as source,
           COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
           COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < pa."touchpointCount")::int as "assistTouch",
           COUNT(*) FILTER (WHERE tp_ord = pa."touchpointCount" AND pa."touchpointCount" > 1)::int as "lastTouch",
@@ -1055,18 +1122,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
       prisma.$queryRaw`
         SELECT
-          CASE
-            WHEN COALESCE(pa.touchpoints::jsonb->0->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pa.touchpoints::jsonb->0->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pa.touchpoints::jsonb->0->>'source','') || '_organic'
-            ELSE COALESCE(pa.touchpoints::jsonb->0->>'source', 'direct')
-          END as first_channel,
-          CASE
-            WHEN COALESCE(pa.touchpoints::jsonb->(-1)->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') || '_organic'
-            ELSE COALESCE(pa.touchpoints::jsonb->(-1)->>'source', 'direct')
-          END as last_channel,
+          ${tpSourceOrChannel("pa.touchpoints::jsonb->0")} as first_channel,
+          ${tpSourceOrChannel("pa.touchpoints::jsonb->(-1)")} as last_channel,
           COUNT(*)::int as journeys,
           SUM(pa."attributedValue")::float as revenue,
           AVG(pa."attributedValue")::float as aov
@@ -1089,7 +1146,35 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
       // la formula de cada modelo para repartir el attributedValue por canal.
       // GROUP BY (model, source) → ~4 modelos × N canales rows.
-      (usePixelGold
+      (useGoldChannel
+        ? prisma.$queryRawUnsafe(`
+            WITH src AS (
+              SELECT channel AS source,
+                SUM(nitro_single) nitro_single, SUM(nitro_first2) nitro_first2,
+                SUM(nitro_last2) nitro_last2, SUM(nitro_first_n) nitro_first_n,
+                SUM(nitro_last_n) nitro_last_n, SUM(nitro_middle_n) nitro_middle_n,
+                SUM(last_click_revenue) last_click_revenue,
+                SUM(first_click_revenue) first_click_revenue,
+                SUM(linear_revenue) linear_revenue
+              FROM gold_attribution_channel
+              WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+              GROUP BY channel
+            )
+            SELECT model, source, revenue FROM (
+              SELECT m.model, s.source,
+                (CASE m.model
+                  WHEN 'LAST_CLICK'  THEN ${goldModelRevenueSql("LAST_CLICK", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  WHEN 'FIRST_CLICK' THEN ${goldModelRevenueSql("FIRST_CLICK", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  WHEN 'LINEAR'      THEN ${goldModelRevenueSql("LINEAR", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                  ELSE ${goldModelRevenueSql("NITRO", wFirst, wMiddle, wLast, (n) => `s.${n}`)}
+                END)::float as revenue
+              FROM src s
+              CROSS JOIN (VALUES ('LAST_CLICK'),('FIRST_CLICK'),('LINEAR'),('NITRO')) m(model)
+            ) t
+            WHERE revenue > 0
+            ORDER BY model, revenue DESC
+          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ model: string; source: string; revenue: number }>>
+      : useGoldSource
         ? prisma.$queryRawUnsafe(`
             WITH src AS (
               SELECT source,
@@ -1120,12 +1205,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       : prisma.$queryRaw`
         SELECT
           pa.model::text as model,
-          CASE
-            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
-              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
-            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
-            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
-          END as source,
+          ${tpSourceOrChannel("tp")} as source,
           SUM(
             pa."attributedValue" * (
               CASE
@@ -1863,8 +1943,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
     // SWR serve: hit (fresh o stale) → instant; stale → refresh background con lock; miss → bloqueante.
     // Dos niveles: memoria de esta instancia, y si no, el caché compartido.
+    // Warm-cache: NO servir stale (dispararía refresh en bg y el warm seguiría al
+    // próximo rango → N refresh en paralelo = herd que satura la DB). En stale/miss el
+    // warm cae al compute SÍNCRONO de abajo (isWarm ⇒ sin race) y mantiene su
+    // secuencialidad. Usuarios: SWR normal (sirve stale al toque + refresh en bg).
+    const isWarmCall = !!queryOrgId && queryKey === WARM_CACHE_KEY;
     const cached = await getSharedCachedSWR("pixel", ...cacheKey);
-    if (cached?.data) {
+    if (cached?.data && !(isWarmCall && cached.isStale)) {
       if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
         waitUntil(
           computeAndCache()
@@ -1874,8 +1959,31 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       }
       return NextResponse.json(cached.data);
     }
-    const freshResponse = await computeAndCache();
-    return NextResponse.json(freshResponse);
+    // ── CACHE MISS ────────────────────────────────────────────────────────────
+    // BP-PIXEL-TIMEOUT (2026-08-18): el compute de las orgs grandes (El Mundo del
+    // Juguete, Arredo) tarda >85s — más que la red de seguridad GLOBAL_TIMEOUT_MS.
+    // Antes esto era `await computeAndCache()` a secas: la race global devolvía el
+    // mock a los 85s y el compute quedaba COLGADO sin waitUntil → Vercel congelaba
+    // la función al responder → setSharedCache NUNCA corría → cold-miss eterno (el
+    // cache jamás se sembraba y cada request pagaba el timeout completo).
+    // Ahora el compute se registra en waitUntil: aunque la race global devuelva el
+    // mock antes, Fluid Compute mantiene viva la función post-response y el compute
+    // termina (~120s) y ESCRIBE el cache compartido → el request siguiente (y el
+    // warm-cache) leen data real instantánea. En orgs chicas (compute <85s) el
+    // `await` devuelve data real directo, como antes. El lock evita thundering-herd:
+    // si otro request ya está sembrando esta key, este devuelve el mock sin recomputar.
+    if (tryAcquireRefreshLock("pixel", ...cacheKey)) {
+      const missCompute = computeAndCache()
+        .catch((e) => {
+          console.error("[pixel] cache-miss seed failed:", e);
+          return buildEmptyMockResponse();
+        })
+        .finally(() => releaseRefreshLock("pixel", ...cacheKey));
+      waitUntil(missCompute);
+      const freshResponse = await missCompute;
+      return NextResponse.json(freshResponse);
+    }
+    return NextResponse.json(buildEmptyMockResponse());
   } catch (error) {
     console.error("[Pixel Metrics API] Error:", error);
 

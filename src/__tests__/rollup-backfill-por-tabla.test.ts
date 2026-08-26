@@ -26,7 +26,7 @@ describe("backfill por tabla — decisión de qué corre", () => {
     expect(tablesToRun("page")).toEqual(["page"]);
   });
 
-  it("sin table conserva el contrato: las 7 en orden", () => {
+  it("sin table conserva el contrato: las 8 en orden", () => {
     expect(tablesToRun(undefined)).toEqual([
       "aggregates",
       "device",
@@ -35,6 +35,7 @@ describe("backfill por tabla — decisión de qué corre", () => {
       "product",
       "source",
       "funnel",
+      "channel", // F3.2 — canal resuelto (paralelo a source)
     ]);
     // Y es exactamente ROLLUP_TABLES (misma fuente).
     expect(tablesToRun(undefined)).toEqual([...ROLLUP_TABLES]);
@@ -48,7 +49,7 @@ describe("backfill por tabla — decisión de qué corre", () => {
     expect(run).toContain("page");
   });
 
-  it("isRollupTable reconoce las 7 y rechaza el resto", () => {
+  it("isRollupTable reconoce las 8 y rechaza el resto", () => {
     for (const t of ROLLUP_TABLES) expect(isRollupTable(t)).toBe(true);
     expect(isRollupTable("aggregate")).toBe(false); // singular, typo común
     expect(isRollupTable("pixel_daily_source")).toBe(false);
@@ -69,14 +70,9 @@ describe("backfill por tabla — validación de params (sin tocar la DB)", () =>
     expect(String((r.body as any).error)).toContain("table inválida");
   });
 
-  it("`table` sin `org` devuelve 400", async () => {
-    const r = await runRollupBackfill({
-      from: "2026-05-12",
-      to: "2026-05-12",
-      cursor: "2026-05-12",
-      table: "source",
-    });
-    expect(r.httpStatus).toBe(400);
-    expect(String((r.body as any).error)).toContain("exige también ?org=");
-  });
+  // NOTA (2026-08-18): se eliminó el test "`table` sin `org` devuelve 400". Ese guard
+  // se relajó: `table` SIN `org` es ahora un modo VÁLIDO (procesa esa tabla para TODAS
+  // las orgs — lo usa el cron refresh-pixel-rollups en su rotación 1-tabla/invocación).
+  // No se puede testear el camino feliz acá porque el backfill usa hll (PGlite no lo
+  // tiene). La validación que queda testeable es la de `table` inválida (arriba).
 });

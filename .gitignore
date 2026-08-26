@@ -12,3 +12,7 @@ prisma/*.db
 
 # gstack working dir (no commitear)
 .gstack/
+
+# Docs de trabajo locales (contexto de sesion, no se pushean)
+*.local.md
+*.local.sql

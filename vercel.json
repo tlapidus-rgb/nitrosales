@@ -94,7 +94,7 @@
     },
     {
       "path": "/api/cron/refresh-pixel-rollups?key=nitrosales-secret-key-2024-production",
-      "schedule": "20,50 * * * *"
+      "schedule": "3,18,33,48 * * * *"
     },
     {
       "path": "/api/cron/attribution-reconcile?key=nitrosales-secret-key-2024-production",
@@ -111,6 +111,10 @@
     {
       "path": "/api/cron/refresh-gold-attribution?key=nitrosales-secret-key-2024-production",
       "schedule": "20,50 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-gold-attribution-channel?key=nitrosales-secret-key-2024-production",
+      "schedule": "25,55 * * * *"
     },
     {
       "path": "/api/cron/refresh-product-dimensions?key=nitrosales-secret-key-2024-production",

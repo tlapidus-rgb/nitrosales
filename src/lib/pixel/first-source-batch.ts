@@ -26,6 +26,7 @@
 import {
   FIRST_SOURCE_MARKETING_CASE_FILTERED,
   WEBHOOK_SESSION_FILTER,
+  PAID_CLICK_ID_PREDICATE,
 } from "@/lib/pixel/first-source-sql";
 
 /**
@@ -82,15 +83,34 @@ WITH cand AS (
   LIMIT $3::int
 ),
 ev AS (
-  SELECT pe."visitorId" AS vid, pe.timestamp AS ts,
-         (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS marketing_source
-  FROM pixel_events pe
-  JOIN cand c ON c.vid = pe."visitorId"
-  WHERE ${WEBHOOK_SESSION_FILTER}
+  -- marketing_source se computa UNA vez (subselect) y source_raw lo reusa como
+  -- fallback, en vez de evaluar el CASE dos veces por evento.
+  SELECT vid, ts, marketing_source,
+         -- CRUDO del MISMO evento (Opción C, F3.1): el utm_source crudo cuando
+         -- existe (adwords/fb/gocuotas…, que las reglas seed matchean directo),
+         -- si no el source ya resuelto (clickId/referrer) como fallback.
+         COALESCE(utm_source_raw, marketing_source) AS source_raw,
+         medium_raw, campaign_raw
+  FROM (
+    SELECT pe."visitorId" AS vid, pe.timestamp AS ts,
+           (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS marketing_source,
+           NULLIF(LOWER(pe."utmParams"->>'source'), '') AS utm_source_raw,
+           -- Fase B: un click-id de pauta ES la señal fuerte de PAGO → medium='paid'
+           -- (override del utm_medium crudo). Así gclid/ttclid/fbclid sin utm_medium
+           -- resuelven a "…Ads" en vez de caer orgánico. Ver PAID_CLICK_ID_PREDICATE.
+           CASE WHEN ${PAID_CLICK_ID_PREDICATE} THEN 'paid'
+                ELSE LOWER(COALESCE(pe."utmParams"->>'medium', '')) END AS medium_raw,
+           NULLIF(pe."utmParams"->>'campaign', '') AS campaign_raw
+    FROM pixel_events pe
+    JOIN cand c ON c.vid = pe."visitorId"
+    WHERE ${WEBHOOK_SESSION_FILTER}
+  ) x
 ),
 resolved AS (
-  INSERT INTO pixel_visitor_first_source ("organizationId","visitorId",first_source)
-  SELECT DISTINCT ON (ev.vid) $1, ev.vid, ev.marketing_source
+  INSERT INTO pixel_visitor_first_source
+    ("organizationId","visitorId",first_source,source_raw,medium_raw,campaign_raw)
+  SELECT DISTINCT ON (ev.vid) $1, ev.vid, ev.marketing_source,
+         ev.source_raw, ev.medium_raw, ev.campaign_raw
   FROM ev
   WHERE ev.marketing_source IS NOT NULL
   ORDER BY ev.vid, ev.ts ASC
@@ -115,6 +135,59 @@ marked AS (
 SELECT (SELECT COUNT(*) FROM cand)::int     AS candidates,
        (SELECT COUNT(*) FROM resolved)::int AS resolved,
        (SELECT COUNT(*) FROM marked)::int   AS marked`.trim();
+}
+
+/**
+ * BACKFILL de las columnas crudas (F3.1) para filas de la dim que YA existen.
+ *
+ * El batch normal usa `INSERT ... ON CONFLICT DO NOTHING`, así que NO rellena
+ * `source_raw/medium_raw/campaign_raw` de las filas viejas (las que tienen
+ * `first_source` pero los crudos en NULL). Este UPDATE las completa, tomando el
+ * crudo del MISMO primer toque de marketing (misma lógica que el batch).
+ *
+ * Idempotente y resumible: solo toca filas con `source_raw IS NULL`. Scopeado
+ * por org (`$1`) — para prod se corre org por org (Arredo con cuidado).
+ * Necesario para F5 (rebuild); acá sirve para verificar F3.1 sobre datos reales.
+ */
+export function buildFirstSourceRawBackfillSql(): string {
+  return `
+WITH ev AS (
+  SELECT vid, ts, marketing_source,
+         COALESCE(utm_source_raw, marketing_source) AS source_raw,
+         medium_raw, campaign_raw
+  FROM (
+    SELECT pe."visitorId" AS vid, pe.timestamp AS ts,
+           (${FIRST_SOURCE_MARKETING_CASE_FILTERED}) AS marketing_source,
+           NULLIF(LOWER(pe."utmParams"->>'source'), '') AS utm_source_raw,
+           -- Fase B: un click-id de pauta ES la señal fuerte de PAGO → medium='paid'
+           -- (override del utm_medium crudo). Así gclid/ttclid/fbclid sin utm_medium
+           -- resuelven a "…Ads" en vez de caer orgánico. Ver PAID_CLICK_ID_PREDICATE.
+           CASE WHEN ${PAID_CLICK_ID_PREDICATE} THEN 'paid'
+                ELSE LOWER(COALESCE(pe."utmParams"->>'medium', '')) END AS medium_raw,
+           NULLIF(pe."utmParams"->>'campaign', '') AS campaign_raw
+    FROM pixel_events pe
+    WHERE pe."organizationId" = $1
+      AND ${WEBHOOK_SESSION_FILTER}
+      AND EXISTS (
+        SELECT 1 FROM pixel_visitor_first_source d
+        WHERE d."organizationId" = $1 AND d."visitorId" = pe."visitorId"
+          AND d.source_raw IS NULL
+      )
+  ) x
+),
+picked AS (
+  SELECT DISTINCT ON (vid) vid, source_raw, medium_raw, campaign_raw
+  FROM ev
+  WHERE marketing_source IS NOT NULL
+  ORDER BY vid, ts ASC
+)
+UPDATE pixel_visitor_first_source d
+SET source_raw = p.source_raw,
+    medium_raw = p.medium_raw,
+    campaign_raw = p.campaign_raw
+FROM picked p
+WHERE d."organizationId" = $1 AND d."visitorId" = p.vid
+  AND d.source_raw IS NULL`.trim();
 }
 
 /**
