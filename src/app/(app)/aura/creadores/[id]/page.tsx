@@ -1124,11 +1124,11 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             style={{ background: THEME.border }}
           >
             <div
-              className="h-full rounded-full"
+              className="h-full w-full rounded-full origin-left"
               style={{
-                width: `${Math.round((revenuePct ?? 0) * 100)}%`,
+                transform: `scaleX(${Math.min(1, Math.max(0, revenuePct ?? 0))})`,
                 background: t.color,
-                transition: `width 700ms ${ES}`,
+                transition: `transform 700ms ${ES}`,
               }}
             />
           </div>

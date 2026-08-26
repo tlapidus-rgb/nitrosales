@@ -105,11 +105,11 @@ function DeltaBadge({
   invert?: boolean;
 }) {
   if (value === null || !Number.isFinite(value)) {
-    return <span className="text-[10px] tabular-nums text-slate-400">—</span>;
+    return <span className="text-[10px] tabular-nums text-ink-40">—</span>;
   }
   if (Math.abs(value) < 0.01) {
     return (
-      <span className="text-[10px] tabular-nums text-slate-500">
+      <span className="text-[10px] tabular-nums text-ink-40">
         vs Base: 0%
       </span>
     );
@@ -238,7 +238,7 @@ function ScenarioPanel({
         <div className="relative flex items-center gap-2">
           <span
             className="h-2 w-2 rounded-full"
-            style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
+            style={{ background: color }}
           />
           <span
             className="text-[10px] font-semibold uppercase tracking-[0.14em]"
@@ -271,7 +271,7 @@ function ScenarioPanel({
             </span>
           )}
         </div>
-        <h3 className="relative mt-2 truncate text-lg font-semibold tracking-tight text-slate-900">
+        <h3 className="relative mt-2 truncate text-lg font-semibold tracking-tight text-ink">
           {scenario.name}
         </h3>
       </div>
@@ -280,7 +280,7 @@ function ScenarioPanel({
       {months.length > 0 && (
         <div className="relative px-4 pb-2">
           <MiniSparkline months={months} color={color} />
-          <div className="mt-1 flex items-center justify-between text-[10px] font-medium tabular-nums text-slate-500">
+          <div className="mt-1 flex items-center justify-between text-[10px] font-medium tabular-nums text-ink-40">
             <span>{months[0]?.month}</span>
             <span>{months[months.length - 1]?.month}</span>
           </div>
@@ -366,7 +366,7 @@ function ScenarioPanel({
       {/* Drivers resumen */}
       {scenario.drivers && (
         <div className="relative mt-auto border-t border-slate-100 bg-slate-50/60 p-4">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
             Drivers clave
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
@@ -411,8 +411,8 @@ function DriverLine({
   };
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-slate-500">{label}</span>
-      <span className="tabular-nums font-medium text-slate-800">{fmt()}</span>
+      <span className="text-ink-40">{label}</span>
+      <span className="tabular-nums font-medium text-ink-60">{fmt()}</span>
     </div>
   );
 }
@@ -441,7 +441,7 @@ function KpiRow({
       const positive = invert ? delta.pct < 0 : delta.pct > 0;
       if (Math.abs(delta.pct) < 0.01) {
         return (
-          <span className="text-[10px] tabular-nums text-slate-500">
+          <span className="text-[10px] tabular-nums text-ink-40">
             vs Base: 0{delta.suffix ?? ""}
           </span>
         );
@@ -461,7 +461,7 @@ function KpiRow({
       const positive = invert ? delta.abs < 0 : delta.abs > 0;
       if (Math.abs(delta.abs) < 0.05) {
         return (
-          <span className="text-[10px] tabular-nums text-slate-500">
+          <span className="text-[10px] tabular-nums text-ink-40">
             vs Base: 0{delta.suffix ?? ""}
           </span>
         );
@@ -489,14 +489,14 @@ function KpiRow({
         justifyContent: "center",
       }}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
         {label}
       </div>
       <div
         className={`mt-0.5 truncate tabular-nums font-semibold tracking-tight ${
           compact ? "text-sm" : "text-base"
         }`}
-        style={{ color: accent ?? "#0f172a" }}
+        style={{ color: accent ?? "#1C1B18" }}
       >
         {value}
       </div>
@@ -595,22 +595,18 @@ export default function ScenarioCompareView({
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
               <span
                 className="h-1.5 w-1.5 rounded-full"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #a855f7 0%, #6d28d9 100%)",
-                  boxShadow: "0 0 8px rgba(168,85,247,0.6)",
-                }}
+                style={{ background: "#9A978D" }}
               />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-60">
                 Comparativo · Fase 5f
               </span>
             </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink">
               Comparar escenarios
             </h2>
-            <p className="mt-1 text-[13px] leading-snug text-slate-500">
+            <p className="mt-1 text-[13px] leading-snug text-ink-40">
               Elegí hasta 3 escenarios. Los deltas se calculan contra el{" "}
-              <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-ink-60">
                 {baseForDelta?.name ?? "primero seleccionado"}
               </span>
               .
@@ -619,7 +615,7 @@ export default function ScenarioCompareView({
           <button
             onClick={onClose}
             aria-label="Cerrar"
-            className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+            className="rounded-lg border border-slate-200 bg-white p-2 text-ink-40 hover:border-slate-300 hover:bg-slate-50 hover:text-ink-60"
             style={{ transition: `all 200ms ${ES}` }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -635,7 +631,7 @@ export default function ScenarioCompareView({
 
         {/* Selector */}
         <div className="border-b border-slate-100 bg-slate-50/50 p-4">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
             Selección — {selected.length} / 3
           </div>
           <div className="flex flex-wrap gap-2">
@@ -652,17 +648,14 @@ export default function ScenarioCompareView({
                   style={{
                     borderColor: active ? `${color}88` : "rgba(226,232,240,0.9)",
                     background: active ? `${color}12` : "white",
-                    color: active ? color : "#334155",
+                    color: active ? color : "#6B685F",
                     boxShadow: active ? `0 0 0 1px ${color}33` : "none",
                     transition: `all 200ms ${ES}`,
                   }}
                 >
                   <span
                     className="h-2 w-2 rounded-full"
-                    style={{
-                      background: color,
-                      boxShadow: active ? `0 0 8px ${color}` : "none",
-                    }}
+                    style={{ background: color }}
                   />
                   {s.name}
                   {s.isActive && (
@@ -682,7 +675,7 @@ export default function ScenarioCompareView({
         {/* Paneles */}
         <div className="min-h-0 flex-1 overflow-auto p-5">
           {selectedScenarios.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-10 text-center text-sm text-slate-500">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-10 text-center text-sm text-ink-40">
               Seleccioná al menos un escenario para ver la comparación.
             </div>
           ) : (
@@ -706,14 +699,14 @@ export default function ScenarioCompareView({
         </div>
 
         {/* Footer */}
-        <footer className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-[11px] text-slate-500">
+        <footer className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-[11px] text-ink-40">
           <div>
             Los deltas en % se calculan vs el escenario pivot. "pp" = puntos
             porcentuales (márgenes), "m" = meses.
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-ink-60 hover:border-slate-300"
             style={{ transition: `all 200ms ${ES}` }}
           >
             Cerrar

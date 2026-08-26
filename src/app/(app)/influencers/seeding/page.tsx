@@ -8,9 +8,9 @@ import { useState, useEffect } from "react";
 
 const STATUS_FLOW = [
   { value: "PENDING", label: "Pendiente", color: "bg-yellow-50 text-yellow-700" },
-  { value: "SHIPPED", label: "Enviado", color: "bg-blue-50 text-blue-700" },
+  { value: "SHIPPED", label: "Enviado", color: "bg-surface-2 text-ink-60" },
   { value: "DELIVERED", label: "Entregado", color: "bg-green-50 text-green-700" },
-  { value: "CONTENT_RECEIVED", label: "Contenido recibido", color: "bg-purple-50 text-purple-700" },
+  { value: "CONTENT_RECEIVED", label: "Contenido recibido", color: "bg-surface-2 text-ink-60" },
 ];
 
 interface Influencer { id: string; name: string; code: string; }
@@ -96,13 +96,13 @@ export default function SeedingPage() {
   const totalValue = stats.reduce((acc, s) => acc + (Number(s._sum.estimatedValue) || 0), 0);
   const totalCount = stats.reduce((acc, s) => acc + s._count.id, 0);
 
-  const inputStyle = { color: "#111827", backgroundColor: "#ffffff" };
+  const inputStyle = { color: "var(--ent-ink)", backgroundColor: "var(--ent-elevated)" };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando seedings...</p>
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function SeedingPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+          className="px-4 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors"
         >
           {showForm ? "Cancelar" : "+ Nuevo envio"}
         </button>
@@ -154,7 +154,7 @@ export default function SeedingPage() {
       {/* Create Form */}
       {showForm && (
         <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-6 space-y-4">
-          <h3 className="text-sm font-semibold" style={inputStyle}>Nuevo envio de producto</h3>
+          <h3 className="text-sm font-semibold text-ink">Nuevo envio de producto</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-ink-40 mb-1">Influencer *</label>
@@ -205,7 +205,7 @@ export default function SeedingPage() {
           <button
             onClick={handleCreate}
             disabled={saving || !form.influencerId}
-            className="px-6 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+            className="px-6 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-50"
           >
             {saving ? "Guardando..." : "Registrar envio"}
           </button>
@@ -231,14 +231,14 @@ export default function SeedingPage() {
                     <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center text-lg">📦</div>
                   )}
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "#111827" }}>
+                    <p className="text-sm font-medium text-ink">
                       {s.product?.name || "Producto sin especificar"}
                       <span className="text-ink-40 ml-2">→ {s.influencer.name}</span>
                     </p>
                     <div className="flex items-center gap-3 mt-0.5">
                       {s.estimatedValue && <span className="text-xs text-ink-40">Valor: {fmtARS(Number(s.estimatedValue))}</span>}
                       {s.trackingNumber && <span className="text-xs text-ink-40 font-mono">Tracking: {s.trackingNumber}</span>}
-                      {s.briefing && <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">Brief: {s.briefing.title}</span>}
+                      {s.briefing && <span className="text-[10px] px-2 py-0.5 bg-surface-2 text-ink-60 rounded-full">Brief: {s.briefing.title}</span>}
                     </div>
                     {s.notes && <p className="text-xs text-ink-40 mt-0.5">{s.notes}</p>}
                   </div>
@@ -247,17 +247,17 @@ export default function SeedingPage() {
                 <div className="flex items-center gap-3">
                   {/* Status progression buttons */}
                   {s.status === "PENDING" && (
-                    <button onClick={() => updateStatus(s.id, "SHIPPED")} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-ink">
+                    <button onClick={() => updateStatus(s.id, "SHIPPED")} className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90">
                       Marcar enviado
                     </button>
                   )}
                   {s.status === "SHIPPED" && (
-                    <button onClick={() => updateStatus(s.id, "DELIVERED")} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600">
+                    <button onClick={() => updateStatus(s.id, "DELIVERED")} className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90">
                       Marcar entregado
                     </button>
                   )}
                   {s.status === "DELIVERED" && (
-                    <button onClick={() => updateStatus(s.id, "CONTENT_RECEIVED")} className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600">
+                    <button onClick={() => updateStatus(s.id, "CONTENT_RECEIVED")} className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90">
                       Contenido recibido
                     </button>
                   )}

@@ -119,7 +119,7 @@ export default function InfluencerCampaignsPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando campañas...</p>
         </div>
       </div>
@@ -136,7 +136,7 @@ export default function InfluencerCampaignsPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+          className="px-4 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors"
         >
           + Nueva Campaña
         </button>
@@ -144,7 +144,7 @@ export default function InfluencerCampaignsPage() {
 
       {/* Create Form */}
       {showCreate && (
-        <div className="bg-elevated rounded-2xl border border-orange-100 shadow-sm p-6">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-6">
           <h3 className="font-semibold text-ink mb-4">Nueva Campaña</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -152,7 +152,7 @@ export default function InfluencerCampaignsPage() {
               <select
                 value={selInfluencer}
                 onChange={(e) => setSelInfluencer(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
               >
                 <option value="">Seleccionar...</option>
                 {influencers.map((inf) => (
@@ -166,7 +166,7 @@ export default function InfluencerCampaignsPage() {
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
                 placeholder="Ej: Dia del Niño 2026"
               />
             </div>
@@ -176,7 +176,7 @@ export default function InfluencerCampaignsPage() {
                 type="date"
                 value={formStart}
                 onChange={(e) => setFormStart(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </div>
             <div>
@@ -185,7 +185,7 @@ export default function InfluencerCampaignsPage() {
                 type="date"
                 value={formEnd}
                 onChange={(e) => setFormEnd(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </div>
             <div>
@@ -194,7 +194,7 @@ export default function InfluencerCampaignsPage() {
                 type="number"
                 value={formBonusTarget}
                 onChange={(e) => setFormBonusTarget(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
                 placeholder="Ej: 500000"
               />
             </div>
@@ -204,7 +204,7 @@ export default function InfluencerCampaignsPage() {
                 type="number"
                 value={formBonusAmount}
                 onChange={(e) => setFormBonusAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
                 placeholder="Ej: 50000"
               />
               <p className="text-[10px] text-ink-40 mt-1">Si se define, el influencer gana este bono al alcanzar el target</p>
@@ -215,7 +215,7 @@ export default function InfluencerCampaignsPage() {
                 type="text"
                 value={formDesc}
                 onChange={(e) => setFormDesc(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30"
                 placeholder="Descripcion opcional de la campaña"
               />
             </div>
@@ -224,7 +224,7 @@ export default function InfluencerCampaignsPage() {
             <button
               onClick={handleCreate}
               disabled={saving || !selInfluencer || !formName}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-ink text-white rounded-lg text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-50"
             >
               {saving ? "Creando..." : "Crear Campaña"}
             </button>
@@ -264,7 +264,7 @@ export default function InfluencerCampaignsPage() {
                     {c.influencer ? (
                       <Link
                         href={`/influencers/${c.influencer.id}`}
-                        className="text-orange-600 hover:text-orange-700 font-medium"
+                        className="text-ink hover:text-ink-60 font-medium"
                       >
                         {c.influencer.name}
                       </Link>
@@ -283,7 +283,7 @@ export default function InfluencerCampaignsPage() {
                   <td className="px-6 py-4 text-right">
                     {c.bonusTarget && c.bonusAmount ? (
                       <div className="text-xs">
-                        <div className="font-medium text-orange-600">{fmtARS(Number(c.bonusAmount))}</div>
+                        <div className="font-medium text-ink">{fmtARS(Number(c.bonusAmount))}</div>
                         <div className="text-ink-40">
                           {Math.min(100, Math.round((Number(c.totalRevenue || 0) / Number(c.bonusTarget)) * 100))}%
                           de {fmtARS(Number(c.bonusTarget))}
@@ -299,7 +299,7 @@ export default function InfluencerCampaignsPage() {
                         c.status === "ACTIVE"
                           ? "bg-green-50 text-green-700"
                           : c.status === "COMPLETED"
-                          ? "bg-blue-50 text-blue-700"
+                          ? "bg-surface-2 text-ink-60"
                           : "bg-surface text-ink-40"
                       }`}
                     >

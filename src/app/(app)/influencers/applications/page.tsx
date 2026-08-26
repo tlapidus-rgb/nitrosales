@@ -109,10 +109,10 @@ export default function ApplicationsPage() {
 
       {/* Public form link */}
       {applyUrl && (
-        <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center justify-between gap-4">
+        <div className="mb-4 bg-surface border border-hairline rounded-xl p-4 flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-orange-800 mb-1">Link del formulario público</p>
-            <p className="text-xs text-orange-600 truncate">{applyUrl}</p>
+            <p className="text-sm font-medium text-ink mb-1">Link del formulario público</p>
+            <p className="text-xs text-ink-60 truncate">{applyUrl}</p>
           </div>
           <button
             onClick={() => {
@@ -123,7 +123,7 @@ export default function ApplicationsPage() {
             className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
               copied
                 ? "bg-green-500 text-white"
-                : "bg-orange-500 text-white hover:bg-orange-600"
+                : "bg-ink text-white hover:bg-ink/90"
             }`}
           >
             {copied ? "Copiado!" : "Copiar link"}
@@ -139,7 +139,7 @@ export default function ApplicationsPage() {
             onClick={() => setFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
               filter === s
-                ? "bg-orange-500 text-white border-orange-500"
+                ? "bg-ink text-white border-ink"
                 : "bg-elevated text-ink-60 border-hairline hover:border-hairline-2"
             }`}
           >
@@ -175,7 +175,7 @@ export default function ApplicationsPage() {
                   <td className="px-4 py-3">
                     <button
                       onClick={() => setExpandedId(expandedId === app.id ? null : app.id)}
-                      className="text-sm font-medium text-ink hover:text-orange-500 transition-colors text-left"
+                      className="text-sm font-medium text-ink hover:text-ink-60 transition-colors text-left"
                     >
                       {app.name}
                     </button>
@@ -269,8 +269,7 @@ export default function ApplicationsPage() {
                               max="50"
                               value={commissionInput[app.id] || "10"}
                               onChange={(e) => setCommissionInput({ ...commissionInput, [app.id]: e.target.value })}
-                              className="w-20 mt-1 px-3 py-1.5 border border-hairline rounded-lg text-sm"
-                              style={{ color: "#111827", backgroundColor: "#ffffff" }}
+                              className="w-20 mt-1 px-3 py-1.5 border border-hairline rounded-lg text-sm text-ink bg-elevated"
                             />
                           </div>
                           <div className="flex-1">
@@ -280,8 +279,7 @@ export default function ApplicationsPage() {
                               value={notesInput[app.id] || ""}
                               onChange={(e) => setNotesInput({ ...notesInput, [app.id]: e.target.value })}
                               placeholder="Notas opcionales..."
-                              className="w-full mt-1 px-3 py-1.5 border border-hairline rounded-lg text-sm"
-                              style={{ color: "#111827", backgroundColor: "#ffffff" }}
+                              className="w-full mt-1 px-3 py-1.5 border border-hairline rounded-lg text-sm text-ink bg-elevated"
                             />
                           </div>
                         </div>

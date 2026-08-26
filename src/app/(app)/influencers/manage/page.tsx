@@ -282,7 +282,7 @@ export default function InfluencerManagePage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando...</p>
         </div>
       </div>
@@ -301,7 +301,7 @@ export default function InfluencerManagePage() {
         </div>
         <button
           onClick={() => { resetForm(); setShowCreate(true); }}
-          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+          className="px-4 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors"
         >
           + Nuevo Influencer
         </button>
@@ -309,7 +309,7 @@ export default function InfluencerManagePage() {
 
       {/* Create / Edit Form */}
       {(showCreate || editId) && (
-        <div className="bg-elevated rounded-2xl border border-orange-100 shadow-sm p-6">
+        <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-6">
           <h3 className="font-semibold text-ink mb-4">
             {editId ? "Editar Influencer" : "Nuevo Influencer"}
           </h3>
@@ -320,7 +320,7 @@ export default function InfluencerManagePage() {
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                 placeholder="Nombre del influencer"
               />
             </div>
@@ -330,7 +330,7 @@ export default function InfluencerManagePage() {
                 type="email"
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                 placeholder="email@ejemplo.com"
               />
             </div>
@@ -340,7 +340,7 @@ export default function InfluencerManagePage() {
                 type="number"
                 value={formCommission}
                 onChange={(e) => setFormCommission(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                 placeholder="10"
                 min="0"
                 max="100"
@@ -353,7 +353,7 @@ export default function InfluencerManagePage() {
                 type="text"
                 value={formPublicName}
                 onChange={(e) => setFormPublicName(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                 placeholder="@nombreinstagram"
               />
             </div>
@@ -365,7 +365,7 @@ export default function InfluencerManagePage() {
                 type="text"
                 value={formPassword}
                 onChange={(e) => setFormPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-hairline rounded-lg text-sm text-ink bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                 placeholder="Contraseña para proteger el dashboard publico"
               />
               <p className="text-[10px] text-ink-40 mt-1">Si se define, el influencer necesita esta contraseña para ver su dashboard</p>
@@ -375,7 +375,7 @@ export default function InfluencerManagePage() {
             <button
               onClick={() => editId ? handleEdit(editId) : handleCreate()}
               disabled={saving || !formName || !formCommission}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-ink text-white rounded-lg text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-50"
             >
               {saving ? "Guardando..." : editId ? "Guardar Cambios" : "Crear Influencer"}
             </button>
@@ -411,7 +411,7 @@ export default function InfluencerManagePage() {
                 <tr className="hover:bg-surface/50 transition-colors">
                   <td className="px-6 py-4">
                     <Link href={`/influencers/${inf.id}`} className="group">
-                      <p className="font-medium text-ink group-hover:text-orange-600 transition-colors">
+                      <p className="font-medium text-ink group-hover:text-ink-60 transition-colors">
                         {inf.name}
                       </p>
                       {inf.email && <p className="text-xs text-ink-40">{inf.email}</p>}
@@ -426,7 +426,7 @@ export default function InfluencerManagePage() {
                   <td className="px-6 py-4 text-right font-medium">
                     {fmtARS(Number(inf.totalRevenue))}
                   </td>
-                  <td className="px-6 py-4 text-right font-medium text-orange-600">
+                  <td className="px-6 py-4 text-right font-medium text-ink">
                     {fmtARS(Number(inf.totalCommission))}
                   </td>
                   <td className="px-6 py-4 text-right">{inf.totalConversions}</td>
@@ -448,7 +448,7 @@ export default function InfluencerManagePage() {
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => copyTrackingLink(inf)}
-                        className="text-xs text-orange-600 hover:text-orange-700 font-medium"
+                        className="text-xs text-ink hover:text-ink-60 font-medium"
                         title="Copiar link de tracking"
                       >
                         {copied === inf.id ? "Copiado!" : "Link"}
@@ -470,7 +470,7 @@ export default function InfluencerManagePage() {
                       <span className="text-ink-40">|</span>
                       <button
                         onClick={() => toggleExpand(inf.id)}
-                        className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                        className="text-xs text-ink hover:text-ink-60 font-medium"
                       >
                         {expandedId === inf.id ? "Cerrar" : "Cupones/Tiers"}
                       </button>
@@ -490,7 +490,7 @@ export default function InfluencerManagePage() {
                               {(coupons[inf.id] || []).map((c) => (
                                 <div key={c.id} className="flex items-center justify-between bg-elevated rounded-lg px-3 py-2 border border-hairline">
                                   <div className="flex items-center gap-2">
-                                    <code className="text-xs font-mono bg-orange-50 text-orange-700 px-2 py-0.5 rounded">{c.code}</code>
+                                    <code className="text-xs font-mono bg-surface-2 text-ink-60 px-2 py-0.5 rounded">{c.code}</code>
                                     {c.discountPercent && <span className="text-xs text-ink-40">{Number(c.discountPercent)}% off</span>}
                                     {c.discountFixed && <span className="text-xs text-ink-40">${Number(c.discountFixed)} off</span>}
                                   </div>
@@ -524,7 +524,7 @@ export default function InfluencerManagePage() {
                             <button
                               onClick={() => handleCreateCoupon(inf.id)}
                               disabled={couponSaving || !couponCode}
-                              className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50"
+                              className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90 disabled:opacity-50"
                             >
                               {couponSaving ? "..." : "+ Agregar"}
                             </button>
@@ -551,7 +551,7 @@ export default function InfluencerManagePage() {
                                     <span className="text-ink-40">
                                       {fmtARS(Number(t.minRevenue))} — {t.maxRevenue ? fmtARS(Number(t.maxRevenue)) : "∞"}
                                     </span>
-                                    <span className="ml-2 font-semibold text-orange-600">{Number(t.commissionPercent)}%</span>
+                                    <span className="ml-2 font-semibold text-ink">{Number(t.commissionPercent)}%</span>
                                   </div>
                                   <button
                                     onClick={() => handleDeleteTier(inf.id, t.id)}
@@ -600,7 +600,7 @@ export default function InfluencerManagePage() {
                             <button
                               onClick={() => handleAddTier(inf.id)}
                               disabled={!tierMin || !tierPercent}
-                              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-ink disabled:opacity-50"
+                              className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90 disabled:opacity-50"
                             >
                               + Tier
                             </button>

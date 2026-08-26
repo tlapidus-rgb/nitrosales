@@ -98,13 +98,13 @@ export default function AdminOnboardingsPage() {
     <div style={{ padding: "32px 40px", maxWidth: 1400, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#6B685F", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
           Admin · Onboarding
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#0F172A" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#1C1B18" }}>
           Solicitudes de activación
         </h1>
-        <p style={{ color: "#64748B", fontSize: 14, margin: "8px 0 0", lineHeight: 1.6 }}>
+        <p style={{ color: "#6B685F", fontSize: 14, margin: "8px 0 0", lineHeight: 1.6 }}>
           Revisá, aprobá o rechazá solicitudes de nuevos clientes que llenaron el formulario público.
         </p>
       </div>
@@ -116,7 +116,7 @@ export default function AdminOnboardingsPage() {
           gap: 8,
           marginBottom: 20,
           padding: 4,
-          background: "rgba(241,245,249,0.6)",
+          background: "rgba(237,234,227,0.6)",
           borderRadius: 12,
           width: "fit-content",
           flexWrap: "wrap",
@@ -143,7 +143,7 @@ export default function AdminOnboardingsPage() {
             padding: "8px 12px",
             background: "transparent",
             border: "none",
-            color: "#64748B",
+            color: "#6B685F",
             cursor: "pointer",
             borderRadius: 8,
             display: "flex",
@@ -174,21 +174,21 @@ export default function AdminOnboardingsPage() {
 
       {/* Tabla */}
       {loading && requests.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 60, color: "#64748B" }}>Cargando…</div>
+        <div style={{ textAlign: "center", padding: 60, color: "#6B685F" }}>Cargando…</div>
       ) : filtered.length === 0 ? (
         <EmptyState filter={filter} />
       ) : (
         <div
           style={{
             background: "#fff",
-            border: "1px solid #E2E8F0",
-            borderRadius: 14,
+            border: "1px solid #E5E1D8",
+            borderRadius: 16,
             overflow: "hidden",
           }}
         >
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+              <tr style={{ background: "#F5F3EE", borderBottom: "1px solid #E5E1D8" }}>
                 <th style={th}>Empresa</th>
                 <th style={th}>Contacto</th>
                 <th style={th}>Plataformas</th>
@@ -201,16 +201,16 @@ export default function AdminOnboardingsPage() {
               {filtered.map((req) => (
                 <tr
                   key={req.id}
-                  style={{ borderBottom: "1px solid #F1F5F9", cursor: "pointer" }}
+                  style={{ borderBottom: "1px solid #EDEAE3", cursor: "pointer" }}
                   onClick={() => setSelectedId(req.id)}
                 >
                   <td style={td}>
-                    <div style={{ fontWeight: 600, color: "#0F172A", fontSize: 14 }}>{req.companyName}</div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{req.storeUrl}</div>
+                    <div style={{ fontWeight: 600, color: "#1C1B18", fontSize: 14 }}>{req.companyName}</div>
+                    <div style={{ fontSize: 12, color: "#6B685F", marginTop: 2 }}>{req.storeUrl}</div>
                   </td>
                   <td style={td}>
-                    <div style={{ fontSize: 13, color: "#0F172A" }}>{req.contactName}</div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{req.contactEmail}</div>
+                    <div style={{ fontSize: 13, color: "#1C1B18" }}>{req.contactName}</div>
+                    <div style={{ fontSize: 12, color: "#6B685F", marginTop: 2 }}>{req.contactEmail}</div>
                   </td>
                   <td style={td}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -224,7 +224,7 @@ export default function AdminOnboardingsPage() {
                     <StatusPill status={req.status} />
                   </td>
                   <td style={td}>
-                    <div style={{ fontSize: 13, color: "#64748B" }}>{formatRelative(req.createdAt)}</div>
+                    <div style={{ fontSize: 13, color: "#6B685F" }}>{formatRelative(req.createdAt)}</div>
                   </td>
                   <td style={{ ...td, textAlign: "right", paddingRight: 20 }}>
                     <button
@@ -235,9 +235,9 @@ export default function AdminOnboardingsPage() {
                       style={{
                         padding: "6px 12px",
                         background: "transparent",
-                        border: "1px solid #E2E8F0",
+                        border: "1px solid #E5E1D8",
                         borderRadius: 8,
-                        color: "#475569",
+                        color: "#6B685F",
                         fontSize: 12,
                         fontWeight: 500,
                         cursor: "pointer",
@@ -269,7 +269,7 @@ const th: React.CSSProperties = {
   padding: "12px 16px",
   fontSize: 11,
   fontWeight: 700,
-  color: "#64748B",
+  color: "#6B685F",
   textTransform: "uppercase",
   letterSpacing: "0.08em",
 };
@@ -298,12 +298,12 @@ function FilterPill({
         borderRadius: 8,
         fontSize: 13,
         fontWeight: 500,
-        color: active ? "#0F172A" : "#64748B",
+        color: active ? "#1C1B18" : "#6B685F",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         gap: 8,
-        boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+        boxShadow: active ? "0 1px 3px rgba(28,27,24,0.08)" : "none",
         transition: "all 160ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
@@ -316,8 +316,8 @@ function FilterPill({
           style={{
             fontSize: 11,
             padding: "1px 6px",
-            background: active ? "#F1F5F9" : "rgba(100,116,139,0.15)",
-            color: "#64748B",
+            background: active ? "#EDEAE3" : "rgba(28,27,24,0.15)",
+            color: "#6B685F",
             borderRadius: 99,
             minWidth: 18,
             textAlign: "center",
@@ -377,12 +377,12 @@ function PlatformChip({ color, label, textColor }: { color: string; label: strin
 
 function EmptyState({ filter }: { filter: string }) {
   return (
-    <div style={{ padding: 80, textAlign: "center", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 14 }}>
-      <Building2 size={40} color="#CBD5E1" style={{ marginBottom: 16 }} />
-      <div style={{ fontSize: 16, fontWeight: 600, color: "#0F172A", marginBottom: 8 }}>
+    <div style={{ padding: 80, textAlign: "center", background: "#fff", border: "1px solid #E5E1D8", borderRadius: 16 }}>
+      <Building2 size={40} color="#DCD8CD" style={{ marginBottom: 16 }} />
+      <div style={{ fontSize: 16, fontWeight: 600, color: "#1C1B18", marginBottom: 8 }}>
         {filter === "ALL" ? "No hay solicitudes todavía" : "No hay solicitudes con este estado"}
       </div>
-      <div style={{ fontSize: 13, color: "#64748B" }}>
+      <div style={{ fontSize: 13, color: "#6B685F" }}>
         Las solicitudes llegan cuando alguien completa el formulario en /onboarding
       </div>
     </div>
@@ -491,7 +491,7 @@ function DetailDrawer({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15,23,42,0.5)",
+        background: "rgba(28,27,24,0.5)",
         zIndex: 100,
         backdropFilter: "blur(4px)",
       }}
@@ -506,15 +506,15 @@ function DetailDrawer({
           width: "min(640px, 95vw)",
           background: "#fff",
           overflowY: "auto",
-          boxShadow: "-20px 0 60px rgba(15,23,42,0.15)",
+          boxShadow: "-20px 0 60px rgba(28,27,24,0.15)",
           animation: "slideInRight 300ms cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        <div style={{ padding: "24px 28px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A" }}>
+        <div style={{ padding: "24px 28px", borderBottom: "1px solid #E5E1D8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#1C1B18" }}>
             {loading ? "Cargando…" : detail?.companyName || "Detalle"}
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 24, color: "#94A3B8", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 24, color: "#83807A", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
         </div>
 
         <div style={{ padding: "24px 28px" }}>
@@ -632,7 +632,7 @@ function DetailDrawer({
                   <EmptyRow label="ML no configurado en la solicitud" />
                 )}
                 {detail.mlUsername && (
-                  <div style={{ padding: "8px 0", fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                  <div style={{ padding: "8px 0", fontSize: 11, color: "#6B685F", fontStyle: "italic" }}>
                     OAuth se realiza al activar (ML te va a pedir login).
                   </div>
                 )}
@@ -684,7 +684,7 @@ function DetailDrawer({
                   <EmptyRow label="Google Ads no configurado en la solicitud" />
                 )}
                 {detail.googleAdsCustomerId && (
-                  <div style={{ padding: "8px 0", fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                  <div style={{ padding: "8px 0", fontSize: 11, color: "#6B685F", fontStyle: "italic" }}>
                     OAuth se realiza al activar (Google te va a pedir login).
                   </div>
                 )}
@@ -692,19 +692,19 @@ function DetailDrawer({
 
               {detail.adminNotes && (
                 <Section title="Admin notes" icon={<AlertCircle size={14} />}>
-                  <div style={{ fontSize: 12, color: "#475569", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{detail.adminNotes}</div>
+                  <div style={{ fontSize: 12, color: "#6B685F", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{detail.adminNotes}</div>
                 </Section>
               )}
 
               {detail.status !== "ACTIVE" && detail.status !== "REJECTED" && !result && (
-                <div style={{ display: "flex", gap: 12, marginTop: 28, paddingTop: 24, borderTop: "1px solid #E2E8F0" }}>
+                <div style={{ display: "flex", gap: 12, marginTop: 28, paddingTop: 24, borderTop: "1px solid #E5E1D8" }}>
                   <button
                     onClick={activate}
                     disabled={activating || rejecting}
                     style={{
                       flex: 1,
                       padding: "14px 20px",
-                      background: activating ? "#CBD5E1" : ACCENT_GREEN,
+                      background: activating ? "#DCD8CD" : ACCENT_GREEN,
                       color: "#fff",
                       border: "none",
                       borderRadius: 10,
@@ -715,7 +715,7 @@ function DetailDrawer({
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 8,
-                      boxShadow: "0 4px 12px rgba(34,197,94,0.25)",
+                      boxShadow: "none",
                     }}
                   >
                     <CheckCircle2 size={16} />
@@ -786,7 +786,7 @@ function Section({ title, icon, children }: { title: string; icon?: React.ReactN
         style={{
           fontSize: 11,
           fontWeight: 700,
-          color: "#64748B",
+          color: "#6B685F",
           textTransform: "uppercase",
           letterSpacing: "0.1em",
           marginBottom: 12,
@@ -798,7 +798,7 @@ function Section({ title, icon, children }: { title: string; icon?: React.ReactN
         {icon}
         {title}
       </div>
-      <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "4px 14px" }}>{children}</div>
+      <div style={{ background: "#F5F3EE", borderRadius: 10, padding: "4px 14px" }}>{children}</div>
     </div>
   );
 }
@@ -821,8 +821,8 @@ function Row({
   copied?: boolean;
 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #E2E8F0" }}>
-      <div style={{ fontSize: 12, color: "#64748B", fontWeight: 500 }}>{label}</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #E5E1D8" }}>
+      <div style={{ fontSize: 12, color: "#6B685F", fontWeight: 500 }}>{label}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: "60%" }}>
         {href ? (
           <a
@@ -831,7 +831,7 @@ function Row({
             rel="noopener noreferrer"
             style={{
               fontSize: 13,
-              color: "#0F172A",
+              color: "#1C1B18",
               fontWeight: 500,
               textDecoration: "none",
               display: "inline-flex",
@@ -842,17 +842,17 @@ function Row({
               whiteSpace: "nowrap",
             }}
           >
-            {value} <ExternalLink size={11} color="#94A3B8" />
+            {value} <ExternalLink size={11} color="#83807A" />
           </a>
         ) : (
-          <div style={{ fontSize: 13, color: "#0F172A", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
+          <div style={{ fontSize: 13, color: "#1C1B18", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
             {value}
           </div>
         )}
         {copyable && field && onCopy && (
           <button
             onClick={() => onCopy(field, value)}
-            style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: "#64748B" }}
+            style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: "#6B685F" }}
           >
             {copied ? <Check size={12} color={ACCENT_GREEN} /> : <Copy size={12} />}
           </button>
@@ -883,8 +883,8 @@ function PlatformSection({
           gap: 10,
           marginBottom: 10,
           padding: "10px 14px",
-          background: configured ? `${color}0d` : "#F8FAFC",
-          border: `1px solid ${configured ? `${color}33` : "#E2E8F0"}`,
+          background: configured ? `${color}0d` : "#F5F3EE",
+          border: `1px solid ${configured ? `${color}33` : "#E5E1D8"}`,
           borderRadius: 10,
         }}
       >
@@ -893,11 +893,11 @@ function PlatformSection({
             width: 8,
             height: 8,
             borderRadius: "50%",
-            background: configured ? color : "#CBD5E1",
-            boxShadow: configured ? `0 0 8px ${color}80` : "none",
+            background: configured ? color : "#DCD8CD",
+            boxShadow: "none",
           }}
         />
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", flex: 1 }}>{name}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#1C1B18", flex: 1 }}>{name}</div>
         {configured ? (
           <span
             style={{
@@ -919,8 +919,8 @@ function PlatformSection({
               fontSize: 10,
               fontWeight: 600,
               padding: "2px 8px",
-              background: "#F1F5F9",
-              color: "#94A3B8",
+              background: "#EDEAE3",
+              color: "#83807A",
               borderRadius: 99,
               textTransform: "uppercase",
               letterSpacing: "0.05em",
@@ -930,7 +930,7 @@ function PlatformSection({
           </span>
         )}
       </div>
-      <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "4px 14px" }}>{children}</div>
+      <div style={{ background: "#F5F3EE", borderRadius: 10, padding: "4px 14px" }}>{children}</div>
     </div>
   );
 }
@@ -953,15 +953,15 @@ function SecretRow({
   const masked = value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : "••••••••";
   const isCopied = copiedField === field;
   return (
-    <div style={{ padding: "10px 0", borderBottom: "1px solid #E2E8F0" }}>
+    <div style={{ padding: "10px 0", borderBottom: "1px solid #E5E1D8" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: revealed ? 6 : 0 }}>
-        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 12, color: "#6B685F", fontWeight: 500 }}>{label}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {!revealed && (
             <code
               style={{
                 fontSize: 12,
-                color: "#475569",
+                color: "#6B685F",
                 fontFamily: "'SF Mono', Menlo, Consolas, monospace",
                 letterSpacing: "0.04em",
               }}
@@ -975,9 +975,9 @@ function SecretRow({
               fontSize: 11,
               padding: "3px 8px",
               background: "transparent",
-              border: "1px solid #CBD5E1",
+              border: "1px solid #DCD8CD",
               borderRadius: 6,
-              color: "#475569",
+              color: "#6B685F",
               cursor: "pointer",
               fontWeight: 500,
             }}
@@ -990,9 +990,9 @@ function SecretRow({
               fontSize: 11,
               padding: "3px 8px",
               background: isCopied ? `${ACCENT_GREEN}15` : "transparent",
-              border: `1px solid ${isCopied ? ACCENT_GREEN : "#CBD5E1"}`,
+              border: `1px solid ${isCopied ? ACCENT_GREEN : "#DCD8CD"}`,
               borderRadius: 6,
-              color: isCopied ? ACCENT_GREEN : "#475569",
+              color: isCopied ? ACCENT_GREEN : "#6B685F",
               cursor: "pointer",
               fontWeight: 500,
               display: "inline-flex",
@@ -1010,11 +1010,11 @@ function SecretRow({
             marginTop: 4,
             padding: "8px 10px",
             background: "#fff",
-            border: "1px solid #E2E8F0",
+            border: "1px solid #E5E1D8",
             borderRadius: 6,
             fontFamily: "'SF Mono', Menlo, Consolas, monospace",
             fontSize: 11,
-            color: "#0F172A",
+            color: "#1C1B18",
             wordBreak: "break-all",
             lineHeight: 1.5,
           }}
@@ -1032,7 +1032,7 @@ function EmptyRow({ label }: { label: string }) {
       style={{
         padding: "12px 0",
         fontSize: 12,
-        color: "#94A3B8",
+        color: "#83807A",
         fontStyle: "italic",
         textAlign: "center",
       }}

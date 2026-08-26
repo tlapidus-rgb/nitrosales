@@ -98,14 +98,14 @@ export default function BriefingsPage() {
     setBriefings(briefings.map((b) => (b.id === id ? { ...b, status } : b)));
   };
 
-  const inputStyle = { color: "#111827", backgroundColor: "#ffffff" };
+  const inputStyle = { color: "var(--ent-ink)", backgroundColor: "var(--ent-elevated)" };
   const textareaStyle = { ...inputStyle, minHeight: "80px" };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando briefings...</p>
         </div>
       </div>
@@ -121,7 +121,7 @@ export default function BriefingsPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+          className="px-4 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors"
         >
           {showForm ? "Cancelar" : "+ Nuevo Brief"}
         </button>
@@ -130,7 +130,7 @@ export default function BriefingsPage() {
       {/* Create Form */}
       {showForm && (
         <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-6 space-y-4">
-          <h3 className="text-sm font-semibold" style={inputStyle}>Nuevo Briefing</h3>
+          <h3 className="text-sm font-semibold text-ink">Nuevo Briefing</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -262,7 +262,7 @@ export default function BriefingsPage() {
           <button
             onClick={handleCreate}
             disabled={saving || !form.title || !form.description}
-            className="px-6 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+            className="px-6 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-50"
           >
             {saving ? "Guardando..." : "Crear Briefing"}
           </button>
@@ -286,14 +286,8 @@ export default function BriefingsPage() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-medium uppercase ${
-                      b.type === "REEL" ? "bg-purple-50 text-purple-700" :
-                      b.type === "STORY" ? "bg-blue-50 text-blue-700" :
-                      b.type === "UNBOXING" ? "bg-amber-50 text-amber-700" :
-                      b.type === "REVIEW" ? "bg-green-50 text-green-700" :
-                      "bg-surface text-ink-60"
-                    }`}>{b.type}</span>
-                    <h3 className="text-sm font-semibold" style={{ color: "#111827" }}>{b.title}</h3>
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-medium uppercase bg-surface-2 text-ink-60">{b.type}</span>
+                    <h3 className="text-sm font-semibold text-ink">{b.title}</h3>
                     {b.influencer ? (
                       <span className="text-xs text-ink-40">→ {b.influencer.name}</span>
                     ) : (
@@ -304,7 +298,7 @@ export default function BriefingsPage() {
                     <span className="text-xs text-ink-40">{b._count.submissions} envios</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                       b.status === "ACTIVE" ? "bg-green-50 text-green-700" :
-                      b.status === "COMPLETED" ? "bg-blue-50 text-blue-700" :
+                      b.status === "COMPLETED" ? "bg-surface-2 text-ink-60" :
                       "bg-surface text-ink-40"
                     }`}>{b.status}</span>
                     {b.deadline && (
@@ -333,15 +327,15 @@ export default function BriefingsPage() {
                       <p className="text-xs text-ink-60 whitespace-pre-wrap">{b.donts}</p>
                     </div>
                   )}
-                  {b.hashtags && <p className="text-xs text-orange-500">{b.hashtags}</p>}
-                  {b.mentions && <p className="text-xs text-blue-500">{b.mentions}</p>}
+                  {b.hashtags && <p className="text-xs text-ink-60">{b.hashtags}</p>}
+                  {b.mentions && <p className="text-xs text-ink-60">{b.mentions}</p>}
                   {b.requirements && <p className="text-xs text-ink-40">Req. técnicos: {b.requirements}</p>}
 
                   <div className="flex gap-2 pt-2">
                     {b.status === "ACTIVE" && (
                       <button
                         onClick={() => updateStatus(b.id, "COMPLETED")}
-                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-ink"
+                        className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90"
                       >
                         Marcar completado
                       </button>

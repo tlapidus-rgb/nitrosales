@@ -84,20 +84,20 @@ export default function ContentPage() {
     const map: Record<string, string> = {
       PENDING: "bg-yellow-50 text-yellow-700",
       APPROVED: "bg-green-50 text-green-700",
-      REVISION: "bg-orange-50 text-orange-700",
+      REVISION: "bg-[#f6edd8] text-[#8a5e12]",
       REJECTED: "bg-red-50 text-red-700",
     };
     return map[status] || "bg-surface text-ink-60";
   };
 
-  const inputStyle = { color: "#111827", backgroundColor: "#ffffff" };
+  const inputStyle = { color: "var(--ent-ink)", backgroundColor: "var(--ent-elevated)" };
   const pendingCount = submissions.filter((s) => s.status === "PENDING").length;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando contenido...</p>
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function ContentPage() {
             onClick={() => setStatusFilter(tab.value)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               statusFilter === tab.value
-                ? "bg-orange-500 text-white"
+                ? "bg-ink text-white"
                 : "bg-surface-2 text-ink-60 hover:bg-hairline"
             }`}
           >
@@ -146,18 +146,18 @@ export default function ContentPage() {
           {submissions.map((s) => (
             <div key={s.id} className="bg-elevated rounded-2xl border border-hairline shadow-sm overflow-hidden">
               {/* Header */}
-              <div className="p-4 border-b border-gray-50">
+              <div className="p-4 border-b border-hairline">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {s.influencer.profileImage ? (
                       <img src={s.influencer.profileImage} alt="" className="w-7 h-7 rounded-full" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-bold">
+                      <div className="w-7 h-7 rounded-full bg-ink flex items-center justify-center text-white text-xs font-bold">
                         {s.influencer.name[0]?.toUpperCase()}
                       </div>
                     )}
                     <div>
-                      <p className="text-xs font-medium" style={{ color: "#111827" }}>{s.influencer.name}</p>
+                      <p className="text-xs font-medium text-ink">{s.influencer.name}</p>
                       <p className="text-[10px] text-ink-40">@{s.influencer.code}</p>
                     </div>
                   </div>
@@ -173,7 +173,7 @@ export default function ContentPage() {
                   <span className="text-lg">{PLATFORM_ICONS[s.platform] || "🔗"}</span>
                   <span className="text-xs font-medium text-ink-40">{s.platform} · {s.type}</span>
                   {s.briefing && (
-                    <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
+                    <span className="text-[10px] px-2 py-0.5 bg-surface-2 text-ink-60 rounded-full">
                       Brief: {s.briefing.title}
                     </span>
                   )}
@@ -183,7 +183,7 @@ export default function ContentPage() {
                   href={s.contentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-xs text-orange-500 hover:text-orange-600 truncate font-mono"
+                  className="block text-xs text-ink-60 hover:text-ink truncate font-mono"
                 >
                   {s.contentUrl}
                 </a>
@@ -205,7 +205,7 @@ export default function ContentPage() {
                   <div className={`p-2 rounded-lg text-xs ${
                     s.status === "APPROVED" ? "bg-green-50 text-green-700" :
                     s.status === "REJECTED" ? "bg-red-50 text-red-700" :
-                    "bg-orange-50 text-orange-700"
+                    "bg-[#f6edd8] text-[#8a5e12]"
                   }`}>
                     Feedback: {s.reviewNotes}
                   </div>
@@ -213,7 +213,7 @@ export default function ContentPage() {
               </div>
 
               {/* Actions */}
-              <div className="p-4 border-t border-gray-50 space-y-2">
+              <div className="p-4 border-t border-hairline space-y-2">
                 {reviewingId === s.id ? (
                   <div className="space-y-2">
                     <textarea
@@ -232,7 +232,7 @@ export default function ContentPage() {
                       </button>
                       <button
                         onClick={() => handleReview(s.id, "REVISION")}
-                        className="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600"
+                        className="flex-1 px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90"
                       >
                         Pedir revision
                       </button>
@@ -255,7 +255,7 @@ export default function ContentPage() {
                     {s.status === "PENDING" || s.status === "REVISION" ? (
                       <button
                         onClick={() => setReviewingId(s.id)}
-                        className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600"
+                        className="px-3 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90"
                       >
                         Revisar
                       </button>
@@ -267,7 +267,7 @@ export default function ContentPage() {
                         onClick={() => toggleUGC(s.id, !s.isUGC)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           s.isUGC
-                            ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                            ? "bg-ink text-white hover:bg-ink/90"
                             : "bg-surface-2 text-ink-60 hover:bg-hairline"
                         }`}
                       >

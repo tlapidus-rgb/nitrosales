@@ -1632,7 +1632,7 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, bre
           "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${cfg.soft} opacity-60 pointer-events-none`} />
+      <div className="absolute inset-0 bg-surface pointer-events-none" />
       <div className="relative">
         <div className="flex items-center gap-2 mb-1">
           <div className={`w-7 h-7 rounded-lg ${cfg.bg} flex items-center justify-center`}>
@@ -1644,7 +1644,7 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, bre
         <div className="mt-4 flex items-center gap-4">
           <div className="relative flex-shrink-0">
             <svg width={120} height={120} className="-rotate-90">
-              <circle cx={60} cy={60} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={10} />
+              <circle cx={60} cy={60} r={radius} fill="none" stroke="#E5E1D8" strokeWidth={10} />
               <circle
                 cx={60} cy={60} r={radius} fill="none"
                 stroke={cfg.ring} strokeWidth={10} strokeLinecap="round"

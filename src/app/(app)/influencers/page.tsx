@@ -53,7 +53,7 @@ export default function InfluencerOverviewPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando influencers...</p>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function InfluencerOverviewPage() {
         </div>
         <Link
           href="/influencers/manage"
-          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+          className="px-4 py-2 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors"
         >
           + Nuevo Influencer
         </Link>
@@ -124,11 +124,11 @@ export default function InfluencerOverviewPage() {
                         href={`/influencers/${inf.id}`}
                         className="flex items-center gap-3 group"
                       >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-sm font-bold">
+                        <div className="w-9 h-9 rounded-full bg-ink flex items-center justify-center text-white text-sm font-bold">
                           {inf.name[0]?.toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-medium text-ink group-hover:text-orange-600 transition-colors">
+                          <p className="font-medium text-ink group-hover:text-ink-60 transition-colors">
                             {inf.name}
                           </p>
                           <p className="text-xs text-ink-40">@{inf.code}</p>
@@ -144,7 +144,7 @@ export default function InfluencerOverviewPage() {
                     <td className="px-6 py-4 text-right text-ink-60">
                       {Number(inf.commissionPercent)}%
                     </td>
-                    <td className="px-6 py-4 text-right font-medium text-orange-600">
+                    <td className="px-6 py-4 text-right font-medium text-ink">
                       {fmtARS(Number(inf.totalCommission))}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -180,7 +180,7 @@ export default function InfluencerOverviewPage() {
           </p>
           <Link
             href="/influencers/manage"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-ink text-white rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors"
           >
             + Crear primer influencer
           </Link>

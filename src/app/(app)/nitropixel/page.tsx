@@ -70,7 +70,6 @@ export default function NitroPixelPage() {
   const [data, setData] = useState<AssetStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
 
   // Fetch initial + refresh every 20s
   useEffect(() => {
@@ -96,12 +95,6 @@ export default function NitroPixelPage() {
       alive = false;
       clearInterval(id);
     };
-  }, []);
-
-  // Heartbeat global tick (cada segundo)
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
   }, []);
 
   const events = data?.asset.totalEvents ?? 0;
@@ -165,8 +158,7 @@ export default function NitroPixelPage() {
 
         {/* HERO PIXEL BRAIN removido (2026-08-18, pedido de Tomy): se sacó el orbe
             «núcleo» + el label STAGE/EVOLVING/«El núcleo despierta». El resto del
-            hero (valuación + nivel) queda. Si más adelante se quiere reponer, ver
-            el componente PixelBrain. */}
+            hero (valuación + nivel) queda. */}
 
         {/* ═══ DUAL VALUATION ═══ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
@@ -393,29 +385,6 @@ export default function NitroPixelPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// PixelBrain — Híbrido data+arte
-// ──────────────────────────────────────────────────────────────
-// Núcleo con orbits SVG, neuronas pulsantes, sinapsis animadas.
-// Crece visualmente con el nivel.
-// ══════════════════════════════════════════════════════════════
-function PixelBrain({ level }: { level: number; stage: string; color: string; heartbeat: number }) {
-  // Marca sobria estática: rings hairline + disco accent que crece con el nivel
-  // (el activo que crece). Sin glow/órbitas/neuronas — el "live" lo da el LivePulse.
-  const coreR = 24 + (level / 100) * 22; // 24..46
-  return (
-    <div className="relative" style={{ width: 320, height: 320 }}>
-      <svg viewBox="0 0 300 300" className="absolute inset-0 w-full h-full">
-        <circle cx="150" cy="150" r="120" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="1.5" />
-        <circle cx="150" cy="150" r="90" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="1.5" />
-        <circle cx="150" cy="150" r="58" fill="none" stroke="rgb(var(--ent-hairline-2))" strokeWidth="1.5" />
-        <circle cx="150" cy="150" r={coreR + 12} fill="rgb(var(--ent-accent))" fillOpacity="0.08" />
-        <circle cx="150" cy="150" r={coreR} fill="rgb(var(--ent-accent))" />
-      </svg>
     </div>
   );
 }

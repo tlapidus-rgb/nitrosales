@@ -1494,7 +1494,7 @@ export default function ProductsPage() {
 
           {/* Bags Analytics */}
           {bagsAnalytics && (
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
+            <div className="bg-surface p-6 rounded-xl border border-hairline">
               <div className="flex items-center gap-2 mb-4">
                 <ShoppingBag className="w-5 h-5 text-amber-700" />
                 <h3 className="text-lg font-semibold text-amber-900">Bolsas de Compra</h3>
@@ -1573,7 +1573,7 @@ export default function ProductsPage() {
           </div>
 
           {/* Top Growing */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl shadow-sm border border-green-200">
+          <div className="bg-surface p-6 rounded-xl shadow-sm border border-hairline">
             <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5" /> Top Productos en Alza
             </h3>
@@ -1607,7 +1607,7 @@ export default function ProductsPage() {
           </div>
 
           {/* Top Declining */}
-          <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
+          <div className="bg-surface p-6 rounded-xl shadow-sm border border-hairline">
             <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2">
               <TrendingDown className="w-5 h-5" /> Productos en Caida
             </h3>

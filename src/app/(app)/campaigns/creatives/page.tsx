@@ -508,7 +508,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
         onClick={(e) => e.stopPropagation()}
       >
         {/* LEFT: media (o panel de texto rico para Google Search/PMax) */}
-        <div className={`${isTextOnlyAd ? "bg-surface border-r border-hairline" : "bg-gradient-to-br from-slate-900 to-slate-700"} relative flex flex-col`}>
+        <div className={`${isTextOnlyAd ? "bg-surface border-r border-hairline" : "bg-ink"} relative flex flex-col`}>
           {isTextOnlyAd ? (
             // ══════════════════════════════════════════════════════
             // GOOGLE TEXT-ONLY (Search / PMax):
@@ -797,7 +797,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
 
           {/* Caption / copy (solo para creativos con media: Meta + Google Display/Shopping) */}
           {!isTextOnlyAd && (
-          <div className="bg-slate-900/95 text-white p-4 space-y-2 border-t border-white/10">
+          <div className="bg-ink/95 text-white p-4 space-y-2 border-t border-white/10">
             {creative.headline && (
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Headline</div>
@@ -893,11 +893,11 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                         <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="point" tick={{ fontSize: 10, fill: "#64748b" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#64748b" }} domain={[0, 100]} unit="%" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
+                    <XAxis dataKey="point" tick={{ fontSize: 10, fill: "#83807A" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#83807A" }} domain={[0, 100]} unit="%" />
                     <RechartsTooltip
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E1D8" }}
                       formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Retención"]}
                     />
                     <Area type="monotone" dataKey="retention" stroke="#3b82f6" strokeWidth={2} fill="url(#ret-grad)" />
@@ -972,9 +972,9 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="date" hide />
-                    <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} />
+                    <YAxis tick={{ fontSize: 9, fill: "#83807A" }} />
                     <RechartsTooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                      contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #E5E1D8" }}
                       formatter={(v: any) => [formatARS(Number(v)), "Spend"]}
                     />
                     <Area type="monotone" dataKey="spend" stroke={PLATFORM_META[creative.platform]?.color || "#64748b"} strokeWidth={1.5} fill="url(#trend-grad)" />

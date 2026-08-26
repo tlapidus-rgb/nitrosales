@@ -141,13 +141,7 @@ export default function CashRunwayHero({
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
-              style={{
-                background: palette.fg,
-                animation:
-                  status === "critical"
-                    ? "cashRunwayPulse 1.6s ease-in-out infinite"
-                    : "none",
-              }}
+              style={{ background: palette.fg }}
             />
             {palette.label}
           </span>
@@ -247,15 +241,9 @@ export default function CashRunwayHero({
                 ? "Actualizar o volver al cálculo automático"
                 : "Corregir con tu saldo real de banco"
             }
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-ink/90 disabled:cursor-not-allowed"
             style={{
-              background:
-                "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
-              color: "#ffffff",
-              boxShadow:
-                "0 1px 2px rgba(217,119,6,0.2), 0 6px 16px -10px rgba(217,119,6,0.4)",
               opacity: !onAdjust || loading ? 0.5 : 1,
-              transition: `transform 160ms ${ES}, box-shadow 160ms ${ES}`,
             }}
           >
             {runway?.source === "manual"
@@ -291,12 +279,13 @@ export default function CashRunwayHero({
 
           <div
             style={{
-              maxHeight: expanded ? 280 : 0,
+              display: "grid",
+              gridTemplateRows: expanded ? "1fr" : "0fr",
               opacity: expanded ? 1 : 0,
-              overflow: "hidden",
-              transition: `max-height 400ms ${ES}, opacity 300ms ${ES}`,
+              transition: `grid-template-rows 400ms ${ES}, opacity 300ms ${ES}`,
             }}
           >
+            <div style={{ overflow: "hidden", minHeight: 0 }}>
             <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-4">
               <BreakdownItem
                 label="Revenue YTD"
@@ -338,23 +327,10 @@ export default function CashRunwayHero({
                 emphasis
               />
             </div>
+            </div>
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes cashRunwayPulse {
-          0%,
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.6);
-            opacity: 0.5;
-          }
-        }
-      `}</style>
     </section>
   );
 }

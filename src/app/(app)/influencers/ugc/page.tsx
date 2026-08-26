@@ -55,7 +55,7 @@ export default function UGCLibraryPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando UGC...</p>
         </div>
       </div>
@@ -80,7 +80,7 @@ export default function UGCLibraryPage() {
           <button
             onClick={() => setPlatformFilter("")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              !platformFilter ? "bg-orange-500 text-white" : "bg-surface-2 text-ink-60 hover:bg-hairline"
+              !platformFilter ? "bg-ink text-white" : "bg-surface-2 text-ink-60 hover:bg-hairline"
             }`}
           >
             Todos
@@ -90,7 +90,7 @@ export default function UGCLibraryPage() {
               key={p}
               onClick={() => setPlatformFilter(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                platformFilter === p ? "bg-orange-500 text-white" : "bg-surface-2 text-ink-60 hover:bg-hairline"
+                platformFilter === p ? "bg-ink text-white" : "bg-surface-2 text-ink-60 hover:bg-hairline"
               }`}
             >
               {PLATFORM_ICONS[p]} {p}
@@ -117,7 +117,7 @@ export default function UGCLibraryPage() {
                   <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="aspect-video bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                <div className="aspect-video bg-surface-2 flex items-center justify-center">
                   <span className="text-4xl">{PLATFORM_ICONS[item.platform]}</span>
                 </div>
               )}
@@ -128,15 +128,15 @@ export default function UGCLibraryPage() {
                     {item.influencer.profileImage ? (
                       <img src={item.influencer.profileImage} alt="" className="w-6 h-6 rounded-full" />
                     ) : (
-                      <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-[10px] font-bold">
+                      <div className="w-6 h-6 rounded-full bg-ink flex items-center justify-center text-white text-[10px] font-bold">
                         {item.influencer.name[0]?.toUpperCase()}
                       </div>
                     )}
-                    <span className="text-xs font-medium" style={{ color: "#111827" }}>{item.influencer.name}</span>
+                    <span className="text-xs font-medium text-ink">{item.influencer.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-ink-40">{item.platform}</span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-50 text-purple-600 font-medium">{item.type}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-2 text-ink-60 font-medium">{item.type}</span>
                   </div>
                 </div>
 
@@ -145,7 +145,7 @@ export default function UGCLibraryPage() {
                 )}
 
                 {item.briefing && (
-                  <span className="inline-block text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
+                  <span className="inline-block text-[10px] px-2 py-0.5 bg-surface-2 text-ink-60 rounded-full">
                     {item.briefing.title}
                   </span>
                 )}
@@ -165,7 +165,7 @@ export default function UGCLibraryPage() {
                       href={item.contentUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-1 bg-orange-100 text-orange-600 rounded-lg text-[10px] font-medium hover:bg-orange-200 transition-colors"
+                      className="px-2 py-1 bg-surface-2 text-ink-60 rounded-lg text-[10px] font-medium hover:bg-hairline transition-colors"
                     >
                       Ver →
                     </a>

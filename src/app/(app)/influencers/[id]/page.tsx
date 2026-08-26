@@ -87,7 +87,7 @@ export default function InfluencerDetailPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-ink-40 animate-pulse" />
           <p className="text-ink-40 font-mono text-sm">Cargando...</p>
         </div>
       </div>
@@ -104,7 +104,7 @@ export default function InfluencerDetailPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-lg font-bold">
+          <div className="w-12 h-12 rounded-full bg-ink flex items-center justify-center text-white text-lg font-bold">
             {influencer.name[0]?.toUpperCase()}
           </div>
           <div>
@@ -136,7 +136,7 @@ export default function InfluencerDetailPage() {
               </code>
               <button
                 onClick={copyLink}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors whitespace-nowrap"
+                className="px-3 py-2 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90 transition-colors whitespace-nowrap"
               >
                 {copied ? "Copiado!" : "Copiar"}
               </button>
@@ -146,7 +146,7 @@ export default function InfluencerDetailPage() {
             <label className="block text-xs font-medium text-ink-40 mb-1">Dashboard publico</label>
             <button
               onClick={copyPublicLink}
-              className="px-3 py-2 border border-orange-200 text-orange-600 rounded-lg text-xs font-medium hover:bg-orange-50 transition-colors whitespace-nowrap"
+              className="px-3 py-2 border border-hairline-2 text-ink rounded-lg text-xs font-medium hover:bg-surface transition-colors whitespace-nowrap"
             >
               {copiedPublic ? "Link copiado!" : "Copiar link publico"}
             </button>
@@ -156,11 +156,11 @@ export default function InfluencerDetailPage() {
 
       {/* Dashboard Settings */}
       <div className="bg-elevated rounded-2xl border border-hairline shadow-sm p-5">
-        <h3 className="text-sm font-semibold mb-3" style={{ color: "#111827" }}>Configuración del dashboard público</h3>
+        <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--ent-ink)" }}>Configuración del dashboard público</h3>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium" style={{ color: "#111827" }}>Mostrar productos vendidos</p>
-            <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+            <p className="text-sm font-medium" style={{ color: "var(--ent-ink)" }}>Mostrar productos vendidos</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--ent-ink-60)" }}>
               Si está activo, el influencer puede ver qué productos vendió y cuántas unidades. Solo ve productos de SUS ventas.
             </p>
           </div>
@@ -175,7 +175,7 @@ export default function InfluencerDetailPage() {
               setInfluencer({ ...influencer, isProductBreakdownEnabled: newValue });
             }}
             className={`relative w-11 h-6 rounded-full transition-colors ${
-              influencer.isProductBreakdownEnabled ? "bg-orange-500" : "bg-hairline-2"
+              influencer.isProductBreakdownEnabled ? "bg-accent" : "bg-hairline-2"
             }`}
           >
             <span
@@ -213,22 +213,22 @@ export default function InfluencerDetailPage() {
               <AreaChart data={metrics.dailyMetrics}>
                 <defs>
                   <linearGradient id="infRevGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#2F9153" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#2F9153" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
                 <XAxis
                   dataKey="date"
                   tickFormatter={(d) => new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
+                  tick={{ fontSize: 10, fill: "#83807A" }}
                 />
-                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 10, fill: "#9ca3af" }} />
+                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 10, fill: "#83807A" }} />
                 <Tooltip
                   formatter={(v: number) => [fmtARS(v), "Revenue"]}
                   labelFormatter={(d) => new Date(d).toLocaleDateString("es-AR")}
                 />
-                <Area type="monotone" dataKey="sales" stroke="#f97316" fill="url(#infRevGrad)" strokeWidth={2} />
+                <Area type="monotone" dataKey="sales" stroke="#2F9153" fill="url(#infRevGrad)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -239,11 +239,11 @@ export default function InfluencerDetailPage() {
               <h3 className="text-sm font-semibold text-ink mb-4">Revenue por campaña</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={metrics.campaignBreakdown} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
                   <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 10 }} />
                   <YAxis type="category" dataKey="campaignName" width={120} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number) => [fmtARS(v), "Revenue"]} />
-                  <Bar dataKey="sales" fill="#f97316" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="sales" fill="#2F9153" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -272,7 +272,7 @@ export default function InfluencerDetailPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-ink">{p.units} un.</p>
-                  <p className="text-xs text-orange-500">{fmtARS(p.revenue)}</p>
+                  <p className="text-xs text-ink-60">{fmtARS(p.revenue)}</p>
                 </div>
               </div>
             ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PageLoader } from "@/components/PageLoader";
 
 // ══════════════════════════════════════════════════════════════
 // Influencer Leaderboard — Comparative Rankings
@@ -79,8 +80,8 @@ export default function LeaderboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "#111827" }}>Leaderboard de Influencers</h1>
-          <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
+          <h1 className="text-xl font-bold" style={{ color: "var(--ent-ink)" }}>Leaderboard de Influencers</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--ent-ink-60)" }}>
             Ranking comparativo de rendimiento
           </p>
         </div>
@@ -89,7 +90,7 @@ export default function LeaderboardPage() {
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-hairline"
-            style={{ color: "#111827", backgroundColor: "#fff" }}
+            style={{ color: "var(--ent-ink)", backgroundColor: "var(--ent-elevated)" }}
           >
             {PERIOD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -99,7 +100,7 @@ export default function LeaderboardPage() {
             value={sort}
             onChange={(e) => setSort(e.target.value)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-hairline"
-            style={{ color: "#111827", backgroundColor: "#fff" }}
+            style={{ color: "var(--ent-ink)", backgroundColor: "var(--ent-elevated)" }}
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>Ordenar: {o.label}</option>
@@ -120,7 +121,7 @@ export default function LeaderboardPage() {
           ].map((t) => (
             <div key={t.label} className="bg-elevated rounded-xl border border-hairline p-4">
               <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#83807A" }}>{t.label}</p>
-              <p className="text-lg font-bold" style={{ color: "#111827" }}>{t.value}</p>
+              <p className="text-lg font-bold" style={{ color: "var(--ent-ink)" }}>{t.value}</p>
             </div>
           ))}
         </div>
@@ -128,20 +129,12 @@ export default function LeaderboardPage() {
 
       {/* Leaderboard Table */}
       {loading ? (
-        <div className="text-center py-16" style={{ color: "#83807A" }}>
-          <div className="flex items-end gap-1.5 h-8 justify-center mb-4">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-1.5 bg-orange-500 rounded-full" style={{ animation: `lbPulse 1.2s ease-in-out ${i * 0.15}s infinite`, height: "40%" }} />
-            ))}
-          </div>
-          <p className="text-sm">Cargando leaderboard...</p>
-          <style>{`@keyframes lbPulse { 0%, 100% { height: 20%; opacity: 0.4; } 50% { height: 100%; opacity: 1; } }`}</style>
-        </div>
+        <PageLoader label="Cargando leaderboard..." />
       ) : leaderboard.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-4xl mb-4">🏆</p>
-          <p className="text-lg font-medium mb-2" style={{ color: "#111827" }}>Todavía no hay datos para este período</p>
-          <p className="text-sm max-w-md mx-auto" style={{ color: "#6B7280" }}>
+          <p className="text-lg font-medium mb-2" style={{ color: "var(--ent-ink)" }}>Todavía no hay datos para este período</p>
+          <p className="text-sm max-w-md mx-auto" style={{ color: "var(--ent-ink-60)" }}>
             El leaderboard se completa automáticamente cuando los influencers generan ventas. Compartí los links de tracking para empezar a ver el ranking.
           </p>
         </div>
@@ -151,16 +144,16 @@ export default function LeaderboardPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-surface border-b border-hairline">
-                  <th className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>#</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>Influencer</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>Ventas</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden sm:table-cell" style={{ color: "#6B7280" }}>Comisión</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden md:table-cell" style={{ color: "#6B7280" }}>Conv.</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden md:table-cell" style={{ color: "#6B7280" }}>Tasa</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden lg:table-cell" style={{ color: "#6B7280" }}>Ticket</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden lg:table-cell" style={{ color: "#6B7280" }}>ROI</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium uppercase" style={{ color: "#6B7280" }}>Cambio</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase hidden xl:table-cell" style={{ color: "#6B7280" }}>Barra</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: "var(--ent-ink-60)" }}>#</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: "var(--ent-ink-60)" }}>Influencer</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase" style={{ color: "var(--ent-ink-60)" }}>Ventas</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden sm:table-cell" style={{ color: "var(--ent-ink-60)" }}>Comisión</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden md:table-cell" style={{ color: "var(--ent-ink-60)" }}>Conv.</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden md:table-cell" style={{ color: "var(--ent-ink-60)" }}>Tasa</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden lg:table-cell" style={{ color: "var(--ent-ink-60)" }}>Ticket</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase hidden lg:table-cell" style={{ color: "var(--ent-ink-60)" }}>ROI</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium uppercase" style={{ color: "var(--ent-ink-60)" }}>Cambio</th>
+                  <th className="px-4 py-3 text-xs font-medium uppercase hidden xl:table-cell" style={{ color: "var(--ent-ink-60)" }}>Barra</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,33 +167,33 @@ export default function LeaderboardPage() {
                         {entry.profileImage ? (
                           <img src={entry.profileImage} alt="" className="w-8 h-8 rounded-full object-cover" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-xs">
+                          <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center text-white font-bold text-xs">
                             {entry.name[0]?.toUpperCase()}
                           </div>
                         )}
                         <div>
-                          <p className="font-medium text-sm" style={{ color: "#111827" }}>{entry.name}</p>
+                          <p className="font-medium text-sm" style={{ color: "var(--ent-ink)" }}>{entry.name}</p>
                           <p className="text-[10px] font-mono" style={{ color: "#83807A" }}>{entry.commissionPercent}%</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums" style={{ color: "#111827" }}>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums" style={{ color: "var(--ent-ink)" }}>
                       {fmtARS(entry.revenue)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums hidden sm:table-cell" style={{ color: "#F97316" }}>
+                    <td className="px-4 py-3 text-right tabular-nums hidden sm:table-cell" style={{ color: "var(--ent-ink)" }}>
                       {fmtARS(entry.commission)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell" style={{ color: "#111827" }}>
+                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell" style={{ color: "var(--ent-ink)" }}>
                       {fmt(entry.conversions)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell" style={{ color: "#111827" }}>
+                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell" style={{ color: "var(--ent-ink)" }}>
                       {entry.conversionRate.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell" style={{ color: "#111827" }}>
+                    <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell" style={{ color: "var(--ent-ink)" }}>
                       {fmtARS(entry.avgOrderValue)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell">
-                      <span style={{ color: entry.roi > 500 ? "#22C55E" : entry.roi > 200 ? "#F97316" : "#EF4444" }}>
+                      <span style={{ color: entry.roi > 500 ? "#22C55E" : entry.roi > 200 ? "#C98A1A" : "#EF4444" }}>
                         {entry.roi.toFixed(0)}%
                       </span>
                     </td>
@@ -214,7 +207,7 @@ export default function LeaderboardPage() {
                     <td className="px-4 py-3 hidden xl:table-cell">
                       <div className="w-32 h-2 bg-surface-2 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full transition-all"
+                          className="h-full bg-ink rounded-full transition-all"
                           style={{ width: `${(entry.revenue / maxRevenue) * 100}%` }}
                         />
                       </div>

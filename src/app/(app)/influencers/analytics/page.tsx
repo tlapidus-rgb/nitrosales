@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PageLoader } from "@/components/PageLoader";
 
 // ══════════════════════════════════════════════════════════════
 // Influencer Analytics — Cohort, ROI, Anomalies
@@ -121,14 +122,7 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="flex items-end gap-1.5 h-8">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="w-1.5 bg-orange-500 rounded-full" style={{ animation: `aPulse 1.2s ease-in-out ${i * 0.15}s infinite`, height: "40%" }} />
-          ))}
-        </div>
-        <style>{`@keyframes aPulse { 0%, 100% { height: 20%; opacity: 0.4; } 50% { height: 100%; opacity: 1; } }`}</style>
-      </div>
+      <PageLoader minHeight="400px" />
     );
   }
 
@@ -139,15 +133,15 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "#111827" }}>Analytics del Programa</h1>
-          <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
+          <h1 className="text-xl font-bold" style={{ color: "var(--ent-ink)" }}>Analytics del Programa</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--ent-ink-60)" }}>
             Cohorts, ROI por campaña y detección de anomalías
           </p>
         </div>
         <button
           onClick={handleExport}
           disabled={exportLoading}
-          className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-ink text-white rounded-lg text-xs font-medium hover:bg-ink/90 transition-colors disabled:opacity-50"
         >
           {exportLoading ? "Exportando..." : "Exportar CSV"}
         </button>
@@ -157,8 +151,8 @@ export default function AnalyticsPage() {
       {!kpis && cohort.length === 0 && campaigns.length === 0 && anomalies.length === 0 && (
         <div className="bg-elevated rounded-xl border border-hairline p-12 text-center">
           <p className="text-4xl mb-4">📊</p>
-          <p className="text-lg font-medium mb-2" style={{ color: "#111827" }}>Todavía no hay datos de atribuciones</p>
-          <p className="text-sm max-w-md mx-auto" style={{ color: "#6B7280" }}>
+          <p className="text-lg font-medium mb-2" style={{ color: "var(--ent-ink)" }}>Todavía no hay datos de atribuciones</p>
+          <p className="text-sm max-w-md mx-auto" style={{ color: "var(--ent-ink-60)" }}>
             Los analytics se van a llenar automáticamente cuando los influencers generen ventas a través de sus links de tracking o cupones. Compartí los links y empezá a ver resultados acá.
           </p>
         </div>
@@ -192,7 +186,7 @@ export default function AnalyticsPage() {
             <div key={kpi.label} className="bg-elevated rounded-xl border border-hairline p-4">
               <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: "#83807A" }}>{kpi.label}</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-lg font-bold" style={{ color: "#111827" }}>{kpi.value}</p>
+                <p className="text-lg font-bold" style={{ color: "var(--ent-ink)" }}>{kpi.value}</p>
                 {kpi.change !== undefined && <ChangeBadge value={kpi.change} />}
               </div>
               {kpi.sub && <p className="text-[10px] mt-1" style={{ color: "#83807A" }}>{kpi.sub}</p>}
@@ -204,7 +198,7 @@ export default function AnalyticsPage() {
       {/* Anomalies */}
       {anomalies.length > 0 && (
         <div className="bg-elevated rounded-xl border border-hairline p-5">
-          <h2 className="text-sm font-bold mb-3" style={{ color: "#111827" }}>
+          <h2 className="text-sm font-bold mb-3" style={{ color: "var(--ent-ink)" }}>
             Alertas detectadas
           </h2>
           <div className="space-y-2">
@@ -219,12 +213,12 @@ export default function AnalyticsPage() {
               >
                 <span className="text-lg">{a.type === "spike" ? "🚀" : "⚠️"}</span>
                 <div className="flex-1">
-                  <p style={{ color: "#111827" }}>
+                  <p style={{ color: "var(--ent-ink)" }}>
                     <strong>{a.influencer}</strong>
                     {a.type === "spike" ? " — pico en " : " — caída en "}
                     {a.metric}
                   </p>
-                  <p className="text-xs" style={{ color: "#6B7280" }}>
+                  <p className="text-xs" style={{ color: "var(--ent-ink-60)" }}>
                     {fmtARS(a.previous)} → {fmtARS(a.current)} ({a.change > 0 ? "+" : ""}{a.change.toFixed(0)}%)
                   </p>
                 </div>
@@ -237,18 +231,18 @@ export default function AnalyticsPage() {
       {/* Revenue Cohort (bar chart) */}
       {cohort.length > 0 && (
         <div className="bg-elevated rounded-xl border border-hairline p-5">
-          <h2 className="text-sm font-bold mb-4" style={{ color: "#111827" }}>
+          <h2 className="text-sm font-bold mb-4" style={{ color: "var(--ent-ink)" }}>
             Evolución mensual del programa
           </h2>
           <div className="flex items-end gap-2 h-40">
             {cohort.map((c) => (
               <div key={c.month} className="flex-1 flex flex-col items-center gap-1">
-                <p className="text-[10px] font-medium" style={{ color: "#111827" }}>
+                <p className="text-[10px] font-medium" style={{ color: "var(--ent-ink)" }}>
                   {fmtARS(c.total).replace(/\s/g, "")}
                 </p>
                 <div className="w-full flex justify-center">
                   <div
-                    className="w-8 sm:w-12 bg-gradient-to-t from-orange-500 to-orange-400 rounded-t-lg transition-all"
+                    className="w-8 sm:w-12 bg-ink rounded-t-lg transition-all"
                     style={{ height: `${Math.max((c.total / maxCohortRevenue) * 120, 4)}px` }}
                   />
                 </div>
@@ -263,21 +257,21 @@ export default function AnalyticsPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-hairline">
-                  <th className="text-left py-2 pr-4 font-medium" style={{ color: "#6B7280" }}>Mes</th>
-                  <th className="text-right py-2 px-2 font-medium" style={{ color: "#6B7280" }}>Ventas</th>
-                  <th className="text-right py-2 px-2 font-medium" style={{ color: "#6B7280" }}>Comisión</th>
-                  <th className="text-right py-2 px-2 font-medium" style={{ color: "#6B7280" }}>Conv.</th>
-                  <th className="text-right py-2 px-2 font-medium" style={{ color: "#6B7280" }}>Influencers</th>
+                  <th className="text-left py-2 pr-4 font-medium" style={{ color: "var(--ent-ink-60)" }}>Mes</th>
+                  <th className="text-right py-2 px-2 font-medium" style={{ color: "var(--ent-ink-60)" }}>Ventas</th>
+                  <th className="text-right py-2 px-2 font-medium" style={{ color: "var(--ent-ink-60)" }}>Comisión</th>
+                  <th className="text-right py-2 px-2 font-medium" style={{ color: "var(--ent-ink-60)" }}>Conv.</th>
+                  <th className="text-right py-2 px-2 font-medium" style={{ color: "var(--ent-ink-60)" }}>Influencers</th>
                 </tr>
               </thead>
               <tbody>
                 {cohort.map((c) => (
                   <tr key={c.month} className="border-b border-hairline">
-                    <td className="py-2 pr-4 font-medium" style={{ color: "#111827" }}>{shortMonth(c.month)} {c.month.slice(0, 4)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "#111827" }}>{fmtARS(c.total)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "#F97316" }}>{fmtARS(c.totalCommission)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "#111827" }}>{c.totalConversions}</td>
-                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "#111827" }}>{Object.keys(c.influencers).length}</td>
+                    <td className="py-2 pr-4 font-medium" style={{ color: "var(--ent-ink)" }}>{shortMonth(c.month)} {c.month.slice(0, 4)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "var(--ent-ink)" }}>{fmtARS(c.total)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "var(--ent-ink)" }}>{fmtARS(c.totalCommission)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "var(--ent-ink)" }}>{c.totalConversions}</td>
+                    <td className="py-2 px-2 text-right tabular-nums" style={{ color: "var(--ent-ink)" }}>{Object.keys(c.influencers).length}</td>
                   </tr>
                 ))}
               </tbody>
@@ -289,7 +283,7 @@ export default function AnalyticsPage() {
       {/* Campaign ROI */}
       {campaigns.length > 0 && (
         <div className="bg-elevated rounded-xl border border-hairline p-5">
-          <h2 className="text-sm font-bold mb-4" style={{ color: "#111827" }}>
+          <h2 className="text-sm font-bold mb-4" style={{ color: "var(--ent-ink)" }}>
             ROI por Campaña
           </h2>
           <div className="space-y-3">
@@ -297,7 +291,7 @@ export default function AnalyticsPage() {
               <div key={c.id} className="border border-hairline rounded-xl p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <p className="font-medium text-sm" style={{ color: "#111827" }}>{c.name}</p>
+                    <p className="font-medium text-sm" style={{ color: "var(--ent-ink)" }}>{c.name}</p>
                     <p className="text-[10px]" style={{ color: "#83807A" }}>
                       {c.influencer} · {c.status === "ACTIVE" ? "Activa" : c.status === "COMPLETED" ? "Completada" : "Pausada"}
                     </p>
@@ -305,8 +299,8 @@ export default function AnalyticsPage() {
                   <span
                     className="text-sm font-bold px-3 py-1 rounded-full"
                     style={{
-                      color: c.roi > 500 ? "#22C55E" : c.roi > 200 ? "#F97316" : "#EF4444",
-                      backgroundColor: c.roi > 500 ? "#22C55E15" : c.roi > 200 ? "#F9731615" : "#EF444415",
+                      color: c.roi > 500 ? "#22C55E" : c.roi > 200 ? "#C98A1A" : "#EF4444",
+                      backgroundColor: c.roi > 500 ? "#22C55E15" : c.roi > 200 ? "#C98A1A15" : "#EF444415",
                     }}
                   >
                     ROI {c.roi.toFixed(0)}%
@@ -316,19 +310,19 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-4 gap-3 text-xs">
                   <div>
                     <p style={{ color: "#83807A" }}>Ventas</p>
-                    <p className="font-semibold" style={{ color: "#111827" }}>{fmtARS(c.revenue)}</p>
+                    <p className="font-semibold" style={{ color: "var(--ent-ink)" }}>{fmtARS(c.revenue)}</p>
                   </div>
                   <div>
                     <p style={{ color: "#83807A" }}>Comisión</p>
-                    <p className="font-semibold" style={{ color: "#F97316" }}>{fmtARS(c.commission)}</p>
+                    <p className="font-semibold" style={{ color: "var(--ent-ink)" }}>{fmtARS(c.commission)}</p>
                   </div>
                   <div>
                     <p style={{ color: "#83807A" }}>Costo total</p>
-                    <p className="font-semibold" style={{ color: "#111827" }}>{fmtARS(c.totalCost)}</p>
+                    <p className="font-semibold" style={{ color: "var(--ent-ink)" }}>{fmtARS(c.totalCost)}</p>
                   </div>
                   <div>
                     <p style={{ color: "#83807A" }}>Conversiones</p>
-                    <p className="font-semibold" style={{ color: "#111827" }}>{fmt(c.conversions)}</p>
+                    <p className="font-semibold" style={{ color: "var(--ent-ink)" }}>{fmt(c.conversions)}</p>
                   </div>
                 </div>
 
@@ -336,14 +330,14 @@ export default function AnalyticsPage() {
                   <div className="mt-3">
                     <div className="flex justify-between text-[10px] mb-1">
                       <span style={{ color: "#83807A" }}>Objetivo: {fmtARS(c.bonusTarget || 0)}</span>
-                      <span style={{ color: c.progress >= 100 ? "#22C55E" : "#F97316" }}>{c.progress.toFixed(0)}%</span>
+                      <span style={{ color: c.progress >= 100 ? "#22C55E" : "#C98A1A" }}>{c.progress.toFixed(0)}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${c.progress}%`,
-                          backgroundColor: c.progress >= 100 ? "#22C55E" : "#F97316",
+                          backgroundColor: c.progress >= 100 ? "#22C55E" : "#C98A1A",
                         }}
                       />
                     </div>
