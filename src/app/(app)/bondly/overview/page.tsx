@@ -136,7 +136,7 @@ const SEGMENTS: Array<{
   { key: "Potenciales", label: "Potenciales", icon: TrendingUp, desc: "Segunda compra reciente", color: "#f59e0b" },
   { key: "Nuevos", label: "Nuevos", icon: UserPlus, desc: "Primera compra este mes", color: "#2F9153" },
   { key: "En riesgo", label: "En riesgo", icon: AlertTriangle, desc: "No compran hace 90+ días", color: "#ef4444" },
-  { key: "Ocasionales", label: "Ocasionales", icon: Users, desc: "Compran esporádicamente", color: "#94a3b8" },
+  { key: "Ocasionales", label: "Ocasionales", icon: Users, desc: "Compran esporádicamente", color: "#83807A" },
   { key: "Perdidos", label: "Perdidos", icon: XCircle, desc: "Sin actividad hace 180+ días", color: "#6b7280" },
 ];
 
@@ -148,8 +148,8 @@ function eventMeta(type: string): { label: string; icon: any; color: string } {
     case "ADD_TO_CART": return { label: "Agregó al carrito", icon: ShoppingCart, color: "#f59e0b" };
     case "VIEW_PRODUCT": return { label: "Vio producto", icon: Eye, color: "#2F9153" };
     case "IDENTIFY": return { label: "Se identificó", icon: UserCheck, color: "#83807A" };
-    case "PAGE_VIEW": return { label: "Navega", icon: Eye, color: "#64748b" };
-    default: return { label: type, icon: Activity, color: "#64748b" };
+    case "PAGE_VIEW": return { label: "Navega", icon: Eye, color: "#6B685F" };
+    default: return { label: type, icon: Activity, color: "#6B685F" };
   }
 }
 

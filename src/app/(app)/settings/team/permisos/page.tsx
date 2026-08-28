@@ -62,7 +62,7 @@ const LEVELS: {
   bg: string;
   hint: string;
 }[] = [
-  { value: "none", label: "Sin acceso", color: "#94a3b8", bg: "rgba(148,163,184,0.12)", hint: "El tab ni siquiera aparece" },
+  { value: "none", label: "Sin acceso", color: "#83807A", bg: "rgba(131,128,122,0.12)", hint: "El tab ni siquiera aparece" },
   { value: "read", label: "Solo ver", color: "#0ea5e9", bg: "rgba(14,165,233,0.10)", hint: "Ve pero no modifica" },
   { value: "write", label: "Editar", color: "#8b5cf6", bg: "rgba(139,92,246,0.10)", hint: "Ve + modifica existente" },
   { value: "admin", label: "Todo", color: "#10b981", bg: "rgba(16,185,129,0.10)", hint: "Crear + modificar + borrar" },
@@ -71,7 +71,7 @@ const LEVELS: {
 const ROLE_META: Record<Role, { label: string; icon: any; color: string }> = {
   OWNER: { label: "Owner", icon: ShieldCheck, color: "#8b5cf6" },
   ADMIN: { label: "Admin", icon: Shield, color: "#0ea5e9" },
-  MEMBER: { label: "Editor", icon: User, color: "#64748b" },
+  MEMBER: { label: "Editor", icon: User, color: "#6B685F" },
 };
 
 const CATEGORY_META: Record<string, { label: string; color: string }> = {
@@ -79,12 +79,12 @@ const CATEGORY_META: Record<string, { label: string; color: string }> = {
   ventas: { label: "Ventas", color: "#10b981" },
   marketing: { label: "Marketing", color: "#ec4899" },
   operaciones: { label: "Operaciones", color: "#0ea5e9" },
-  config: { label: "Configuración", color: "#64748b" },
+  config: { label: "Configuración", color: "#6B685F" },
 };
 
 const COLOR_PALETTE = [
   "#0ea5e9", "#10b981", "#8b5cf6", "#f59e0b",
-  "#ef4444", "#ec4899", "#14b8a6", "#64748b",
+  "#ef4444", "#ec4899", "#14b8a6", "#6B685F",
 ];
 
 export default function PermisosPage() {
@@ -329,8 +329,8 @@ export default function PermisosPage() {
                 className="ml-1 rounded-full px-1.5 text-[9px] font-bold"
                 style={{
                   background:
-                    tab === "custom" ? "rgba(28,27,24,0.08)" : "rgba(148,163,184,0.15)",
-                  color: tab === "custom" ? "#1C1B18" : "#64748b",
+                    tab === "custom" ? "rgba(28,27,24,0.08)" : "rgba(131,128,122,0.15)",
+                  color: tab === "custom" ? "#1C1B18" : "#6B685F",
                 }}
               >
                 {customRoles.length}
@@ -382,7 +382,7 @@ export default function PermisosPage() {
           </div>
 
           {Object.entries(groupedSections).map(([cat, catSections]) => {
-            const catMeta = CATEGORY_META[cat] ?? { label: cat, color: "#64748b" };
+            const catMeta = CATEGORY_META[cat] ?? { label: cat, color: "#6B685F" };
             return (
               <div
                 key={cat}
@@ -433,7 +433,7 @@ export default function PermisosPage() {
                                   onChange={(e) => handleSystemChange(role, s.key, e.target.value as AccessLevel)}
                                   className="w-full max-w-[120px] rounded-md border border-hairline bg-elevated px-2 py-1 text-[11px] font-semibold outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10 disabled:cursor-not-allowed disabled:opacity-60"
                                   style={{
-                                    color: LEVELS.find((l) => l.value === currentLevel)?.color ?? "#64748b",
+                                    color: LEVELS.find((l) => l.value === currentLevel)?.color ?? "#6B685F",
                                   }}
                                 >
                                   {LEVELS.map((l) => (
@@ -499,7 +499,7 @@ export default function PermisosPage() {
               <aside className="space-y-2">
                 {customRoles.map((r) => {
                   const active = selectedCustomId === r.id;
-                  const color = r.color ?? "#64748b";
+                  const color = r.color ?? "#6B685F";
                   return (
                     <button
                       key={r.id}
@@ -622,7 +622,7 @@ export default function PermisosPage() {
 
                     {/* Matriz de permisos de este custom role */}
                     {Object.entries(groupedSections).map(([cat, catSections]) => {
-                      const catMeta = CATEGORY_META[cat] ?? { label: cat, color: "#64748b" };
+                      const catMeta = CATEGORY_META[cat] ?? { label: cat, color: "#6B685F" };
                       return (
                         <div
                           key={cat}
@@ -656,7 +656,7 @@ export default function PermisosPage() {
                                     className="w-full max-w-[140px] rounded-md border border-hairline bg-elevated px-2 py-1 text-[11px] font-semibold outline-none focus:border-ink/30 focus:ring-2 focus:ring-ink/10"
                                     style={{
                                       color:
-                                        LEVELS.find((l) => l.value === v)?.color ?? "#64748b",
+                                        LEVELS.find((l) => l.value === v)?.color ?? "#6B685F",
                                     }}
                                   >
                                     {LEVELS.map((l) => (

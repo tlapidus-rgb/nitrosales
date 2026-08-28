@@ -33,7 +33,7 @@ type PlatformView = "META" | "GOOGLE" | "ALL";
 const PLATFORM_META = {
   META:   { label: "Meta Ads",   short: "Meta",   color: "#8b5cf6", bg: "bg-purple-500", text: "text-purple-600", soft: "bg-purple-50", ring: "ring-purple-200" },
   GOOGLE: { label: "Google Ads", short: "Google", color: "#3b82f6", bg: "bg-blue-500",   text: "text-blue-600",   soft: "bg-blue-50",   ring: "ring-blue-200" },
-  ALL:    { label: "Todos",      short: "Todos",  color: "#475569", bg: "bg-slate-500",  text: "text-ink-60",  soft: "bg-surface",  ring: "ring-hairline" },
+  ALL:    { label: "Todos",      short: "Todos",  color: "#6B685F", bg: "bg-ink-40",  text: "text-ink-60",  soft: "bg-surface",  ring: "ring-hairline" },
 } as const;
 
 const FUNNEL_META: Record<string, { color: string; bg: string; ring: string; icon: any; label: string }> = {
@@ -141,7 +141,7 @@ const FATIGUE_META: Record<FatigueLevel, { label: string; color: string; bg: str
   fatigued: { label: "Fatiga",        color: "#f59e0b", bg: "bg-amber-50",   text: "text-amber-700",   ring: "ring-amber-200",   icon: AlertTriangle },
   burned:   { label: "Quemado",       color: "#ef4444", bg: "bg-red-50",     text: "text-red-700",     ring: "ring-red-200",     icon: Flame },
   new:      { label: "Nuevo",         color: "#8b5cf6", bg: "bg-purple-50",  text: "text-purple-700",  ring: "ring-purple-200",  icon: Star },
-  lowdata:  { label: "Poca data",     color: "#94a3b8", bg: "bg-surface",   text: "text-ink-60",   ring: "ring-hairline",   icon: Snowflake },
+  lowdata:  { label: "Poca data",     color: "#83807A", bg: "bg-surface",   text: "text-ink-60",   ring: "ring-hairline",   icon: Snowflake },
 };
 
 /* ── Helper Components ─────────────────────────────── */
@@ -276,7 +276,7 @@ function MediaThumb({ creative, onClick }: { creative: any; onClick?: () => void
         <div className="absolute top-2 right-2">
           <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm font-medium uppercase tracking-wider ${
             creative.status === "ACTIVE" ? "bg-emerald-500/90 text-white" :
-            creative.status === "PAUSED" ? "bg-slate-500/90 text-white" :
+            creative.status === "PAUSED" ? "bg-ink-40/90 text-white" :
             "bg-ink-40/90 text-white"
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${creative.status === "ACTIVE" ? "bg-elevated animate-pulse" : "bg-white/70"}`} />
@@ -357,7 +357,7 @@ function CreativeCard({ creative, breakeven, onClick }: { creative: any; breakev
           </div>
         </div>
         <div className="-mt-2 h-8">
-          <MiniSparkline data={creative.dailySpend} color={PLATFORM_META[creative.platform]?.color || "#64748b"} />
+          <MiniSparkline data={creative.dailySpend} color={PLATFORM_META[creative.platform]?.color || "#6B685F"} />
         </div>
       </div>
     </div>
@@ -967,8 +967,8 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                   <AreaChart data={creative.dailySpend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="trend-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={PLATFORM_META[creative.platform]?.color || "#64748b"} stopOpacity={0.4} />
-                        <stop offset="100%" stopColor={PLATFORM_META[creative.platform]?.color || "#64748b"} stopOpacity={0} />
+                        <stop offset="0%" stopColor={PLATFORM_META[creative.platform]?.color || "#6B685F"} stopOpacity={0.4} />
+                        <stop offset="100%" stopColor={PLATFORM_META[creative.platform]?.color || "#6B685F"} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="date" hide />
@@ -977,7 +977,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                       contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #E5E1D8" }}
                       formatter={(v: any) => [formatARS(Number(v)), "Spend"]}
                     />
-                    <Area type="monotone" dataKey="spend" stroke={PLATFORM_META[creative.platform]?.color || "#64748b"} strokeWidth={1.5} fill="url(#trend-grad)" />
+                    <Area type="monotone" dataKey="spend" stroke={PLATFORM_META[creative.platform]?.color || "#6B685F"} strokeWidth={1.5} fill="url(#trend-grad)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -1319,7 +1319,7 @@ function DrilldownView({
                       active ? "bg-ink text-white shadow-sm" : "text-ink-60 hover:bg-surface-2"
                     }`}
                   >
-                    <Icon size={14} style={{ color: active ? "#fff" : meta?.color || "#64748b" }} />
+                    <Icon size={14} style={{ color: active ? "#fff" : meta?.color || "#6B685F" }} />
                     {t === "ALL" ? "Todas" : meta?.label}
                     <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-md ${
                       active ? "bg-white/15 text-white/90" : "bg-surface-2 text-ink-60"

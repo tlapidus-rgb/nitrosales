@@ -41,12 +41,12 @@ export const CHANNEL_TINT: Record<string, string> = {
   meta: "#833ab4",
   google: "#4285F4",
   tiktok: "#25F4EE",
-  email: "#64748b",
+  email: "#6B685F",
   whatsapp: "#25D366",
   organic: "#10b981",
   direct: "#6366f1",
   referral: "#f97316",
-  other: "#94a3b8",
+  other: "#83807A",
 };
 
 interface Props {
@@ -60,19 +60,19 @@ interface Props {
 export function SourceLogo({ channel, size = 14, className = "", withLabel = false, dense = false }: Props) {
   const key = (channel || "other") as string;
   const label = CHANNEL_LABEL[key] || "Otro";
-  const tint = CHANNEL_TINT[key] || "#94a3b8";
+  const tint = CHANNEL_TINT[key] || "#83807A";
 
   const icon = (() => {
     switch (key) {
       case "meta": return <MetaLogo size={size} />;
       case "google": return <GoogleLogo size={size} />;
       case "tiktok": return <TikTokLogo size={size} />;
-      case "email": return <Mail size={size} className="text-slate-500" />;
+      case "email": return <Mail size={size} className="text-ink-40" />;
       case "whatsapp": return <WhatsAppLogo size={size} />;
       case "organic": return <Search size={size} style={{ color: CHANNEL_TINT.organic }} />;
       case "direct": return <MousePointerClick size={size} style={{ color: CHANNEL_TINT.direct }} />;
       case "referral": return <Link2 size={size} style={{ color: CHANNEL_TINT.referral }} />;
-      default: return <Globe size={size} className="text-slate-400" />;
+      default: return <Globe size={size} className="text-ink-40" />;
     }
   })();
 

@@ -117,9 +117,9 @@ const CATEGORY_META: Record<
   },
   CUSTOM: {
     label: "Custom",
-    color: "#64748b",
-    bg: "rgba(100,116,139,0.08)",
-    border: "rgba(100,116,139,0.22)",
+    color: "#6B685F",
+    bg: "rgba(28,27,24,0.08)",
+    border: "rgba(28,27,24,0.22)",
   },
 };
 
@@ -148,7 +148,7 @@ function urgencyColor(iso: string): string {
   if (diff < 0) return "#ef4444";
   if (diff <= 3) return "#f59e0b";
   if (diff <= 7) return "#eab308";
-  return "#64748b";
+  return "#6B685F";
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -387,7 +387,7 @@ function Hero({
                 : "Sin vencimientos próximos"
             }
             subvalue={nextUpcoming ? formatDueLabel(nextUpcoming.dueDate) : ""}
-            accent={nextUpcoming ? urgencyColor(nextUpcoming.dueDate) : "#64748b"}
+            accent={nextUpcoming ? urgencyColor(nextUpcoming.dueDate) : "#6B685F"}
             icon={<Clock className="h-4 w-4" />}
           />
           <KPICard

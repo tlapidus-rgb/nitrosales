@@ -36,7 +36,7 @@ export default function DashboardChartCard({
 }: DashboardChartCardProps) {
   const draggingClass = isDragging ? "opacity-40 scale-[0.98]" : "";
   const dragOverClass = isDragOver
-    ? "ring-2 ring-slate-900/15 border-slate-300"
+    ? "ring-2 ring-hairline/15 border-hairline-2"
     : "";
   const editClass = editMode ? "cursor-grab active:cursor-grabbing" : "";
 
@@ -59,7 +59,7 @@ export default function DashboardChartCard({
           >
             <X className="w-3.5 h-3.5" />
           </button>
-          <div className="absolute top-3 left-3 text-slate-300">
+          <div className="absolute top-3 left-3 text-ink-40">
             <GripVertical className="w-4 h-4" />
           </div>
         </>
@@ -80,9 +80,9 @@ export default function DashboardChartCard({
               {category}
             </span>
           </div>
-          <h3 className="text-[15px] font-semibold tracking-tight text-slate-900">{title}</h3>
+          <h3 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h3>
           {subtitle && (
-            <p className="text-[12px] text-slate-500 mt-0.5">{subtitle}</p>
+            <p className="text-[12px] text-ink-40 mt-0.5">{subtitle}</p>
           )}
         </div>
         {headerRight && (

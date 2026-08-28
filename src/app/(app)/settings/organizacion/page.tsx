@@ -412,7 +412,7 @@ export default function OrganizacionPage() {
                 className="w-32 rounded-lg border border-hairline bg-elevated px-3 py-2 font-mono text-sm uppercase text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
               />
               <div className="flex items-center gap-1.5">
-                {["#0ea5e9", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#0f172a"].map(
+                {["#0ea5e9", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#1C1B18"].map(
                   (c) => (
                     <button
                       key={c}

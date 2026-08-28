@@ -47,14 +47,14 @@ export default function GeographyCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
-            <Map className="w-4.5 h-4.5 text-slate-700" />
+          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-surface border border-hairline flex items-center justify-center">
+            <Map className="w-4.5 h-4.5 text-ink-60" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-ink">
               De dónde compran
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-ink-40">
               {tab === "province"
                 ? "Provincias con más pedidos."
                 : "Códigos postales con más pedidos."}
@@ -71,14 +71,14 @@ export default function GeographyCard({
 
       {isMeliFilter ? (
         <div className="py-6 text-center">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-40">
             Filtrando por MercadoLibre — no hay datos de ubicación para mostrar.
           </p>
         </div>
       ) : (
         <>
           {/* Tabs */}
-          <div className="flex items-center gap-1 mb-4 p-0.5 bg-slate-50 border border-slate-100 rounded-lg w-fit">
+          <div className="flex items-center gap-1 mb-4 p-0.5 bg-surface border border-hairline rounded-lg w-fit">
             <TabButton
               active={tab === "province"}
               onClick={() => setTab("province")}
@@ -114,8 +114,8 @@ function TabButton({
       onClick={onClick}
       className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
         active
-          ? "bg-white text-slate-900 shadow-sm"
-          : "text-slate-500 hover:text-slate-700"
+          ? "bg-white text-ink shadow-sm"
+          : "text-ink-40 hover:text-ink-60"
       }`}
     >
       {label}
@@ -125,7 +125,7 @@ function TabButton({
 
 function BucketList({ buckets }: { buckets: GeoBucket[] }) {
   if (buckets.length === 0) {
-    return <p className="text-xs text-slate-400">Sin datos en el período.</p>;
+    return <p className="text-xs text-ink-40">Sin datos en el período.</p>;
   }
   const total = buckets.reduce((a, b) => a + b.orders, 0);
   const maxOrders = Math.max(...buckets.map((b) => b.orders), 1);
@@ -139,24 +139,24 @@ function BucketList({ buckets }: { buckets: GeoBucket[] }) {
           <div key={`${b.value}-${idx}`}>
             <div className="flex items-center justify-between gap-2 mb-1">
               <div className="flex items-center gap-1.5 min-w-0">
-                <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                <span className="text-xs font-medium text-slate-800 truncate">
+                <MapPin className="w-3 h-3 text-ink-40 flex-shrink-0" />
+                <span className="text-xs font-medium text-ink-60 truncate">
                   {b.value || "Sin dato"}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-[11px] tabular-nums flex-shrink-0">
-                <span className="text-slate-500">
+                <span className="text-ink-40">
                   {b.orders.toLocaleString("es-AR")}
                 </span>
-                <span className="text-slate-400">{pct.toFixed(0)}%</span>
-                <span className="text-slate-700 font-semibold w-24 text-right">
+                <span className="text-ink-40">{pct.toFixed(0)}%</span>
+                <span className="text-ink-60 font-semibold w-24 text-right">
                   {formatARS(b.revenue)}
                 </span>
               </div>
             </div>
-            <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
               <div
-                className="h-full bg-slate-400 rounded-full transition-all duration-700"
+                className="h-full bg-ink-40 rounded-full transition-all duration-700"
                 style={{ width: `${barPct}%` }}
               />
             </div>

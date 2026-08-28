@@ -1451,7 +1451,7 @@ export default function DashboardPage() {
                     w.supportedFormats.some((f) => allowedFormats.includes(f))
                 );
                 if (items.length === 0) return null;
-                const catColor = items[0]?.catColor || "#64748b";
+                const catColor = items[0]?.catColor || "#6B685F";
                 return (
                   <div key={cat}>
                     <div className="flex items-center gap-2 mb-2.5">

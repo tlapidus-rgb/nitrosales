@@ -118,9 +118,9 @@ const STATUS_META: Record<
   },
   DISCONNECTED: {
     label: "Desconectado",
-    color: "#64748b",
-    bg: "rgba(148,163,184,0.1)",
-    border: "rgba(148,163,184,0.22)",
+    color: "#6B685F",
+    bg: "rgba(131,128,122,0.1)",
+    border: "rgba(131,128,122,0.22)",
     icon: XCircle,
   },
 };
@@ -259,7 +259,7 @@ export default function IntegracionesPage() {
           <SummaryChip
             label="Pendientes"
             value={summary.pending}
-            color="#64748b"
+            color="#6B685F"
           />
         </div>
       </div>
@@ -330,7 +330,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
   const meta = PLATFORM_META[connector.platform] ?? {
     label: connector.platform,
     description: "Sin descripción",
-    color: "#64748b",
+    color: "#6B685F",
   };
   const statusMeta = STATUS_META[connector.status] ?? STATUS_META.DISCONNECTED;
   const StatusIcon = statusMeta.icon;

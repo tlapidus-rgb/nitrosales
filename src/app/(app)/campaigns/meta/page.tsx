@@ -708,7 +708,7 @@ function MetaCampaignsInner() {
           className="rounded-2xl bg-elevated/90 backdrop-blur p-5 lg:p-6 border border-hairline"
           style={{
             boxShadow:
-              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+              "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
             animation: `meta-enter 500ms ${ES_TRANSITION} 180ms both`,
           }}
         >
@@ -738,7 +738,7 @@ function MetaCampaignsInner() {
                     className="rounded-2xl p-4 lg:p-5 bg-elevated ring-1 ring-hairline relative overflow-hidden"
                     style={{
                       boxShadow:
-                        "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
+                        "0 1px 0 rgba(28,27,24,0.04), 0 4px 12px -6px rgba(28,27,24,0.08)",
                     }}
                   >
                     <div className="relative">
@@ -804,7 +804,7 @@ function MetaCampaignsInner() {
           className="rounded-2xl bg-elevated/90 backdrop-blur p-5 lg:p-6 border border-hairline"
           style={{
             boxShadow:
-              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+              "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
             animation: `meta-enter 500ms ${ES_TRANSITION} 240ms both`,
           }}
         >
@@ -848,7 +848,7 @@ function MetaCampaignsInner() {
           className="rounded-2xl bg-elevated border border-hairline overflow-hidden"
           style={{
             boxShadow:
-              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+              "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
             animation: `meta-enter 500ms ${ES_TRANSITION} 300ms both`,
           }}
         >
@@ -1026,7 +1026,7 @@ function MetaCampaignsInner() {
             className="rounded-2xl bg-elevated border border-hairline p-5 lg:p-6"
             style={{
               boxShadow:
-                "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+                "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
               animation: `meta-enter 500ms ${ES_TRANSITION} 360ms both`,
             }}
           >
@@ -1068,7 +1068,7 @@ function MetaCampaignsInner() {
                     border: "1px solid #E5E1D8",
                     borderRadius: 10,
                     fontSize: 11,
-                    boxShadow: "0 8px 24px -12px rgba(15,23,42,0.12)",
+                    boxShadow: "0 8px 24px -12px rgba(28,27,24,0.12)",
                   }}
                   labelStyle={{ color: "#6B685F" }}
                   formatter={(v: any) => [formatARS(v), "Gasto"]}
@@ -1189,7 +1189,7 @@ function HeroKpi({
       className="rounded-2xl bg-elevated p-5 border border-hairline relative overflow-hidden"
       style={{
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+          "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.10), 0 22px 40px -28px rgba(28,27,24,0.08)",
       }}
     >
       <div className="flex items-center gap-2 mb-3">
@@ -1431,7 +1431,7 @@ function CampaignDrawer({
         className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-[580px] bg-elevated shadow-2xl overflow-y-auto"
         style={{
           animation: `meta-slide-in 360ms ${ES_TRANSITION}`,
-          boxShadow: "0 0 0 1px rgba(15,23,42,0.06), -20px 0 60px -30px rgba(15,23,42,0.30)",
+          boxShadow: "0 0 0 1px rgba(28,27,24,0.06), -20px 0 60px -30px rgba(28,27,24,0.30)",
         }}
       >
         {/* Header */}

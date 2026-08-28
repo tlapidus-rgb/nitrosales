@@ -1039,9 +1039,9 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
                 <span
                   className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
                   style={{
-                    background: "rgba(148,163,184,0.12)",
+                    background: "rgba(131,128,122,0.12)",
                     color: "#83807A",
-                    border: "1px solid rgba(148,163,184,0.25)",
+                    border: "1px solid rgba(131,128,122,0.25)",
                   }}
                   title="Compra anterior a la instalación de NitroPixel. No hay datos de canal para estas órdenes."
                 >

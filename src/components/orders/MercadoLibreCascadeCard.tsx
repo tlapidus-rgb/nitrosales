@@ -96,10 +96,10 @@ export default function MercadoLibreCascadeCard({
   }) => {
     const tones = {
       neutral: {
-        bar: "bg-gradient-to-r from-slate-400 to-slate-500",
-        text: "text-slate-900",
-        iconBg: "bg-slate-100",
-        iconColor: "text-slate-600",
+        bar: "bg-gradient-to-r from-ink-40 to-ink-60",
+        text: "text-ink",
+        iconBg: "bg-surface-2",
+        iconColor: "text-ink-60",
       },
       negative: {
         bar: "bg-gradient-to-r from-rose-400 to-rose-500",
@@ -124,7 +124,7 @@ export default function MercadoLibreCascadeCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-end justify-between gap-2 mb-1">
               <div>
-                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                <p className="text-[11px] font-medium text-ink-40 uppercase tracking-wide">
                   {label}
                   {badge && (
                     <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 border border-amber-200/70 px-1.5 py-px text-[9px] font-semibold text-amber-600 normal-case tracking-normal">
@@ -132,17 +132,17 @@ export default function MercadoLibreCascadeCard({
                     </span>
                   )}
                 </p>
-                {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
+                {subtitle && <p className="text-[10px] text-ink-40 mt-0.5">{subtitle}</p>}
               </div>
               <div className="text-right">
                 <p className={`text-lg font-bold ${style.text}`} style={{ fontVariantNumeric: "tabular-nums" }}>
                   {tone === "negative" ? "−" : ""}
                   {formatARS(value)}
                 </p>
-                <p className="text-[10px] text-slate-400 tabular-nums">{pct.toFixed(1)}% del bruto</p>
+                <p className="text-[10px] text-ink-40 tabular-nums">{pct.toFixed(1)}% del bruto</p>
               </div>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-1.5 w-full rounded-full bg-surface-2 overflow-hidden">
               <div
                 className={`h-full rounded-full ${style.bar}`}
                 style={{
@@ -159,9 +159,9 @@ export default function MercadoLibreCascadeCard({
 
   if (grossRevenue === 0) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <h2 className="text-sm font-semibold text-slate-800 mb-2">Cascada Mercado Libre</h2>
-        <p className="text-xs text-slate-400 text-center py-8">
+      <div className="bg-white rounded-xl border border-hairline/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <h2 className="text-sm font-semibold text-ink-60 mb-2">Cascada Mercado Libre</h2>
+        <p className="text-xs text-ink-40 text-center py-8">
           Sin órdenes de Mercado Libre en el período seleccionado.
         </p>
       </div>
@@ -170,13 +170,13 @@ export default function MercadoLibreCascadeCard({
 
   return (
     <div
-      className="bg-white rounded-xl border border-slate-200/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+      className="bg-white rounded-xl border border-hairline/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
       style={{ fontVariantNumeric: "tabular-nums" }}
     >
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-sm font-semibold text-slate-800">Cascada Mercado Libre</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <h2 className="text-sm font-semibold text-ink-60">Cascada Mercado Libre</h2>
+          <p className="text-[11px] text-ink-40 mt-0.5">
             De ingreso bruto a neto real en {ordersCount.toLocaleString("es-AR")} órden
             {ordersCount !== 1 ? "es" : ""}
           </p>
@@ -231,7 +231,7 @@ export default function MercadoLibreCascadeCard({
           icon={<ArrowDownRight size={16} />}
           subtitle="Costo logístico soportado en el envío"
         />
-        <div className="pt-4 border-t border-slate-100">
+        <div className="pt-4 border-t border-hairline">
           <Step
             label={hasCogs ? "Ganancia neta" : "Ingreso real (neto)"}
             value={realNet}
@@ -259,7 +259,7 @@ export default function MercadoLibreCascadeCard({
         </div>
       )}
 
-      <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+      <div className="mt-5 pt-4 border-t border-hairline flex items-center justify-between text-[11px] text-ink-40">
         <span>Bruto → {hasCogs ? "Ganancia" : "Neto"}</span>
         <span className="font-semibold text-emerald-700 tabular-nums">{formatCompact(realNet)}</span>
       </div>

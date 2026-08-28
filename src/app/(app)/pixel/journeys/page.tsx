@@ -56,7 +56,7 @@ const CHANNEL_META: Record<string, { color: string; label: string }> = {
   mercadolibre:   { color: "#2D3277", label: "MercadoLibre" },
   email:          { color: "#D97706", label: "Email" },
   whatsapp:       { color: "#25D366", label: "WhatsApp" },
-  direct:         { color: "#64748B", label: "Directo" },
+  direct:         { color: "#6B685F", label: "Directo" },
   organic:        { color: "#7C3AED", label: "Orgánico" },
   referral:       { color: "#DB2777", label: "Referral" },
 };
@@ -179,7 +179,7 @@ function StatusBadge({ status }: { status: string }) {
     CANCELLED: { bg: "rgba(220,38,38,0.10)",  color: "#b91c1c", label: "Cancelada" },
     RETURNED:  { bg: "rgba(219,39,119,0.10)", color: "#be185d", label: "Devuelta" },
   };
-  const m = map[status] || { bg: "rgba(100,116,139,0.10)", color: "#475569", label: status };
+  const m = map[status] || { bg: "rgba(28,27,24,0.10)", color: "#6B685F", label: status };
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider"

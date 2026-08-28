@@ -75,7 +75,7 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string 
   // Visitantes sin canal de marketing (todos sus eventos clasifican a NULL:
   // pasarelas de pago, vueltas de checkout). ANTES DESAPARECÍAN de la tabla —
   // el rollup los perdía con un INNER JOIN y la suma nunca cerraba (2026-07-21).
-  sin_clasificar: { icon: "?", color: "#94A3B8", label: "Otros orígenes" },
+  sin_clasificar: { icon: "?", color: "#83807A", label: "Otros orígenes" },
   organic: { icon: "O", color: "#8B5CF6", label: "Orgánico" },
   google_organic: { icon: "G", color: "#34A853", label: "Google Orgánico" },
   bing_organic: { icon: "B", color: "#008373", label: "Bing Orgánico" },
@@ -298,7 +298,7 @@ function truthScoreColor(pixelRev: number, platformRev: number): { color: string
 // CARD SHELL — shared styling for all cards
 // ══════════════════════════════════════════════════════════════
 const cardStyle = "bg-elevated rounded-2xl border border-hairline transition-all duration-[280ms]";
-const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
+const cardShadow = { boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.12), 0 22px 40px -28px rgba(28,27,24,0.10)" };
 
 // ══════════════════════════════════════════════════════════════
 // CR by Category/Brand/Product tables — de vuelta en ZONA 8 (feedback
@@ -407,8 +407,8 @@ function SectionNav() {
           background: "rgba(255,255,255,0.82)",
           backdropFilter: "blur(16px) saturate(1.8)",
           WebkitBackdropFilter: "blur(16px) saturate(1.8)",
-          boxShadow: "0 2px 20px rgba(15,23,42,0.08), 0 1px 3px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.6)",
-          border: "1px solid rgba(15,23,42,0.06)",
+          boxShadow: "0 2px 20px rgba(28,27,24,0.08), 0 1px 3px rgba(28,27,24,0.06), inset 0 1px 0 rgba(255,255,255,0.6)",
+          border: "1px solid rgba(28,27,24,0.06)",
         }}
       >
         {SECTIONS.map((sec) => {
@@ -1341,12 +1341,12 @@ export default function AnalyticsPage() {
                         <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
-                    <YAxis yAxisId="rev" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
-                    <YAxis yAxisId="spend" orientation="right" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EDEAE3" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <YAxis yAxisId="rev" tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => fmtCompact(v)} />
+                    <YAxis yAxisId="spend" orientation="right" tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => fmtCompact(v)} />
                     <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      contentStyle={{ borderRadius: 12, border: "1px solid #E5E1D8", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
                       formatter={(value: number, name: string) => [fmtARS(value), name === "pixelRevenue" ? "Pixel" : name === "platformRevenue" ? "Plataformas" : "Spend"]}
                       labelFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
                     />
@@ -1366,11 +1366,11 @@ export default function AnalyticsPage() {
                     d.channels.forEach(ch => { row[ch.source] = ch.revenue; });
                     return row;
                   })} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
-                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EDEAE3" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <YAxis tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => fmtCompact(v)} />
                     <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      contentStyle={{ borderRadius: 12, border: "1px solid #E5E1D8", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
                       formatter={(value: number, name: string) => [fmtARS(value), getSourceInfo(name).label]}
                       labelFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
                     />
@@ -1506,7 +1506,7 @@ export default function AnalyticsPage() {
               const pieData = devices.map(d => ({
                 name: DEVICE_LABELS[d.deviceType] || d.deviceType,
                 value: d.count,
-                fill: DEVICE_COLORS[d.deviceType] || "#94a3b8",
+                fill: DEVICE_COLORS[d.deviceType] || "#83807A",
               }));
 
               return (
@@ -1539,7 +1539,7 @@ export default function AnalyticsPage() {
                   {/* Device stats */}
                   <div className="flex-1 space-y-3">
                     {devices.map((d) => {
-                      const color = DEVICE_COLORS[d.deviceType] || "#94a3b8";
+                      const color = DEVICE_COLORS[d.deviceType] || "#83807A";
                       return (
                         <div key={d.deviceType} className="flex items-center gap-3">
                           <span className="text-lg flex-shrink-0">{DEVICE_ICONS[d.deviceType] || "🖥️"}</span>
@@ -1685,11 +1685,11 @@ export default function AnalyticsPage() {
                         <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `${v}%`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EDEAE3" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => parseDayLocal(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#83807A" }} tickFormatter={(v) => `${v}%`} />
                     <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      contentStyle={{ borderRadius: 12, border: "1px solid #E5E1D8", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
                       formatter={(value: number, name: string) => {
                         if (name === "coverage") return [`${value}%`, "Cobertura"];
                         return [value, name];
@@ -2056,7 +2056,7 @@ export default function AnalyticsPage() {
                               <tr key={s.source} className="border-b border-hairline last:border-0 hover:bg-surface/50 transition-colors">
                                 <td className="py-2.5 pr-2">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: isOtros ? "#94a3b8" : info.color }}>
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: isOtros ? "#83807A" : info.color }}>
                                       {isOtros ? (
                                         <span className="text-[9px] font-bold text-white">…</span>
                                       ) : (
@@ -2095,7 +2095,7 @@ export default function AnalyticsPage() {
                         const DEVICE_ICONS: Record<string, string> = { mobile: "📱", desktop: "💻", tablet: "📟" };
                         const DEVICE_LABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
                         const DEVICE_COLORS: Record<string, string> = { mobile: "#06b6d4", desktop: "#8b5cf6", tablet: "#f97316" };
-                        const color = DEVICE_COLORS[d.device] || "#94a3b8";
+                        const color = DEVICE_COLORS[d.device] || "#83807A";
                         const crColor = d.cr >= 2 ? "text-emerald-600" : d.cr >= 1 ? "text-amber-600" : "text-red-500";
                         return (
                           <div key={d.device} className="bg-surface/50 rounded-xl p-3">

@@ -938,7 +938,7 @@ function RealityConfirmModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{
-        background: "rgba(15,23,42,0.6)",
+        background: "rgba(28,27,24,0.6)",
         backdropFilter: "blur(6px)",
         animation: `realityFade 220ms ${ES}`,
       }}

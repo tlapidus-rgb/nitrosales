@@ -23,7 +23,7 @@ export function BreakevenChip({
     green:  { bg: "bg-emerald-50",  text: "text-emerald-800", ring: "ring-emerald-200", Icon: ShieldCheck },
     amber:  { bg: "bg-amber-50",    text: "text-amber-800",   ring: "ring-amber-200",   Icon: Activity },
     red:    { bg: "bg-red-50",      text: "text-red-800",     ring: "ring-red-200",     Icon: AlertTriangle },
-    gray:   { bg: "bg-slate-50",    text: "text-slate-600",   ring: "ring-slate-200",   Icon: Info },
+    gray:   { bg: "bg-surface",    text: "text-ink-60",   ring: "ring-hairline",   Icon: Info },
   };
   const s = styles[health.status];
 
@@ -32,7 +32,7 @@ export function BreakevenChip({
       <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${s.bg} ${s.text} ring-1 ${s.ring} text-xs`}>
         <Gauge size={14} />
         <span className="font-medium">Break-even no disponible</span>
-        <span className="text-slate-500">Cargá COGS en Finanzas</span>
+        <span className="text-ink-40">Cargá COGS en Finanzas</span>
       </div>
     );
   }

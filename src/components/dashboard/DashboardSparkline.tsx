@@ -17,7 +17,7 @@ interface DashboardSparklineProps {
 
 export default function DashboardSparkline({
   data,
-  color = "#0f172a",
+  color = "#1C1B18",
   height = 32,
   className = "",
 }: DashboardSparklineProps) {

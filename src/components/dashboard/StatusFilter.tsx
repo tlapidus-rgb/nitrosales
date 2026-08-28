@@ -54,7 +54,7 @@ export default function StatusFilter({
               backgroundColor:
                 activeStatus === s.status
                   ? "#fff"
-                  : statusColors[s.status] || "#94a3b8",
+                  : statusColors[s.status] || "#83807A",
             }}
           />
           {statusLabels[s.status] || s.status} ({s.count})

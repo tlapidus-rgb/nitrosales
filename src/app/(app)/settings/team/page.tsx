@@ -37,7 +37,7 @@ type Role = "OWNER" | "ADMIN" | "MEMBER";
 const ROLE_META: Record<Role, { label: string; color: string; icon: any }> = {
   OWNER: { label: "Owner", color: "#8b5cf6", icon: ShieldCheck },
   ADMIN: { label: "Admin", color: "#0ea5e9", icon: Shield },
-  MEMBER: { label: "Editor", color: "#64748b", icon: User },
+  MEMBER: { label: "Editor", color: "#6B685F", icon: User },
 };
 
 interface CustomRoleLite {
@@ -262,9 +262,9 @@ export default function TeamPage() {
                   <span
                     className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
                     style={{
-                      background: `${m.customRole.color ?? "#64748b"}15`,
-                      color: m.customRole.color ?? "#64748b",
-                      border: `1px solid ${m.customRole.color ?? "#64748b"}30`,
+                      background: `${m.customRole.color ?? "#6B685F"}15`,
+                      color: m.customRole.color ?? "#6B685F",
+                      border: `1px solid ${m.customRole.color ?? "#6B685F"}30`,
                     }}
                     title={`Rol custom: ${m.customRole.name}`}
                   >
@@ -333,9 +333,9 @@ export default function TeamPage() {
                         <span
                           className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
                           style={{
-                            background: `${inv.customRole.color ?? "#64748b"}15`,
-                            color: inv.customRole.color ?? "#64748b",
-                            border: `1px solid ${inv.customRole.color ?? "#64748b"}30`,
+                            background: `${inv.customRole.color ?? "#6B685F"}15`,
+                            color: inv.customRole.color ?? "#6B685F",
+                            border: `1px solid ${inv.customRole.color ?? "#6B685F"}30`,
                           }}
                         >
                           {inv.customRole.name}
@@ -685,7 +685,7 @@ function InviteModal({
                     {customRoles.map((cr) => {
                       const value = `custom:${cr.id}`;
                       const active = selection === value;
-                      const color = cr.color ?? "#64748b";
+                      const color = cr.color ?? "#6B685F";
                       return (
                         <button
                           key={cr.id}

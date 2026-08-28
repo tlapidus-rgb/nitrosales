@@ -2407,7 +2407,7 @@ function ParamField({
   // Fallback: array u otros tipos no soportados aún en UI
   return (
     <Field label={label} hint={hint || `Tipo "${def.type}" se edita por chat de Aurum por ahora`}>
-      <div style={{ ...inputStyle, color: "rgb(var(--ent-ink-40))", background: "#f1f5f9" }}>
+      <div style={{ ...inputStyle, color: "rgb(var(--ent-ink-40))", background: "#EDEAE3" }}>
         {JSON.stringify(value) || "—"}
       </div>
     </Field>

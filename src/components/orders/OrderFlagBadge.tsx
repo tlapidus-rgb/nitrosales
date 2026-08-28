@@ -112,7 +112,7 @@ export function OrderFlagBadgeGroup({
         <OrderFlagBadge key={f} flag={f} compact={compact} />
       ))}
       {hidden > 0 && (
-        <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+        <span className="inline-flex items-center rounded-md border border-hairline bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-60">
           +{hidden}
         </span>
       )}

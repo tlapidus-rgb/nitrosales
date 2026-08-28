@@ -39,20 +39,20 @@ export default function CouponsCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
-            <Ticket className="w-4.5 h-4.5 text-slate-700" />
+          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-surface border border-hairline flex items-center justify-center">
+            <Ticket className="w-4.5 h-4.5 text-ink-60" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-ink">
               Cupones más usados
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-ink-40">
               Qué códigos trajeron pedidos y cuánto descuento hicieron.
             </p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ink-40">
             Descuento total
           </p>
           <p className="text-sm font-semibold tabular-nums text-rose-600">
@@ -70,19 +70,19 @@ export default function CouponsCard({
       {/* Table */}
       {isMeliFilter ? (
         <div className="py-6 text-center">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-40">
             Filtrando por MercadoLibre — no hay datos de cupones para mostrar.
           </p>
         </div>
       ) : coupons.length === 0 ? (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-ink-40">
           No se usaron cupones en este período.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-100">
+        <div className="overflow-hidden rounded-lg border border-hairline">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <tr className="bg-surface text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
                 <th className="px-3 py-2">Código</th>
                 <th className="px-3 py-2 text-right">Pedidos</th>
                 <th className="px-3 py-2 text-right">Facturación</th>
@@ -93,19 +93,19 @@ export default function CouponsCard({
               {coupons.slice(0, 10).map((c, i) => (
                 <tr
                   key={c.code}
-                  className={`border-t border-slate-100 ${
-                    i % 2 === 1 ? "bg-slate-50/40" : "bg-white"
-                  } hover:bg-slate-50 transition-colors`}
+                  className={`border-t border-hairline ${
+                    i % 2 === 1 ? "bg-surface/40" : "bg-white"
+                  } hover:bg-surface transition-colors`}
                 >
                   <td className="px-3 py-2">
                     <span className="inline-flex items-center rounded-md bg-orange-50 border border-orange-100 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-orange-700">
                       {c.code}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right text-xs tabular-nums text-slate-700">
+                  <td className="px-3 py-2 text-right text-xs tabular-nums text-ink-60">
                     {c.orders.toLocaleString("es-AR")}
                   </td>
-                  <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold text-slate-900">
+                  <td className="px-3 py-2 text-right text-xs tabular-nums font-semibold text-ink">
                     {formatARS(c.revenue)}
                   </td>
                   <td className="px-3 py-2 text-right text-xs tabular-nums text-rose-600">

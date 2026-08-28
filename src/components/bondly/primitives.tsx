@@ -117,9 +117,9 @@ export function KpiTile({
     <div
       className="relative rounded-2xl bg-white p-5 overflow-hidden"
       style={{
-        border: "1px solid rgba(15,23,42,0.06)",
+        border: "1px solid rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 0 rgba(15,23,42,0.04), 0 12px 30px -18px rgba(15,23,42,0.12)",
+          "0 1px 0 rgba(28,27,24,0.04), 0 12px 30px -18px rgba(28,27,24,0.12)",
         animation: `bondlyFadeSlideIn 420ms ${ES}`,
       }}
     >
@@ -143,21 +143,21 @@ export function KpiTile({
           </span>
         )}
       </div>
-      <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-slate-400 mb-1">
+      <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-ink-40 mb-1">
         {label}
       </p>
       {loading ? (
         <div
-          className="h-10 w-24 rounded bg-slate-100"
+          className="h-10 w-24 rounded bg-surface-2"
           style={{
             backgroundImage:
-              "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
+              "linear-gradient(90deg, #EDEAE3 0%, #E5E1D8 50%, #EDEAE3 100%)",
             backgroundSize: "200% 100%",
             animation: `bondlyShimmer 1.6s ease-in-out infinite`,
           }}
         />
       ) : (
-        <p className="text-[32px] font-semibold tabular-nums tracking-tight text-slate-900 leading-none">
+        <p className="text-[32px] font-semibold tabular-nums tracking-tight text-ink leading-none">
           {displayValue.toLocaleString("es-AR")}
         </p>
       )}
@@ -227,7 +227,7 @@ export function InfoTip({
         type="button"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        className="inline-flex items-center gap-1 text-[10px] font-mono tracking-[0.18em] uppercase text-slate-400 hover:text-slate-600 focus:outline-none focus:text-slate-700"
+        className="inline-flex items-center gap-1 text-[10px] font-mono tracking-[0.18em] uppercase text-ink-40 hover:text-ink-60 focus:outline-none focus:text-ink-60"
         style={{ transition: `color 200ms ${ES}` }}
       >
         <Info size={11} />
@@ -287,10 +287,10 @@ export function BondlyTrustStrip({
   return (
     <div
       className="pt-4 mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-      style={{ borderTop: "1px solid rgba(15,23,42,0.06)" }}
+      style={{ borderTop: "1px solid rgba(28,27,24,0.06)" }}
     >
       <div className="flex items-center gap-5">
-        <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-medium">
+        <span className="text-[10px] uppercase tracking-[0.2em] text-ink-40 font-medium">
           Compatible con
         </span>
         <TrustLogo
@@ -298,7 +298,7 @@ export function BondlyTrustStrip({
           alt="Meta"
           tooltip={metaTooltip}
         />
-        <span className="text-slate-300 select-none">·</span>
+        <span className="text-ink-40 select-none">·</span>
         <TrustLogo
           src="/trust/google.svg"
           alt="Google"
@@ -306,7 +306,7 @@ export function BondlyTrustStrip({
         />
       </div>
       <div className="flex items-center gap-5">
-        <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-medium">
+        <span className="text-[10px] uppercase tracking-[0.2em] text-ink-40 font-medium">
           Basado en investigación de
         </span>
         <TrustLogo

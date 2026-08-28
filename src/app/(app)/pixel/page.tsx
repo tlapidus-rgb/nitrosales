@@ -82,7 +82,7 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string;
   perfil: { icon: "P", color: "#A855F7", label: "Perfil", svg: "direct" },
   direct: { icon: "D", color: "#22C55E", label: "Directo", svg: "direct" },
   // Sin canal de marketing. Antes se caían de la tabla (INNER JOIN del rollup).
-  sin_clasificar: { icon: "?", color: "#94A3B8", label: "Otros orígenes", svg: "direct" },
+  sin_clasificar: { icon: "?", color: "#83807A", label: "Otros orígenes", svg: "direct" },
   organic: { icon: "O", color: "#8B5CF6", label: "Orgánico", svg: "organic" },
   referral: { icon: "R", color: "#EC4899", label: "Referido", svg: "referral" },
 };
@@ -90,7 +90,7 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string;
 // Paleta de fallback determinista — si un canal no esta en SOURCE_ICONS,
 // le asignamos un color basado en hash del nombre para que NO se repita
 // con otros canales sin definicion. Mejor que el gris generico para todos.
-const FALLBACK_PALETTE = ["#F87171", "#FB923C", "#FBBF24", "#A3E635", "#34D399", "#22D3EE", "#60A5FA", "#A78BFA", "#F472B6", "#94A3B8"];
+const FALLBACK_PALETTE = ["#F87171", "#FB923C", "#FBBF24", "#A3E635", "#34D399", "#22D3EE", "#60A5FA", "#A78BFA", "#F472B6", "#83807A"];
 function fallbackColor(source: string): string {
   let hash = 0;
   for (let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) >>> 0;
@@ -716,7 +716,7 @@ export default function PixelPage() {
                               <div className="flex items-center gap-2">
                                 <span className="text-[9px] font-mono uppercase tracking-wider text-ink-40 w-16 flex-shrink-0">{info.label}</span>
                                 <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(245,243,238,0.5)" }}>
-                                  <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(platPct, 2)}%`, background: "repeating-linear-gradient(135deg, rgba(148,163,184,0.12), rgba(148,163,184,0.12) 4px, rgba(148,163,184,0.06) 4px, rgba(148,163,184,0.06) 8px)" }}>
+                                  <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(platPct, 2)}%`, background: "repeating-linear-gradient(135deg, rgba(131,128,122,0.12), rgba(131,128,122,0.12) 4px, rgba(131,128,122,0.06) 4px, rgba(131,128,122,0.06) 8px)" }}>
                                     <span className="text-[10px] font-medium text-ink-60 whitespace-nowrap">{fmtCompact(ch.platformRevenue)}</span>
                                   </div>
                                 </div>
@@ -913,7 +913,7 @@ export default function PixelPage() {
                               <div className="h-full flex" style={{ width: `${Math.max(widthPct, 2)}%` }}>
                                 {md.channels.map((c, i) => {
                                   const info = c.source === "otros"
-                                    ? { color: "#475569", label: "Otros" }
+                                    ? { color: "#6B685F", label: "Otros" }
                                     : getSourceInfo(c.source);
                                   const segPct = total > 0 ? (c.revenue / total) * 100 : 0;
                                   if (segPct < 0.5) return null;
@@ -940,7 +940,7 @@ export default function PixelPage() {
                           <div className="flex items-center gap-2 text-[10px] text-ink-60 font-mono flex-wrap">
                             {md.channels.slice(0, 3).map(c => {
                               const info = c.source === "otros"
-                                ? { color: "#475569", label: "Otros" }
+                                ? { color: "#6B685F", label: "Otros" }
                                 : getSourceInfo(c.source);
                               const pct = total > 0 ? (c.revenue / total) * 100 : 0;
                               return (
@@ -988,7 +988,7 @@ export default function PixelPage() {
               {legendSources.length > 0 && (
                 <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3 pt-3 border-t border-white/5">
                   {legendSources.slice(0, 12).map(src => {
-                    const info = src === "otros" ? { color: "#475569", label: "Otros" } : getSourceInfo(src);
+                    const info = src === "otros" ? { color: "#6B685F", label: "Otros" } : getSourceInfo(src);
                     return (
                       <span key={src} className="flex items-center gap-1.5 text-[10px] text-ink-60">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color }} />
@@ -1078,7 +1078,7 @@ export default function PixelPage() {
                         style={{
                           background: isSelected ? `${info.color}25` : "rgba(245,243,238,0.5)",
                           border: `1px solid ${isSelected ? info.color + "60" : "rgba(229,225,216,0.1)"}`,
-                          color: isSelected ? "#fff" : "rgba(148,163,184,0.7)",
+                          color: isSelected ? "#fff" : "rgba(131,128,122,0.7)",
                         }}
                       >
                         <span className="w-3 h-3 rounded-full flex items-center justify-center" style={{ background: info.color }}>
@@ -1444,7 +1444,7 @@ export default function PixelPage() {
                   { label: "ROAS Pixel", value: ch.pixelRoas > 0 ? `${ch.pixelRoas.toFixed(1)}x` : "—", color: "#10b981", tip: "Return On Ad Spend según NitroPixel. Revenue Atribuido ÷ Inversión. 3.5x = ganaste $3.5 por cada $1 invertido. Es la verdad real, no la inflada que reportan las plataformas." },
                   { label: "CPA", value: cpa > 0 ? fmtCompact(Math.round(cpa)) : "—", color: "#ec4899", tip: "Cost Per Acquisition — cuánto te cuesta cada orden de este canal. Inversión ÷ Órdenes. Usalo para comparar eficiencia entre canales pagos." },
                   { label: "Lag promedio", value: avgLag > 0 ? `${avgLag.toFixed(1)}d` : "—", color: "#fbbf24", tip: `Días promedio entre el PRIMER click del cliente en ${info.label} y la compra. Un lag de 7d significa que en promedio los clientes de este canal tardan una semana en cerrar la venta. Útil para: (1) ajustar la ventana de atribución (si los clientes tardan 14d no tiene sentido ventana de 7d), (2) entender canales rápidos vs lentos (Email suele ser rápido, Meta más lento).` },
-                  { label: "ROAS Plataforma", value: ch.platformRoas > 0 ? `${ch.platformRoas.toFixed(1)}x` : "—", color: "#94a3b8", tip: "ROAS que reporta la plataforma misma (Meta Ads / Google Ads). Tipicamente más alto que el ROAS Pixel porque cada plataforma se atribuye el crédito completo (last-click), generando double-counting con otros canales." },
+                  { label: "ROAS Plataforma", value: ch.platformRoas > 0 ? `${ch.platformRoas.toFixed(1)}x` : "—", color: "#83807A", tip: "ROAS que reporta la plataforma misma (Meta Ads / Google Ads). Tipicamente más alto que el ROAS Pixel porque cada plataforma se atribuye el crédito completo (last-click), generando double-counting con otros canales." },
                 ].map((kpi, i) => (
                   <div key={i} className="rounded-xl p-3" style={{ background: "rgba(245,243,238,0.5)", border: "1px solid rgba(28,27,24,0.04)" }}>
                     <div className="flex items-center gap-1.5 mb-1">

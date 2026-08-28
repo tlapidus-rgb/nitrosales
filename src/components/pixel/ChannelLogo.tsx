@@ -27,7 +27,7 @@ const CHANNEL_META: Record<string, ChannelMeta> = {
   whatsapp: { color: "#25D366", label: "WhatsApp" },
   email: { color: "#F59E0B", label: "Email" },
   direct: { color: "#22C55E", label: "Directo" },
-  sin_clasificar: { color: "#94A3B8", label: "Otros orígenes" },
+  sin_clasificar: { color: "#83807A", label: "Otros orígenes" },
   organic: { color: "#8B5CF6", label: "Orgánico" },
   referral: { color: "#EC4899", label: "Referido" },
 };
