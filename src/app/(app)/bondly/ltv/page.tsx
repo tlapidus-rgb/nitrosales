@@ -1636,7 +1636,7 @@ export default function LtvPage() {
                         : actionTone === "review"
                         ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
                         : actionTone === "lookalike"
-                        ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
+                        ? "bg-surface-2 text-ink hover:bg-surface border-hairline"
                         : "bg-surface text-ink-40 border-hairline";
                     return (
                       <tr key={i} className="border-t border-hairline hover:bg-surface/50">

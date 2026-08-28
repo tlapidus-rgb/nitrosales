@@ -100,7 +100,7 @@ export default function PublicacionesPage() {
         <KpiPremium label="Pausadas" value={kpis.paused.toLocaleString("es-AR")} sub={kpis.paused > 0 ? "revisar" : "todo activo"} tone={kpis.paused > 0 ? "#f59e0b" : "#83807A"} Icon={EyeOff} />
         <KpiPremium label="Precio promedio" value={formatARS(kpis.avgPrice)} sub="por publicación" tone="#8b5cf6" Icon={Tag} />
         <KpiPremium label="Stock total" value={formatCompact(kpis.totalStock)} sub="unidades" tone="#3b82f6" Icon={Package} />
-        <KpiPremium label="Envío gratis" value={`${kpis.freeShippingPct}%`} sub={`${kpis.freeShipping.toLocaleString("es-AR")} pubs`} tone="#06b6d4" Icon={Truck} />
+        <KpiPremium label="Envío gratis" value={`${kpis.freeShippingPct}%`} sub={`${kpis.freeShipping.toLocaleString("es-AR")} pubs`} tone="#6B685F" Icon={Truck} />
         <KpiPremium label="Full / Catálogo" value={`${kpis.fulfillmentPct}%`} sub={`${kpis.fulfillment} full · ${kpis.catalog} cat`} tone={ML_PRIMARY} Icon={Award} />
       </div>
 

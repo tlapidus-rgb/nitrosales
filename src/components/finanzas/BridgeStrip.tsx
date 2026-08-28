@@ -253,10 +253,10 @@ function StripSkeleton() {
       <div className="flex flex-wrap items-center gap-4">
         {[...Array(5)].map((_, i) => (
           <div key={i} className="flex items-center gap-2">
-            <div className="h-6 w-6 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-6 w-6 animate-pulse rounded-lg bg-surface-2" />
             <div>
-              <div className="h-2.5 w-10 animate-pulse rounded bg-slate-100" />
-              <div className="mt-1 h-3.5 w-14 animate-pulse rounded bg-slate-100" />
+              <div className="h-2.5 w-10 animate-pulse rounded bg-surface-2" />
+              <div className="mt-1 h-3.5 w-14 animate-pulse rounded bg-surface-2" />
             </div>
           </div>
         ))}

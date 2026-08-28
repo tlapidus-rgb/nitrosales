@@ -191,12 +191,12 @@ const CATEGORY_BEHAVIOR: Record<string, CostBehavior> = {
 function BehaviorBadge({ type }: { type: CostBehavior }) {
   const styles: Record<CostBehavior, { cls: string; label: string; tip: string }> = {
     VARIABLE: {
-      cls: "bg-cyan-50 text-cyan-700 border-cyan-200",
+      cls: "bg-surface-2 text-ink-60 border-hairline",
       label: "Variable",
       tip: "Costo variable: escala con las ventas. Si vendes mas, gastas mas.",
     },
     FIJO: {
-      cls: "bg-violet-50 text-violet-700 border-violet-200",
+      cls: "bg-surface text-ink-60 border-hairline",
       label: "Fijo",
       tip: "Costo fijo: es el mismo cada mes sin importar cuanto vendas.",
     },
@@ -487,7 +487,7 @@ function DetailedView({
     { label: "    Meta Ads", value: -summary.metaSpend, color: "text-ink-40", indent: true, small: true },
     { label: "    Google Ads", value: -summary.googleSpend, color: "text-ink-40", indent: true, small: true },
     { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que pagaste en logistica para enviar los pedidos. Incluye envios gratis que absorbes vos y el costo real del flete." },
-    { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que te cobran los marketplaces por vender ahi. MercadoLibre cobra un porcentaje por venta, y VTEX puede tener un fee fijo o variable." },
+    { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-ink-60", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que te cobran los marketplaces por vender ahi. MercadoLibre cobra un porcentaje por venta, y VTEX puede tener un fee fijo o variable." },
     ...(bySource.map(s => ({
       label: `    ${s.source === "MELI" ? "MercadoLibre" : s.source}: ${s.platformFeeLabel}`,
       value: -s.platformFee,

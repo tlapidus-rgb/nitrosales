@@ -1402,11 +1402,11 @@ export default function CostosPage() {
 
                       {/* Constancia parse result */}
                       {constanciaResult && !constanciaResult.error && (
-                        <div className="mb-3 p-3 bg-elevated rounded-lg border border-indigo-200">
+                        <div className="mb-3 p-3 bg-elevated rounded-lg border border-hairline">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-indigo-700">IA: Constancia analizada</span>
-                              <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">
+                              <span className="text-xs font-semibold text-ink">IA: Constancia analizada</span>
+                              <span className="text-xs bg-surface-2 text-ink-60 px-2 py-0.5 rounded-full">
                                 {constanciaResult.confidence}% confianza
                               </span>
                             </div>
@@ -1798,8 +1798,8 @@ export default function CostosPage() {
                     <div className="px-5 py-4 border-b border-hairline bg-surface">
                       {/* VTEX Commission */}
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="text-xs font-semibold text-indigo-700">Comisiones de plataforma VTEX</span>
-                        <span className="text-xs bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full">configurable</span>
+                        <span className="text-xs font-semibold text-ink">Comisiones de plataforma VTEX</span>
+                        <span className="text-xs bg-surface-2 text-ink-60 px-2 py-0.5 rounded-full">configurable</span>
                       </div>
                       <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
@@ -1840,9 +1840,9 @@ export default function CostosPage() {
                       </div>
 
                       {/* Payment Processing Fees */}
-                      <div className="mt-5 pt-4 border-t border-indigo-100/50">
+                      <div className="mt-5 pt-4 border-t border-hairline">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold text-indigo-700">Comisiones de medios de pago</span>
+                          <span className="text-xs font-semibold text-ink">Comisiones de medios de pago</span>
                           <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-200">valores estimados — ajustalos a tu acuerdo</span>
                         </div>
                         <p className="text-xs text-ink-40 mb-3">
@@ -2049,11 +2049,11 @@ export default function CostosPage() {
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                                     item.rateType === "PER_SHIPMENT"
-                                      ? "bg-blue-50 text-blue-600"
+                                      ? "bg-surface-2 text-ink-60"
                                       : item.rateType === "PERCENTAGE"
-                                      ? "bg-purple-50 text-purple-600"
+                                      ? "bg-surface-2 text-ink-60"
                                       : item.rateType === "DRIVER_BASED"
-                                      ? "bg-indigo-50 text-indigo-600"
+                                      ? "bg-surface-2 text-ink-60"
                                       : "bg-surface-2 text-ink-60"
                                   }`}>
                                     {RATE_TYPE_LABELS[item.rateType] || item.rateType}
@@ -2126,7 +2126,7 @@ export default function CostosPage() {
                                   {item.rateType === "DRIVER_BASED" && (
                                     <button
                                       onClick={() => openFormulaEditor(item, cat.key)}
-                                      className="text-xs px-2 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                      className="text-xs px-2 py-0.5 rounded-md border border-hairline bg-surface text-ink-60 hover:bg-surface-2 transition-colors"
                                       title="Editar drivers y formula"
                                     >
                                       ƒx
@@ -2455,8 +2455,8 @@ export default function CostosPage() {
             <div className="relative px-6 pt-5 pb-4 border-b border-hairline/80">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-50">
-                    <Calculator className="w-5 h-5 text-indigo-600" strokeWidth={2} />
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-surface">
+                    <Calculator className="w-5 h-5 text-ink-60" strokeWidth={2} />
                   </div>
                   <div>
                     <h3
@@ -2491,7 +2491,7 @@ export default function CostosPage() {
                   </label>
                   <button
                     onClick={addFormulaDriver}
-                    className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-medium px-2 py-1 rounded-md transition-colors"
+                    className="inline-flex items-center gap-1 text-xs text-ink-60 hover:text-ink hover:bg-surface font-medium px-2 py-1 rounded-md transition-colors"
                   >
                     <Plus className="w-3 h-3" strokeWidth={2.4} />
                     Agregar driver
@@ -2509,7 +2509,7 @@ export default function CostosPage() {
                   {formulaModal.drivers.map((d: Driver, idx: number) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 bg-elevated rounded-lg border border-hairline px-1.5 py-1 hover:border-indigo-200 transition-colors"
+                      className="flex items-center gap-2 bg-elevated rounded-lg border border-hairline px-1.5 py-1 hover:border-hairline-2 transition-colors"
                     >
                       <input
                         type="text"
@@ -2520,14 +2520,14 @@ export default function CostosPage() {
                             key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
                           })
                         }
-                        className="text-sm bg-transparent px-2 py-1.5 w-36 font-mono text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="text-sm bg-transparent px-2 py-1.5 w-36 font-mono text-ink focus:outline-none focus:ring-1 focus:ring-accent/30 rounded"
                       />
                       <input
                         type="text"
                         placeholder="Headcount"
                         value={d.label || ""}
                         onChange={(e) => updateFormulaDriver(idx, { label: e.target.value })}
-                        className="flex-1 text-sm bg-transparent px-2 py-1.5 text-ink focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="flex-1 text-sm bg-transparent px-2 py-1.5 text-ink focus:outline-none focus:ring-1 focus:ring-accent/30 rounded"
                       />
                       <input
                         type="number"
@@ -2536,14 +2536,14 @@ export default function CostosPage() {
                         onChange={(e) =>
                           updateFormulaDriver(idx, { value: parseFloat(e.target.value) || 0 })
                         }
-                        className="text-sm bg-transparent px-2 py-1.5 w-28 text-right font-mono tabular-nums text-ink focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="text-sm bg-transparent px-2 py-1.5 w-28 text-right font-mono tabular-nums text-ink focus:outline-none focus:ring-1 focus:ring-accent/30 rounded"
                       />
                       <input
                         type="text"
                         placeholder="ARS"
                         value={d.unit || ""}
                         onChange={(e) => updateFormulaDriver(idx, { unit: e.target.value })}
-                        className="text-sm bg-transparent px-2 py-1.5 w-24 text-ink-60 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
+                        className="text-sm bg-transparent px-2 py-1.5 w-24 text-ink-60 focus:outline-none focus:ring-1 focus:ring-accent/30 rounded"
                       />
                       <button
                         onClick={() => removeFormulaDriver(idx)}
@@ -2572,7 +2572,7 @@ export default function CostosPage() {
                   }
                   rows={3}
                   spellCheck={false}
-                  className="w-full text-sm border border-hairline rounded-xl px-3 py-2.5 font-mono text-ink bg-elevated shadow-ent-xs focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none transition-all resize-none"
+                  className="w-full text-sm border border-hairline rounded-xl px-3 py-2.5 font-mono text-ink bg-elevated shadow-ent-xs focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none transition-all resize-none"
                 />
                 <p className="text-[11px] text-ink-60 mt-1.5">
                   Operadores: <span className="font-mono text-ink">+ - * / ( )</span>

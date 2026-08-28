@@ -86,12 +86,12 @@ export default function PredictiveAlertsCard() {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 animate-pulse rounded-lg bg-slate-100" />
-          <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
+          <div className="h-7 w-7 animate-pulse rounded-lg bg-surface-2" />
+          <div className="h-4 w-48 animate-pulse rounded bg-surface-2" />
         </div>
         <div className="mt-4 space-y-2">
           {[...Array(2)].map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-50" />
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-surface-2" />
           ))}
         </div>
       </div>

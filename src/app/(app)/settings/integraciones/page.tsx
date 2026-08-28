@@ -74,7 +74,7 @@ const PLATFORM_META: Record<
   NITROPIXEL: {
     label: "NitroPixel",
     description: "Analytics propio: sesiones, conversiones y atribución.",
-    color: "#06b6d4",
+    color: "#1C1B18",
   },
 };
 

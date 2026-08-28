@@ -43,23 +43,23 @@ const STAGGER_MS = 40;
 function classForKind(kind: DrillData["kind"]) {
   switch (kind) {
     case "subtotal":
-      return { text: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", dot: "bg-violet-500" };
+      return { text: "text-ink", bg: "bg-surface", border: "border-hairline", dot: "bg-ink-40" };
     case "total":
       return { text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500" };
     case "negative":
       return { text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200", dot: "bg-rose-500" };
     case "positive":
     default:
-      return { text: "text-cyan-700", bg: "bg-cyan-50", border: "border-cyan-200", dot: "bg-cyan-500" };
+      return { text: "text-ink", bg: "bg-surface", border: "border-hairline", dot: "bg-ink-40" };
   }
 }
 
 function originDot(origin?: DrillRow["originIcon"]) {
   switch (origin) {
     case "auto":
-      return { label: "Auto", cls: "bg-cyan-400", tip: "Viene automáticamente de VTEX o MercadoLibre" };
+      return { label: "Auto", cls: "bg-ink-40", tip: "Viene automáticamente de VTEX o MercadoLibre" };
     case "calc":
-      return { label: "Calc", cls: "bg-violet-400", tip: "Calculado a partir de otros datos" };
+      return { label: "Calc", cls: "bg-ink-60", tip: "Calculado a partir de otros datos" };
     case "manual":
       return { label: "Manual", cls: "bg-amber-400", tip: "Carga manual del founder" };
     default:

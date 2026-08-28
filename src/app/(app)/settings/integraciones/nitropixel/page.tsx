@@ -77,7 +77,7 @@ export default function NitroPixelIntegrationPage() {
 
       <div className="flex items-center gap-3 mb-6">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl text-[16px] font-bold"
-          style={{ background: "rgba(6,182,212,0.10)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
+          style={{ background: "rgba(28,27,24,0.04)", color: "#1C1B18", border: "1px solid rgba(28,27,24,0.08)" }}>
           NP
         </div>
         <div>

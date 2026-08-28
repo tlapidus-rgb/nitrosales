@@ -28,7 +28,7 @@ export default function OrdersError({
         <button
           onClick={reset}
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
-                     bg-indigo-600 hover:bg-indigo-500 text-white text-sm
+                     bg-ink hover:bg-ink/90 text-white text-sm
                      font-medium transition-colors"
         >
           <RefreshCw size={16} />

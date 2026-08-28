@@ -15,11 +15,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all duration-[280ms]";
-const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
+const cardStyle = "bg-white rounded-2xl border border-hairline transition-all duration-[280ms]";
+const cardShadow = { boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.12), 0 22px 40px -28px rgba(28,27,24,0.10)" };
 
 const crFmt = (n: number) => n.toLocaleString("es-AR");
-const crColor = (v: number) => v >= 5 ? "text-emerald-600" : v >= 2 ? "text-amber-600" : v > 0 ? "text-red-500" : "text-gray-300";
+const crColor = (v: number) => v >= 5 ? "text-emerald-600" : v >= 2 ? "text-amber-600" : v > 0 ? "text-red-500" : "text-ink-40";
 
 type CrSortDir = "asc" | "desc";
 
@@ -30,12 +30,12 @@ function CrSortTH<K extends string>({ label, field, sortKey, sortDir, onSort, cl
   return (
     <th
       aria-sort={active ? (sortDir === "desc" ? "descending" : "ascending") : "none"}
-      className={`text-[10px] font-medium uppercase tracking-wider pb-2 select-none whitespace-nowrap ${active ? "text-cyan-600" : "text-gray-400"} ${className}`}
+      className={`text-[10px] font-medium uppercase tracking-wider pb-2 select-none whitespace-nowrap ${active ? "text-ink" : "text-ink-40"} ${className}`}
     >
       <button
         type="button"
         onClick={() => onSort(field)}
-        className="inline-flex items-center gap-0.5 uppercase tracking-wider cursor-pointer hover:text-gray-700 transition-colors"
+        className="inline-flex items-center gap-0.5 uppercase tracking-wider cursor-pointer hover:text-ink-60 transition-colors"
       >
         {label}
         {active && <span className="text-[8px]" aria-hidden="true">{sortDir === "desc" ? "▼" : "▲"}</span>}
@@ -53,9 +53,9 @@ function CrSearchInput({ value, onChange, placeholder }: { value: string; onChan
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 pl-7 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 bg-gray-50/50 placeholder-gray-400"
+        className="w-full text-xs border border-hairline rounded-lg px-3 py-1.5 pl-7 focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent bg-surface placeholder-ink-40"
       />
-      <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+      <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
     </div>
   );
 }
@@ -93,10 +93,10 @@ function SimpleCRTable({ title, labelHeader, searchPlaceholder, rows }: {
     <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-          <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (pixel) vs compradores (VTEX)</p>
+          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+          <p className="text-[11px] text-ink-40 mt-0.5">Visitantes (pixel) vs compradores (VTEX)</p>
         </div>
-        <span className="text-[10px] text-gray-300 whitespace-nowrap">{filtered.length} de {rows.length}</span>
+        <span className="text-[10px] text-ink-40 whitespace-nowrap">{filtered.length} de {rows.length}</span>
       </div>
       <div className="mb-3">
         <CrSearchInput value={search} onChange={setSearch} placeholder={searchPlaceholder} />
@@ -105,12 +105,12 @@ function SimpleCRTable({ title, labelHeader, searchPlaceholder, rows }: {
           estas cards claras se veía negra y tapaba la columna CR */}
       <div
         className="overflow-y-auto overflow-x-auto flex-1 pr-1"
-        style={{ maxHeight: "320px", scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}
+        style={{ maxHeight: "320px", scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}
       >
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white z-10">
-            <tr className="border-b border-gray-100">
-              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">{labelHeader}</th>
+            <tr className="border-b border-hairline">
+              <th className="text-left text-[10px] font-medium text-ink-40 uppercase tracking-wider pb-2 pr-2">{labelHeader}</th>
               <CrSortTH label="Visitantes" field="viewers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
               <CrSortTH label="Compras" field="buyers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
               <CrSortTH label="CR" field="cr" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right pl-2" />
@@ -118,14 +118,14 @@ function SimpleCRTable({ title, labelHeader, searchPlaceholder, rows }: {
           </thead>
           <tbody>
             {filtered.map(r => (
-              <tr key={r.label} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[160px]" title={r.label}>{r.label}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(r.viewers)}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(r.buyers)}</td>
+              <tr key={r.label} className="border-b border-hairline last:border-0 hover:bg-surface transition-colors">
+                <td className="py-1.5 pr-2 font-medium text-ink-60 truncate max-w-[160px]" title={r.label}>{r.label}</td>
+                <td className="text-right text-ink-60 tabular-nums px-2 py-1.5">{crFmt(r.viewers)}</td>
+                <td className="text-right text-ink-60 tabular-nums px-2 py-1.5">{crFmt(r.buyers)}</td>
                 <td className="text-right pl-2 py-1.5"><span className={`font-bold tabular-nums ${crColor(r.cr)}`}>{r.cr > 0 ? `${r.cr}%` : "—"}</span></td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={4} className="text-center text-gray-400 py-6">Sin resultados</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={4} className="text-center text-ink-40 py-6">Sin resultados</td></tr>}
           </tbody>
         </table>
       </div>
@@ -178,10 +178,10 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
     <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">CR por Producto</h2>
-          <p className="text-[11px] text-gray-400 mt-0.5">Buscá, filtrá y ordená — visitantes del pixel vs compradores VTEX</p>
+          <h2 className="text-sm font-semibold text-ink">CR por Producto</h2>
+          <p className="text-[11px] text-ink-40 mt-0.5">Buscá, filtrá y ordená — visitantes del pixel vs compradores VTEX</p>
         </div>
-        <span className="text-[10px] text-gray-300 whitespace-nowrap">{filtered.length} productos</span>
+        <span className="text-[10px] text-ink-40 whitespace-nowrap">{filtered.length} productos</span>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-3">
@@ -192,7 +192,7 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
           value={filterCat}
           onChange={e => setFilterCat(e.target.value)}
           aria-label="Filtrar por categoría"
-          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-gray-600 max-w-[180px]"
+          className="text-xs border border-hairline rounded-lg px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent/30 text-ink-60 max-w-[180px]"
         >
           <option value="">Todas las categorías</option>
           {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -201,7 +201,7 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
           value={filterBrand}
           onChange={e => setFilterBrand(e.target.value)}
           aria-label="Filtrar por marca"
-          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-gray-600 max-w-[180px]"
+          className="text-xs border border-hairline rounded-lg px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent/30 text-ink-60 max-w-[180px]"
         >
           <option value="">Todas las marcas</option>
           {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
@@ -209,7 +209,7 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
         {hasFilters && (
           <button
             onClick={() => { setSearch(""); setFilterCat(""); setFilterBrand(""); }}
-            className="text-[10px] text-cyan-600 hover:text-cyan-800 font-medium px-2 py-1.5 rounded-lg hover:bg-cyan-50 transition-colors"
+            className="text-[10px] text-ink-60 hover:text-ink font-medium px-2 py-1.5 rounded-lg hover:bg-surface transition-colors"
           >
             Limpiar filtros
           </button>
@@ -218,14 +218,14 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
 
       <div
         className="overflow-y-auto overflow-x-auto flex-1 pr-1"
-        style={{ maxHeight: "400px", scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}
+        style={{ maxHeight: "400px", scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}
       >
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white z-10">
-            <tr className="border-b border-gray-100">
-              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Producto</th>
-              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2 hidden lg:table-cell">Categoría</th>
-              <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2 hidden xl:table-cell">Marca</th>
+            <tr className="border-b border-hairline">
+              <th className="text-left text-[10px] font-medium text-ink-40 uppercase tracking-wider pb-2 pr-2">Producto</th>
+              <th className="text-left text-[10px] font-medium text-ink-40 uppercase tracking-wider pb-2 px-2 hidden lg:table-cell">Categoría</th>
+              <th className="text-left text-[10px] font-medium text-ink-40 uppercase tracking-wider pb-2 px-2 hidden xl:table-cell">Marca</th>
               <CrSortTH label="Visitantes" field="viewers" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
               <CrSortTH label="Ventas" field="orders" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right px-2" />
               <CrSortTH label="CR" field="cr" sortKey={sortKey} sortDir={sortDir} onSort={toggle} className="text-right pl-2" />
@@ -233,39 +233,39 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
           </thead>
           <tbody>
             {pageRows.map((p, i) => (
-              <tr key={p.productExternalId || i} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+              <tr key={p.productExternalId || i} className="border-b border-hairline last:border-0 hover:bg-surface transition-colors">
                 <td className="py-1.5 pr-2 max-w-[220px]">
-                  <span className="font-medium text-gray-700 truncate block" title={p.productName}>{p.productName}</span>
-                  <span className="text-[10px] text-gray-400 lg:hidden">{p.category}</span>
+                  <span className="font-medium text-ink-60 truncate block" title={p.productName}>{p.productName}</span>
+                  <span className="text-[10px] text-ink-40 lg:hidden">{p.category}</span>
                 </td>
-                <td className="text-gray-500 px-2 py-1.5 truncate max-w-[120px] hidden lg:table-cell">{p.category}</td>
-                <td className="text-gray-500 px-2 py-1.5 truncate max-w-[100px] hidden xl:table-cell">{p.brand}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(p.viewers)}</td>
-                <td className="text-right text-gray-600 tabular-nums px-2 py-1.5">{crFmt(p.orders)}</td>
+                <td className="text-ink-40 px-2 py-1.5 truncate max-w-[120px] hidden lg:table-cell">{p.category}</td>
+                <td className="text-ink-40 px-2 py-1.5 truncate max-w-[100px] hidden xl:table-cell">{p.brand}</td>
+                <td className="text-right text-ink-60 tabular-nums px-2 py-1.5">{crFmt(p.viewers)}</td>
+                <td className="text-right text-ink-60 tabular-nums px-2 py-1.5">{crFmt(p.orders)}</td>
                 <td className="text-right pl-2 py-1.5"><span className={`font-bold tabular-nums ${crColor(p.cr)}`}>{p.cr > 0 ? `${p.cr}%` : "—"}</span></td>
               </tr>
             ))}
-            {pageRows.length === 0 && <tr><td colSpan={6} className="text-center text-gray-400 py-6">Sin resultados</td></tr>}
+            {pageRows.length === 0 && <tr><td colSpan={6} className="text-center text-ink-40 py-6">Sin resultados</td></tr>}
           </tbody>
         </table>
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-hairline">
           <button
             onClick={() => setPage(p => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="text-[11px] px-3 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="text-[11px] px-3 py-1 rounded-lg border border-hairline text-ink-60 hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             ← Anterior
           </button>
-          <span className="text-[11px] text-gray-400 tabular-nums">
+          <span className="text-[11px] text-ink-40 tabular-nums">
             Página {page + 1} de {totalPages}
           </span>
           <button
             onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
-            className="text-[11px] px-3 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="text-[11px] px-3 py-1 rounded-lg border border-hairline text-ink-60 hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             Siguiente →
           </button>
@@ -365,7 +365,7 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
             const isStale = ageMs > 3 * 60 * 60 * 1000; // > 3h (cron corre c/2h)
             const hhmm = refreshed.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" });
             return (
-              <p className={`text-right text-[10px] ${isStale ? "text-amber-600 font-medium" : "text-gray-300"}`}>
+              <p className={`text-right text-[10px] ${isStale ? "text-amber-600 font-medium" : "text-ink-40"}`}>
                 {isStale ? "⚠ Visitantes actualizados por última vez a las " : "Visitantes actualizados a las "}{hhmm}
                 {isStale && " — el CR puede verse inflado hasta el próximo refresh"}
               </p>
@@ -388,8 +388,8 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
           {/* Empty state */}
           {data.byCategory.length === 0 && data.byBrand.length === 0 && data.byProduct.length === 0 && (
             <div className={`${cardStyle} p-8 text-center`} style={cardShadow}>
-              <p className="text-sm text-gray-500">Sin datos de conversión en este rango de fechas.</p>
-              <p className="text-[11px] text-gray-400 mt-1">Probá ampliar el rango o revisá que el pixel esté tracking eventos VIEW_PRODUCT.</p>
+              <p className="text-sm text-ink-40">Sin datos de conversión en este rango de fechas.</p>
+              <p className="text-[11px] text-ink-40 mt-1">Probá ampliar el rango o revisá que el pixel esté tracking eventos VIEW_PRODUCT.</p>
             </div>
           )}
         </div>

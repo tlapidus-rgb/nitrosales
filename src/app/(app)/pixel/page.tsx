@@ -1303,11 +1303,11 @@ export default function PixelPage() {
                 const content = (
                   <>
                     <svg className="w-4 h-4" viewBox="0 0 36 36">
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.1)"} strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "rgba(239,68,68,0.15)" : "rgba(131,128,122,0.15)"} strokeWidth="3" />
                       <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "#f87171" : "#83807A"} strokeWidth="3" strokeDasharray={`${(rate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
                     </svg>
                     <div>
-                      <p className={`text-xs font-bold ${lowCoverage ? "text-red-400" : "text-violet-400"}`}>{rate}%</p>
+                      <p className={`text-xs font-bold ${lowCoverage ? "text-red-400" : "text-ink-60"}`}>{rate}%</p>
                       <p className="text-[9px] text-ink-40 font-mono uppercase">Click IDs</p>
                     </div>
                     {lowCoverage && (

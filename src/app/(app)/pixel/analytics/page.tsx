@@ -842,7 +842,7 @@ export default function AnalyticsPage() {
                     <span className="text-[11px] font-semibold text-ink-60">NitroAttribution</span>
                     <div className="flex items-center gap-0.5 h-2.5 w-20 rounded-full overflow-hidden">
                       <div className="h-full bg-accent rounded-l-full" style={{ width: `${wFirst}%` }} />
-                      <div className="h-full bg-violet-400" style={{ width: `${wMiddle}%` }} />
+                      <div className="h-full bg-ink-40" style={{ width: `${wMiddle}%` }} />
                       <div className="h-full bg-orange-400 rounded-r-full" style={{ width: `${wLast}%` }} />
                     </div>
                     <span className="text-[10px] text-ink-60">{wFirst}/{wMiddle}/{wLast}</span>
@@ -853,7 +853,7 @@ export default function AnalyticsPage() {
                     <div className="font-semibold mb-1">Modelo multi-touch ponderado</div>
                     <div className="space-y-0.5 text-white/70">
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent inline-block" /> Primer toque: {wFirst}%</div>
-                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-400 inline-block" /> Asistencias: {wMiddle}%</div>
+                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-ink-40 inline-block" /> Asistencias: {wMiddle}%</div>
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Último toque: {wLast}%</div>
                     </div>
                     <div className="mt-2 pt-2 border-t border-white/15 text-[10px] text-white/60">
@@ -1626,7 +1626,7 @@ export default function AnalyticsPage() {
                             <span className="text-xs font-semibold text-ink flex-shrink-0 ml-2">{fmt(p.visitors)}</span>
                           </div>
                           <div className="h-1 bg-surface-2 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-violet-400 transition-all duration-700" style={{ width: `${barW}%`, opacity: 1 - i * 0.12 }} />
+                            <div className="h-full rounded-full bg-ink-60 transition-all duration-700" style={{ width: `${barW}%`, opacity: 1 - i * 0.12 }} />
                           </div>
                         </div>
                       </div>
@@ -1883,8 +1883,8 @@ export default function AnalyticsPage() {
                     const topLast = getSourceInfo(top.last_channel);
                     return (
                       <div className="mt-4 bg-gradient-to-r from-surface to-transparent p-3 rounded-xl border border-hairline">
-                        <p className="text-[11px] text-violet-800 leading-relaxed">
-                          <span className="font-bold">Insight:</span> La ruta <span className="font-semibold">{topFirst.label} → {topLast.label}</span> es la combinación más rentable con <span className="font-bold text-violet-600">{fmtCompact(top.revenue)}</span> en revenue y AOV de {fmtCompact(top.aov)}.
+                        <p className="text-[11px] text-ink leading-relaxed">
+                          <span className="font-bold">Insight:</span> La ruta <span className="font-semibold">{topFirst.label} → {topLast.label}</span> es la combinación más rentable con <span className="font-bold text-ink">{fmtCompact(top.revenue)}</span> en revenue y AOV de {fmtCompact(top.aov)}.
                         </p>
                       </div>
                     );

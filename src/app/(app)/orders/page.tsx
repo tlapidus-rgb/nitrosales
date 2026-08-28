@@ -129,11 +129,11 @@ function ProductThumb({
     return (
       <div
         className={`${rounded} flex items-center justify-center flex-shrink-0 ${
-          isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"
+          isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-surface-2 border border-hairline"
         }`}
         style={{ width: size, height: size }}
       >
-        <span className={`text-[10px] font-bold ${isMeli ? "text-yellow-600" : "text-indigo-600"}`}>
+        <span className={`text-[10px] font-bold ${isMeli ? "text-yellow-600" : "text-ink-60"}`}>
           {isMeli ? "ML" : "VTX"}
         </span>
       </div>
@@ -1181,7 +1181,7 @@ function OrdersPageInner() {
                     )}
                     {/* Secondary metadata row */}
                     <div className="flex items-center gap-2 mt-1.5 text-[10px] text-ink-40">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${isMeli ? "bg-yellow-50 text-yellow-600" : "bg-indigo-50 text-indigo-500"}`}>
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${isMeli ? "bg-yellow-50 text-yellow-600" : "bg-surface-2 text-ink-60"}`}>
                         {isMeli ? "ML" : "VTX"}
                       </span>
                       <span className="tabular-nums">{dateFormatted}</span>

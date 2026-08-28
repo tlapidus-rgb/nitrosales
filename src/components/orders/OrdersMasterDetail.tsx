@@ -1097,14 +1097,14 @@ export default function OrdersMasterDetail({
           style={{ borderRight: "1px solid rgba(15,23,42,0.06)" }}
         >
           <div ref={listRef} className="flex-1 overflow-y-auto py-1"
-            style={{ scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+            style={{ scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}>
             {loading && orders.length === 0 ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 px-5 py-3.5 mx-1.5">
-                  <div className="w-12 h-12 rounded-xl bg-slate-100 animate-pulse" />
+                  <div className="w-12 h-12 rounded-xl bg-surface-2 animate-pulse" />
                   <div className="flex-1">
-                    <div className="h-3.5 w-36 bg-slate-100 rounded-lg animate-pulse mb-2.5" />
-                    <div className="h-2.5 w-24 bg-slate-50 rounded-lg animate-pulse" />
+                    <div className="h-3.5 w-36 bg-surface-2 rounded-lg animate-pulse mb-2.5" />
+                    <div className="h-2.5 w-24 bg-surface rounded-lg animate-pulse" />
                   </div>
                 </div>
               ))

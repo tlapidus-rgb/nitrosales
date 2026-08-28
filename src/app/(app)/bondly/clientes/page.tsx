@@ -611,7 +611,7 @@ export default function ClientesPage() {
           <AlertTriangle size={32} className="text-amber-500 mx-auto mb-2" />
           <p className="text-sm font-medium text-ink">Error al cargar clientes</p>
           <p className="text-xs text-ink-40 mt-1">{error}</p>
-          <button onClick={() => fetchData()} className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+          <button onClick={() => fetchData()} className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-ink-60 hover:text-ink">
             <RefreshCw size={12} /> Reintentar
           </button>
         </div>
