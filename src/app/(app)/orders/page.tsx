@@ -73,8 +73,8 @@ interface OrdersData extends OrdersV4Namespaces {
 const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#83807A"];
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: "#f59e0b", APPROVED: "#3b82f6", INVOICED: "#8b5cf6",
-  SHIPPED: "#06b6d4", DELIVERED: "#10b981", CANCELLED: "#ef4444", RETURNED: "#f97316",
+  PENDING: "#f59e0b", APPROVED: "#6B685F", INVOICED: "#3A3833",
+  SHIPPED: "#1C1B18", DELIVERED: "#10b981", CANCELLED: "#ef4444", RETURNED: "#f97316",
 };
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendiente", APPROVED: "En preparacion", INVOICED: "Facturado",

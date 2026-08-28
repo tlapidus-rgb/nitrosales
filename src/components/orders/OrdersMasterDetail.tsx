@@ -127,9 +127,9 @@ function SourceLogo({ source, size = 16 }: { source: string; size?: number }) {
    ═══════════════════════════════════════════════════════════════ */
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   PENDING:   { label: "Pendiente",      color: "#f59e0b", bg: "bg-amber-50",   icon: <Timer size={11} /> },
-  APPROVED:  { label: "En preparación", color: "#3b82f6", bg: "bg-blue-50",    icon: <CheckCircle2 size={11} /> },
-  INVOICED:  { label: "Facturado",      color: "#8b5cf6", bg: "bg-violet-50",  icon: <Receipt size={11} /> },
-  SHIPPED:   { label: "Enviado",        color: "#06b6d4", bg: "bg-cyan-50",    icon: <Truck size={11} /> },
+  APPROVED:  { label: "En preparación", color: "#6B685F", bg: "bg-surface-2",  icon: <CheckCircle2 size={11} /> },
+  INVOICED:  { label: "Facturado",      color: "#3A3833", bg: "bg-surface-2",  icon: <Receipt size={11} /> },
+  SHIPPED:   { label: "Enviado",        color: "#1C1B18", bg: "bg-surface-2",  icon: <Truck size={11} /> },
   DELIVERED: { label: "Entregado",      color: "#10b981", bg: "bg-emerald-50", icon: <CheckCircle2 size={11} /> },
   CANCELLED: { label: "Cancelado",      color: "#ef4444", bg: "bg-red-50",     icon: <XCircle size={11} /> },
   RETURNED:  { label: "Devuelto",       color: "#f97316", bg: "bg-orange-50",  icon: <AlertTriangle size={11} /> },
