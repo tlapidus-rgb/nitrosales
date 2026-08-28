@@ -50,7 +50,7 @@ export default function DashboardChartCard({
           <button
             onClick={onRemove}
             aria-label="Quitar widget"
-            className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 flex items-center justify-center z-10 shadow-sm"
+            className="absolute top-3 right-3 w-6 h-6 rounded-full bg-elevated border border-hairline text-ink-40 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 flex items-center justify-center z-10 shadow-sm"
             style={{
               transitionProperty: "color, background-color, border-color",
               transitionDuration: "200ms",
