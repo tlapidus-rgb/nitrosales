@@ -195,8 +195,8 @@ export function AttributionSettings() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <div className="text-sm text-gray-400">Cargando configuración...</div>
+      <div className="bg-white rounded-2xl border border-hairline p-6 shadow-sm">
+        <div className="text-sm text-ink-40">Cargando configuración...</div>
       </div>
     );
   }
@@ -204,9 +204,9 @@ export function AttributionSettings() {
   return (
     <div className="space-y-6">
       {/* ─── 1) Modelo de atribucion ─── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Modelo de atribución</h2>
-        <p className="text-xs text-gray-500 mb-4">
+      <div className="bg-white rounded-2xl border border-hairline p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-ink mb-1">Modelo de atribución</h2>
+        <p className="text-xs text-ink-40 mb-4">
           Define cómo se reparte el crédito de cada venta entre los canales por los que pasó el cliente.
           Cambiarlo afecta todos los reportes del dashboard.
         </p>
@@ -221,20 +221,20 @@ export function AttributionSettings() {
                 className={`text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 ${
                   active
                     ? "border-ink bg-surface-2 shadow-sm"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    : "border-hairline bg-white hover:border-hairline-2"
                 }`}
                 title={m.example}
               >
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      active ? "bg-accent" : "bg-gray-300"
+                      active ? "bg-accent" : "bg-hairline-2"
                     }`}
                   />
-                  <span className="text-sm font-semibold text-gray-900">{m.label}</span>
+                  <span className="text-sm font-semibold text-ink">{m.label}</span>
                 </div>
-                <p className="text-[11px] text-gray-500 leading-snug">{m.description}</p>
-                <p className="text-[10px] text-gray-400 italic leading-snug pt-1 border-t border-gray-100">
+                <p className="text-[11px] text-ink-40 leading-snug">{m.description}</p>
+                <p className="text-[10px] text-ink-40 italic leading-snug pt-1 border-t border-hairline">
                   {m.example}
                 </p>
               </button>
@@ -245,9 +245,9 @@ export function AttributionSettings() {
 
       {/* ─── 2) Pesos de Precisión (solo si CUSTOM) ─── */}
       {isCustom && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">Pesos de Precisión</h2>
-          <p className="text-xs text-gray-500 mb-4">
+        <div className="bg-white rounded-2xl border border-hairline p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-ink mb-1">Pesos de Precisión</h2>
+          <p className="text-xs text-ink-40 mb-4">
             Definí qué porcentaje del crédito se lleva cada momento del recorrido del cliente.
             Total debe sumar 100%. Podés mover el slider o escribir el número directo.
           </p>
@@ -261,18 +261,18 @@ export function AttributionSettings() {
                 <div key={k} className="flex items-center gap-3">
                   <div className="w-32 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-                    <span className="text-xs font-medium text-gray-700">{label}</span>
+                    <span className="text-xs font-medium text-ink-60">{label}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setLocked((p) => ({ ...p, [k]: !p[k] }))}
-                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50"
+                    className="text-[10px] px-2 py-1 rounded border border-hairline text-ink-40 hover:bg-surface"
                     title={locked[k] ? "Desbloquear" : "Bloquear este peso"}
                   >
                     {locked[k] ? "🔒" : "🔓"}
                   </button>
                   <div className="flex-1 relative">
-                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
                       <div className="h-full" style={{ width: `${draft.weights[k]}%`, background: color }} />
                     </div>
                     <input
@@ -296,16 +296,16 @@ export function AttributionSettings() {
                         if (!isNaN(v)) handleSlider(k, v);
                       }}
                       disabled={locked[k]}
-                      className="w-14 px-1.5 py-1 border border-gray-200 rounded-md text-sm font-semibold tabular-nums text-right outline-none focus:border-accent disabled:bg-gray-50 disabled:text-gray-400"
+                      className="w-14 px-1.5 py-1 border border-hairline rounded-md text-sm font-semibold tabular-nums text-right outline-none focus:border-accent disabled:bg-surface disabled:text-ink-40"
                       style={{ color: locked[k] ? undefined : color }}
                     />
-                    <span className="text-xs text-gray-400">%</span>
+                    <span className="text-xs text-ink-40">%</span>
                   </div>
                 </div>
               );
             })}
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-              <span className="text-xs text-gray-500">Total</span>
+            <div className="flex items-center justify-between pt-2 border-t border-hairline">
+              <span className="text-xs text-ink-40">Total</span>
               <span className={`text-sm font-bold tabular-nums ${weightsValid ? "text-emerald-600" : "text-red-500"}`}>
                 {weightsSum}% {weightsValid ? "✓" : "(debe ser 100%)"}
               </span>
@@ -315,9 +315,9 @@ export function AttributionSettings() {
       )}
 
       {/* ─── 3) Ventana de atribución por defecto ─── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Ventana de atribución por defecto</h2>
-        <p className="text-xs text-gray-500 mb-4">
+      <div className="bg-white rounded-2xl border border-hairline p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-ink mb-1">Ventana de atribución por defecto</h2>
+        <p className="text-xs text-ink-40 mb-4">
           Cuántos días antes de la compra se considera que un canal influyó en la venta.
           Esta es la <strong>ventana base</strong> — todos los canales la heredan a menos que les definas
           una ventana específica más abajo.
@@ -331,7 +331,7 @@ export function AttributionSettings() {
               className={`p-3 rounded-xl border text-sm font-semibold transition-all ${
                 draft.attributionWindowDays === d
                   ? "border-ink bg-ink text-white"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                  : "border-hairline bg-white text-ink-60 hover:border-hairline-2"
               }`}
             >
               {d} días
@@ -341,12 +341,12 @@ export function AttributionSettings() {
       </div>
 
       {/* ─── 4) Ventanas por canal ─── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+      <div className="bg-white rounded-2xl border border-hairline p-6 shadow-sm">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-semibold text-gray-900">Ventanas por canal</h2>
-          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Override</span>
+          <h2 className="text-lg font-semibold text-ink">Ventanas por canal</h2>
+          <span className="text-[10px] uppercase tracking-wider text-ink-40 font-semibold">Override</span>
         </div>
-        <p className="text-xs text-gray-500 mb-4">
+        <p className="text-xs text-ink-40 mb-4">
           Cada canal usa la <strong>ventana por defecto ({draft.attributionWindowDays} días)</strong> a
           menos que le definas una específica. Ej: email puede tener 60 días (ciclos largos) mientras
           TikTok mantiene 7 (impulsivo).
@@ -359,14 +359,14 @@ export function AttributionSettings() {
               <div key={ch.id} className="flex items-center gap-3 py-1.5">
                 <div className="w-44 flex items-center gap-2.5">
                   <ChannelLogo source={ch.id} size={26} />
-                  <span className="text-xs font-medium text-gray-800">{ch.label}</span>
+                  <span className="text-xs font-medium text-ink-60">{ch.label}</span>
                 </div>
                 <div className="flex-1" />
                 <span
                   className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
                     isOverride
                       ? "bg-surface-2 text-ink-60"
-                      : "bg-gray-100 text-gray-500"
+                      : "bg-surface-2 text-ink-40"
                   }`}
                 >
                   {isOverride ? `Custom · ${override}d` : `Hereda · ${draft.attributionWindowDays}d`}
@@ -378,7 +378,7 @@ export function AttributionSettings() {
                     className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
                       !isOverride
                         ? "border-ink bg-ink text-white"
-                        : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                        : "border-hairline text-ink-40 hover:bg-surface"
                     }`}
                   >
                     Por defecto
@@ -397,10 +397,10 @@ export function AttributionSettings() {
                     className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none transition-all focus:border-accent ${
                       isOverride
                         ? "border-ink bg-surface-2 text-ink"
-                        : "border-gray-200 text-gray-500"
+                        : "border-hairline text-ink-40"
                     }`}
                   />
-                  <span className="text-[11px] text-gray-400 w-8">días</span>
+                  <span className="text-[11px] text-ink-40 w-8">días</span>
                 </div>
               </div>
             );
@@ -412,7 +412,7 @@ export function AttributionSettings() {
       </div>
 
       {/* ─── Footer: save ─── */}
-      <div className="sticky bottom-4 bg-white rounded-2xl border border-gray-200 p-4 shadow-lg flex items-center justify-between">
+      <div className="sticky bottom-4 bg-white rounded-2xl border border-hairline p-4 shadow-lg flex items-center justify-between">
         <div className="flex items-center gap-3">
           {error && <span className="text-xs text-red-500">{error}</span>}
           {savedAt && Date.now() - savedAt < 4000 && (
@@ -422,7 +422,7 @@ export function AttributionSettings() {
             <span className="text-xs text-amber-600 font-medium">Cambios sin guardar</span>
           )}
           {!error && !isDirty && !savedAt && (
-            <span className="text-xs text-gray-400">Sin cambios pendientes</span>
+            <span className="text-xs text-ink-40">Sin cambios pendientes</span>
           )}
         </div>
         <button
@@ -432,7 +432,7 @@ export function AttributionSettings() {
           className={`px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all ${
             isDirty && weightsValid && !saving
               ? "bg-ink hover:bg-ink/90 shadow"
-              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-surface-2 text-ink-40 cursor-not-allowed"
           }`}
         >
           {saving ? "Guardando..." : "Guardar cambios"}
@@ -560,7 +560,7 @@ function AuraCreatorWindows() {
   };
 
   return (
-    <div className="mt-4 pt-4 border-t border-gray-100">
+    <div className="mt-4 pt-4 border-t border-hairline">
       <button
         type="button"
         onClick={toggleOpen}
@@ -570,13 +570,13 @@ function AuraCreatorWindows() {
         <div className="flex items-center gap-2.5">
           <span
             aria-hidden="true"
-            className={`text-gray-400 text-xs transition-transform ${open ? "rotate-90" : ""}`}
+            className={`text-ink-40 text-xs transition-transform ${open ? "rotate-90" : ""}`}
           >
             ▶
           </span>
-          <span className="text-sm font-semibold text-gray-900">Afiliados de Aura</span>
+          <span className="text-sm font-semibold text-ink">Afiliados de Aura</span>
           {creators !== null && (
-            <span className="text-[10px] text-gray-400">({creators.length})</span>
+            <span className="text-[10px] text-ink-40">({creators.length})</span>
           )}
         </div>
         <span className="text-[10px] uppercase tracking-wider text-ink-40 font-semibold group-hover:text-ink-60">
@@ -586,13 +586,13 @@ function AuraCreatorWindows() {
 
       {open && (
         <div className="mt-2">
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-ink-40 mb-3">
             Cada afiliado usa su propia ventana de atribución (default{" "}
             <strong>{AURA_DEFAULT_WINDOW} días</strong>; las campañas activas con ventana propia
             tienen prioridad). Los cambios acá se guardan al instante.
           </p>
 
-          {loading && <div className="text-xs text-gray-400 py-3">Cargando afiliados...</div>}
+          {loading && <div className="text-xs text-ink-40 py-3">Cargando afiliados...</div>}
 
           {fetchError && (
             <div className="flex items-center justify-between bg-red-50 border border-red-200/60 rounded-lg px-3 py-2">
@@ -610,7 +610,7 @@ function AuraCreatorWindows() {
           {rowError && <div className="text-[11px] text-red-600 mb-2">{rowError}</div>}
 
           {creators !== null && !loading && creators.length === 0 && (
-            <div className="text-xs text-gray-400 py-3">
+            <div className="text-xs text-ink-40 py-3">
               Todavía no hay afiliados de Aura. Crealos desde Aura → Creadores.
             </div>
           )}
@@ -629,17 +629,17 @@ function AuraCreatorWindows() {
                         {c.name.charAt(0).toUpperCase()}
                       </span>
                       <div className="min-w-0">
-                        <span className="text-xs font-medium text-gray-800 truncate block" title={c.name}>
+                        <span className="text-xs font-medium text-ink-60 truncate block" title={c.name}>
                           {c.name}
                         </span>
-                        <span className="text-[10px] text-gray-400 truncate block">@{c.code}</span>
+                        <span className="text-[10px] text-ink-40 truncate block">@{c.code}</span>
                       </div>
                     </div>
                     <div className="flex-1" />
                     {isSaved && <span className="text-[10px] text-emerald-600 font-medium">✓ Guardado</span>}
                     <span
                       className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
-                        isCustom ? "bg-surface-2 text-ink-60" : "bg-gray-100 text-gray-500"
+                        isCustom ? "bg-surface-2 text-ink-60" : "bg-surface-2 text-ink-40"
                       }`}
                     >
                       {isCustom
@@ -654,7 +654,7 @@ function AuraCreatorWindows() {
                         className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
                           !isCustom
                             ? "border-ink bg-ink text-white cursor-default"
-                            : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                            : "border-hairline text-ink-40 hover:bg-surface"
                         } disabled:opacity-60`}
                       >
                         Por defecto
@@ -674,10 +674,10 @@ function AuraCreatorWindows() {
                         className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none focus:border-accent transition-all ${
                           isCustom
                             ? "border-ink bg-surface-2 text-ink"
-                            : "border-gray-200 text-gray-500"
+                            : "border-hairline text-ink-40"
                         } disabled:opacity-60`}
                       />
-                      <span className="text-[11px] text-gray-400 w-8">
+                      <span className="text-[11px] text-ink-40 w-8">
                         {isSaving ? "..." : "días"}
                       </span>
                     </div>

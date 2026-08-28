@@ -217,7 +217,7 @@ export default function OnboardingAurumChat({
           <AurumOrb size={36} thinking={sending} />
           <div style={{ flex: 1 }}>
             <div style={{ color: "#fff", fontSize: 14, fontWeight: 600 }}>Aurum</div>
-            <div style={{ color: "#9CA3AF", fontSize: 11.5 }}>
+            <div style={{ color: "#83807A", fontSize: 11.5 }}>
               {sending ? "Pensando…" : "Te ayudo con dudas del onboarding"}
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function OnboardingAurumChat({
               borderRadius: 8,
               border: "1px solid rgba(255,255,255,0.08)",
               background: "rgba(255,255,255,0.04)",
-              color: "#9CA3AF",
+              color: "#83807A",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -262,7 +262,7 @@ export default function OnboardingAurumChat({
                   borderRadius: 14,
                   background: "rgba(168,85,247,0.08)",
                   border: "1px solid rgba(168,85,247,0.18)",
-                  color: "#E5E7EB",
+                  color: "#E5E1D8",
                   fontSize: 13,
                   lineHeight: 1.55,
                   marginBottom: 18,
@@ -274,7 +274,7 @@ export default function OnboardingAurumChat({
               <div
                 style={{
                   fontSize: 11,
-                  color: "#6B7280",
+                  color: "#6B685F",
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   fontWeight: 600,
@@ -297,7 +297,7 @@ export default function OnboardingAurumChat({
                       borderRadius: 10,
                       border: "1px solid rgba(255,255,255,0.08)",
                       background: "rgb(var(--ent-elevated))",
-                      color: "#D1D5DB",
+                      color: "#DCD8CD",
                       fontSize: 12.5,
                       textAlign: "left",
                       cursor: "pointer",
@@ -311,7 +311,7 @@ export default function OnboardingAurumChat({
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = "rgb(var(--ent-elevated))";
                       e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                      e.currentTarget.style.color = "#D1D5DB";
+                      e.currentTarget.style.color = "#DCD8CD";
                     }}
                   >
                     <span style={{ fontSize: 14 }}>{qp.emoji}</span>
@@ -335,7 +335,7 @@ export default function OnboardingAurumChat({
                   borderRadius: 12,
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgb(var(--ent-hairline))",
-                  color: "#9CA3AF",
+                  color: "#83807A",
                   fontSize: 12.5,
                   display: "flex",
                   alignItems: "center",
@@ -428,7 +428,7 @@ export default function OnboardingAurumChat({
               borderRadius: 10,
               border: "1px solid rgba(255,255,255,0.08)",
               background: "rgba(255,255,255,0.04)",
-              color: "#9CA3AF",
+              color: "#83807A",
               cursor: sending ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
@@ -455,7 +455,7 @@ export default function OnboardingAurumChat({
               borderRadius: 10,
               border: "1px solid rgba(255,255,255,0.08)",
               background: "rgba(255,255,255,0.04)",
-              color: "#E5E7EB",
+              color: "#E5E1D8",
               fontSize: 13,
               resize: "none",
               maxHeight: 120,
@@ -540,7 +540,7 @@ function MessageBubble({ message }: { message: UiMessage }) {
               borderRadius: 12,
               background: isUser ? "rgba(255,94,26,0.14)" : "rgba(255,255,255,0.04)",
               border: isUser ? "1px solid rgba(255,94,26,0.3)" : "1px solid rgb(var(--ent-hairline))",
-              color: isUser ? "#FFD9C4" : "#E5E7EB",
+              color: isUser ? "#FFD9C4" : "#E5E1D8",
               fontSize: 13,
               lineHeight: 1.55,
               whiteSpace: "pre-wrap",

@@ -18,8 +18,8 @@ import type { BrandKey } from "./BrandLogo";
 
 const BORDER = "rgba(255,255,255,0.08)";
 const TEXT_PRIMARY = "#FFFFFF";
-const TEXT_SECONDARY = "#9CA3AF";
-const TEXT_MUTED = "#6B7280";
+const TEXT_SECONDARY = "#83807A";
+const TEXT_MUTED = "#6B685F";
 const BRAND_ORANGE = "#FF5E1A";
 
 // ═══════════════════════════════════════════════════════════════

@@ -14,7 +14,7 @@ interface KpiCardProps {
 }
 
 export function ChangeBadge({ value }: { value: number }) {
-  if (value === 0) return <span className="text-xs text-gray-400">--</span>;
+  if (value === 0) return <span className="text-xs text-ink-40">--</span>;
   const isPositive = value > 0;
   return (
     <span

@@ -841,7 +841,7 @@ export default function DashboardPage() {
 
   // ── Chart data ──
   const trends = allData.trends?.days || [];
-  const tooltipStyle = { contentStyle: { backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" } };
+  const tooltipStyle = { contentStyle: { backgroundColor: "#fff", border: "1px solid #E5E1D8", borderRadius: "8px", fontSize: "12px" } };
 
   // ── Hero data (always available because we force-fetch metrics + trends) ──
   const heroMetrics = allData.metrics?.summary;

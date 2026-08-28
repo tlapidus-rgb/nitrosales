@@ -30,8 +30,8 @@ export default function StatusFilter({
         onClick={() => onStatusChange(null)}
         className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
           activeStatus === null
-            ? "bg-gray-900 text-white"
-            : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+            ? "bg-ink text-white"
+            : "bg-white text-ink-60 border border-hairline hover:bg-surface"
         }`}
       >
         Todos ({total})
@@ -44,8 +44,8 @@ export default function StatusFilter({
           }
           className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all inline-flex items-center gap-1.5 ${
             activeStatus === s.status
-              ? "bg-gray-900 text-white"
-              : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+              ? "bg-ink text-white"
+              : "bg-white text-ink-60 border border-hairline hover:bg-surface"
           }`}
         >
           <span

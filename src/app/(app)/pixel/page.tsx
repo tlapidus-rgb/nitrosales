@@ -46,7 +46,7 @@ const DEFAULT_NITRO_WEIGHTS = { first: 30, last: 40, middle: 30 };
 
 // S60 EXT-2 BIS+++++: paleta expandida con color UNICO por canal.
 // Antes 5 canales (adwords, google_organic, tv, omnichannel, perfil) caian
-// al fallback gris #6B7280 y se confundian visualmente en el Hero Bar.
+// al fallback gris #6B685F y se confundian visualmente en el Hero Bar.
 // Ahora cada canal tiene un color de marca distintivo + email/email-marketing
 // con tonos distintos.
 const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string; svg?: string }> = {
@@ -472,7 +472,7 @@ export default function PixelPage() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#FBFAF7" }}>
         <div className="text-center">
           <p className="text-lg font-semibold text-red-400 mb-2">Error al cargar datos</p>
-          <p className="text-sm text-gray-500">{error}</p>
+          <p className="text-sm text-ink-40">{error}</p>
           <button onClick={fetchData} className="mt-4 px-4 py-2 rounded-lg text-sm text-ink" style={{ background: "rgba(229,225,216,0.15)", border: "1px solid rgba(229,225,216,0.3)" }}>Reintentar</button>
         </div>
       </div>

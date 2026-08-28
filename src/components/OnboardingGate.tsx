@@ -123,7 +123,7 @@ function AuroraLoader() {
             style={{ animation: "spin 1s linear infinite" }}
           />
         </div>
-        <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>
+        <div style={{ fontSize: 13, color: "#83807A", fontWeight: 500 }}>
           Cargando NitroSales…
         </div>
       </div>

@@ -17,8 +17,8 @@ import type { BrandKey } from "./BrandLogo";
 
 const BORDER = "rgba(255,255,255,0.08)";
 const TEXT_PRIMARY = "#FFFFFF";
-const TEXT_SECONDARY = "#9CA3AF";
-const TEXT_MUTED = "#6B7280";
+const TEXT_SECONDARY = "#83807A";
+const TEXT_MUTED = "#6B685F";
 const BRAND_ORANGE = "#FF5E1A";
 
 // ═══════════════════════════════════════════════════════════════
@@ -782,7 +782,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
             <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 8 }}>
               📋 Lo que vamos a hacer (resumen):
             </div>
-            <div style={{ padding: 10, background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, fontSize: 10, color: "#1a1a1a", lineHeight: 1.7 }}>
+            <div style={{ padding: 10, background: "#F5F3EE", border: "1px solid #E5E1D8", borderRadius: 6, fontSize: 10, color: "#1a1a1a", lineHeight: 1.7 }}>
               <div><strong>1.</strong> Volver al "usuario de sistema" del Paso 2</div>
               <div><strong>2.</strong> Asignarle el Pixel como activo (con permiso "Administrador")</div>
               <div><strong>3.</strong> Listo: ese mismo usuario ya tiene acceso a Ads + Pixel</div>
@@ -832,7 +832,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 6 }}>
                   "Solo puedo crear usuario tipo 'Employee', no me deja 'Admin'"
                 </div>
-                <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 10, color: "#3A3833", lineHeight: 1.6 }}>
                   Meta solo deja <strong>1 usuario Admin por cuenta</strong>. Si ya lo gastaste antes
                   (Klaviyo, Shopify, agencia, etc.), te queda solo Employee.
                   <div style={{ marginTop: 6, padding: 8, background: "#DBEAFE", borderRadius: 4 }}>
@@ -850,7 +850,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 6 }}>
                   "Al generar el token me pide elegir una 'app' y no tengo ninguna"
                 </div>
-                <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 10, color: "#3A3833", lineHeight: 1.6 }}>
                   Es una rareza de Meta. La "app" <strong>NO es una app de programar</strong> — es
                   solo un nombre que tu Business Manager le pone al token para identificarlo.
                   Tenés que crear una vacía:
@@ -870,7 +870,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 6 }}>
                   "Generé el token pero NitroSales me dice que no funciona"
                 </div>
-                <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 10, color: "#3A3833", lineHeight: 1.6 }}>
                   El 99% de las veces es porque <strong>te olvidaste de un permiso</strong> al generar el token.
                   Andá a tu System User → "Generar token" otra vez y verificá que tildaste:
                   <div style={{ marginTop: 6, padding: 8, background: "#FEE2E2", borderRadius: 4, fontFamily: "'SF Mono', monospace" }}>

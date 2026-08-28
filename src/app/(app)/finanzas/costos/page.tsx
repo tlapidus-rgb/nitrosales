@@ -67,7 +67,7 @@ const CATEGORY_ACCENTS: Record<string, { icon: string; bg: string; bar: string }
   INFRAESTRUCTURA: { icon: "text-ink-60",  bg: "bg-surface",  bar: "#6B685F" },
   MARKETING:       { icon: "text-pink-600",   bg: "bg-pink-50",   bar: "#ec4899" },
   MERMA:           { icon: "text-amber-600",  bg: "bg-amber-50",  bar: "#f59e0b" },
-  OTROS:           { icon: "text-ink-60",   bg: "bg-surface",   bar: "#6b7280" },
+  OTROS:           { icon: "text-ink-60",   bg: "bg-surface",   bar: "#6B685F" },
 };
 
 /* ── Category config ──────────────────────────── */
@@ -1754,7 +1754,7 @@ export default function CostosPage() {
                                 <th className="w-10"></th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-hairline">
                               {filteredRates.map(rate => (
                                 <tr key={rate.id} className="group hover:bg-surface/50">
                                   <td className="px-4 py-2.5 font-medium text-ink">{rate.carrier}</td>
@@ -2017,7 +2017,7 @@ export default function CostosPage() {
                             <th className="w-10"></th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-hairline">
                           {items.map(item => (
                             <tr
                               key={item.id}

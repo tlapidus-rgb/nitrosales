@@ -159,53 +159,53 @@ export function OrgSwitcher() {
         className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border transition-colors ${
           isViewing
             ? "bg-surface-2 border-hairline-2 hover:bg-surface"
-            : "bg-white border-gray-200 hover:border-gray-300"
+            : "bg-white border-hairline hover:border-hairline-2"
         } ${switching ? "opacity-60 cursor-wait" : "cursor-pointer"}`}
       >
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-              isViewing ? "bg-ink text-white" : "bg-gray-100 text-gray-600"
+              isViewing ? "bg-ink text-white" : "bg-surface-2 text-ink-60"
             }`}
           >
             {initial}
           </span>
           <div className="min-w-0 text-left">
-            <div className="text-[10px] uppercase tracking-wider text-gray-400 leading-none mb-0.5">
+            <div className="text-[10px] uppercase tracking-wider text-ink-40 leading-none mb-0.5">
               {isViewing ? "Viendo como" : "Cuenta"}
             </div>
-            <div className="text-xs font-semibold text-gray-900 truncate">{displayName}</div>
+            <div className="text-xs font-semibold text-ink truncate">{displayName}</div>
           </div>
         </div>
-        <ChevronDown size={14} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-ink-40 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute top-full left-3 right-3 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto py-1">
+        <div className="absolute top-full left-3 right-3 mt-1 bg-white border border-hairline rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto py-1">
           {/* Volver a mi cuenta — solo si esta viewing una org distinta */}
           {isViewing && (
             <>
               <button
                 type="button"
                 onClick={() => switchTo(null)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors text-ink"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface transition-colors text-ink"
               >
                 <ArrowLeft size={14} />
                 <span className="font-medium">Volver a {realOrgName || "mi cuenta"}</span>
               </button>
-              <div className="border-t border-gray-100 my-1" />
+              <div className="border-t border-hairline my-1" />
             </>
           )}
 
           {/* Loading */}
           {loading && (
-            <div className="px-3 py-3 text-xs text-gray-400 text-center">Cargando…</div>
+            <div className="px-3 py-3 text-xs text-ink-40 text-center">Cargando…</div>
           )}
 
           {/* Lista de orgs */}
           {!loading && orgs.length > 0 && (
             <>
-              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-ink-40 font-medium">
                 Cambiar a cliente
               </div>
               {orgs.map((org) => {
@@ -219,11 +219,11 @@ export function OrgSwitcher() {
                     disabled={isCurrent}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
                       isCurrent
-                        ? "bg-gray-50 text-gray-400 cursor-default"
-                        : "hover:bg-gray-50 text-gray-700 cursor-pointer"
+                        ? "bg-surface text-ink-40 cursor-default"
+                        : "hover:bg-surface text-ink-60 cursor-pointer"
                     }`}
                   >
-                    <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-gray-600">
+                    <span className="w-6 h-6 rounded-md bg-surface-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-ink-60">
                       {(org.name || "?").charAt(0).toUpperCase()}
                     </span>
                     <span className="flex-1 text-left truncate">{org.name}</span>
@@ -238,7 +238,7 @@ export function OrgSwitcher() {
           )}
 
           {!loading && orgs.length === 0 && (
-            <div className="px-3 py-3 text-xs text-gray-400 text-center">Sin orgs disponibles</div>
+            <div className="px-3 py-3 text-xs text-ink-40 text-center">Sin orgs disponibles</div>
           )}
         </div>
       )}

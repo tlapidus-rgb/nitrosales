@@ -34,7 +34,7 @@ const CHANNEL_META: Record<string, ChannelMeta> = {
 
 export function getChannelMeta(source: string): ChannelMeta {
   const key = (source || "").toLowerCase();
-  return CHANNEL_META[key] || { color: "#6B7280", label: source };
+  return CHANNEL_META[key] || { color: "#6B685F", label: source };
 }
 
 export function ChannelLogoSvg({ source, size = 14 }: { source?: string; size?: number }) {

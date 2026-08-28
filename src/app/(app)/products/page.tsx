@@ -865,7 +865,7 @@ export default function ProductsPage() {
       { name: "Bajo", value: stockSummary.lowCount, color: "#f59e0b" },
       { name: "Optimo", value: stockSummary.optimalCount, color: "#10b981" },
       { name: "Excesivo", value: stockSummary.excessiveCount, color: "#83807A" },
-      { name: "Muerto", value: stockSummary.deadCount, color: "#6b7280" },
+      { name: "Muerto", value: stockSummary.deadCount, color: "#6B685F" },
     ];
   }, [stockSummary]);
 
@@ -1545,7 +1545,7 @@ export default function ProductsPage() {
             <h3 className="font-semibold text-ink mb-4">Evolucion por Categoria</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={categoryTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
                 <XAxis dataKey="weekStart" tick={{ fontSize: 12 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: any) => formatARS(v)} labelFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`; }} />
@@ -1561,7 +1561,7 @@ export default function ProductsPage() {
             <h3 className="font-semibold text-ink mb-4">Evolucion por Marca</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={brandTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
                 <XAxis dataKey="weekStart" tick={{ fontSize: 12 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: any) => formatARS(v)} labelFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`; }} />
@@ -1694,7 +1694,7 @@ export default function ProductsPage() {
             <h3 className="font-semibold text-ink mb-4">Stock por Marca (Top 10)</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stockByBrandData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 120 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E1D8" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: any) => `${v} unidades`} />

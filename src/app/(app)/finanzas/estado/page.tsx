@@ -365,7 +365,7 @@ function ExecutiveView({
                 stroke="#22c55e" fill="#22c55e" fillOpacity={0.08} strokeWidth={1.5}
               />
               <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "11px" }}
+                contentStyle={{ backgroundColor: "#fff", border: "1px solid #E5E1D8", borderRadius: "8px", fontSize: "11px" }}
                 formatter={(value: number, name: string) => [fm(value), name]}
                 labelFormatter={formatDateShort}
               />
@@ -470,7 +470,7 @@ function DetailedView({
   ];
 
   const tooltipStyle = {
-    contentStyle: { backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" },
+    contentStyle: { backgroundColor: "#fff", border: "1px solid #E5E1D8", borderRadius: "8px", fontSize: "12px" },
   };
 
   // Build the P&L statement rows

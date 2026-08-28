@@ -44,8 +44,8 @@ import VtexAffiliateInstructions, { type AffiliateInfo } from "./onboarding/Vtex
 const BRAND_ORANGE = "#FF5E1A";
 const BORDER = "rgba(255,255,255,0.08)";
 const TEXT_PRIMARY = "#FFFFFF";
-const TEXT_SECONDARY = "#9CA3AF";
-const TEXT_MUTED = "#6B7280";
+const TEXT_SECONDARY = "#83807A";
+const TEXT_MUTED = "#6B685F";
 const ACCENT_GREEN = "#22C55E";
 const ACCENT_RED = "#EF4444";
 
@@ -778,7 +778,7 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
                     </svg>
                   )}
                   {isSkip && (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="3">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6B685F" strokeWidth="3">
                       <line x1="5" y1="5" x2="19" y2="19" />
                       <line x1="19" y1="5" x2="5" y2="19" />
                     </svg>
@@ -2329,7 +2329,7 @@ function Title({ children }: any) {
     <h1 style={{
       fontSize: 26, fontWeight: 700,
       letterSpacing: "-0.02em", margin: "0 0 14px",
-      background: "linear-gradient(135deg, #fff 0%, #9CA3AF 100%)",
+      background: "linear-gradient(135deg, #fff 0%, #83807A 100%)",
       WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
     }}>
       {children}

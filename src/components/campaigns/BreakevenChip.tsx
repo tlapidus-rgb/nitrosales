@@ -66,10 +66,10 @@ export function BreakevenChip({
 /** Devuelve tailwind class para colorear un ROAS segun break-even. */
 export function roasColorClass(roas: number, breakevenRoas: number): string {
   if (!breakevenRoas || breakevenRoas <= 0) {
-    return roas >= 3 ? "text-green-600" : roas >= 1.5 ? "text-amber-600" : roas > 0 ? "text-red-600" : "text-gray-400";
+    return roas >= 3 ? "text-green-600" : roas >= 1.5 ? "text-amber-600" : roas > 0 ? "text-red-600" : "text-ink-40";
   }
   if (roas >= breakevenRoas * 1.5) return "text-green-600";
   if (roas >= breakevenRoas) return "text-amber-600";
   if (roas > 0) return "text-red-600";
-  return "text-gray-400";
+  return "text-ink-40";
 }

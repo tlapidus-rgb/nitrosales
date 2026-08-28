@@ -89,7 +89,7 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string 
 
 function getSourceInfo(source: string) {
   const key = canonicalMarketingSource(source);
-  return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B7280", label: source };
+  return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B685F", label: source };
 }
 
 // Alias wrapper — same canonical map as backend first-source SQL + conversionRates API.
@@ -1761,7 +1761,7 @@ export default function AnalyticsPage() {
           // Flow arrow SVG
           const FlowArrow = () => (
             <svg className="flex-shrink-0 mx-1" width="20" height="12" viewBox="0 0 20 12" fill="none">
-              <path d="M0 6h16m0 0l-4-4m4 4l-4 4" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M0 6h16m0 0l-4-4m4 4l-4 4" stroke="#DCD8CD" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           );
 

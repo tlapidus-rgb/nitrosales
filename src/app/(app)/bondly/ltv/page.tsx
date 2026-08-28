@@ -33,10 +33,10 @@ const CHANNEL_COLORS: Record<string, string> = {
   "Google Ads": "#4285F4",
   "Meta Ads": "#1877F2",
   "Google Organic": "#34A853",
-  "Directo": "#6B7280",
+  "Directo": "#6B685F",
   "TikTok": "#000000",
   "Paid Otro": "#83807A",
-  "Sin datos": "#D1D5DB",
+  "Sin datos": "#DCD8CD",
 };
 
 const RETENTION_COLORS = [
@@ -1578,10 +1578,10 @@ export default function LtvPage() {
                 <BarChart data={byChannel} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" tickFormatter={(v) => formatCompact(v)} fontSize={11} />
-                  <YAxis type="category" dataKey="channel" width={120} fontSize={11} tick={{ fill: "#4B5563" }} />
+                  <YAxis type="category" dataKey="channel" width={120} fontSize={11} tick={{ fill: "#6B685F" }} />
                   <Tooltip
                     formatter={(value: number) => [formatARS(value), "LTV Promedio"]}
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E7EB" }}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E1D8" }}
                   />
                   <Bar dataKey="avgLtv" radius={[0, 4, 4, 0]} maxBarSize={30}>
                     {byChannel.map((entry: any, i: number) => (
@@ -1774,14 +1774,14 @@ export default function LtvPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={repurchasePattern} margin={{ left: 0, right: 20, top: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="bucket" fontSize={11} tick={{ fill: "#6B7280" }} />
+                <XAxis dataKey="bucket" fontSize={11} tick={{ fill: "#6B685F" }} />
                 <YAxis tickFormatter={(v) => `${v}%`} fontSize={11} />
                 <Tooltip
                   formatter={(value: number, name: string) => {
                     if (name === "pct") return [`${value}%`, "Porcentaje"];
                     return [value, "Clientes"];
                   }}
-                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E7EB" }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E1D8" }}
                 />
                 <Bar dataKey="pct" radius={[4, 4, 0, 0]} maxBarSize={50}>
                   {repurchasePattern.map((entry: any, i: number) => (

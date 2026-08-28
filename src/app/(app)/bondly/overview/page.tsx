@@ -137,7 +137,7 @@ const SEGMENTS: Array<{
   { key: "Nuevos", label: "Nuevos", icon: UserPlus, desc: "Primera compra este mes", color: "#2F9153" },
   { key: "En riesgo", label: "En riesgo", icon: AlertTriangle, desc: "No compran hace 90+ días", color: "#ef4444" },
   { key: "Ocasionales", label: "Ocasionales", icon: Users, desc: "Compran esporádicamente", color: "#83807A" },
-  { key: "Perdidos", label: "Perdidos", icon: XCircle, desc: "Sin actividad hace 180+ días", color: "#6b7280" },
+  { key: "Perdidos", label: "Perdidos", icon: XCircle, desc: "Sin actividad hace 180+ días", color: "#6B685F" },
 ];
 
 // ─── Event type metadata ──────────────────────────────────────────────
