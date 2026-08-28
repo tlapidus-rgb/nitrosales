@@ -116,7 +116,7 @@ export default function WaterfallDrillPanel({
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-[60] bg-slate-900/20 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 z-[60] bg-ink/20 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={{ transitionDuration: `${PANEL_ANIM_MS}ms`, transitionTimingFunction: ES_EASING }}
         onClick={onClose}
         aria-hidden="true"
@@ -127,12 +127,12 @@ export default function WaterfallDrillPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={`drill-title-${styleId}`}
-        className={`fixed top-0 right-0 h-full w-full sm:w-[440px] z-[70] bg-white shadow-2xl ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+        className={`fixed top-0 right-0 h-full w-full sm:w-[440px] z-[70] bg-elevated shadow-2xl ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
         style={{
           transitionProperty: "transform",
           transitionDuration: `${PANEL_ANIM_MS}ms`,
           transitionTimingFunction: ES_EASING,
-          boxShadow: "0 20px 50px -20px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.06)",
+          boxShadow: "0 20px 50px -20px rgba(28, 27, 24, 0.25), 0 0 0 1px rgba(28, 27, 24, 0.06)",
         }}
       >
         <div className="flex flex-col h-full">
@@ -148,7 +148,7 @@ export default function WaterfallDrillPanel({
                   {data.name}
                 </h2>
                 {data.kind === "subtotal" && (
-                  <span className="text-[9px] font-bold tracking-wider text-violet-500 uppercase">Subtotal</span>
+                  <span className="text-[9px] font-bold tracking-wider text-ink-40 uppercase">Subtotal</span>
                 )}
                 {data.kind === "total" && (
                   <span className={`text-[9px] font-bold tracking-wider uppercase ${data.value >= 0 ? "text-emerald-500" : "text-rose-500"}`}>Total</span>
@@ -160,7 +160,7 @@ export default function WaterfallDrillPanel({
               >
                 {isCost ? "-" : ""}{format(absValue)}
               </p>
-              <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+              <div className="mt-1 flex items-center gap-3 text-xs text-ink-60">
                 {typeof data.revenueShare === "number" && isFinite(data.revenueShare) && (
                   <span className="tabular-nums" style={{ fontFeatureSettings: '"tnum" 1' }}>
                     {Math.abs(data.revenueShare).toFixed(1)}% del revenue
@@ -181,7 +181,7 @@ export default function WaterfallDrillPanel({
             <button
               type="button"
               onClick={onClose}
-              className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white/70 transition"
+              className="flex-shrink-0 p-1.5 rounded-lg text-ink-40 hover:text-ink hover:bg-surface transition"
               aria-label="Cerrar panel"
             >
               <X className="w-5 h-5" />
@@ -190,18 +190,18 @@ export default function WaterfallDrillPanel({
 
           {/* Description */}
           {data.description && (
-            <div className="px-6 py-4 border-b border-slate-100">
-              <p className="text-sm leading-relaxed text-slate-600">{data.description}</p>
+            <div className="px-6 py-4 border-b border-hairline">
+              <p className="text-sm leading-relaxed text-ink-60">{data.description}</p>
             </div>
           )}
 
           {/* Breakdown rows */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {data.rows.length === 0 ? (
-              <p className="text-sm text-slate-400 italic">No hay desglose adicional para este ítem.</p>
+              <p className="text-sm text-ink-40 italic">No hay desglose adicional para este ítem.</p>
             ) : (
               <>
-                <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3">
+                <p className="text-[10px] font-bold tracking-wider text-ink-40 uppercase mb-3">
                   Desglose
                 </p>
                 <ul className="space-y-2">
@@ -212,13 +212,13 @@ export default function WaterfallDrillPanel({
                     return (
                       <li
                         key={`${row.label}-${idx}`}
-                        className={`drill-row-${styleId} rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3`}
+                        className={`drill-row-${styleId} rounded-xl border border-hairline bg-surface px-4 py-3`}
                         style={{ animationDelay: `${idx * STAGGER_MS + 80}ms` }}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-slate-700 truncate">{row.label}</p>
+                              <p className="text-sm font-medium text-ink-60 truncate">{row.label}</p>
                               {origin && (
                                 <span
                                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase rounded ${origin.cls} text-white`}
@@ -229,18 +229,18 @@ export default function WaterfallDrillPanel({
                               )}
                             </div>
                             {row.hint && (
-                              <p className="text-[11px] text-slate-400 mt-0.5 truncate">{row.hint}</p>
+                              <p className="text-[11px] text-ink-40 mt-0.5 truncate">{row.hint}</p>
                             )}
                           </div>
                           <div className="text-right flex-shrink-0">
                             <p
-                              className={`text-sm font-semibold tabular-nums ${rowIsCost ? "text-rose-700" : "text-slate-800"}`}
+                              className={`text-sm font-semibold tabular-nums ${rowIsCost ? "text-rose-700" : "text-ink"}`}
                               style={{ fontFeatureSettings: '"tnum" 1, "lnum" 1' }}
                             >
                               {rowIsCost ? "-" : ""}{format(rowAbs)}
                             </p>
                             {typeof row.pct === "number" && isFinite(row.pct) && (
-                              <p className="text-[10px] text-slate-400 tabular-nums">
+                              <p className="text-[10px] text-ink-40 tabular-nums">
                                 {row.pct.toFixed(1)}%
                               </p>
                             )}
@@ -255,8 +255,8 @@ export default function WaterfallDrillPanel({
           </div>
 
           {/* Footer legend */}
-          <footer className="px-6 py-3 border-t border-slate-100 bg-slate-50/50">
-            <p className="text-[10px] text-slate-400 leading-relaxed">
+          <footer className="px-6 py-3 border-t border-hairline bg-surface">
+            <p className="text-[10px] text-ink-40 leading-relaxed">
               ESC para cerrar · Los números en rojo son costos · Auto = viene de VTEX/ML · Calc = calculado · Manual = carga tuya
             </p>
           </footer>

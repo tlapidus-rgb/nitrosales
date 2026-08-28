@@ -94,12 +94,12 @@ function RevenueCard({
 
   const deltaColor =
     data?.revenueDeltaPct === null || data?.revenueDeltaPct === undefined
-      ? "rgba(15,23,42,0.5)"
+      ? "rgba(28,27,24,0.5)"
       : data.revenueDeltaPct > 0
         ? "#065f46"
         : data.revenueDeltaPct < 0
           ? "#991b1b"
-          : "rgba(15,23,42,0.5)";
+          : "rgba(28,27,24,0.5)";
 
   const deltaSign =
     data?.revenueDeltaPct === null || data?.revenueDeltaPct === undefined
@@ -112,15 +112,15 @@ function RevenueCard({
     <section
       className="relative overflow-hidden rounded-2xl border bg-white p-5"
       style={{
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: "rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08)",
         transition: `box-shadow 400ms ${ES}`,
       }}
     >
       <div
         className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-        style={{ color: "rgba(15,23,42,0.5)" }}
+        style={{ color: "rgba(28,27,24,0.5)" }}
       >
         Revenue · últimos 12 meses
       </div>
@@ -130,14 +130,14 @@ function RevenueCard({
       {!loading && data && (
         <>
           <div
-            className="mt-1 text-2xl font-bold tracking-tight text-slate-900 tabular-nums"
+            className="mt-1 text-2xl font-bold tracking-tight text-ink tabular-nums"
             style={{ letterSpacing: "-0.025em" }}
           >
             {ready ? fm(data.revenue12mTotal) : "—"}
           </div>
           <div
             className="mt-0.5 text-[11px] tabular-nums"
-            style={{ color: "rgba(15,23,42,0.5)" }}
+            style={{ color: "rgba(28,27,24,0.5)" }}
           >
             <span className="font-semibold" style={{ color: deltaColor }}>
               {data.revenueDeltaPct === null
@@ -168,12 +168,12 @@ function RevenueCard({
                     borderRadius: 2,
                     background: isCurrent
                       ? "linear-gradient(180deg, #f59e0b 0%, #d97706 100%)"
-                      : "linear-gradient(180deg, rgba(15,23,42,0.18) 0%, rgba(15,23,42,0.08) 100%)",
+                      : "linear-gradient(180deg, rgba(28,27,24,0.18) 0%, rgba(28,27,24,0.08) 100%)",
                     transition: `background 300ms ${ES}`,
                   }}
                 />
                 <span
-                  className="pointer-events-none absolute -top-7 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg group-hover:opacity-100"
+                  className="pointer-events-none absolute -top-7 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg group-hover:opacity-100"
                   style={{ transition: `opacity 160ms ${ES}` }}
                 >
                   {monthHumanShort(b.month)} · {ready ? fm(b.revenue) : "—"}
@@ -188,7 +188,7 @@ function RevenueCard({
       {!loading && data && bars.length > 0 && (
         <div
           className="mt-1 flex justify-between text-[9px] uppercase tracking-wider"
-          style={{ color: "rgba(15,23,42,0.4)" }}
+          style={{ color: "rgba(28,27,24,0.4)" }}
         >
           <span>{monthHumanShort(bars[0].month)}</span>
           {bars.length >= 7 && (
@@ -219,14 +219,14 @@ function CostosCard({
     <section
       className="relative overflow-hidden rounded-2xl border bg-white p-5"
       style={{
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: "rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08)",
       }}
     >
       <div
         className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-        style={{ color: "rgba(15,23,42,0.5)" }}
+        style={{ color: "rgba(28,27,24,0.5)" }}
       >
         Costos YTD
       </div>
@@ -235,7 +235,7 @@ function CostosCard({
 
       {!loading && data && (
         <div
-          className="mt-1 text-2xl font-bold tracking-tight text-slate-900 tabular-nums"
+          className="mt-1 text-2xl font-bold tracking-tight text-ink tabular-nums"
           style={{ letterSpacing: "-0.025em" }}
         >
           {ready ? fm(data.costosYTD) : "—"}
@@ -244,7 +244,7 @@ function CostosCard({
 
       <p
         className="mt-2 text-[11px] leading-relaxed"
-        style={{ color: "rgba(15,23,42,0.55)" }}
+        style={{ color: "rgba(28,27,24,0.55)" }}
       >
         COGS + envíos + ads + costos manuales. Ver desglose en{" "}
         <span className="font-semibold">Costos</span>.
@@ -253,15 +253,15 @@ function CostosCard({
       {/* Visual: barras horizontales placeholder bonitas */}
       <div className="mt-4 space-y-1.5">
         {[
-          { label: "COGS", frac: 0.55, color: "#94a3b8" },
-          { label: "Envíos", frac: 0.15, color: "#cbd5e1" },
+          { label: "COGS", frac: 0.55, color: "#83807A" },
+          { label: "Envíos", frac: 0.15, color: "#DCD8CD" },
           { label: "Ads", frac: 0.2, color: "#d97706" },
           { label: "Manual", frac: 0.1, color: "#a78bfa" },
         ].map((row) => (
           <div key={row.label} className="flex items-center gap-2">
             <span
               className="w-14 text-[9px] font-semibold uppercase tracking-wider"
-              style={{ color: "rgba(15,23,42,0.4)" }}
+              style={{ color: "rgba(28,27,24,0.4)" }}
             >
               {row.label}
             </span>
@@ -270,7 +270,7 @@ function CostosCard({
               style={{
                 height: 6,
                 borderRadius: 999,
-                background: "rgba(15,23,42,0.05)",
+                background: "rgba(28,27,24,0.05)",
               }}
             >
               <div
@@ -288,7 +288,7 @@ function CostosCard({
       </div>
       <p
         className="mt-2 text-[10px] italic"
-        style={{ color: "rgba(15,23,42,0.4)" }}
+        style={{ color: "rgba(28,27,24,0.4)" }}
       >
         Distribución aproximada — desglose exacto en Fase 2.
       </p>
@@ -336,14 +336,14 @@ function MarginCard({
     <section
       className="relative overflow-hidden rounded-2xl border bg-white p-5"
       style={{
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: "rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08)",
       }}
     >
       <div
         className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-        style={{ color: "rgba(15,23,42,0.5)" }}
+        style={{ color: "rgba(28,27,24,0.5)" }}
       >
         Margen bruto YTD
       </div>
@@ -357,7 +357,7 @@ function MarginCard({
               cx="46"
               cy="46"
               r={radius}
-              stroke="rgba(15,23,42,0.08)"
+              stroke="rgba(28,27,24,0.08)"
               strokeWidth="7"
               fill="none"
             />
@@ -379,7 +379,7 @@ function MarginCard({
               textAnchor="middle"
               fontSize="16"
               fontWeight="700"
-              fill="#0f172a"
+              fill="#1C1B18"
               style={{ letterSpacing: "-0.02em" }}
             >
               {pct.toFixed(1)}%
@@ -403,7 +403,7 @@ function MarginCard({
             </span>
             <span
               className="text-[11px] leading-relaxed"
-              style={{ color: "rgba(15,23,42,0.55)" }}
+              style={{ color: "rgba(28,27,24,0.55)" }}
             >
               (Revenue − COGS) / Revenue.
               <br />
@@ -438,7 +438,7 @@ function ShimmerBlock({
       style={{
         height,
         background:
-          "linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%)",
+          "linear-gradient(90deg, rgba(28,27,24,0.04) 0%, rgba(28,27,24,0.08) 50%, rgba(28,27,24,0.04) 100%)",
         backgroundSize: "200% 100%",
         animation: "r12Shimmer 1.4s ease-in-out infinite",
       }}

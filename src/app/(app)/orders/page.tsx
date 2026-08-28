@@ -70,7 +70,7 @@ interface OrdersData extends OrdersV4Namespaces {
 }
 
 // -- Constants --
-const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#94a3b8"];
+const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#83807A"];
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "#f59e0b", APPROVED: "#3b82f6", INVOICED: "#8b5cf6",
@@ -440,7 +440,7 @@ function OrdersPageInner() {
       status,
       label: STATUS_LABELS[status] || status,
       count: statusMap.get(status) || 0,
-      color: STATUS_COLORS[status] || "#94a3b8",
+      color: STATUS_COLORS[status] || "#83807A",
     }));
   }, [data?.statusBreakdown]);
 
@@ -792,8 +792,8 @@ function OrdersPageInner() {
                 <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.12} />
-                <stop offset="100%" stopColor="#94a3b8" stopOpacity={0} />
+                <stop offset="0%" stopColor="#83807A" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="#83807A" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorVtex" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ec4899" stopOpacity={0.18} />
@@ -840,7 +840,7 @@ function OrdersPageInner() {
             />
             {showComparison ? (
               <>
-                <Area type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 5" fill="url(#colorPrevious)" name="previous" />
+                <Area type="monotone" dataKey="previous" stroke="#83807A" strokeWidth={1.5} strokeDasharray="5 5" fill="url(#colorPrevious)" name="previous" />
                 <Area type="monotone" dataKey="current" stroke="#6366f1" strokeWidth={2.5} fill="url(#colorCurrent)" name="current" />
               </>
             ) : (
@@ -1199,14 +1199,14 @@ function OrdersPageInner() {
                   <div className="text-right flex-shrink-0 mr-3">
                     <p className="text-lg font-bold text-ink tabular-nums tracking-tight">{formatARS(order.totalValue)}</p>
                     {order.promotionNames && (
-                      <p className="text-[10px] text-purple-500 font-medium truncate max-w-[120px] text-right">{order.promotionNames}</p>
+                      <p className="text-[10px] text-ink-60 font-medium truncate max-w-[120px] text-right">{order.promotionNames}</p>
                     )}
                   </div>
 
                   {/* Status pill */}
                   <div className="flex-shrink-0">
                     <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide"
-                      style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}10`, color: STATUS_COLORS[order.status] || "#94a3b8", border: `1px solid ${STATUS_COLORS[order.status] || "#94a3b8"}20` }}>
+                      style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#83807A"}10`, color: STATUS_COLORS[order.status] || "#83807A", border: `1px solid ${STATUS_COLORS[order.status] || "#83807A"}20` }}>
                       {STATUS_LABELS[order.status] || order.status}
                     </span>
                   </div>
@@ -1242,7 +1242,7 @@ function OrdersPageInner() {
                 {/* ─── Expanded detail panel ─── */}
                 {isExpanded && (
                   <div className="border-t border-hairline/80" onClick={(e) => e.stopPropagation()}>
-                    <div className="bg-gradient-to-b from-slate-50/50 to-white px-6 py-5">
+                    <div className="bg-surface px-6 py-5">
 
                       {/* ─── PRODUCTS FIRST (hero section of expanded card) ─── */}
                       <div className="space-y-3 mb-6">
@@ -1320,7 +1320,7 @@ function OrdersPageInner() {
                             {order.promotionNames && (
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-ink-40 font-medium">Promo</span>
-                                <span className="text-xs text-purple-600 font-medium truncate max-w-[150px]">{order.promotionNames}</span>
+                                <span className="text-xs text-ink-60 font-medium truncate max-w-[150px]">{order.promotionNames}</span>
                               </div>
                             )}
                           </div>
@@ -1466,7 +1466,7 @@ function OrdersPageInner() {
             <div className="bg-surface rounded-xl w-full aspect-square flex items-center justify-center overflow-hidden relative">
               {/* Spinner while image loads */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-hairline border-t-slate-500 rounded-full" style={{ animation: "spin 0.8s linear infinite" }} />
+                <div className="w-6 h-6 border-2 border-hairline border-t-ink-40 rounded-full" style={{ animation: "spin 0.8s linear infinite" }} />
               </div>
               <img
                 src={(() => {

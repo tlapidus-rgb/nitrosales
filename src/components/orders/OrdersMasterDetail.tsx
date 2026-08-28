@@ -82,8 +82,8 @@ interface OrdersMasterDetailProps {
    Design system constants
    ═══════════════════════════════════════════════════════════════ */
 const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
-const SHADOW_CARD = "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.06)";
-const SHADOW_ELEVATED = "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)";
+const SHADOW_CARD = "0 1px 0 rgba(28,27,24,0.04), 0 4px 12px -6px rgba(28,27,24,0.06)";
+const SHADOW_ELEVATED = "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.12), 0 22px 40px -28px rgba(28,27,24,0.10)";
 
 /* ═══════════════════════════════════════════════════════════════
    Brand logos — inline SVGs for pixel-perfect rendering
@@ -164,7 +164,7 @@ function OrderListItem({
   onClick: () => void;
 }) {
   const isMeli = order.source === "MELI";
-  const statusCfg = STATUS_CONFIG[order.status] || { label: order.status, color: "#94a3b8", bg: "bg-slate-50", icon: null };
+  const statusCfg = STATUS_CONFIG[order.status] || { label: order.status, color: "#83807A", bg: "bg-surface", icon: null };
   const firstItem = order.items?.[0];
 
   const dateShort = (() => {
@@ -201,12 +201,12 @@ function OrderListItem({
 
       <div
         className={`flex items-start gap-3 pl-4 pr-3 py-3.5 mx-1.5 rounded-xl ${
-          isSelected ? "" : "hover:bg-slate-50/80"
+          isSelected ? "" : "hover:bg-surface/80"
         }`}
         style={{
           transition: `all 180ms ${EASE}`,
           ...(isSelected ? {
-            background: "linear-gradient(135deg, rgba(15,23,42,0.03) 0%, rgba(15,23,42,0.015) 100%)",
+            background: "linear-gradient(135deg, rgba(28,27,24,0.03) 0%, rgba(28,27,24,0.015) 100%)",
           } : {}),
         }}
       >
@@ -214,10 +214,10 @@ function OrderListItem({
         <div className="relative flex-shrink-0">
           {firstItem?.imageUrl ? (
             <div
-              className="w-12 h-12 rounded-xl overflow-hidden bg-slate-50 mt-0.5"
+              className="w-12 h-12 rounded-xl overflow-hidden bg-surface mt-0.5"
               style={{
-                border: "1px solid rgba(15,23,42,0.06)",
-                boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                border: "1px solid rgba(28,27,24,0.06)",
+                boxShadow: "0 1px 3px rgba(28,27,24,0.06)",
               }}
             >
               <img src={firstItem.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -232,7 +232,7 @@ function OrderListItem({
                 border: `1px solid ${isMeli ? "rgba(234,179,8,0.2)" : "rgba(247,25,99,0.15)"}`,
               }}
             >
-              <Package size={16} className={isMeli ? "text-yellow-600" : "text-pink-500"} />
+              <Package size={16} className={isMeli ? "text-yellow-600" : "text-ink-40"} />
             </div>
           )}
           {/* Source logo badge — bottom-right corner */}
@@ -251,10 +251,10 @@ function OrderListItem({
         <div className="flex-1 min-w-0 pt-0.5">
           {/* Row 1: Product name + total */}
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[13px] font-semibold text-slate-800 truncate leading-tight tracking-tight">
+            <p className="text-[13px] font-semibold text-ink-60 truncate leading-tight tracking-tight">
               {firstItem?.name || "Sin detalle"}
             </p>
-            <span className="text-[13px] font-bold text-slate-900 tabular-nums flex-shrink-0 tracking-tight">
+            <span className="text-[13px] font-bold text-ink tabular-nums flex-shrink-0 tracking-tight">
               {formatARS(order.totalValue)}
             </span>
           </div>
@@ -275,11 +275,11 @@ function OrderListItem({
               />
               {statusCfg.label}
             </span>
-            <span className="text-[10px] text-slate-400 tabular-nums">
+            <span className="text-[10px] text-ink-40 tabular-nums">
               {order.itemCount} {order.itemCount > 1 ? "prod." : "prod."}
             </span>
             {isPickup && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-semibold leading-none bg-teal-50 text-teal-600 border border-teal-200/50">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-semibold leading-none bg-surface-2 text-ink-40 border border-hairline">
                 <MapPin size={8} /> Retiro
               </span>
             )}
@@ -287,14 +287,14 @@ function OrderListItem({
 
           {/* Row 3: Customer + date/time */}
           <div className="flex items-center justify-between gap-2 mt-1.5">
-            <span className="text-[11px] text-slate-400 truncate">
+            <span className="text-[11px] text-ink-40 truncate">
               {order.customerName !== "Cliente sin datos" && order.customerName !== "Cliente MercadoLibre"
                 ? order.customerName
                 : order.paymentMethod}
             </span>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-[10px] text-slate-400 tabular-nums">{dateShort}</span>
-              <span className="text-[10px] text-slate-300 tabular-nums">{timeStr}</span>
+              <span className="text-[10px] text-ink-40 tabular-nums">{dateShort}</span>
+              <span className="text-[10px] text-ink-40 tabular-nums">{timeStr}</span>
             </div>
           </div>
         </div>
@@ -302,7 +302,7 @@ function OrderListItem({
         {/* Chevron */}
         <ChevronRight
           size={14}
-          className="text-slate-300 flex-shrink-0 mt-2"
+          className="text-ink-40 flex-shrink-0 mt-2"
           style={{
             opacity: isSelected ? 1 : 0,
             transform: isSelected ? "translateX(0)" : "translateX(-4px)",
@@ -327,19 +327,19 @@ function DetailSection({ title, icon, children, className = "" }: {
     <div
       className={`rounded-2xl bg-white overflow-hidden ${className}`}
       style={{
-        border: "1px solid rgba(15,23,42,0.06)",
+        border: "1px solid rgba(28,27,24,0.06)",
         boxShadow: SHADOW_CARD,
       }}
     >
       <div
         className="flex items-center gap-2 px-5 py-3"
         style={{
-          borderBottom: "1px solid rgba(15,23,42,0.05)",
+          borderBottom: "1px solid rgba(28,27,24,0.05)",
           background: "linear-gradient(180deg, #fafbfc 0%, #f8f9fb 100%)",
         }}
       >
-        {icon && <span className="text-slate-400">{icon}</span>}
-        <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{title}</h3>
+        {icon && <span className="text-ink-40">{icon}</span>}
+        <h3 className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider">{title}</h3>
       </div>
       <div className="px-5 py-4">{children}</div>
     </div>
@@ -357,9 +357,9 @@ function MetricPill({ label, value, sub, color }: {
 }) {
   return (
     <div className="flex-1 min-w-0">
-      <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className={`text-lg font-bold tabular-nums tracking-tight ${color || "text-slate-900"}`}>{value}</p>
-      {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
+      <p className="text-[10px] font-medium text-ink-40 uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-lg font-bold tabular-nums tracking-tight ${color || "text-ink"}`}>{value}</p>
+      {sub && <p className="text-[10px] text-ink-40 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -377,7 +377,7 @@ function OrderDetailPanel({
   onClose: () => void;
 }) {
   const isMeli = order.source === "MELI";
-  const statusCfg = STATUS_CONFIG[order.status] || { label: order.status, color: "#94a3b8", bg: "bg-slate-50", icon: null };
+  const statusCfg = STATUS_CONFIG[order.status] || { label: order.status, color: "#83807A", bg: "bg-surface", icon: null };
 
   const dateFormatted = (() => {
     try {
@@ -438,7 +438,7 @@ function OrderDetailPanel({
         className="flex-shrink-0 px-6 py-5"
         style={{
           background: "linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
-          borderBottom: "1px solid rgba(15,23,42,0.06)",
+          borderBottom: "1px solid rgba(28,27,24,0.06)",
         }}
       >
         {/* Top row: source logo + status + close */}
@@ -459,7 +459,7 @@ function OrderDetailPanel({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-slate-100 text-slate-300 hover:text-slate-500"
+            className="p-2 rounded-xl hover:bg-surface-2 text-ink-40 hover:text-ink-40"
             style={{ transition: `all 180ms ${EASE}` }}
           >
             <X size={16} />
@@ -470,18 +470,18 @@ function OrderDetailPanel({
         <div className="flex items-end justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Hash size={13} className="text-slate-300" />
-              <h2 className="text-base font-bold text-slate-900 tracking-tight font-mono">
+              <Hash size={13} className="text-ink-40" />
+              <h2 className="text-base font-bold text-ink tracking-tight font-mono">
                 {order.externalId}
               </h2>
             </div>
-            <p className="text-[11px] text-slate-400 ml-[21px]">{dateFormatted}</p>
+            <p className="text-[11px] text-ink-40 ml-[21px]">{dateFormatted}</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-slate-900 tabular-nums tracking-tight">
+            <p className="text-2xl font-bold text-ink tabular-nums tracking-tight">
               {formatARS(order.totalValue)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
+            <p className="text-[10px] text-ink-40 mt-0.5 tabular-nums">
               {order.itemCount} item{order.itemCount !== 1 ? "s" : ""}
             </p>
           </div>
@@ -491,7 +491,7 @@ function OrderDetailPanel({
         <div
           className="flex items-center gap-1 mt-5 rounded-xl p-0.5"
           style={{
-            background: "linear-gradient(135deg, #f1f5f9 0%, #e8ecf1 100%)",
+            background: "linear-gradient(135deg, #EDEAE3 0%, #e8ecf1 100%)",
           }}
         >
           {(["comercial", "rentabilidad"] as const).map((tab) => (
@@ -500,12 +500,12 @@ function OrderDetailPanel({
               onClick={() => setDetailTab(tab)}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold tracking-wide ${
                 detailTab === tab
-                  ? "bg-white text-slate-900"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-white text-ink"
+                  : "text-ink-40 hover:text-ink-60"
               }`}
               style={{
                 transition: `all 180ms ${EASE}`,
-                ...(detailTab === tab ? { boxShadow: "0 1px 3px rgba(15,23,42,0.08)" } : {}),
+                ...(detailTab === tab ? { boxShadow: "0 1px 3px rgba(28,27,24,0.08)" } : {}),
               }}
             >
               {tab === "comercial" ? (
@@ -520,7 +520,7 @@ function OrderDetailPanel({
 
       {/* ─── Scrollable Content ─── */}
       <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+        style={{ scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}>
 
         {detailTab === "comercial" ? (
           <>
@@ -532,8 +532,8 @@ function OrderDetailPanel({
                     <div
                       className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden cursor-pointer group"
                       style={{
-                        border: "1px solid rgba(15,23,42,0.06)",
-                        boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+                        border: "1px solid rgba(28,27,24,0.06)",
+                        boxShadow: "0 1px 3px rgba(28,27,24,0.04)",
                         background: "#fafbfc",
                         transition: `all 220ms ${EASE}`,
                       }}
@@ -548,38 +548,38 @@ function OrderDetailPanel({
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Package size={16} className="text-slate-300" />
+                          <Package size={16} className="text-ink-40" />
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
-                      <p className="text-[13px] font-semibold text-slate-800 leading-tight tracking-tight">
+                      <p className="text-[13px] font-semibold text-ink-60 leading-tight tracking-tight">
                         {item.name || "Producto sin nombre"}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         {item.brand && (
-                          <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded leading-none">
+                          <span className="text-[10px] font-semibold text-ink-40 bg-surface-2 px-1.5 py-0.5 rounded leading-none">
                             {item.brand}
                           </span>
                         )}
-                        <span className="text-xs text-slate-400 tabular-nums">
+                        <span className="text-xs text-ink-40 tabular-nums">
                           {item.quantity} × {formatARS(item.unitPrice)}
                         </span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 pt-0.5">
-                      <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight">
+                      <p className="text-sm font-bold text-ink tabular-nums tracking-tight">
                         {formatARS(item.totalPrice)}
                       </p>
                       {item.costPrice != null && Number(item.costPrice) > 0 && (
-                        <p className="text-[10px] text-slate-400 tabular-nums mt-0.5">
+                        <p className="text-[10px] text-ink-40 tabular-nums mt-0.5">
                           Costo: {formatARS(Number(item.costPrice) * item.quantity)}
                         </p>
                       )}
                     </div>
                   </div>
                 )) : (
-                  <div className="flex items-center gap-2 py-3 text-slate-400">
+                  <div className="flex items-center gap-2 py-3 text-ink-40">
                     <Package size={16} />
                     <span className="text-sm italic">Sin detalle de productos</span>
                   </div>
@@ -588,10 +588,10 @@ function OrderDetailPanel({
                 {order.items.length > 1 && (
                   <div
                     className="flex items-center justify-between pt-3"
-                    style={{ borderTop: "1px solid rgba(15,23,42,0.05)" }}
+                    style={{ borderTop: "1px solid rgba(28,27,24,0.05)" }}
                   >
-                    <span className="text-xs font-medium text-slate-500">Subtotal ({order.items.length} productos)</span>
-                    <span className="text-sm font-bold text-slate-900 tabular-nums tracking-tight">{formatARS(subtotal)}</span>
+                    <span className="text-xs font-medium text-ink-40">Subtotal ({order.items.length} productos)</span>
+                    <span className="text-sm font-bold text-ink tabular-nums tracking-tight">{formatARS(subtotal)}</span>
                   </div>
                 )}
               </div>
@@ -603,10 +603,10 @@ function OrderDetailPanel({
                 <div className="space-y-2.5">
                   {hasPromo && (
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
-                        <Gift size={13} className="text-pink-500" />
+                      <div className="w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center flex-shrink-0">
+                        <Gift size={13} className="text-ink-40" />
                       </div>
-                      <span className="text-sm text-slate-700">{order.promotionNames}</span>
+                      <span className="text-sm text-ink-60">{order.promotionNames}</span>
                     </div>
                   )}
                   {discount > 0 && (
@@ -615,7 +615,7 @@ function OrderDetailPanel({
                         <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                           <Percent size={13} className="text-emerald-500" />
                         </div>
-                        <span className="text-sm text-slate-700">Descuento</span>
+                        <span className="text-sm text-ink-60">Descuento</span>
                       </div>
                       <span className="text-sm font-bold text-emerald-600 tabular-nums tracking-tight">
                         -{formatARS(discount)}
@@ -632,18 +632,18 @@ function OrderDetailPanel({
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{
-                    background: "linear-gradient(135deg, #f1f5f9 0%, #e8ecf1 100%)",
-                    border: "1px solid rgba(15,23,42,0.06)",
+                    background: "linear-gradient(135deg, #EDEAE3 0%, #e8ecf1 100%)",
+                    border: "1px solid rgba(28,27,24,0.06)",
                   }}
                 >
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="text-xs font-bold text-ink-40">
                     {order.customerName.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate tracking-tight">{order.customerName}</p>
+                  <p className="text-sm font-semibold text-ink-60 truncate tracking-tight">{order.customerName}</p>
                   {order.customerEmail && order.customerEmail !== "" && (
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{order.customerEmail}</p>
+                    <p className="text-xs text-ink-40 truncate mt-0.5">{order.customerEmail}</p>
                   )}
                 </div>
               </div>
@@ -652,34 +652,34 @@ function OrderDetailPanel({
             {/* Payment + Delivery */}
             <div className="grid grid-cols-2 gap-3">
               <DetailSection title="Pago" icon={<CreditCard size={13} />} className="col-span-1">
-                <p className="text-sm font-semibold text-slate-800 tracking-tight">{order.paymentMethod}</p>
+                <p className="text-sm font-semibold text-ink-60 tracking-tight">{order.paymentMethod}</p>
                 {order.channel && (
-                  <p className="text-xs text-slate-400 mt-1.5">Canal: {order.channel}</p>
+                  <p className="text-xs text-ink-40 mt-1.5">Canal: {order.channel}</p>
                 )}
               </DetailSection>
 
               {isPickup ? (
                 <DetailSection title="Retiro" icon={<MapPin size={13} />} className="col-span-1">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
-                      <MapPin size={12} className="text-teal-500" />
+                    <div className="w-6 h-6 rounded-lg bg-surface-2 flex items-center justify-center flex-shrink-0">
+                      <MapPin size={12} className="text-ink-40" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-800 tracking-tight">
+                      <p className="text-sm font-semibold text-ink-60 tracking-tight">
                         {order.pickupStoreName || "Sucursal"}
                       </p>
-                      <p className="text-[10px] text-teal-600 font-medium mt-0.5">Retiro en sucursal</p>
+                      <p className="text-[10px] text-ink-40 font-medium mt-0.5">Retiro en sucursal</p>
                     </div>
                   </div>
                 </DetailSection>
               ) : (
                 <DetailSection title="Envío" icon={<Truck size={13} />} className="col-span-1">
-                  <p className="text-sm font-bold text-slate-800 tabular-nums tracking-tight">{formatARS(shipping)}</p>
+                  <p className="text-sm font-bold text-ink-60 tabular-nums tracking-tight">{formatARS(shipping)}</p>
                   {order.deliveryType && (
-                    <p className="text-xs text-slate-400 mt-1">{order.deliveryType}</p>
+                    <p className="text-xs text-ink-40 mt-1">{order.deliveryType}</p>
                   )}
                   {order.shippingCarrier && (
-                    <p className="text-xs text-slate-400">{order.shippingCarrier}</p>
+                    <p className="text-xs text-ink-40">{order.shippingCarrier}</p>
                   )}
                 </DetailSection>
               )}
@@ -692,8 +692,8 @@ function OrderDetailPanel({
             <div
               className="rounded-2xl p-5"
               style={{
-                background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                border: "1px solid rgba(15,23,42,0.06)",
+                background: "linear-gradient(135deg, #F5F3EE 0%, #EDEAE3 100%)",
+                border: "1px solid rgba(28,27,24,0.06)",
                 boxShadow: SHADOW_CARD,
               }}
             >
@@ -721,35 +721,35 @@ function OrderDetailPanel({
             <DetailSection title="Cascada de ingresos" icon={<BarChart3 size={13} />}>
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Subtotal productos</span>
-                  <span className="text-sm font-semibold text-slate-900 tabular-nums">{formatARS(subtotal)}</span>
+                  <span className="text-sm text-ink-60">Subtotal productos</span>
+                  <span className="text-sm font-semibold text-ink tabular-nums">{formatARS(subtotal)}</span>
                 </div>
                 {shipping > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">+ Envío cobrado</span>
-                    <span className="text-sm font-medium text-slate-700 tabular-nums">+{formatARS(shipping)}</span>
+                    <span className="text-sm text-ink-60">+ Envío cobrado</span>
+                    <span className="text-sm font-medium text-ink-60 tabular-nums">+{formatARS(shipping)}</span>
                   </div>
                 )}
                 {discount > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">- Descuento</span>
+                    <span className="text-sm text-ink-60">- Descuento</span>
                     <span className="text-sm font-medium text-emerald-600 tabular-nums">-{formatARS(discount)}</span>
                   </div>
                 )}
                 <div
                   className="flex items-center justify-between pt-2.5"
-                  style={{ borderTop: "1px solid rgba(15,23,42,0.06)" }}
+                  style={{ borderTop: "1px solid rgba(28,27,24,0.06)" }}
                 >
-                  <span className="text-sm font-semibold text-slate-800">Total facturado</span>
-                  <span className="text-sm font-bold text-slate-900 tabular-nums">{formatARS(order.totalValue)}</span>
+                  <span className="text-sm font-semibold text-ink-60">Total facturado</span>
+                  <span className="text-sm font-bold text-ink tabular-nums">{formatARS(order.totalValue)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">- IVA 21%</span>
+                  <span className="text-sm text-ink-40">- IVA 21%</span>
                   <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(ivaAmount)}</span>
                 </div>
                 {isMeli && meliCommission > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">
+                    <span className="text-sm text-ink-40">
                       - Comisión ML {hasRealCommission ? `(${meliCommissionPct.toFixed(1)}%)` : "(~13% est.)"}
                     </span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(meliCommission)}</span>
@@ -757,13 +757,13 @@ function OrderDetailPanel({
                 )}
                 {isMeli && mlTaxWithholdings > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">- Retenciones ML (IIBB/IVA/Gan.)</span>
+                    <span className="text-sm text-ink-40">- Retenciones ML (IIBB/IVA/Gan.)</span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(mlTaxWithholdings)}</span>
                   </div>
                 )}
                 {realShipCost > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">
+                    <span className="text-sm text-ink-40">
                       - Costo envío{(order.realShippingCost || 0) > 0 ? " (tarifa real)" : ""}
                     </span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(realShipCost)}</span>
@@ -771,7 +771,7 @@ function OrderDetailPanel({
                 )}
                 {hasCostData && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">- Costo productos (COGS)</span>
+                    <span className="text-sm text-ink-40">- Costo productos (COGS)</span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(totalCogs)}</span>
                   </div>
                 )}
@@ -791,9 +791,9 @@ function OrderDetailPanel({
                 })()}
                 <div
                   className="flex items-center justify-between pt-2.5"
-                  style={{ borderTop: "2px dashed rgba(15,23,42,0.08)" }}
+                  style={{ borderTop: "2px dashed rgba(28,27,24,0.08)" }}
                 >
-                  <span className="text-sm font-bold text-slate-900">
+                  <span className="text-sm font-bold text-ink">
                     {hasCostData && hasRealCommission ? "Ganancia neta" : "Ingreso neto estimado"}
                   </span>
                   <span className={`text-base font-bold tabular-nums tracking-tight ${estimatedNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -807,12 +807,12 @@ function OrderDetailPanel({
             <div
               className="rounded-2xl p-5"
               style={{
-                border: "1px solid rgba(15,23,42,0.06)",
+                border: "1px solid rgba(28,27,24,0.06)",
                 boxShadow: SHADOW_CARD,
               }}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Margen estimado</span>
+                <span className="text-[10px] font-semibold text-ink-40 uppercase tracking-wider">Margen estimado</span>
                 <span className={`text-lg font-bold tabular-nums tracking-tight ${
                   estimatedMarginPct > 20 ? "text-emerald-600" : estimatedMarginPct > 10 ? "text-amber-600" : "text-red-600"
                 }`}>
@@ -821,7 +821,7 @@ function OrderDetailPanel({
               </div>
               <div
                 className="h-2 rounded-full overflow-hidden"
-                style={{ background: "linear-gradient(90deg, #f1f5f9 0%, #e8ecf1 100%)" }}
+                style={{ background: "linear-gradient(90deg, #EDEAE3 0%, #e8ecf1 100%)" }}
               >
                 <div
                   className="h-full rounded-full"
@@ -836,7 +836,7 @@ function OrderDetailPanel({
                   }}
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-2.5 leading-relaxed">
+              <p className="text-[10px] text-ink-40 mt-2.5 leading-relaxed">
                 {isMeli
                   ? "Estimación basada en comisión ML ~13% + IVA 21%. No incluye COGS."
                   : "Estimación basada en IVA 21%. Para margen real, cargar costos de producto."}
@@ -865,15 +865,15 @@ function EmptyDetailState() {
       <div
         className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
         style={{
-          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-          border: "1px solid rgba(15,23,42,0.06)",
+          background: "linear-gradient(135deg, #F5F3EE 0%, #EDEAE3 100%)",
+          border: "1px solid rgba(28,27,24,0.06)",
           boxShadow: SHADOW_CARD,
         }}
       >
-        <Eye size={22} className="text-slate-300" />
+        <Eye size={22} className="text-ink-40" />
       </div>
-      <p className="text-sm font-semibold text-slate-500 mb-1 tracking-tight">Seleccioná un pedido</p>
-      <p className="text-xs text-slate-400 max-w-[220px] leading-relaxed">
+      <p className="text-sm font-semibold text-ink-40 mb-1 tracking-tight">Seleccioná un pedido</p>
+      <p className="text-xs text-ink-40 max-w-[220px] leading-relaxed">
         Hacé clic en cualquier pedido de la lista para ver sus detalles completos
       </p>
     </div>
@@ -927,7 +927,7 @@ export default function OrdersMasterDetail({
       style={{
         height: "calc(100vh - 140px)",
         minHeight: "560px",
-        border: "1px solid rgba(15,23,42,0.06)",
+        border: "1px solid rgba(28,27,24,0.06)",
         boxShadow: SHADOW_ELEVATED,
       }}
     >
@@ -936,30 +936,30 @@ export default function OrdersMasterDetail({
         className="flex-shrink-0"
         style={{
           background: "linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
-          borderBottom: "1px solid rgba(15,23,42,0.06)",
+          borderBottom: "1px solid rgba(28,27,24,0.06)",
         }}
       >
         {/* Compact KPIs strip — single line, minimal height */}
         {billingKpis && (
           <div
             className="px-5 py-2.5 flex items-center gap-6"
-            style={{ borderBottom: "1px solid rgba(15,23,42,0.04)" }}
+            style={{ borderBottom: "1px solid rgba(28,27,24,0.04)" }}
           >
             {/* Revenue — with small icon */}
             <div className="flex items-center gap-2">
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{
-                  background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-                  boxShadow: "0 1px 4px rgba(15,23,42,0.25)",
+                  background: "linear-gradient(135deg, #1C1B18 0%, #1C1B18 100%)",
+                  boxShadow: "0 1px 4px rgba(28,27,24,0.25)",
                 }}
               >
                 <DollarSign size={13} className="text-white" />
               </div>
               <div>
-                <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Facturación</p>
+                <p className="text-[9px] font-medium text-ink-40 uppercase tracking-wider leading-none">Facturación</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight leading-none">
+                  <p className="text-sm font-bold text-ink tabular-nums tracking-tight leading-none">
                     {formatCompact(billingKpis.totalRevenue)}
                   </p>
                   <InlineChange value={billingKpis.changes?.revenue} />
@@ -967,34 +967,34 @@ export default function OrdersMasterDetail({
               </div>
             </div>
 
-            <div className="w-px h-8 bg-slate-100" />
+            <div className="w-px h-8 bg-surface-2" />
 
             <div>
-              <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Órdenes</p>
+              <p className="text-[9px] font-medium text-ink-40 uppercase tracking-wider leading-none">Órdenes</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight leading-none">
+                <p className="text-sm font-bold text-ink tabular-nums tracking-tight leading-none">
                   {billingKpis.totalOrders.toLocaleString("es-AR")}
                 </p>
                 <InlineChange value={billingKpis.changes?.orders} />
               </div>
             </div>
 
-            <div className="w-px h-8 bg-slate-100" />
+            <div className="w-px h-8 bg-surface-2" />
 
             <div>
-              <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Ticket</p>
+              <p className="text-[9px] font-medium text-ink-40 uppercase tracking-wider leading-none">Ticket</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight leading-none">
+                <p className="text-sm font-bold text-ink tabular-nums tracking-tight leading-none">
                   {formatARS(billingKpis.avgTicket)}
                 </p>
                 <InlineChange value={billingKpis.changes?.avgTicket} />
               </div>
             </div>
 
-            <div className="w-px h-8 bg-slate-100" />
+            <div className="w-px h-8 bg-surface-2" />
 
             <div>
-              <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Descuentos</p>
+              <p className="text-[9px] font-medium text-ink-40 uppercase tracking-wider leading-none">Descuentos</p>
               <p className="text-sm font-bold text-emerald-600 tabular-nums tracking-tight leading-none mt-0.5">
                 -{formatCompact(billingKpis.totalDiscounts)}
               </p>
@@ -1006,13 +1006,13 @@ export default function OrdersMasterDetail({
         <div className="px-5 py-2 flex items-center gap-3 flex-wrap">
           {/* Search */}
           <div className="relative w-52">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-40" />
             <input
               type="text"
               placeholder="Buscar orden, cliente..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-[11px] text-slate-700 bg-white/80 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+              className="w-full pl-8 pr-3 py-1.5 border border-hairline rounded-lg text-[11px] text-ink-60 bg-white/80 placeholder:text-ink-40 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30/10"
               style={{ transition: `all 220ms ${EASE}` }}
             />
           </div>
@@ -1021,8 +1021,8 @@ export default function OrdersMasterDetail({
           <div
             className="flex items-center rounded-xl p-[3px] gap-[2px]"
             style={{
-              background: "linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)",
-              border: "1px solid rgba(15,23,42,0.06)",
+              background: "linear-gradient(135deg, #EDEAE3 0%, #E5E1D8 100%)",
+              border: "1px solid rgba(28,27,24,0.06)",
             }}
           >
             {(["ALL", "VTEX", "MELI"] as const).map((s) => {
@@ -1033,19 +1033,19 @@ export default function OrdersMasterDetail({
                   onClick={() => onSourceFilterChange(s)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold ${
                     isActive
-                      ? "bg-white text-slate-900"
-                      : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                      ? "bg-white text-ink"
+                      : "text-ink-40 hover:text-ink-60 hover:bg-white/50"
                   }`}
                   style={{
                     transition: `all 200ms ${EASE}`,
                     ...(isActive ? {
-                      boxShadow: "0 1px 3px rgba(15,23,42,0.1), 0 1px 2px rgba(15,23,42,0.06)",
+                      boxShadow: "0 1px 3px rgba(28,27,24,0.1), 0 1px 2px rgba(28,27,24,0.06)",
                     } : {}),
                   }}
                 >
                   {s === "VTEX" && <VtexLogo size={18} />}
                   {s === "MELI" && <MeliLogo size={18} />}
-                  {s === "ALL" && <Layers size={13} className="text-slate-400" />}
+                  {s === "ALL" && <Layers size={13} className="text-ink-40" />}
                   {s === "ALL" ? "Todos" : s === "MELI" ? "Mercado Libre" : "VTEX"}
                 </button>
               );
@@ -1064,8 +1064,8 @@ export default function OrdersMasterDetail({
                   onClick={() => onStatusChange(isActive ? null : s.status)}
                   className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold ${
                     isActive
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                      ? "bg-ink text-white"
+                      : "text-ink-40 hover:text-ink-60 hover:bg-surface"
                   }`}
                   style={{
                     transition: `all 180ms ${EASE}`,
@@ -1083,7 +1083,7 @@ export default function OrdersMasterDetail({
           </div>
 
           {/* Count */}
-          <div className="ml-auto text-[11px] text-slate-400 tabular-nums flex-shrink-0 font-medium">
+          <div className="ml-auto text-[11px] text-ink-40 tabular-nums flex-shrink-0 font-medium">
             {totalCount.toLocaleString("es-AR")} órdenes
           </div>
         </div>
@@ -1094,7 +1094,7 @@ export default function OrdersMasterDetail({
         {/* Left — Order List */}
         <div
           className="w-[50%] min-w-[380px] flex flex-col bg-white"
-          style={{ borderRight: "1px solid rgba(15,23,42,0.06)" }}
+          style={{ borderRight: "1px solid rgba(28,27,24,0.06)" }}
         >
           <div ref={listRef} className="flex-1 overflow-y-auto py-1"
             style={{ scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}>
@@ -1111,12 +1111,12 @@ export default function OrdersMasterDetail({
             ) : orders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div
-                  className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-3"
+                  className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center mb-3"
                   style={{ boxShadow: SHADOW_CARD }}
                 >
-                  <Package size={20} className="text-slate-300" />
+                  <Package size={20} className="text-ink-40" />
                 </div>
-                <p className="text-sm font-medium text-slate-400">No hay pedidos</p>
+                <p className="text-sm font-medium text-ink-40">No hay pedidos</p>
               </div>
             ) : (
               orders.map((order) => (
@@ -1135,26 +1135,26 @@ export default function OrdersMasterDetail({
             <div
               className="flex-shrink-0 flex items-center justify-between px-5 py-3"
               style={{
-                borderTop: "1px solid rgba(15,23,42,0.05)",
+                borderTop: "1px solid rgba(28,27,24,0.05)",
                 background: "linear-gradient(180deg, #fafbfc 0%, #f8f9fb 100%)",
               }}
             >
               <button
                 onClick={() => onPageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage <= 1}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-ink-60 hover:text-ink hover:bg-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ transition: `all 180ms ${EASE}` }}
               >
                 <ChevronLeft size={14} />
                 Anterior
               </button>
-              <span className="text-[11px] text-slate-400 tabular-nums font-medium">
+              <span className="text-[11px] text-ink-40 tabular-nums font-medium">
                 {currentPage} / {totalPages}
               </span>
               <button
                 onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage >= totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-ink-60 hover:text-ink hover:bg-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ transition: `all 180ms ${EASE}` }}
               >
                 Siguiente

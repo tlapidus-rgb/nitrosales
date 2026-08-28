@@ -59,7 +59,7 @@ export default function ExportMenu({ onPDF, onExcel, disabled = false }: ExportM
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled || busy}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-elevated border border-hairline text-ink-60 hover:bg-surface hover:border-hairline-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Exportar P&L"
@@ -75,37 +75,37 @@ export default function ExportMenu({ onPDF, onExcel, disabled = false }: ExportM
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-1.5 w-52 z-30 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden"
-          style={{ boxShadow: "0 12px 32px -12px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(15, 23, 42, 0.04)" }}
+          className="absolute right-0 top-full mt-1.5 w-52 z-30 bg-elevated rounded-xl shadow-lg border border-hairline overflow-hidden"
+          style={{ boxShadow: "0 12px 32px -12px rgba(28, 27, 24, 0.2), 0 0 0 1px rgba(28, 27, 24, 0.04)" }}
         >
           <button
             type="button"
             role="menuitem"
             onClick={handlePDF}
-            className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-slate-50 transition"
+            className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-surface transition"
           >
             <FileText className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
             <div>
-              <p className="text-xs font-medium text-slate-700">PDF</p>
-              <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+              <p className="text-xs font-medium text-ink-60">PDF</p>
+              <p className="text-[10px] text-ink-40 leading-tight mt-0.5">
                 Imprimir o guardar como PDF
               </p>
             </div>
           </button>
 
-          <div className="border-t border-slate-100" />
+          <div className="border-t border-hairline" />
 
           <button
             type="button"
             role="menuitem"
             onClick={handleExcel}
             disabled={busy}
-            className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-slate-50 disabled:opacity-50 transition"
+            className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-surface disabled:opacity-50 transition"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
             <div>
-              <p className="text-xs font-medium text-slate-700">Excel (.xlsx)</p>
-              <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+              <p className="text-xs font-medium text-ink-60">Excel (.xlsx)</p>
+              <p className="text-[10px] text-ink-40 leading-tight mt-0.5">
                 P&L + composición + costos manuales
               </p>
             </div>

@@ -121,16 +121,15 @@ export default function BridgeStrip({ dateFrom, dateTo }: BridgeStripProps) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white"
+      className="relative overflow-hidden rounded-2xl border border-hairline bg-elevated"
       style={{
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
       }}
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-0.5"
-        style={{ background: `linear-gradient(90deg, ${healthColor}, #0ea5e9)` }}
+        className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-hairline"
       />
 
       <div className="flex flex-wrap items-center gap-4 p-5">
@@ -146,28 +145,28 @@ export default function BridgeStrip({ dateFrom, dateTo }: BridgeStripProps) {
             <Activity className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
               Bridge
             </div>
-            <div className="text-[13px] font-semibold tracking-tight text-slate-900">
+            <div className="text-[13px] font-semibold tracking-tight text-ink">
               Marketing ↔ P&L
             </div>
           </div>
         </div>
 
-        <div className="h-8 w-px bg-slate-200" />
+        <div className="h-8 w-px bg-hairline" />
 
         <MiniKPI
           icon={<Target className="h-3.5 w-3.5" />}
           label="CAC"
           value={noSpend ? "Sin spend" : fm(blendedCac)}
-          color="#8b5cf6"
+          color="#6B685F"
         />
         <MiniKPI
           icon={<Users className="h-3.5 w-3.5" />}
           label="LTV"
           value={fm(blendedLtv)}
-          color="#0ea5e9"
+          color="#6B685F"
         />
         <MiniKPI
           icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -193,7 +192,7 @@ export default function BridgeStrip({ dateFrom, dateTo }: BridgeStripProps) {
         <div className="ml-auto flex items-center gap-2">
           <Link
             href="/finanzas/pulso"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-elevated px-2.5 py-1 text-[11px] font-medium text-ink-60 transition hover:border-hairline-2 hover:bg-surface"
             style={{ transition: `all 160ms ${ES}` }}
           >
             Detalle en Pulso
@@ -201,7 +200,7 @@ export default function BridgeStrip({ dateFrom, dateTo }: BridgeStripProps) {
           </Link>
           <Link
             href="/bondly/clientes"
-            className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+            className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-ink-60 transition hover:border-hairline-2 hover:bg-surface"
             style={{ transition: `all 160ms ${ES}` }}
           >
             Clientes en Bondly
@@ -233,12 +232,12 @@ function MiniKPI({
         {icon}
       </div>
       <div>
-        <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ink-40">
           {label}
         </div>
         <div
           className="text-[13px] font-semibold tabular-nums tracking-tight"
-          style={{ color: "#0f172a" }}
+          style={{ color: "#1C1B18" }}
         >
           {value}
         </div>
@@ -249,7 +248,7 @@ function MiniKPI({
 
 function StripSkeleton() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="rounded-2xl border border-hairline bg-elevated p-5">
       <div className="flex flex-wrap items-center gap-4">
         {[...Array(5)].map((_, i) => (
           <div key={i} className="flex items-center gap-2">

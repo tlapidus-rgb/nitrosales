@@ -99,9 +99,9 @@ export default function MarketingFinanceCard({
     <section
       className="relative overflow-hidden rounded-2xl border bg-white"
       style={{
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: "rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08)",
         transition: `box-shadow 400ms ${ES}`,
       }}
     >
@@ -111,26 +111,26 @@ export default function MarketingFinanceCard({
           <div>
             <div
               className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-              style={{ color: "rgba(15,23,42,0.5)" }}
+              style={{ color: "rgba(28,27,24,0.5)" }}
             >
               Marketing Financiero
             </div>
             <h2
-              className="mt-1 text-lg font-bold tracking-tight text-slate-900"
+              className="mt-1 text-lg font-bold tracking-tight text-ink"
               style={{ letterSpacing: "-0.02em" }}
             >
               CAC vs LTV por canal
             </h2>
             <p
               className="mt-1 text-[12px] leading-relaxed"
-              style={{ color: "rgba(15,23,42,0.5)" }}
+              style={{ color: "rgba(28,27,24,0.5)" }}
             >
               Solo tienda VTEX. MELI no expone customer para rastrear LTV.
               Payback asume lifespan de 12 meses.
             </p>
             <a
               href="/bondly/clientes"
-              className="mt-2 inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-60 transition hover:border-hairline-2 hover:bg-surface"
               style={{ transition: `all 160ms ${ES}` }}
             >
               Ver clientes en Bondly →
@@ -187,7 +187,7 @@ export default function MarketingFinanceCard({
                 className="h-12 w-full rounded-lg"
                 style={{
                   background:
-                    "linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%)",
+                    "linear-gradient(90deg, rgba(28,27,24,0.04) 0%, rgba(28,27,24,0.08) 50%, rgba(28,27,24,0.04) 100%)",
                   backgroundSize: "200% 100%",
                   animation: "mfShimmer 1.4s ease-in-out infinite",
                 }}
@@ -200,11 +200,11 @@ export default function MarketingFinanceCard({
           <div
             className="mt-6 rounded-lg border border-dashed p-6 text-center text-sm"
             style={{
-              borderColor: "rgba(15,23,42,0.12)",
-              color: "rgba(15,23,42,0.55)",
+              borderColor: "rgba(28,27,24,0.12)",
+              color: "rgba(28,27,24,0.55)",
             }}
           >
-            <div className="font-semibold text-slate-700">
+            <div className="font-semibold text-ink-60">
               Sin datos suficientes todavía
             </div>
             <div className="mt-1 text-xs">
@@ -220,7 +220,7 @@ export default function MarketingFinanceCard({
               <thead>
                 <tr
                   className="text-[10px] uppercase tracking-[0.08em]"
-                  style={{ color: "rgba(15,23,42,0.45)" }}
+                  style={{ color: "rgba(28,27,24,0.45)" }}
                 >
                   <th className="py-2 pr-3 text-left font-semibold">Canal</th>
                   <th className="px-3 text-right font-semibold">CAC</th>
@@ -238,7 +238,7 @@ export default function MarketingFinanceCard({
                       key={row.channel}
                       className="border-t"
                       style={{
-                        borderColor: "rgba(15,23,42,0.05)",
+                        borderColor: "rgba(28,27,24,0.05)",
                         transition: `background 200ms ${ES}`,
                       }}
                     >
@@ -248,19 +248,19 @@ export default function MarketingFinanceCard({
                             className="inline-block h-1.5 w-1.5 rounded-full"
                             style={{ background: palette.fg }}
                           />
-                          <span className="font-medium text-slate-800">
+                          <span className="font-medium text-ink-60">
                             {row.channel}
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 text-right text-slate-700">
+                      <td className="px-3 text-right text-ink-60">
                         {row.cac > 0 ? (ready ? fm(row.cac) : "—") : (
-                          <span style={{ color: "rgba(15,23,42,0.35)" }}>
+                          <span style={{ color: "rgba(28,27,24,0.35)" }}>
                             sin spend
                           </span>
                         )}
                       </td>
-                      <td className="px-3 text-right font-medium text-slate-800">
+                      <td className="px-3 text-right font-medium text-ink-60">
                         {ready ? fm(row.ltv) : "—"}
                       </td>
                       <td className="px-3 text-right">
@@ -279,14 +279,14 @@ export default function MarketingFinanceCard({
                             {row.ltvCacRatio.toFixed(1)}×
                           </span>
                         ) : (
-                          <span style={{ color: "rgba(15,23,42,0.35)" }}>—</span>
+                          <span style={{ color: "rgba(28,27,24,0.35)" }}>—</span>
                         )}
                       </td>
-                      <td className="px-3 text-right text-slate-700">
+                      <td className="px-3 text-right text-ink-60">
                         {row.paybackMonths !== null
                           ? `${row.paybackMonths.toFixed(1)}m`
                           : (
-                            <span style={{ color: "rgba(15,23,42,0.35)" }}>
+                            <span style={{ color: "rgba(28,27,24,0.35)" }}>
                               —
                             </span>
                           )}
@@ -344,14 +344,14 @@ function SummaryStat({
     <span className="inline-flex items-center gap-1.5">
       <span
         className="text-[10px] font-semibold uppercase tracking-wider"
-        style={{ color: "rgba(15,23,42,0.45)" }}
+        style={{ color: "rgba(28,27,24,0.45)" }}
       >
         {label}
       </span>
       <span
         className="font-semibold"
         style={{
-          color: emphasize ? "#0f172a" : "rgba(15,23,42,0.8)",
+          color: emphasize ? "#1C1B18" : "rgba(28,27,24,0.8)",
           fontSize: emphasize ? 15 : 13,
         }}
       >
@@ -362,5 +362,5 @@ function SummaryStat({
 }
 
 function Divider() {
-  return <span style={{ color: "rgba(15,23,42,0.2)" }}>·</span>;
+  return <span style={{ color: "rgba(28,27,24,0.2)" }}>·</span>;
 }

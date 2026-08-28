@@ -37,9 +37,9 @@ export default function FinancialAlertsCard({
     <section
       className="relative overflow-hidden rounded-2xl border bg-white p-5 sm:p-6"
       style={{
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: "rgba(28,27,24,0.06)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.08)",
         transition: `box-shadow 400ms ${ES}`,
       }}
     >
@@ -48,12 +48,12 @@ export default function FinancialAlertsCard({
         <div>
           <div
             className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: "rgba(15,23,42,0.5)" }}
+            style={{ color: "rgba(28,27,24,0.5)" }}
           >
             Alertas financieras
           </div>
           <h2
-            className="mt-1 text-lg font-bold tracking-tight text-slate-900"
+            className="mt-1 text-lg font-bold tracking-tight text-ink"
             style={{ letterSpacing: "-0.02em" }}
           >
             Qué mirar hoy
@@ -63,9 +63,9 @@ export default function FinancialAlertsCard({
           <span
             className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
             style={{
-              background: "rgba(15,23,42,0.04)",
-              color: "rgba(15,23,42,0.6)",
-              border: "1px solid rgba(15,23,42,0.08)",
+              background: "rgba(28,27,24,0.04)",
+              color: "rgba(28,27,24,0.6)",
+              border: "1px solid rgba(28,27,24,0.08)",
             }}
           >
             {visible.length}
@@ -82,7 +82,7 @@ export default function FinancialAlertsCard({
               className="h-14 w-full rounded-lg"
               style={{
                 background:
-                  "linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%)",
+                  "linear-gradient(90deg, rgba(28,27,24,0.04) 0%, rgba(28,27,24,0.08) 50%, rgba(28,27,24,0.04) 100%)",
                 backgroundSize: "200% 100%",
                 animation: "faShimmer 1.4s ease-in-out infinite",
               }}
@@ -95,7 +95,7 @@ export default function FinancialAlertsCard({
       {!loading && visible.length === 0 && (
         <div
           className="mt-4 rounded-lg border border-dashed p-6 text-center"
-          style={{ borderColor: "rgba(15,23,42,0.12)" }}
+          style={{ borderColor: "rgba(28,27,24,0.12)" }}
         >
           <div
             className="mx-auto flex h-10 w-10 items-center justify-center rounded-full"
@@ -114,10 +114,10 @@ export default function FinancialAlertsCard({
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <div className="mt-3 text-sm font-semibold text-slate-800">
+          <div className="mt-3 text-sm font-semibold text-ink-60">
             Sin señales críticas hoy
           </div>
-          <div className="mt-1 text-xs" style={{ color: "rgba(15,23,42,0.55)" }}>
+          <div className="mt-1 text-xs" style={{ color: "rgba(28,27,24,0.55)" }}>
             Todo corriendo dentro de rangos saludables. Seguí con el plan.
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function FinancialAlertsCard({
                     </span>
                     <span
                       className="truncate text-[11px] uppercase tracking-wider"
-                      style={{ color: "rgba(15,23,42,0.45)" }}
+                      style={{ color: "rgba(28,27,24,0.45)" }}
                     >
                       {a.type}
                     </span>
@@ -172,7 +172,7 @@ export default function FinancialAlertsCard({
                   </div>
                   <div
                     className="mt-0.5 text-[12px] leading-relaxed"
-                    style={{ color: "rgba(15,23,42,0.72)" }}
+                    style={{ color: "rgba(28,27,24,0.72)" }}
                   >
                     {a.body}
                   </div>

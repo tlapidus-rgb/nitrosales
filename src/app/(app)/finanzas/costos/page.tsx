@@ -64,7 +64,7 @@ const CATEGORY_ACCENTS: Record<string, { icon: string; bg: string; bar: string }
   EQUIPO:          { icon: "text-indigo-600", bg: "bg-indigo-50", bar: "#6366f1" },
   PLATAFORMAS:     { icon: "text-violet-600", bg: "bg-violet-50", bar: "#a855f7" },
   FISCAL:          { icon: "text-blue-600",   bg: "bg-blue-50",   bar: "#3b82f6" },
-  INFRAESTRUCTURA: { icon: "text-slate-600",  bg: "bg-slate-50",  bar: "#64748b" },
+  INFRAESTRUCTURA: { icon: "text-ink-60",  bg: "bg-surface",  bar: "#6B685F" },
   MARKETING:       { icon: "text-pink-600",   bg: "bg-pink-50",   bar: "#ec4899" },
   MERMA:           { icon: "text-amber-600",  bg: "bg-amber-50",  bar: "#f59e0b" },
   OTROS:           { icon: "text-ink-60",   bg: "bg-surface",   bar: "#6b7280" },
@@ -1380,7 +1380,7 @@ export default function CostosPage() {
                             <button
                               onClick={saveFiscalProfile}
                               disabled={fiscalLoading}
-                              className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                              className="text-xs px-3 py-1.5 bg-surface-2 text-ink-60 rounded-lg hover:bg-surface transition-colors"
                             >
                               {fiscalLoading ? "..." : "Recalcular"}
                             </button>
@@ -1486,7 +1486,7 @@ export default function CostosPage() {
                           <select
                             value={fiscalForm.taxRegime}
                             onChange={e => setFiscalForm({ ...fiscalForm, taxRegime: e.target.value })}
-                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-accent focus:outline-none"
                           >
                             <option value="">Seleccionar...</option>
                             <option value="MONOTRIBUTO">Monotributo</option>
@@ -1500,7 +1500,7 @@ export default function CostosPage() {
                             <select
                               value={fiscalForm.monotributoCategory}
                               onChange={e => setFiscalForm({ ...fiscalForm, monotributoCategory: e.target.value })}
-                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-accent focus:outline-none"
                             >
                               {monotributoCategories.map(c => (
                                 <option key={c.category} value={c.category}>
@@ -1516,7 +1516,7 @@ export default function CostosPage() {
                           <select
                             value={fiscalForm.province}
                             onChange={e => setFiscalForm({ ...fiscalForm, province: e.target.value })}
-                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full text-ink-60 focus:border-accent focus:outline-none"
                           >
                             <option value="">Seleccionar...</option>
                             {fiscalProvinces.map(p => (
@@ -1533,7 +1533,7 @@ export default function CostosPage() {
                               type="checkbox"
                               checked={fiscalForm.sellsOnMarketplace}
                               onChange={e => setFiscalForm({ ...fiscalForm, sellsOnMarketplace: e.target.checked })}
-                              className="rounded border-hairline-2 text-blue-500 focus:ring-blue-400"
+                              className="rounded border-hairline-2 accent-ink focus:ring-accent/30"
                             />
                             <span className="text-xs text-ink-60">Vende en MercadoLibre</span>
                           </label>
@@ -1543,7 +1543,7 @@ export default function CostosPage() {
                                 type="checkbox"
                                 checked={fiscalForm.hasConvenioMultilateral}
                                 onChange={e => setFiscalForm({ ...fiscalForm, hasConvenioMultilateral: e.target.checked })}
-                                className="rounded border-hairline-2 text-blue-500 focus:ring-blue-400"
+                                className="rounded border-hairline-2 accent-ink focus:ring-accent/30"
                               />
                               <span className="text-xs text-ink-60">Convenio Multilateral</span>
                             </label>
@@ -1568,7 +1568,7 @@ export default function CostosPage() {
                                 }}
                                 className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
                                   (fiscalForm.additionalProvinces || []).includes(p.code)
-                                    ? "bg-blue-100 text-blue-700"
+                                    ? "bg-ink text-white"
                                     : "bg-surface-2 text-ink-60 hover:bg-surface-2"
                                 }`}
                               >
@@ -1594,15 +1594,15 @@ export default function CostosPage() {
 
                       {/* Generated taxes preview */}
                       {generatedTaxes.length > 0 && (
-                        <div className="mt-4 bg-elevated rounded-lg border border-blue-200 p-3">
+                        <div className="mt-4 bg-elevated rounded-lg border border-hairline p-3">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-blue-700">
+                            <span className="text-xs font-semibold text-ink-60">
                               Impuestos generados ({generatedTaxes.length})
                             </span>
                             <button
                               onClick={applyGeneratedTaxes}
                               disabled={fiscalLoading}
-                              className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium"
+                              className="text-xs px-3 py-1.5 bg-ink text-white rounded-lg hover:bg-ink/90 disabled:opacity-50 transition-colors font-medium"
                             >
                               {fiscalLoading ? "Aplicando..." : `Aplicar a ${costMonth}`}
                             </button>
@@ -1647,7 +1647,7 @@ export default function CostosPage() {
                         <select
                           value={selectedCarrier}
                           onChange={e => setSelectedCarrier(e.target.value)}
-                          className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none min-w-[220px]"
+                          className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-accent focus:outline-none min-w-[220px]"
                         >
                           <option value="">Seleccionar tipo de envio...</option>
                           {availableCarriers.map(c => (
@@ -1713,7 +1713,7 @@ export default function CostosPage() {
                           <button
                             onClick={() => setShippingFilter("")}
                             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                              !shippingFilter ? "bg-blue-100 text-blue-700" : "bg-surface-2 text-ink-60 hover:bg-surface-2"
+                              !shippingFilter ? "bg-ink text-white" : "bg-surface-2 text-ink-60 hover:bg-surface-2"
                             }`}
                           >
                             Todas ({shippingTotal})
@@ -1723,7 +1723,7 @@ export default function CostosPage() {
                               key={c.carrier}
                               onClick={() => setShippingFilter(c.carrier === shippingFilter ? "" : c.carrier)}
                               className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                                shippingFilter === c.carrier ? "bg-blue-100 text-blue-700" : "bg-surface-2 text-ink-60 hover:bg-surface-2"
+                                shippingFilter === c.carrier ? "bg-ink text-white" : "bg-surface-2 text-ink-60 hover:bg-surface-2"
                               }`}
                             >
                               {c.carrier} ({c.totalRates})
@@ -2097,7 +2097,7 @@ export default function CostosPage() {
                                       const val = e.target.value ? parseFloat(e.target.value) : null;
                                       if (val !== item.socialCharges) updateField(item.id, "socialCharges", val);
                                     }}
-                                    className="w-16 text-right text-sm font-mono border border-hairline rounded px-1.5 py-1 focus:border-blue-400 focus:outline-none"
+                                    className="w-16 text-right text-sm font-mono border border-hairline rounded px-1.5 py-1 focus:border-accent focus:outline-none"
                                   />
                                   <span className="text-xs text-ink-40 ml-1">%</span>
                                 </td>
@@ -2111,7 +2111,7 @@ export default function CostosPage() {
                                       updateField(item.id, "amount", e.target.value);
                                     }
                                   }}
-                                  className="w-28 text-right text-sm font-mono border border-hairline rounded px-2 py-1 focus:border-blue-400 focus:outline-none"
+                                  className="w-28 text-right text-sm font-mono border border-hairline rounded px-2 py-1 focus:border-accent focus:outline-none"
                                 />
                                 {item.rateType === "PERCENTAGE" && <span className="text-xs text-ink-40 ml-1">%</span>}
                               </td>
@@ -2186,7 +2186,7 @@ export default function CostosPage() {
                               placeholder={cat.key === "LOGISTICA" ? "Ej: Andreani" : "Ej: Operaciones"}
                               value={form.subcategory}
                               onChange={e => setForm({ ...form, subcategory: e.target.value })}
-                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-36 focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-36 focus:border-accent focus:outline-none"
                             />
                           </div>
                         )}
@@ -2198,7 +2198,7 @@ export default function CostosPage() {
                               placeholder="AND-STD-AMBA"
                               value={form.serviceCode}
                               onChange={e => setForm({ ...form, serviceCode: e.target.value.toUpperCase() })}
-                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-36 font-mono focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-36 font-mono focus:border-accent focus:outline-none"
                             />
                           </div>
                         )}
@@ -2209,7 +2209,7 @@ export default function CostosPage() {
                             placeholder={cat.key === "LOGISTICA" ? "Estandar AMBA" : cat.key === "EQUIPO" ? "Juan Perez" : "Nombre del costo"}
                             value={form.name}
                             onChange={e => setForm({ ...form, name: e.target.value })}
-                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 w-full focus:border-accent focus:outline-none"
                             autoFocus
                           />
                         </div>
@@ -2218,7 +2218,7 @@ export default function CostosPage() {
                           <select
                             value={form.rateType}
                             onChange={e => setForm({ ...form, rateType: e.target.value })}
-                            className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-accent focus:outline-none"
                           >
                             {cat.rateTypes.map(rt => (
                               <option key={rt} value={rt}>{RATE_TYPE_LABELS[rt]}</option>
@@ -2233,7 +2233,7 @@ export default function CostosPage() {
                           <select
                             value={form.behavior}
                             onChange={e => setForm({ ...form, behavior: e.target.value })}
-                            className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none"
+                            className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-accent focus:outline-none"
                           >
                             <option value="FIXED">{BEHAVIOR_LABELS.FIXED}</option>
                             <option value="VARIABLE">{BEHAVIOR_LABELS.VARIABLE}</option>
@@ -2259,7 +2259,7 @@ export default function CostosPage() {
                             <select
                               value={form.rateBase}
                               onChange={e => setForm({ ...form, rateBase: e.target.value })}
-                              className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 text-ink-60 focus:border-accent focus:outline-none"
                             >
                               <option value="">Seleccionar...</option>
                               {RATE_BASE_OPTIONS.map(o => (
@@ -2276,7 +2276,7 @@ export default function CostosPage() {
                               placeholder="35"
                               value={form.socialCharges}
                               onChange={e => setForm({ ...form, socialCharges: e.target.value })}
-                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-20 text-right font-mono focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-20 text-right font-mono focus:border-accent focus:outline-none"
                             />
                           </div>
                         )}
@@ -2292,7 +2292,7 @@ export default function CostosPage() {
                               placeholder="0"
                               value={form.amount}
                               onChange={e => setForm({ ...form, amount: e.target.value })}
-                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-28 text-right font-mono focus:border-blue-400 focus:outline-none"
+                              className="text-sm border border-hairline rounded-lg px-3 py-2 w-28 text-right font-mono focus:border-accent focus:outline-none"
                             />
                           </div>
                         )}
@@ -2344,7 +2344,7 @@ export default function CostosPage() {
                             behavior: defaultBehavior,
                           });
                         }}
-                        className="text-sm text-blue-500 hover:text-blue-700 font-medium"
+                        className="text-sm text-ink-60 hover:text-ink font-medium"
                       >
                         + Agregar {cat.key === "LOGISTICA" ? "tarifa" : cat.key === "EQUIPO" ? "persona" : "costo"}
                       </button>

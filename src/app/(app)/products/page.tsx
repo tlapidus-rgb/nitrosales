@@ -160,7 +160,7 @@ function StockBadge({ daysOfStock, stockHealth, stock }: { daysOfStock: number |
   if (stockHealth === "critical") bg = "bg-red-100 text-red-700 font-semibold";
   else if (stockHealth === "low") bg = "bg-amber-100 text-amber-700 font-semibold";
   else if (stockHealth === "optimal") bg = "bg-green-100 text-green-700";
-  else if (stockHealth === "excessive") bg = "bg-blue-100 text-blue-700";
+  else if (stockHealth === "excessive") bg = "bg-surface-2 text-ink-60";
   if (daysOfStock == null) return <span className={`px-2 py-1 text-xs rounded-md ${bg}`}>--</span>;
   if (daysOfStock > 365) return <span className={`px-2 py-1 text-xs rounded-md ${bg}`}>+365d</span>;
   return <span className={`px-2 py-1 text-xs rounded-md ${bg}`}>{Math.round(daysOfStock)}d</span>;
@@ -199,14 +199,14 @@ function StockChips({ active, onChange, counts }: { active: string; onChange: (k
     red: "bg-red-50 text-red-700 border-red-300",
     amber: "bg-amber-50 text-amber-700 border-amber-300",
     green: "bg-green-50 text-green-700 border-green-300",
-    blue: "bg-blue-50 text-blue-700 border-blue-300",
+    blue: "bg-surface-2 text-ink-60 border-hairline",
   };
   const activeColorMap: Record<string, string> = {
     gray: "bg-ink text-white border-ink",
     red: "bg-red-600 text-white border-red-600",
     amber: "bg-amber-500 text-white border-amber-500",
     green: "bg-green-600 text-white border-green-600",
-    blue: "bg-blue-600 text-white border-blue-600",
+    blue: "bg-ink text-white border-ink",
   };
   return (
     <div className="flex flex-wrap gap-2">
@@ -864,7 +864,7 @@ export default function ProductsPage() {
       { name: "Critico", value: stockSummary.criticalCount, color: "#ef4444" },
       { name: "Bajo", value: stockSummary.lowCount, color: "#f59e0b" },
       { name: "Optimo", value: stockSummary.optimalCount, color: "#10b981" },
-      { name: "Excesivo", value: stockSummary.excessiveCount, color: "#3b82f6" },
+      { name: "Excesivo", value: stockSummary.excessiveCount, color: "#83807A" },
       { name: "Muerto", value: stockSummary.deadCount, color: "#6b7280" },
     ];
   }, [stockSummary]);
@@ -1223,12 +1223,12 @@ export default function ProductsPage() {
           <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-ink"}`}>{stockHealthAlerts.critico}</p>
           <p className="text-[10px] text-ink-40 mt-0.5">menos de 7 días de stock</p>
         </div>
-        <div className="bg-elevated rounded-2xl border border-blue-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(59,130,246,0.14), 0 22px 40px -28px rgba(59,130,246,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
+        <div className="bg-elevated rounded-2xl border border-hairline p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.14), 0 22px 40px -28px rgba(28,27,24,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
           <div className="flex items-center gap-2 mb-1">
-            <Package className="w-4 h-4 text-blue-500" />
+            <Package className="w-4 h-4 text-ink-40" />
             <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">Sobrestock</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-ink"}`}>{stockHealthAlerts.sobrestock}</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sobrestock > 0 ? "text-ink-60" : "text-ink"}`}>{stockHealthAlerts.sobrestock}</p>
           <p className="text-[10px] text-ink-40 mt-0.5">más de 90 días de stock</p>
         </div>
         <div className="dash-card p-4">
@@ -1446,7 +1446,7 @@ export default function ProductsPage() {
                                 <div className="text-xs text-ink-40 mb-1">{p.sku || "--"}</div>
                                 <div className="flex gap-1.5">
                                   {p.brand && <span className="px-1.5 py-0.5 bg-surface-2 text-ink rounded text-[10px] font-medium">{p.brand}</span>}
-                                  {p.category && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded text-[10px] font-medium">{p.category}</span>}
+                                  {p.category && <span className="px-1.5 py-0.5 bg-surface-2 text-ink-60 rounded text-[10px] font-medium">{p.category}</span>}
                                 </div>
                               </div>
                             </div>
@@ -1648,7 +1648,7 @@ export default function ProductsPage() {
           {/* Stock KPIs */}
           {stockSummary && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <KpiCard icon={<Package size={16} className="text-blue-600" />} iconBg="bg-blue-50" label="Total en Stock" value={formatCompact(stockSummary.totalStockUnits)} subtitle="unidades" />
+              <KpiCard icon={<Package size={16} className="text-ink-60" />} iconBg="bg-surface" label="Total en Stock" value={formatCompact(stockSummary.totalStockUnits)} subtitle="unidades" />
               <KpiCard icon={<DollarSign size={16} className="text-green-600" />} iconBg="bg-green-50" label="Valor Inventario" value={formatARS(stockSummary.totalStockValue)} subtitle="capital" />
               <KpiCard icon={<AlertTriangle size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="En Riesgo" value={String(stockSummary.criticalCount + stockSummary.lowCount)} subtitle={`${stockSummary.criticalCount} critico, ${stockSummary.lowCount} bajo`} />
               <KpiCard icon={<Zap size={16} className="text-red-600" />} iconBg="bg-red-50" label="Stock Muerto" value={String(stockSummary.deadCount)} subtitle="sin venta" />

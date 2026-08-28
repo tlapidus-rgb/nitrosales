@@ -332,7 +332,7 @@ export default function ScenarioDriversDrawer({
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, rgba(15,23,42,0.45) 0%, rgba(15,23,42,0.55) 100%)",
+            "linear-gradient(180deg, rgba(28,27,24,0.45) 0%, rgba(28,27,24,0.55) 100%)",
           backdropFilter: "blur(4px)",
           animation: `fadeBg 240ms ${ES}`,
         }}
@@ -377,16 +377,16 @@ export default function ScenarioDriversDrawer({
                   </span>
                 )}
               </div>
-              <h2 className="mt-1.5 truncate text-2xl font-semibold tracking-tight text-slate-900">
+              <h2 className="mt-1.5 truncate text-2xl font-semibold tracking-tight text-ink">
                 {scenario.name}
               </h2>
-              <p className="mt-1 text-[13px] text-slate-500">
+              <p className="mt-1 text-[13px] text-ink-40">
                 Ajustá los drivers — el forecast se recalcula en vivo.
               </p>
             </div>
             <button
               onClick={() => !saving && onClose()}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hairline bg-white text-ink-40 hover:border-hairline-2 hover:text-ink-60"
               style={{ transition: `all 180ms ${ES}` }}
               aria-label="Cerrar"
               disabled={saving}
@@ -449,7 +449,7 @@ export default function ScenarioDriversDrawer({
         <div className="relative flex-1 overflow-y-auto px-6 py-6">
           {DRIVER_GROUPS.map((g) => (
             <section key={g.title} className="mb-7 last:mb-0">
-              <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
                 {g.title}
               </h3>
               <div className="space-y-4">
@@ -493,9 +493,9 @@ export default function ScenarioDriversDrawer({
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-ink-40">
               {dirty ? (
-                <span className="font-semibold text-slate-700">
+                <span className="font-semibold text-ink-60">
                   Cambios sin guardar
                 </span>
               ) : (
@@ -506,7 +506,7 @@ export default function ScenarioDriversDrawer({
               <button
                 onClick={handleDiscard}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-white px-3 py-1.5 text-sm font-medium text-ink-60 hover:border-hairline-2 hover:bg-surface disabled:opacity-50"
                 style={{ transition: `all 180ms ${ES}` }}
               >
                 Descartar
@@ -596,11 +596,11 @@ function DriverRow({
     >
       <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-800">
+          <div className="text-sm font-semibold text-ink-60">
             {meta.label}
           </div>
           {meta.sliderHint && (
-            <div className="text-[11px] leading-snug text-slate-500">
+            <div className="text-[11px] leading-snug text-ink-40">
               {meta.sliderHint}
             </div>
           )}
@@ -608,12 +608,12 @@ function DriverRow({
         <div className="shrink-0 text-right">
           <div
             className="text-base font-semibold tabular-nums tracking-tight"
-            style={{ color: "#0f172a" }}
+            style={{ color: "#1C1B18" }}
           >
             {formatDriverValue(driverKey, driver.value)}
           </div>
           {hasRange && (
-            <div className="text-[10px] tabular-nums text-slate-400">
+            <div className="text-[10px] tabular-nums text-ink-40">
               {driver.min !== undefined
                 ? formatDriverValue(driverKey, driver.min)
                 : "—"}{" "}
@@ -643,7 +643,7 @@ function DriverRow({
           }}
           aria-label={`${meta.label} slider`}
         />
-        <div className="mt-0.5 flex items-center justify-between text-[10px] tabular-nums text-slate-400">
+        <div className="mt-0.5 flex items-center justify-between text-[10px] tabular-nums text-ink-40">
           <span>{formatDriverValue(driverKey, min)}</span>
           <span>{formatDriverValue(driverKey, max)}</span>
         </div>
@@ -651,7 +651,7 @@ function DriverRow({
 
       {/* Input exacto + rango */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+        <label className="flex items-center gap-1.5 text-[11px] text-ink-40">
           Exacto
           <input
             type="number"
@@ -662,9 +662,9 @@ function DriverRow({
               if (!Number.isFinite(v)) return;
               onChange({ value: v });
             }}
-            className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-sm font-medium tabular-nums text-slate-800 focus:border-slate-400 focus:outline-none"
+            className="w-28 rounded-md border border-hairline bg-white px-2 py-1 text-right text-sm font-medium tabular-nums text-ink-60 focus:border-accent focus:outline-none"
           />
-          <span className="text-[11px] text-slate-400">{meta.unit}</span>
+          <span className="text-[11px] text-ink-40">{meta.unit}</span>
         </label>
 
         {meta.rangeable && (
@@ -672,7 +672,7 @@ function DriverRow({
             {!expanded && !hasRange && (
               <button
                 onClick={() => setExpanded(true)}
-                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-slate-300"
+                className="rounded-md border border-hairline bg-white px-2 py-1 text-[11px] font-medium text-ink-60 hover:border-hairline-2"
                 style={{ transition: `all 180ms ${ES}` }}
               >
                 + rango
@@ -701,7 +701,7 @@ function DriverRow({
                       onClearRange();
                       setExpanded(false);
                     }}
-                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-700"
+                    className="rounded-md border border-hairline bg-white px-2 py-1 text-[11px] font-medium text-ink-40 hover:text-ink-60"
                     style={{ transition: `all 180ms ${ES}` }}
                   >
                     Limpiar
@@ -716,7 +716,7 @@ function DriverRow({
       {/* Min/max inputs expandidos */}
       {meta.rangeable && (expanded || hasRange) && (
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-40">
             Min
             <input
               type="number"
@@ -729,10 +729,10 @@ function DriverRow({
                   min: raw === "" ? undefined : Number(raw),
                 });
               }}
-              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-sm font-medium tabular-nums text-slate-800 focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-hairline bg-white px-2 py-1 text-right text-sm font-medium tabular-nums text-ink-60 focus:border-accent focus:outline-none"
             />
           </label>
-          <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-40">
             Max
             <input
               type="number"
@@ -745,7 +745,7 @@ function DriverRow({
                   max: raw === "" ? undefined : Number(raw),
                 });
               }}
-              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-sm font-medium tabular-nums text-slate-800 focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-hairline bg-white px-2 py-1 text-right text-sm font-medium tabular-nums text-ink-60 focus:border-accent focus:outline-none"
             />
           </label>
         </div>
@@ -777,13 +777,13 @@ function PreviewKpi({
         backdropFilter: "blur(4px)",
       }}
     >
-      <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-ink-40">
         {label}
       </div>
       <div
         className="mt-0.5 truncate text-[15px] font-semibold tabular-nums"
         style={{
-          color: loading ? "#94a3b8" : accent ?? "#0f172a",
+          color: loading ? "#83807A" : accent ?? "#1C1B18",
           opacity: loading ? 0.6 : 1,
           transition: "color 200ms, opacity 200ms",
         }}

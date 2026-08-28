@@ -45,7 +45,7 @@ export function SectionGuard({ sectionKey, children }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-slate-500">
+      <div className="flex items-center justify-center py-20 text-ink-40">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
         Cargando…
       </div>
@@ -79,22 +79,22 @@ export function SectionGuard({ sectionKey, children }: Props) {
 
     return (
       <div className="max-w-xl mx-auto py-16 px-6">
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-8 text-center">
-          <div className="mx-auto mb-4 inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-100">
-            <Lock className="h-7 w-7 text-blue-600" />
+        <div className="rounded-2xl border border-hairline bg-surface p-8 text-center">
+          <div className="mx-auto mb-4 inline-flex items-center justify-center w-14 h-14 rounded-full bg-surface-2">
+            <Lock className="h-7 w-7 text-ink-40" />
           </div>
-          <h2 className="text-[18px] font-bold text-blue-900 mb-2">Conectá {integrationLabel} para ver esta sección</h2>
-          <p className="text-[13px] text-blue-800 leading-relaxed mb-5">
+          <h2 className="text-[18px] font-bold text-ink mb-2">Conectá {integrationLabel} para ver esta sección</h2>
+          <p className="text-[13px] text-ink-60 leading-relaxed mb-5">
             Esta sección muestra datos de {integrationLabel}. Una vez conectada, vuelve acá y la vas a ver activa.
           </p>
           <Link
             href={integrationPath}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-white font-semibold text-[13px]"
+            className="inline-flex items-center gap-2 rounded-lg bg-ink text-white hover:bg-ink/90 px-5 py-2.5 font-semibold text-[13px]"
           >
             Conectar {integrationLabel}
           </Link>
           {missing.length > 1 && (
-            <div className="mt-4 text-[11px] text-blue-700">
+            <div className="mt-4 text-[11px] text-ink-40">
               También podés conectar: {missing.slice(1).map((m) => INTEGRATION_LABEL[m] || m).join(", ")}
             </div>
           )}
@@ -105,7 +105,7 @@ export function SectionGuard({ sectionKey, children }: Props) {
 
   // Fallback (shouldn't happen)
   return (
-    <div className="flex items-center justify-center py-20 text-slate-500">
+    <div className="flex items-center justify-center py-20 text-ink-40">
       <AlertCircle className="h-5 w-5 mr-2" />
       Estado desconocido.
     </div>

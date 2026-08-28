@@ -251,7 +251,7 @@ export default function WaterfallHero({
             x2={chartWidth - BAR_GAP / 2}
             y1={zeroY}
             y2={zeroY}
-            stroke="rgba(15,23,42,0.10)"
+            stroke="rgba(28,27,24,0.10)"
             strokeWidth={1}
             strokeDasharray="3 3"
           />
@@ -276,7 +276,7 @@ export default function WaterfallHero({
               x2={toX}
               y1={prevTop}
               y2={thisStart}
-              stroke="rgba(15,23,42,0.16)"
+              stroke="rgba(28,27,24,0.16)"
               strokeWidth={1}
               strokeDasharray="2 4"
               style={{
@@ -346,8 +346,8 @@ export default function WaterfallHero({
                 style={{
                   transition: `stroke-opacity 220ms ${ES_EASING}, filter 220ms ${ES_EASING}`,
                   filter: isHovered
-                    ? "drop-shadow(0 6px 14px rgba(15,23,42,0.18))"
-                    : "drop-shadow(0 2px 4px rgba(15,23,42,0.06))",
+                    ? "drop-shadow(0 6px 14px rgba(28,27,24,0.18))"
+                    : "drop-shadow(0 2px 4px rgba(28,27,24,0.06))",
                 }}
               />
 
@@ -376,7 +376,7 @@ export default function WaterfallHero({
                 style={{
                   fontSize: 11,
                   fontWeight: 500,
-                  fill: "#475569",
+                  fill: "#6B685F",
                   letterSpacing: "0.01em",
                   pointerEvents: "none",
                 }}
@@ -419,10 +419,10 @@ export default function WaterfallHero({
             maxWidth: 240,
             background:
               "linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)",
-            border: "1px solid rgba(15,23,42,0.08)",
+            border: "1px solid rgba(28,27,24,0.08)",
             borderRadius: 12,
             boxShadow:
-              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.24), 0 18px 40px -24px rgba(15,23,42,0.18)",
+              "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.24), 0 18px 40px -24px rgba(28,27,24,0.18)",
             padding: "10px 14px",
             zIndex: 10,
             backdropFilter: "saturate(140%) blur(12px)",
@@ -435,7 +435,7 @@ export default function WaterfallHero({
               fontWeight: 700,
               letterSpacing: "0.18em",
               textTransform: "uppercase",
-              color: "#64748b",
+              color: "#6B685F",
             }}
           >
             {hovered.item.name}
@@ -446,7 +446,7 @@ export default function WaterfallHero({
               fontWeight: 700,
               fontFeatureSettings: '"tnum" 1, "lnum" 1',
               letterSpacing: "-0.02em",
-              color: "#0f172a",
+              color: "#1C1B18",
               marginTop: 2,
             }}
           >
@@ -457,7 +457,7 @@ export default function WaterfallHero({
               style={{
                 fontSize: 11,
                 fontWeight: 500,
-                color: "#64748b",
+                color: "#6B685F",
                 marginTop: 2,
                 fontFeatureSettings: '"tnum" 1',
               }}
@@ -472,7 +472,7 @@ export default function WaterfallHero({
               const barIsCost = hovered.kind === "negative";
               const goodColor = "#059669";
               const badColor = "#e11d48";
-              const neutralColor = "#64748b";
+              const neutralColor = "#6B685F";
               let color = neutralColor;
               if (delta.isBetter !== null) {
                 const isPositiveForBusiness = barIsCost ? !delta.isBetter : delta.isBetter;

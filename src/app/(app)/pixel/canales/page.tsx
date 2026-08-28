@@ -19,10 +19,10 @@ import { sourceGlossaryTip } from "@/lib/pixel/channel-glossary";
 
 // Enterprise sobrio (Linear/Vercel): elevación por BORDE, sombra apenas perceptible,
 // radios contenidos. Nada de halos de color ni esquinas muy redondeadas.
-const cardStyle = "bg-white rounded-xl border border-slate-200 transition-colors duration-200";
-const cardShadow = { boxShadow: "0 1px 2px 0 rgba(15,23,42,0.04)" };
+const cardStyle = "bg-white rounded-xl border border-hairline transition-colors duration-200";
+const cardShadow = { boxShadow: "0 1px 2px 0 rgba(28,27,24,0.04)" };
 // Foco de teclado visible (el reset global suprime el outline nativo).
-const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1";
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hairline focus-visible:ring-offset-1";
 const fmt = (n: number) => (n ?? 0).toLocaleString("es-AR");
 const plural = (n: number, sing: string, plu: string) => `${n} ${n === 1 ? sing : plu}`;
 
@@ -414,12 +414,12 @@ export default function Page() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-1">
-        <h1 className="text-lg font-semibold text-slate-900">Canales</h1>
-        <button onClick={refetch} className={`text-xs text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-2.5 py-1.5 transition-colors ${focusRing}`}>
+        <h1 className="text-lg font-semibold text-ink">Canales</h1>
+        <button onClick={refetch} className={`text-xs text-ink-40 hover:text-ink border border-hairline rounded-lg px-2.5 py-1.5 transition-colors ${focusRing}`}>
           Actualizar
         </button>
       </div>
-      <p className="text-[13px] text-slate-500 mb-5">
+      <p className="text-[13px] text-ink-40 mb-5">
         Agrupá los orígenes de tráfico en canales. Elegí un canal para ver y editar qué orígenes tiene.
       </p>
 
@@ -439,18 +439,18 @@ export default function Page() {
         <>
           <div className="flex items-center gap-5 mb-1">
             <div className="flex items-baseline gap-1.5" title="Porcentaje calculado sobre el tráfico ya asignado a un canal">
-              <span className="text-lg font-semibold text-slate-900 tabular-nums">{mapPct}%</span>
-              <span className="text-[11px] text-slate-500">cobertura</span>
+              <span className="text-lg font-semibold text-ink tabular-nums">{mapPct}%</span>
+              <span className="text-[11px] text-ink-40">cobertura</span>
             </div>
-            <div className="h-1 w-28 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-label="Cobertura de canales" aria-valuenow={mapPct} aria-valuemin={0} aria-valuemax={100}>
-              <div className="h-full rounded-full bg-slate-900 transition-all duration-500" style={{ width: `${Math.min(mapPct, 100)}%` }} />
+            <div className="h-1 w-28 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-label="Cobertura de canales" aria-valuenow={mapPct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-ink transition-all duration-500" style={{ width: `${Math.min(mapPct, 100)}%` }} />
             </div>
-            <div className="flex items-center gap-4 text-[11px] text-slate-500">
+            <div className="flex items-center gap-4 text-[11px] text-ink-40">
               <span className="tabular-nums">{plural(canalesReales.length, "canal", "canales")}</span>
               <span className="tabular-nums">{plural(sinMapearVisible.length, "origen sin clasificar", "orígenes sin clasificar")}</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 mb-5">Porcentaje calculado sobre el tráfico ya asignado a un canal.</p>
+          <p className="text-[11px] text-ink-40 mb-5">Porcentaje calculado sobre el tráfico ya asignado a un canal.</p>
         </>
       )}
 
@@ -491,12 +491,12 @@ export default function Page() {
           <div className={`${cardStyle} p-5 flex flex-col`} style={cardShadow}>
             <div className="flex items-start justify-between mb-3 gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Tus canales</h2>
-                <p className="text-[11px] text-slate-500 mt-0.5">Cada canal agrupa varios orígenes bajo un nombre.</p>
+                <h2 className="text-sm font-semibold text-ink">Tus canales</h2>
+                <p className="text-[11px] text-ink-40 mt-0.5">Cada canal agrupa varios orígenes bajo un nombre.</p>
               </div>
               <button
                 onClick={() => setCreando(true)}
-                className={`text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors shrink-0 rounded ${focusRing}`}
+                className={`text-[11px] font-medium text-ink-40 hover:text-ink transition-colors shrink-0 rounded ${focusRing}`}
                 title="Crear un canal nuevo"
               >
                 + Crear canal
@@ -513,13 +513,13 @@ export default function Page() {
                     if (e.key === "Escape") { setCreando(false); setNuevoCanal(""); }
                   }}
                   placeholder="Nombre del canal…"
-                  className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-500"
+                  className="flex-1 min-w-0 text-xs border border-hairline rounded-lg px-2.5 py-1.5 bg-surface/50 focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent placeholder-ink-40"
                 />
-                <button onClick={crearCanal} disabled={!nuevoCanal.trim()} className={`text-xs font-medium rounded-lg px-2.5 py-1.5 transition-colors ${focusRing} ${nuevoCanal.trim() ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-slate-100 text-slate-400 cursor-default"}`}>Crear</button>
-                <button onClick={() => { setCreando(false); setNuevoCanal(""); }} className={`text-xs text-slate-500 hover:text-slate-800 px-1 rounded ${focusRing}`} title="Cancelar" aria-label="Cancelar">✕</button>
+                <button onClick={crearCanal} disabled={!nuevoCanal.trim()} className={`text-xs font-medium rounded-lg px-2.5 py-1.5 transition-colors ${focusRing} ${nuevoCanal.trim() ? "bg-ink hover:bg-ink/90 text-white" : "bg-surface-2 text-ink-40 cursor-default"}`}>Crear</button>
+                <button onClick={() => { setCreando(false); setNuevoCanal(""); }} className={`text-xs text-ink-40 hover:text-ink px-1 rounded ${focusRing}`} title="Cancelar" aria-label="Cancelar">✕</button>
               </div>
             )}
-            <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-0.5" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+            <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-0.5" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}>
               <ItemCanal
                 nombre="Sin clasificar"
                 visitantes={sinMapearVisible.reduce((a: number, s: any) => a + (s.visitantes || 0), 0)}
@@ -528,9 +528,9 @@ export default function Page() {
                 muted
                 onClick={() => setSelected(null)}
               />
-              <div className="h-px bg-slate-100 my-1.5" />
+              <div className="h-px bg-surface-2 my-1.5" />
               {canalesListado.length === 0 ? (
-                <div className="text-center text-slate-500 py-6 text-xs">Todavía no hay canales resueltos</div>
+                <div className="text-center text-ink-40 py-6 text-xs">Todavía no hay canales resueltos</div>
               ) : (
                 canalesListado.map((c: any) => (
                   <ItemCanal
@@ -553,15 +553,15 @@ export default function Page() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-900">Sin clasificar</h2>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Asigná cada origen a un canal para agruparlos.</p>
+                    <h2 className="text-sm font-semibold text-ink">Sin clasificar</h2>
+                    <p className="text-[11px] text-ink-40 mt-0.5">Asigná cada origen a un canal para agruparlos.</p>
                   </div>
-                  <label className="flex items-center gap-1.5 text-[11px] text-slate-500 shrink-0">
+                  <label className="flex items-center gap-1.5 text-[11px] text-ink-40 shrink-0">
                     mín.
                     <select
                       value={minVis}
                       onChange={(e) => setMinVis(Number(e.target.value))}
-                      className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 text-slate-600"
+                      className="text-[11px] border border-hairline rounded-lg px-2 py-1 bg-surface/50 focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent text-ink-60"
                     >
                       <option value={1}>todos</option>
                       <option value={2}>≥ 2 visitas</option>
@@ -572,30 +572,30 @@ export default function Page() {
                 </div>
                 {/* Barra de acción en lote: aparece al seleccionar ≥1 origen. */}
                 {seleccion.size > 0 && (
-                  <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-white border border-slate-200" style={cardShadow}>
-                    <span className="text-[11px] font-medium text-slate-600 tabular-nums shrink-0 pl-1">{seleccion.size} sel.</span>
+                  <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-white border border-hairline" style={cardShadow}>
+                    <span className="text-[11px] font-medium text-ink-60 tabular-nums shrink-0 pl-1">{seleccion.size} sel.</span>
                     <input
                       list="canales-existentes"
                       value={bulkCanal}
                       onChange={(e) => setBulkCanal(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && asignarLote(bulkCanal)}
                       placeholder="Asignar a canal…"
-                      className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-500"
+                      className="flex-1 min-w-0 text-xs border border-hairline rounded-lg px-2.5 py-1.5 bg-surface/50 focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent placeholder-ink-40"
                     />
-                    <button disabled={!bulkCanal.trim()} onClick={() => asignarLote(bulkCanal)} className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${focusRing} ${bulkCanal.trim() ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-slate-100 text-slate-400 cursor-default"}`}>Asignar</button>
-                    <button onClick={() => asignarLote(CATCH)} title="Excluir los seleccionados (→ Otros orígenes)" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors ${focusRing}`}>Excluir</button>
-                    <button onClick={() => setSeleccion(new Set())} title="Limpiar selección" aria-label="Limpiar selección" className={`text-xs text-slate-500 hover:text-slate-800 px-1 rounded ${focusRing}`}>✕</button>
+                    <button disabled={!bulkCanal.trim()} onClick={() => asignarLote(bulkCanal)} className={`text-xs font-medium rounded-lg px-3 py-1.5 transition-colors ${focusRing} ${bulkCanal.trim() ? "bg-ink hover:bg-ink/90 text-white" : "bg-surface-2 text-ink-40 cursor-default"}`}>Asignar</button>
+                    <button onClick={() => asignarLote(CATCH)} title="Excluir los seleccionados (→ Otros orígenes)" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-hairline text-ink-40 hover:text-ink hover:border-hairline-2 transition-colors ${focusRing}`}>Excluir</button>
+                    <button onClick={() => setSeleccion(new Set())} title="Limpiar selección" aria-label="Limpiar selección" className={`text-xs text-ink-40 hover:text-ink px-1 rounded ${focusRing}`}>✕</button>
                   </div>
                 )}
-                <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+                <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}>
                   {sinMapearVisible.length === 0 && (
-                    <div className="text-center text-slate-500 py-8 text-sm">Todo consolidado</div>
+                    <div className="text-center text-ink-40 py-8 text-sm">Todo consolidado</div>
                   )}
                   {sinMapearVisible.length > 0 && (
-                    <label className="flex items-center gap-2 px-3 py-1 text-[11px] text-slate-500 cursor-pointer select-none">
+                    <label className="flex items-center gap-2 px-3 py-1 text-[11px] text-ink-40 cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        className="accent-slate-900 w-3.5 h-3.5"
+                        className="accent-ink w-3.5 h-3.5"
                         checked={seleccion.size > 0 && seleccion.size === sinMapearVisible.length}
                         ref={(el) => { if (el) el.indeterminate = seleccion.size > 0 && seleccion.size < sinMapearVisible.length; }}
                         onChange={(e) => setSeleccion(e.target.checked ? new Set(sinMapearVisible.map(okey)) : new Set())}
@@ -628,8 +628,8 @@ export default function Page() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                      <button onClick={() => setSelected(null)} className={`text-slate-500 hover:text-slate-800 transition-colors rounded ${focusRing}`} title="Volver a sin clasificar" aria-label="Volver">←</button>
+                    <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                      <button onClick={() => setSelected(null)} className={`text-ink-40 hover:text-ink transition-colors rounded ${focusRing}`} title="Volver a sin clasificar" aria-label="Volver">←</button>
                       {editando === selected ? (
                         <input
                           autoFocus
@@ -637,20 +637,20 @@ export default function Page() {
                           onChange={(e) => setNombreEdit(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") renombrarCanal(selected!, nombreEdit); if (e.key === "Escape") setEditando(null); }}
                           onBlur={() => renombrarCanal(selected!, nombreEdit)}
-                          className={`text-sm font-semibold border border-slate-300 rounded-lg px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 ${focusRing}`}
+                          className={`text-sm font-semibold border border-hairline-2 rounded-lg px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-accent/30 ${focusRing}`}
                         />
                       ) : (
-                        <span className={`truncate ${selected === CATCH ? "italic text-slate-500" : ""}`}>{selected}</span>
+                        <span className={`truncate ${selected === CATCH ? "italic text-ink-40" : ""}`}>{selected}</span>
                       )}
                     </h2>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Orígenes agrupados en este canal. Movelos a otro canal o sacalos.</p>
+                    <p className="text-[11px] text-ink-40 mt-0.5">Orígenes agrupados en este canal. Movelos a otro canal o sacalos.</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {esPropio(selected) && editando !== selected && (
                       <>
                         <button
                           onClick={() => { setEditando(selected); setNombreEdit(selected || ""); }}
-                          className={`text-[11px] text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-2 py-1 transition-colors ${focusRing}`}
+                          className={`text-[11px] text-ink-40 hover:text-ink border border-hairline rounded-lg px-2 py-1 transition-colors ${focusRing}`}
                           title="Renombrar canal"
                         >Renombrar</button>
                         <button
@@ -660,12 +660,12 @@ export default function Page() {
                         >Eliminar</button>
                       </>
                     )}
-                    <span className="text-[11px] text-slate-500 tabular-nums">{originesDelCanal.length}</span>
+                    <span className="text-[11px] text-ink-40 tabular-nums">{originesDelCanal.length}</span>
                   </div>
                 </div>
-                <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
+                <div className="overflow-y-auto flex-1 pr-1 flex flex-col gap-2" style={{ maxHeight: 480, scrollbarWidth: "thin", scrollbarColor: "#E5E1D8 transparent" }}>
                   {originesDelCanal.length === 0 && (
-                    <div className="text-center text-slate-500 py-8 text-sm">Sin orígenes en este canal.</div>
+                    <div className="text-center text-ink-40 py-8 text-sm">Sin orígenes en este canal.</div>
                   )}
                   {originesDelCanal.map((o: any) => (
                     <FilaOrigen
@@ -688,30 +688,30 @@ export default function Page() {
 
         {/* Texto explicativo — help-center al pie, cubre canales y orígenes */}
         <div className={`${cardStyle} p-5 mt-5`} style={cardShadow}>
-          <h3 className="text-[13px] font-semibold text-slate-900 mb-3">Cómo funciona</h3>
+          <h3 className="text-[13px] font-semibold text-ink mb-3">Cómo funciona</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-[12px] leading-relaxed">
-            <p className="text-slate-500"><span className="font-medium text-slate-700">Canales.</span> Un canal agrupa varios orígenes de tráfico bajo un mismo nombre —por ejemplo «Meta Ads» junta fb, ig, facebook y meta—. Así leés tus métricas por canal en vez de por cada origen suelto.</p>
-            <p className="text-slate-500"><span className="font-medium text-slate-700">Sin clasificar.</span> Los orígenes que todavía no pertenecen a ningún canal. Asignalos a uno existente, creá uno nuevo, o excluílos. No es obligatorio: agrupá lo que te sirva.</p>
-            <p className="text-slate-500"><span className="font-medium text-slate-700">Otros orígenes.</span> El canal donde caen los que excluís —ilegibles, spam o irrelevantes—. No se pierden: quedan agrupados y fuera del camino.</p>
-            <p className="text-slate-500"><span className="font-medium text-slate-700">Cobertura.</span> El porcentaje se calcula sobre el tráfico ya asignado a un canal. Los orígenes sin clasificar podés agruparlos cuando quieras: no es obligatorio.</p>
+            <p className="text-ink-40"><span className="font-medium text-ink-60">Canales.</span> Un canal agrupa varios orígenes de tráfico bajo un mismo nombre —por ejemplo «Meta Ads» junta fb, ig, facebook y meta—. Así leés tus métricas por canal en vez de por cada origen suelto.</p>
+            <p className="text-ink-40"><span className="font-medium text-ink-60">Sin clasificar.</span> Los orígenes que todavía no pertenecen a ningún canal. Asignalos a uno existente, creá uno nuevo, o excluílos. No es obligatorio: agrupá lo que te sirva.</p>
+            <p className="text-ink-40"><span className="font-medium text-ink-60">Otros orígenes.</span> El canal donde caen los que excluís —ilegibles, spam o irrelevantes—. No se pierden: quedan agrupados y fuera del camino.</p>
+            <p className="text-ink-40"><span className="font-medium text-ink-60">Cobertura.</span> El porcentaje se calcula sobre el tráfico ya asignado a un canal. Los orígenes sin clasificar podés agruparlos cuando quieras: no es obligatorio.</p>
           </div>
         </div>
         </>
       ) : !error ? (
-        <div className="text-slate-500 text-sm py-16 text-center">Sin datos.</div>
+        <div className="text-ink-40 text-sm py-16 text-center">Sin datos.</div>
       ) : null}
 
       {/* Confirmación de eliminación de canal (Tomy): avisa que los orígenes vuelven
           a "Sin clasificar". */}
       {confirmDel && (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setConfirmDel(null)}>
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-slate-900">Eliminar el canal «{confirmDel}»</h3>
-            <p className="text-[13px] text-slate-600 mt-2 leading-snug">
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-ink/40 p-4" onClick={() => setConfirmDel(null)}>
+          <div className="bg-white rounded-2xl shadow-xl border border-hairline max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-ink">Eliminar el canal «{confirmDel}»</h3>
+            <p className="text-[13px] text-ink-60 mt-2 leading-snug">
               Sus <b>{(data?.origins || []).filter((o: any) => o.channel === confirmDel).length}</b> orígenes van a volver a <b>«Sin clasificar»</b> para que los reclasifiques. Los datos no se pierden.
             </p>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setConfirmDel(null)} className={`text-xs text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors ${focusRing}`}>Cancelar</button>
+              <button onClick={() => setConfirmDel(null)} className={`text-xs text-ink-60 hover:text-ink border border-hairline rounded-lg px-3 py-1.5 transition-colors ${focusRing}`}>Cancelar</button>
               <button onClick={() => eliminarCanal(confirmDel)} className={`text-xs text-white bg-rose-600 hover:bg-rose-700 rounded-lg px-3 py-1.5 transition-colors ${focusRing}`}>Eliminar canal</button>
             </div>
           </div>
@@ -726,16 +726,16 @@ function ItemCanal({ nombre, visitantes, badge, draft, selected, muted, onClick 
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg transition-colors ${focusRing} ${selected ? "bg-slate-900" : "hover:bg-slate-50"}`}
+      className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg transition-colors ${focusRing} ${selected ? "bg-ink" : "hover:bg-surface"}`}
     >
-      <span className={`text-[13px] font-medium truncate ${selected ? "text-white" : muted ? "text-slate-500 italic" : "text-slate-700"}`} title={nombre}>
+      <span className={`text-[13px] font-medium truncate ${selected ? "text-white" : muted ? "text-ink-40 italic" : "text-ink-60"}`} title={nombre}>
         {nombre}
       </span>
-      <span className={`flex items-center gap-1.5 shrink-0 text-[11px] tabular-nums ${selected ? "text-slate-300" : "text-slate-500"}`}>
+      <span className={`flex items-center gap-1.5 shrink-0 text-[11px] tabular-nums ${selected ? "text-ink-40" : "text-ink-40"}`}>
         {typeof badge === "number" && badge > 0 && (
-          <span className={`px-1.5 py-px rounded-full text-[11px] ${selected ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>{badge}</span>
+          <span className={`px-1.5 py-px rounded-full text-[11px] ${selected ? "bg-white/15 text-white" : "bg-surface-2 text-ink-40"}`}>{badge}</span>
         )}
-        {draft ? <span className={`italic ${selected ? "text-slate-300" : "text-slate-500"}`}>nuevo</span> : fmt(visitantes)}
+        {draft ? <span className={`italic ${selected ? "text-ink-40" : "text-ink-40"}`}>nuevo</span> : fmt(visitantes)}
       </span>
     </button>
   );
@@ -764,7 +764,7 @@ function InfoDot({ tip }: { tip?: string | null }) {
     pos && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed z-[9999] pointer-events-none w-max max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 text-white text-[11px] leading-snug px-2.5 py-1.5 shadow-xl"
+            className="fixed z-[9999] pointer-events-none w-max max-w-[280px] whitespace-normal break-words rounded-lg bg-ink text-white text-[11px] leading-snug px-2.5 py-1.5 shadow-xl"
             style={{
               left: Math.min(pos.x + 12, window.innerWidth - 292),
               top: Math.min(pos.y + 16, window.innerHeight - 90),
@@ -780,7 +780,7 @@ function InfoDot({ tip }: { tip?: string | null }) {
       <button
         type="button"
         tabIndex={-1}
-        className="shrink-0 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-300 text-slate-400 hover:text-slate-700 hover:border-slate-400 text-[9px] font-bold leading-none cursor-help select-none"
+        className="shrink-0 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-hairline-2 text-ink-40 hover:text-ink-60 hover:border-hairline-2 text-[9px] font-bold leading-none cursor-help select-none"
         onMouseEnter={show}
         onMouseLeave={() => setPos(null)}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); pos ? setPos(null) : show(e); }}
@@ -804,28 +804,28 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
   // existe (pero no exacto), ofrecemos usarlo en vez de crear un duplicado.
   const sugerido = v && !match ? sugerirCanal(v, canales) : null;
   return (
-    <div className={`flex flex-col gap-1 px-3 py-2 rounded-xl border transition-colors ${checked ? "border-slate-300 bg-slate-50" : "border-slate-100 hover:bg-slate-50/50"}`}>
+    <div className={`flex flex-col gap-1 px-3 py-2 rounded-xl border transition-colors ${checked ? "border-hairline-2 bg-surface" : "border-hairline hover:bg-surface/50"}`}>
       <div className="flex items-center gap-2">
         {onToggle && (
           <input
             type="checkbox"
             checked={!!checked}
             onChange={onToggle}
-            className="accent-slate-900 shrink-0 w-3.5 h-3.5"
+            className="accent-ink shrink-0 w-3.5 h-3.5"
             aria-label={`Seleccionar ${o.nombre}`}
           />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-slate-800 truncate flex items-center gap-1.5">
+          <div className="text-[13px] font-medium text-ink-60 truncate flex items-center gap-1.5">
             <span className="truncate">{o.nombre}</span>
             {/* UN solo ícono de info, al lado del nombre: explica el origen (del
                 glosario, o genérico si es un código propio del cliente). */}
             <InfoDot tip={sourceGlossaryTip(o.codigo) ?? GENERIC_SOURCE_TIP} />
             {o.mediumLabel && (
-              <span className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-slate-100 text-slate-500">{o.mediumLabel}</span>
+              <span className="shrink-0 text-[10px] font-medium px-1.5 py-px rounded-full bg-surface-2 text-ink-40">{o.mediumLabel}</span>
             )}
           </div>
-          <div className="text-[11px] text-slate-500 truncate">{o.codigo}{o.medium ? ` · ${o.medium}` : ""} · {fmt(o.visitantes)} visitantes</div>
+          <div className="text-[11px] text-ink-40 truncate">{o.codigo}{o.medium ? ` · ${o.medium}` : ""} · {fmt(o.visitantes)} visitantes</div>
         </div>
         <input
           list="canales-existentes"
@@ -833,33 +833,33 @@ function FilaOrigen({ o, canales, saving, onAsignar, onExcluir, accion, placehol
           onChange={(e) => setVal(e.target.value)}
           placeholder={placeholder}
           onKeyDown={(e) => e.key === "Enter" && aplicar()}
-          className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-36 bg-slate-50/50 focus:outline-none focus:ring-1 focus:ring-slate-400 focus:border-slate-400 placeholder-slate-500"
+          className="text-xs border border-hairline rounded-lg px-2.5 py-1.5 w-36 bg-surface/50 focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent placeholder-ink-40"
         />
         {v ? (
-          <button disabled={busy} onClick={aplicar} className={`text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : accion}</button>
+          <button disabled={busy} onClick={aplicar} className={`text-xs font-medium rounded-lg px-3 py-1.5 bg-ink hover:bg-ink/90 text-white transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : accion}</button>
         ) : ruleId ? (
-          <button disabled={busy} onClick={() => onSacar(ruleId)} title="Sacar del canal (vuelve a sin clasificar)" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : "Sacar"}</button>
+          <button disabled={busy} onClick={() => onSacar(ruleId)} title="Sacar del canal (vuelve a sin clasificar)" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-hairline text-ink-40 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : "Sacar"}</button>
         ) : accion === "Mover" ? (
-          <span className="text-[11px] text-slate-500 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
+          <span className="text-[11px] text-ink-40 px-2 w-[52px] text-center shrink-0" title="Regla por defecto — solo se puede mover">auto</span>
         ) : onExcluir ? (
-          <button disabled={busy} onClick={onExcluir} title="Excluir: mandarlo a «Otros orígenes»" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : "Excluir"}</button>
+          <button disabled={busy} onClick={onExcluir} title="Excluir: mandarlo a «Otros orígenes»" className={`text-xs font-medium rounded-lg px-3 py-1.5 border border-hairline text-ink-40 hover:text-ink hover:border-hairline-2 transition-colors disabled:opacity-50 ${focusRing}`}>{busy ? "…" : "Excluir"}</button>
         ) : (
-          <button disabled className="text-xs font-medium rounded-lg px-3 py-1.5 bg-slate-100 text-slate-400 cursor-default">{accion}</button>
+          <button disabled className="text-xs font-medium rounded-lg px-3 py-1.5 bg-surface-2 text-ink-40 cursor-default">{accion}</button>
         )}
       </div>
       {v && (
         <div className="text-[11px] pl-0.5">
           {match ? (
-            <span className="text-slate-500">→ se agrupa en <span className="font-medium text-slate-700">{match}</span> · {fmt(o.visitantes)} visitantes</span>
+            <span className="text-ink-40">→ se agrupa en <span className="font-medium text-ink-60">{match}</span> · {fmt(o.visitantes)} visitantes</span>
           ) : sugerido ? (
-            <span className="text-slate-500">
-              → crea el canal <span className="font-medium text-slate-700">«{v}»</span> ·{" "}
-              <button type="button" onClick={() => setVal(sugerido)} className={`text-slate-600 underline decoration-dotted underline-offset-2 hover:text-slate-900 rounded ${focusRing}`}>
+            <span className="text-ink-40">
+              → crea el canal <span className="font-medium text-ink-60">«{v}»</span> ·{" "}
+              <button type="button" onClick={() => setVal(sugerido)} className={`text-ink-60 underline decoration-dotted underline-offset-2 hover:text-ink rounded ${focusRing}`}>
                 ¿quisiste decir «{sugerido}»?
               </button>
             </span>
           ) : (
-            <span className="text-slate-500">→ crea el canal <span className="font-medium text-slate-700">«{v}»</span></span>
+            <span className="text-ink-40">→ crea el canal <span className="font-medium text-ink-60">«{v}»</span></span>
           )}
         </div>
       )}

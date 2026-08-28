@@ -221,16 +221,16 @@ function ScenarioPanel({
 
   return (
     <div
-      className="flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white"
+      className="flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-elevated"
       style={{
         borderColor: isBase
           ? `${color}66`
           : scenario.isActive
           ? `${color}88`
-          : "rgba(226,232,240,0.9)",
+          : "rgba(229,225,216,0.9)",
         boxShadow: scenario.isActive
           ? `0 0 0 1px ${color}33, 0 10px 30px -12px ${color}33`
-          : "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+          : "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
       }}
     >
       {/* Header */}
@@ -288,7 +288,7 @@ function ScenarioPanel({
       )}
 
       {/* KPIs */}
-      <div className="relative grid grid-cols-2 gap-px bg-slate-100 px-px pb-px">
+      <div className="relative grid grid-cols-2 gap-px bg-surface-2 px-px pb-px">
         <KpiRow
           label="Revenue 12M"
           value={fm(rev)}
@@ -339,7 +339,7 @@ function ScenarioPanel({
       </div>
 
       {/* Costos */}
-      <div className="relative grid grid-cols-3 gap-px bg-slate-100 px-px">
+      <div className="relative grid grid-cols-3 gap-px bg-surface-2 px-px">
         <KpiRow
           label="COGS 12M"
           value={fm(cogs)}
@@ -365,7 +365,7 @@ function ScenarioPanel({
 
       {/* Drivers resumen */}
       {scenario.drivers && (
-        <div className="relative mt-auto border-t border-slate-100 bg-slate-50/60 p-4">
+        <div className="relative mt-auto border-t border-hairline bg-surface/60 p-4">
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
             Drivers clave
           </div>
@@ -482,7 +482,7 @@ function KpiRow({
 
   return (
     <div
-      className="bg-white px-3 py-2"
+      className="bg-elevated px-3 py-2"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -579,20 +579,20 @@ export default function ScenarioCompareView({
     <div
       className="fixed inset-0 z-40 flex items-stretch justify-center"
       style={{
-        background: "rgba(15,23,42,0.55)",
+        background: "rgba(28,27,24,0.55)",
         backdropFilter: "blur(4px)",
         animation: `compareFade 240ms ${ES}`,
       }}
       onClick={onClose}
     >
       <div
-        className="relative m-0 flex h-full w-full max-w-7xl flex-col overflow-hidden bg-white shadow-2xl sm:my-6 sm:h-auto sm:max-h-[calc(100vh-48px)] sm:rounded-2xl"
+        className="relative m-0 flex h-full w-full max-w-7xl flex-col overflow-hidden bg-elevated shadow-2xl sm:my-6 sm:h-auto sm:max-h-[calc(100vh-48px)] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+        <header className="flex items-start justify-between gap-4 border-b border-hairline p-5">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-surface px-2.5 py-1">
               <span
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: "#9A978D" }}
@@ -615,7 +615,7 @@ export default function ScenarioCompareView({
           <button
             onClick={onClose}
             aria-label="Cerrar"
-            className="rounded-lg border border-slate-200 bg-white p-2 text-ink-40 hover:border-slate-300 hover:bg-slate-50 hover:text-ink-60"
+            className="rounded-lg border border-hairline bg-elevated p-2 text-ink-40 hover:border-hairline-2 hover:bg-surface hover:text-ink-60"
             style={{ transition: `all 200ms ${ES}` }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -630,7 +630,7 @@ export default function ScenarioCompareView({
         </header>
 
         {/* Selector */}
-        <div className="border-b border-slate-100 bg-slate-50/50 p-4">
+        <div className="border-b border-hairline bg-surface/50 p-4">
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
             Selección — {selected.length} / 3
           </div>
@@ -646,8 +646,8 @@ export default function ScenarioCompareView({
                   disabled={disabled}
                   className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
                   style={{
-                    borderColor: active ? `${color}88` : "rgba(226,232,240,0.9)",
-                    background: active ? `${color}12` : "white",
+                    borderColor: active ? `${color}88` : "rgba(229,225,216,0.9)",
+                    background: active ? `${color}12` : "#fff",
                     color: active ? color : "#6B685F",
                     boxShadow: active ? `0 0 0 1px ${color}33` : "none",
                     transition: `all 200ms ${ES}`,
@@ -675,7 +675,7 @@ export default function ScenarioCompareView({
         {/* Paneles */}
         <div className="min-h-0 flex-1 overflow-auto p-5">
           {selectedScenarios.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-10 text-center text-sm text-ink-40">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-hairline bg-surface/40 p-10 text-center text-sm text-ink-40">
               Seleccioná al menos un escenario para ver la comparación.
             </div>
           ) : (
@@ -699,14 +699,14 @@ export default function ScenarioCompareView({
         </div>
 
         {/* Footer */}
-        <footer className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-[11px] text-ink-40">
+        <footer className="flex items-center justify-between gap-3 border-t border-hairline bg-surface/60 px-5 py-3 text-[11px] text-ink-40">
           <div>
             Los deltas en % se calculan vs el escenario pivot. "pp" = puntos
             porcentuales (márgenes), "m" = meses.
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-ink-60 hover:border-slate-300"
+            className="rounded-lg border border-hairline bg-white px-3 py-1.5 text-sm font-medium text-ink-60 hover:border-hairline-2"
             style={{ transition: `all 200ms ${ES}` }}
           >
             Cerrar

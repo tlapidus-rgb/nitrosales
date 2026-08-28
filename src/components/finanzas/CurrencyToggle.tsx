@@ -55,10 +55,10 @@ export function CurrencyToggle() {
         gap: 10,
         padding: "14px 16px",
         background: "#ffffff",
-        border: "1px solid rgba(15,23,42,0.06)",
+        border: "1px solid rgba(28,27,24,0.06)",
         borderRadius: 14,
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.1)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 8px 24px -12px rgba(28,27,24,0.12), 0 22px 40px -28px rgba(28,27,24,0.1)",
       }}
     >
       {/* Label */}
@@ -68,7 +68,7 @@ export function CurrencyToggle() {
           fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.08em",
-          color: "rgba(15,23,42,0.55)",
+          color: "rgba(28,27,24,0.55)",
         }}
       >
         Moneda de visualización
@@ -80,7 +80,7 @@ export function CurrencyToggle() {
           display: "inline-flex",
           gap: 4,
           padding: 4,
-          background: "rgba(15,23,42,0.04)",
+          background: "rgba(28,27,24,0.04)",
           borderRadius: 10,
         }}
       >
@@ -103,7 +103,7 @@ export function CurrencyToggle() {
                 background: active
                   ? "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)"
                   : "transparent",
-                color: active ? "#ffffff" : "rgba(15,23,42,0.78)",
+                color: active ? "#ffffff" : "rgba(28,27,24,0.78)",
                 boxShadow: active
                   ? "0 1px 2px rgba(217,119,6,0.2), 0 4px 12px -4px rgba(217,119,6,0.35)"
                   : "none",
@@ -139,7 +139,7 @@ export function CurrencyToggle() {
             display: "inline-flex",
             gap: 4,
             padding: 3,
-            background: "rgba(15,23,42,0.03)",
+            background: "rgba(28,27,24,0.03)",
             borderRadius: 8,
             transition: `all 280ms ${ES_TRANSITION}`,
           }}
@@ -161,8 +161,8 @@ export function CurrencyToggle() {
                   fontWeight: active ? 600 : 500,
                   letterSpacing: "0.01em",
                   background: active ? "#ffffff" : "transparent",
-                  color: active ? "rgba(15,23,42,0.9)" : "rgba(15,23,42,0.55)",
-                  boxShadow: active ? "0 1px 3px rgba(15,23,42,0.08)" : "none",
+                  color: active ? "rgba(28,27,24,0.9)" : "rgba(28,27,24,0.55)",
+                  boxShadow: active ? "0 1px 3px rgba(28,27,24,0.08)" : "none",
                   transition: `all 220ms ${ES_TRANSITION}`,
                 }}
               >
@@ -177,7 +177,7 @@ export function CurrencyToggle() {
       <div
         style={{
           fontSize: 11,
-          color: "rgba(15,23,42,0.5)",
+          color: "rgba(28,27,24,0.5)",
           fontVariantNumeric: "tabular-nums",
           lineHeight: 1.4,
         }}
@@ -186,7 +186,7 @@ export function CurrencyToggle() {
         {ready && mode === "USD" && activeUsdRate && (
           <span>
             Usando dólar {SOURCE_OPTIONS.find((s) => s.value === usdSource)?.label} ·{" "}
-            <span style={{ color: "rgba(15,23,42,0.75)", fontWeight: 600 }}>
+            <span style={{ color: "rgba(28,27,24,0.75)", fontWeight: 600 }}>
               $ {formatArs(activeUsdRate)}
             </span>{" "}
             · actualizado {formatDate(lastFxDate)}
@@ -195,7 +195,7 @@ export function CurrencyToggle() {
         {ready && mode === "USD" && !activeUsdRate && (
           <span>
             Sin cotización disponible. Ejecutar{" "}
-            <code style={{ fontSize: 10, background: "rgba(15,23,42,0.06)", padding: "1px 4px", borderRadius: 3 }}>
+            <code style={{ fontSize: 10, background: "rgba(28,27,24,0.06)", padding: "1px 4px", borderRadius: 3 }}>
               /api/cron/exchange-rates
             </code>
             .

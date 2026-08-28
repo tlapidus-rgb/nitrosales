@@ -84,7 +84,7 @@ export default function PredictiveAlertsCard() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-hairline bg-white p-6">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 animate-pulse rounded-lg bg-surface-2" />
           <div className="h-4 w-48 animate-pulse rounded bg-surface-2" />
@@ -122,10 +122,10 @@ export default function PredictiveAlertsCard() {
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
               Tendencias sanas
             </div>
-            <div className="mt-0.5 text-[15px] font-semibold tracking-tight text-slate-900">
+            <div className="mt-0.5 text-[15px] font-semibold tracking-tight text-ink">
               Sin señales de alerta predictiva
             </div>
-            <div className="mt-0.5 text-[12px] text-slate-500">
+            <div className="mt-0.5 text-[12px] text-ink-40">
               Envíos, COGS, CAC/LTV y fiscal dentro de rangos normales vs el
               mes anterior.
             </div>
@@ -144,7 +144,7 @@ export default function PredictiveAlertsCard() {
       style={{
         borderColor: m.border,
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+          "0 1px 2px rgba(28,27,24,0.04), 0 4px 12px rgba(28,27,24,0.03)",
       }}
     >
       <div
@@ -162,10 +162,10 @@ export default function PredictiveAlertsCard() {
               <Activity className="h-4 w-4" />
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-40">
                 Alertas predictivas
               </div>
-              <div className="text-[15px] font-semibold tracking-tight text-slate-900">
+              <div className="text-[15px] font-semibold tracking-tight text-ink">
                 {alerts.length} señal{alerts.length !== 1 ? "es" : ""} de tendencia
               </div>
             </div>
@@ -205,14 +205,14 @@ export default function PredictiveAlertsCard() {
                     >
                       {pm.label}
                     </span>
-                    <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                    <span className="text-[10px] uppercase tracking-wider text-ink-40">
                       {a.type}
                     </span>
                   </div>
-                  <div className="mt-1 text-[13px] font-semibold tracking-tight text-slate-900">
+                  <div className="mt-1 text-[13px] font-semibold tracking-tight text-ink">
                     {a.title}
                   </div>
-                  <div className="mt-0.5 text-[12px] leading-relaxed text-slate-600">
+                  <div className="mt-0.5 text-[12px] leading-relaxed text-ink-60">
                     {a.body}
                   </div>
                 </div>

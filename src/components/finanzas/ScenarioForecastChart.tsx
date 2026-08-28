@@ -206,7 +206,7 @@ export default function ScenarioForecastChart({
 
   if (!forecast || !months.length) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <div className="rounded-2xl border border-hairline bg-white p-6 text-sm text-ink-40">
         Sin forecast calculado.
       </div>
     );
@@ -221,26 +221,26 @@ export default function ScenarioForecastChart({
     >
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-40">
             Forecast 12 meses
           </div>
-          <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
+          <h3 className="mt-1 text-lg font-semibold tracking-tight text-ink">
             {scenarioName ?? "Escenario"}
           </h3>
           {hasBand && (
-            <p className="mt-0.5 text-[12px] text-slate-500">
+            <p className="mt-0.5 text-[12px] text-ink-40">
               Banda sombreada = rango min/max por Causal drivers.
             </p>
           )}
         </div>
         <div className="text-right">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
             Revenue total
           </div>
-          <div className="text-lg font-semibold tabular-nums text-slate-900">
+          <div className="text-lg font-semibold tabular-nums text-ink">
             {fm(forecast.totals.revenue)}
           </div>
-          <div className="text-[11px] tabular-nums text-slate-500">
+          <div className="text-[11px] tabular-nums text-ink-40">
             Margen {forecast.totals.marginPct.toFixed(1)}% · Net{" "}
             {fm(forecast.totals.netProfit)}
           </div>
@@ -291,7 +291,7 @@ export default function ScenarioForecastChart({
                 y={t.y + 4}
                 textAnchor="end"
                 fontSize={10}
-                fill="#94a3b8"
+                fill="#83807A"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
                 {i === 0 ? "0" : shortMoney(t.v)}
@@ -399,7 +399,7 @@ export default function ScenarioForecastChart({
                   y={H - padB + 16}
                   textAnchor="middle"
                   fontSize={10}
-                  fill={isPeak ? "#b45309" : "#64748b"}
+                  fill={isPeak ? "#b45309" : "#6B685F"}
                   fontWeight={isPeak ? 600 : 400}
                 >
                   {shortMonth(m.month)}
@@ -438,15 +438,15 @@ export default function ScenarioForecastChart({
                     width={tooltipW}
                     height={tooltipH}
                     rx={10}
-                    fill="#0f172a"
+                    fill="#1C1B18"
                     fillOpacity={0.96}
                     stroke={`${color}55`}
                     strokeWidth={1}
                   />
-                  <text x={tx + 12} y={ty + 18} fontSize={11} fontWeight={600} fill="#f1f5f9">
+                  <text x={tx + 12} y={ty + 18} fontSize={11} fontWeight={600} fill="#EDEAE3">
                     {shortMonth(focused.month).toUpperCase()}
                   </text>
-                  <text x={tx + 12} y={ty + 36} fontSize={11} fill="#cbd5e1">
+                  <text x={tx + 12} y={ty + 36} fontSize={11} fill="#DCD8CD">
                     Revenue
                   </text>
                   <text
@@ -460,7 +460,7 @@ export default function ScenarioForecastChart({
                   >
                     {fm(focused.revenue, focused.month + "-15")}
                   </text>
-                  <text x={tx + 12} y={ty + 52} fontSize={11} fill="#cbd5e1">
+                  <text x={tx + 12} y={ty + 52} fontSize={11} fill="#DCD8CD">
                     Margen
                   </text>
                   <text
@@ -474,7 +474,7 @@ export default function ScenarioForecastChart({
                   >
                     {focused.marginPct.toFixed(1)}%
                   </text>
-                  <text x={tx + 12} y={ty + 68} fontSize={11} fill="#cbd5e1">
+                  <text x={tx + 12} y={ty + 68} fontSize={11} fill="#DCD8CD">
                     Cash fin de mes
                   </text>
                   <text
@@ -494,7 +494,7 @@ export default function ScenarioForecastChart({
                       ? fm(focused.cashEnd, focused.month + "-15")
                       : "—"}
                   </text>
-                  <text x={tx + 12} y={ty + tooltipH - 6} fontSize={9} fill="#94a3b8">
+                  <text x={tx + 12} y={ty + tooltipH - 6} fontSize={9} fill="#83807A">
                     {pinnedIdx === focusedIdx
                       ? "Click para cerrar waterfall"
                       : "Click para ver desglose"}
@@ -507,19 +507,19 @@ export default function ScenarioForecastChart({
 
       {/* Waterfall del mes pinneado */}
       {pinned && (
-        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+        <div className="mt-5 rounded-xl border border-hairline bg-surface/60 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-40">
                 Desglose del mes
               </div>
-              <div className="text-sm font-semibold text-slate-900">
+              <div className="text-sm font-semibold text-ink">
                 {shortMonth(pinned.month)}
               </div>
             </div>
             <button
               onClick={() => setPinnedIdx(null)}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-slate-300"
+              className="rounded-md border border-hairline bg-white px-2 py-1 text-[11px] font-medium text-ink-60 hover:border-hairline-2"
               style={{ transition: `all 180ms ${ES}` }}
             >
               Cerrar
@@ -591,7 +591,7 @@ function Waterfall({
                 }}
               />
             </div>
-            <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+            <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-40">
               {s.label}
             </div>
             <div
@@ -604,7 +604,7 @@ function Waterfall({
                       : "#b91c1c"
                     : s.type === "neg"
                     ? "#b91c1c"
-                    : "#0f172a",
+                    : "#1C1B18",
               }}
             >
               {s.value > 0 ? "+" : ""}

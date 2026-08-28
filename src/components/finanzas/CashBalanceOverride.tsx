@@ -238,7 +238,7 @@ export default function CashBalanceOverride({
         aria-hidden
         className="absolute inset-0"
         style={{
-          background: "rgba(15,23,42,0.45)",
+          background: "rgba(28,27,24,0.45)",
           backdropFilter: "blur(4px)",
           animation: "cboFadeIn 180ms ease",
         }}
@@ -249,24 +249,24 @@ export default function CashBalanceOverride({
       <div
         className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-white"
         style={{
-          borderColor: "rgba(15,23,42,0.08)",
+          borderColor: "rgba(28,27,24,0.08)",
           boxShadow:
-            "0 10px 40px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.08)",
+            "0 10px 40px rgba(28,27,24,0.18), 0 2px 6px rgba(28,27,24,0.08)",
           animation: "cboScaleIn 220ms cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
+        <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderColor: "rgba(28,27,24,0.06)" }}>
           <div>
             <div
               className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-              style={{ color: "rgba(15,23,42,0.5)" }}
+              style={{ color: "rgba(28,27,24,0.5)" }}
             >
               Ajustar saldo real · {currentMonthHuman()}
             </div>
             <h3
               id="cash-override-title"
-              className="mt-1 text-lg font-bold tracking-tight text-slate-900"
+              className="mt-1 text-lg font-bold tracking-tight text-ink"
               style={{ letterSpacing: "-0.02em" }}
             >
               Override manual de caja
@@ -276,7 +276,7 @@ export default function CashBalanceOverride({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1.5 text-ink-40 hover:bg-surface-2 hover:text-ink-60"
             style={{ transition: `all 160ms ${ES}` }}
           >
             <svg
@@ -298,10 +298,10 @@ export default function CashBalanceOverride({
         {/* Body */}
         <div className="space-y-4 px-5 py-5">
           {/* Explainer */}
-          <p className="text-[12.5px] leading-relaxed text-slate-600">
+          <p className="text-[12.5px] leading-relaxed text-ink-60">
             El cálculo automático (revenue − costos YTD) no contempla inventario
             comprado, impuestos ni retiros. Cargá acá tu{" "}
-            <span className="font-semibold text-slate-800">
+            <span className="font-semibold text-ink-60">
               saldo real de banco
             </span>{" "}
             (ARS) para que el runway refleje el cash que tenés.
@@ -313,7 +313,7 @@ export default function CashBalanceOverride({
               className="h-24 w-full rounded-lg"
               style={{
                 background:
-                  "linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%)",
+                  "linear-gradient(90deg, rgba(28,27,24,0.04) 0%, rgba(28,27,24,0.08) 50%, rgba(28,27,24,0.04) 100%)",
                 backgroundSize: "200% 100%",
                 animation: "cboShimmer 1.4s ease-in-out infinite",
               }}
@@ -326,18 +326,18 @@ export default function CashBalanceOverride({
               <div>
                 <label
                   htmlFor="cbo-amount"
-                  className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                  className="block text-[11px] font-semibold uppercase tracking-wider text-ink-40"
                 >
                   Saldo real (ARS)
                 </label>
                 <div
                   className="mt-1 flex items-center overflow-hidden rounded-lg border bg-white"
                   style={{
-                    borderColor: "rgba(15,23,42,0.12)",
+                    borderColor: "rgba(28,27,24,0.12)",
                     transition: `border-color 160ms ${ES}`,
                   }}
                 >
-                  <span className="px-3 text-sm font-semibold text-slate-400">
+                  <span className="px-3 text-sm font-semibold text-ink-40">
                     $
                   </span>
                   <input
@@ -347,15 +347,15 @@ export default function CashBalanceOverride({
                     value={amountStr}
                     onChange={(e) => setAmountStr(e.target.value)}
                     placeholder="0"
-                    className="flex-1 bg-transparent py-2.5 text-sm font-semibold tabular-nums text-slate-900 outline-none"
+                    className="flex-1 bg-transparent py-2.5 text-sm font-semibold tabular-nums text-ink outline-none"
                     autoFocus
                   />
-                  <span className="pr-3 text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  <span className="pr-3 text-[11px] font-medium uppercase tracking-wider text-ink-40">
                     ARS
                   </span>
                 </div>
                 {isValidAmount && amountStr && (
-                  <div className="mt-1 text-[11px] text-slate-500 tabular-nums">
+                  <div className="mt-1 text-[11px] text-ink-40 tabular-nums">
                     ≈ $ {formatArs(amountNum)}
                   </div>
                 )}
@@ -365,7 +365,7 @@ export default function CashBalanceOverride({
               <div>
                 <label
                   htmlFor="cbo-note"
-                  className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                  className="block text-[11px] font-semibold uppercase tracking-wider text-ink-40"
                 >
                   Nota (opcional)
                 </label>
@@ -375,9 +375,9 @@ export default function CashBalanceOverride({
                   onChange={(e) => setNote(e.target.value.slice(0, 500))}
                   rows={2}
                   placeholder="Ej: saldo Santander + Mercado Pago al 18/4"
-                  className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-800 outline-none"
+                  className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm text-ink-60 outline-none"
                   style={{
-                    borderColor: "rgba(15,23,42,0.12)",
+                    borderColor: "rgba(28,27,24,0.12)",
                     resize: "vertical",
                     maxHeight: 140,
                   }}
@@ -389,11 +389,11 @@ export default function CashBalanceOverride({
                 <div
                   className="rounded-xl border p-3"
                   style={{
-                    borderColor: "rgba(15,23,42,0.06)",
-                    background: "rgba(15,23,42,0.02)",
+                    borderColor: "rgba(28,27,24,0.06)",
+                    background: "rgba(28,27,24,0.02)",
                   }}
                 >
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-40">
                     Impacto en runway
                   </div>
                   <div className="mt-1 flex items-baseline gap-3">
@@ -408,13 +408,13 @@ export default function CashBalanceOverride({
                         ? "∞"
                         : preview.months.toFixed(1)}
                     </span>
-                    <span className="text-xs font-medium text-slate-500">
+                    <span className="text-xs font-medium text-ink-40">
                       meses con burn $ {formatArs(runway.burnRate30d)}/mes
                     </span>
                   </div>
-                  <div className="mt-2 text-[11px] text-slate-500 tabular-nums">
+                  <div className="mt-2 text-[11px] text-ink-40 tabular-nums">
                     Auto hoy:{" "}
-                    <span className="text-slate-700">
+                    <span className="text-ink-60">
                       {runway.monthsRemaining >= 999
                         ? "∞"
                         : runway.monthsRemaining.toFixed(1)}{" "}
@@ -440,8 +440,8 @@ export default function CashBalanceOverride({
                 <div
                   className="rounded-lg border border-dashed px-3 py-2 text-[11px]"
                   style={{
-                    borderColor: "rgba(15,23,42,0.12)",
-                    color: "rgba(15,23,42,0.6)",
+                    borderColor: "rgba(28,27,24,0.12)",
+                    color: "rgba(28,27,24,0.6)",
                   }}
                 >
                   Override actual del mes desde{" "}
@@ -475,15 +475,15 @@ export default function CashBalanceOverride({
         <div
           className="flex items-center justify-between gap-2 border-t px-5 py-3"
           style={{
-            borderColor: "rgba(15,23,42,0.06)",
-            background: "rgba(15,23,42,0.015)",
+            borderColor: "rgba(28,27,24,0.06)",
+            background: "rgba(28,27,24,0.015)",
           }}
         >
           <button
             type="button"
             onClick={handleRemove}
             disabled={!existing || saving || removing || loading}
-            className="text-[12px] font-semibold text-slate-500 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            className="text-[12px] font-semibold text-ink-40 hover:text-ink-60 disabled:cursor-not-allowed disabled:opacity-40"
             style={{ transition: `color 160ms ${ES}` }}
           >
             {removing ? "Volviendo…" : "Volver a automático"}
@@ -494,7 +494,7 @@ export default function CashBalanceOverride({
               type="button"
               onClick={onClose}
               disabled={saving || removing}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-ink-60 hover:bg-surface-2 disabled:opacity-40"
               style={{ transition: `all 160ms ${ES}` }}
             >
               Cancelar

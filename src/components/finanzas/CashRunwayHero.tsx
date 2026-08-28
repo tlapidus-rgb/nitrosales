@@ -358,7 +358,7 @@ function BreakdownItem({
         className="mt-0.5 font-semibold tabular-nums tracking-tight"
         style={{
           color: emphasis
-            ? "#0f172a"
+            ? "#1C1B18"
             : positive
               ? "#065f46"
               : "rgba(28,27,24,0.78)",
