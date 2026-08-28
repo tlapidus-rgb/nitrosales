@@ -80,14 +80,14 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
     <section className="dash-card dash-fade-up p-5">
       {/* Header */}
       <div className="flex items-center gap-2.5 mb-1">
-        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
-          <Users className="w-4.5 h-4.5 text-slate-700" />
+        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-surface border border-hairline flex items-center justify-center">
+          <Users className="w-4.5 h-4.5 text-ink-60" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">
+          <h3 className="text-sm font-semibold text-ink">
             Tipos de cliente
           </h3>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-ink-40">
             Quién compró en este período.
           </p>
         </div>
@@ -95,9 +95,9 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
 
       {/* Tanda 7.7 \u2014 ML privacy note (esperado) + VTEX data quality warning (bug) */}
       {(data.anonymousMeli?.orders ?? 0) > 0 && (
-        <div className="mt-3 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex items-start gap-1.5">
-          <Info className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
-          <p className="text-[10px] text-slate-500 leading-snug">
+        <div className="mt-3 rounded-md bg-surface border border-hairline px-2.5 py-1.5 flex items-start gap-1.5">
+          <Info className="w-3 h-3 text-ink-40 flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-ink-40 leading-snug">
             <span className="font-semibold">ML (privacidad):</span>{" "}
             {(data.anonymousMeli?.orders ?? 0).toLocaleString("es-AR")} pedidos
             de MercadoLibre figuran como "Sin identificar" porque ML no
@@ -119,26 +119,26 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
 
       {/* Tanda 9 — Resumen VTEX vs MELI por cantidad de pedidos (solo tab "Todos") */}
       {source === "ALL" && sourceCounts && (sourceCounts.vtex > 0 || sourceCounts.meli > 0) && (
-        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Pedidos por fuente</p>
+        <div className="mt-3 rounded-lg border border-hairline bg-surface/50 px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-40 mb-2">Pedidos por fuente</p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                <Store className="w-3 h-3 text-indigo-600" />
+              <div className="w-6 h-6 rounded-md bg-surface-2 flex items-center justify-center flex-shrink-0">
+                <Store className="w-3 h-3 text-ink-60" />
               </div>
               <div>
-                <p className="text-sm font-bold tabular-nums text-slate-900">{sourceCounts.vtex.toLocaleString("es-AR")}</p>
-                <p className="text-[10px] text-slate-500">VTEX (con cliente)</p>
+                <p className="text-sm font-bold tabular-nums text-ink">{sourceCounts.vtex.toLocaleString("es-AR")}</p>
+                <p className="text-[10px] text-ink-40">VTEX (con cliente)</p>
               </div>
             </div>
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="h-8 w-px bg-hairline" />
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center flex-shrink-0">
                 <ShoppingBag className="w-3 h-3 text-amber-600" />
               </div>
               <div>
-                <p className="text-sm font-bold tabular-nums text-slate-900">{sourceCounts.meli.toLocaleString("es-AR")}</p>
-                <p className="text-[10px] text-slate-500">MELI (anónimos)</p>
+                <p className="text-sm font-bold tabular-nums text-ink">{sourceCounts.meli.toLocaleString("es-AR")}</p>
+                <p className="text-[10px] text-ink-40">MELI (anónimos)</p>
               </div>
             </div>
           </div>
@@ -154,7 +154,7 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
           return (
             <div
               key={row.key}
-              className="rounded-lg border border-slate-100 bg-white px-3 py-2.5"
+              className="rounded-lg border border-hairline bg-white px-3 py-2.5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
@@ -164,19 +164,19 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
                     <Icon className={`w-4 h-4 ${toneStyles.iconColor}`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="text-sm font-semibold text-ink">
                       {row.label}
                     </p>
-                    <p className="text-[11px] text-slate-500 leading-snug">
+                    <p className="text-[11px] text-ink-40 leading-snug">
                       {row.sublabel}
                     </p>
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-semibold tabular-nums text-slate-900">
+                  <p className="text-sm font-semibold tabular-nums text-ink">
                     {row.stats.customers.toLocaleString("es-AR")}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-ink-40">
                     {row.stats.orders.toLocaleString("es-AR")} pedidos
                   </p>
                 </div>
@@ -184,21 +184,21 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
 
               {/* Progress bar */}
               <div className="mt-2 flex items-center gap-2">
-                <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden">
                   <div
                     className={`h-full ${toneStyles.bar} rounded-full transition-all duration-700`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-semibold tabular-nums text-slate-500 w-10 text-right">
+                <span className="text-[10px] font-semibold tabular-nums text-ink-40 w-10 text-right">
                   {pct.toFixed(0)}%
                 </span>
               </div>
 
               {/* Revenue */}
-              <p className="mt-1.5 text-[11px] text-slate-500">
+              <p className="mt-1.5 text-[11px] text-ink-40">
                 Facturación:{" "}
-                <span className="font-semibold tabular-nums text-slate-700">
+                <span className="font-semibold tabular-nums text-ink-60">
                   {formatARS(row.stats.revenue)}
                 </span>
               </p>
@@ -212,23 +212,23 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
 
 const TONE = {
   cyan: {
-    iconBg: "bg-cyan-50",
-    iconColor: "text-cyan-600",
-    bar: "bg-cyan-500",
+    iconBg: "bg-surface",
+    iconColor: "text-ink-60",
+    bar: "bg-ink",
   },
   violet: {
-    iconBg: "bg-violet-50",
-    iconColor: "text-violet-600",
-    bar: "bg-violet-500",
+    iconBg: "bg-surface",
+    iconColor: "text-ink-60",
+    bar: "bg-ink",
   },
   orange: {
-    iconBg: "bg-orange-50",
-    iconColor: "text-orange-600",
-    bar: "bg-orange-500",
+    iconBg: "bg-surface",
+    iconColor: "text-ink-60",
+    bar: "bg-ink",
   },
   slate: {
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-600",
-    bar: "bg-slate-400",
+    iconBg: "bg-surface-2",
+    iconColor: "text-ink-40",
+    bar: "bg-ink-40",
   },
 } as const;

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Calendar, Check } from "lucide-react";
+import { LivePulse } from "@/components/enterprise/ui";
 
 interface QuickRange {
   label: string;
@@ -84,8 +85,8 @@ export default function DateRangeFilter({
   const segItemClass = (active: boolean) =>
     `relative px-3.5 py-1.5 rounded-[7px] text-xs font-medium tabular-nums tracking-tight ${
       active
-        ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.08),0_2px_8px_-2px_rgba(15,23,42,0.12)]"
-        : "text-slate-600 hover:text-slate-900"
+        ? "bg-elevated text-ink shadow-[0_1px_2px_rgba(28,27,24,0.08),0_2px_8px_-2px_rgba(28,27,24,0.12)]"
+        : "text-ink-60 hover:text-ink"
     }`;
 
   const segStyle: React.CSSProperties = {
@@ -98,10 +99,10 @@ export default function DateRangeFilter({
     <div className="flex items-center gap-3 flex-wrap mb-5">
       {/* Segmented control container */}
       <div
-        className="inline-flex items-center gap-0.5 p-1 rounded-[10px] border border-slate-200/80 bg-slate-50/60"
+        className="inline-flex items-center gap-0.5 p-1 rounded-[10px] border border-hairline bg-surface"
         style={{
           boxShadow:
-            "inset 0 1px 2px rgba(15,23,42,0.04), 0 1px 0 rgba(255,255,255,0.6)",
+            "inset 0 1px 2px rgba(28,27,24,0.04), 0 1px 0 rgba(255,255,255,0.6)",
         }}
       >
         {/* Built-in presets: Hoy, Ayer */}
@@ -146,29 +147,29 @@ export default function DateRangeFilter({
       {/* Custom date picker */}
       {showCustom && (
         <div
-          className="dash-popover flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2"
+          className="dash-popover flex items-center gap-2 bg-elevated border border-hairline rounded-xl px-3 py-2"
           style={{
             boxShadow:
-              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.18), 0 22px 40px -28px rgba(15,23,42,0.16)",
+              "0 1px 0 rgba(28,27,24,0.06), 0 8px 24px -12px rgba(28,27,24,0.18), 0 22px 40px -28px rgba(28,27,24,0.16)",
           }}
         >
           <input
             type="date"
             value={customFrom}
             onChange={(e) => setCustomFrom(e.target.value)}
-            className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 bg-white focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition"
+            className="px-2.5 py-1.5 border border-hairline rounded-lg text-xs text-ink-60 bg-elevated focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
           />
-          <span className="text-xs text-slate-400">a</span>
+          <span className="text-xs text-ink-40">a</span>
           <input
             type="date"
             value={customTo}
             onChange={(e) => setCustomTo(e.target.value)}
-            className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 bg-white focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition"
+            className="px-2.5 py-1.5 border border-hairline rounded-lg text-xs text-ink-60 bg-elevated focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition"
           />
           <button
             onClick={handleApplyCustom}
             disabled={!customFrom || !customTo}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-ink hover:bg-ink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             style={{
               transitionDuration: "220ms",
               transitionTimingFunction: EASING,
@@ -180,15 +181,7 @@ export default function DateRangeFilter({
         </div>
       )}
 
-      {loading && (
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-          <span className="relative flex w-2 h-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
-          </span>
-          Actualizando
-        </div>
-      )}
+      {loading && <LivePulse status="LIVE" label="Actualizando" />}
     </div>
   );
 }

@@ -41,9 +41,9 @@ export default function ProfitabilityCard({
 
   const marginTone =
     data.marginPct >= 25
-      ? "text-cyan-600"
+      ? "text-accent"
       : data.marginPct >= 10
-        ? "text-slate-900"
+        ? "text-ink"
         : "text-rose-500";
 
   // TANDA 7.3: coverage por facturación es más honesto que por cantidad de pedidos.
@@ -53,7 +53,7 @@ export default function ProfitabilityCard({
   const grossWithoutCost = data.grossWithoutCost ?? 0;
   const coverageTone =
     coverage >= 90
-      ? { color: "text-cyan-700", bg: "bg-cyan-50 border-cyan-100" }
+      ? { color: "text-accent", bg: "bg-accent-soft border-accent/20" }
       : coverage >= 60
         ? { color: "text-amber-700", bg: "bg-amber-50 border-amber-100" }
         : { color: "text-rose-700", bg: "bg-rose-50 border-rose-100" };
@@ -63,14 +63,14 @@ export default function ProfitabilityCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
-            <Calculator className="w-4.5 h-4.5 text-slate-700" />
+          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-surface border border-hairline flex items-center justify-center">
+            <Calculator className="w-4.5 h-4.5 text-ink-60" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-ink">
               Margen real del período
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-ink-40">
               Cuánto queda después de IVA y costos de productos.
             </p>
           </div>
@@ -86,7 +86,7 @@ export default function ProfitabilityCard({
 
       {/* Big margin number */}
       <div className="mb-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 mb-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-40 mb-1">
           Margen bruto
         </p>
         <p
@@ -94,9 +94,9 @@ export default function ProfitabilityCard({
         >
           {animatedMargin}
         </p>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-xs text-ink-40 mt-1">
           Equivale a{" "}
-          <span className="font-semibold text-slate-700 tabular-nums">
+          <span className="font-semibold text-ink-60 tabular-nums">
             {formatARS(data.marginAbs ?? 0)}
           </span>{" "}
           en plata.
@@ -104,7 +104,7 @@ export default function ProfitabilityCard({
       </div>
 
       {/* Breakdown: bruto → neto → costos */}
-      <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+      <div className="grid grid-cols-3 gap-3 pt-4 border-t border-hairline">
         <BreakdownItem
           label="Bruto (con IVA)"
           value={formatARS(data.grossRevenue ?? 0)}
@@ -129,7 +129,7 @@ export default function ProfitabilityCard({
 
       {/* Tanda 7.6 — Comisiones de marketplace e ingreso real */}
       {((data.totalMarketplaceFee ?? 0) > 0 || typeof data.realNetRevenue === "number") && (
-        <div className="grid grid-cols-2 gap-3 pt-3 mt-3 border-t border-slate-100">
+        <div className="grid grid-cols-2 gap-3 pt-3 mt-3 border-t border-hairline">
           <BreakdownItem
             label={source === "VTEX" ? "Comisiones VTEX" : source === "MELI" ? "Comisiones ML" : "Comisiones"}
             value={formatARS(data.totalMarketplaceFee ?? 0)}
@@ -191,13 +191,13 @@ function BreakdownItem({
   const valueTone = negative
     ? "text-rose-600"
     : emphasize
-      ? "text-cyan-700"
-      : "text-slate-900";
+      ? "text-accent"
+      : "text-ink";
   return (
     <div>
       <p
         className={`text-[10px] font-semibold uppercase tracking-[0.15em] ${
-          emphasize ? "text-cyan-700" : "text-slate-500"
+          emphasize ? "text-accent" : "text-ink-40"
         }`}
       >
         {label}
@@ -206,7 +206,7 @@ function BreakdownItem({
         {negative ? "−" : ""}
         {value}
       </p>
-      {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
+      {hint && <p className="text-[10px] text-ink-40 mt-0.5">{hint}</p>}
     </div>
   );
 }

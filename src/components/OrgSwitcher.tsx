@@ -158,14 +158,14 @@ export function OrgSwitcher() {
         disabled={switching}
         className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border transition-colors ${
           isViewing
-            ? "bg-blue-50 border-blue-200 hover:bg-blue-100"
+            ? "bg-surface-2 border-hairline-2 hover:bg-surface"
             : "bg-white border-gray-200 hover:border-gray-300"
         } ${switching ? "opacity-60 cursor-wait" : "cursor-pointer"}`}
       >
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-              isViewing ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"
+              isViewing ? "bg-ink text-white" : "bg-gray-100 text-gray-600"
             }`}
           >
             {initial}
@@ -188,7 +188,7 @@ export function OrgSwitcher() {
               <button
                 type="button"
                 onClick={() => switchTo(null)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors text-blue-600"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors text-ink"
               >
                 <ArrowLeft size={14} />
                 <span className="font-medium">Volver a {realOrgName || "mi cuenta"}</span>
@@ -228,7 +228,7 @@ export function OrgSwitcher() {
                     </span>
                     <span className="flex-1 text-left truncate">{org.name}</span>
                     {isReal && (
-                      <span className="text-[9px] uppercase tracking-wide text-blue-500 font-semibold">tuya</span>
+                      <span className="text-[9px] uppercase tracking-wide text-ink-60 font-semibold">tuya</span>
                     )}
                     {isCurrent && <Check size={12} className="text-emerald-500" />}
                   </button>

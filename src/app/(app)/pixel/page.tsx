@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";

@@ -25,9 +25,9 @@ const TABS: Array<{
   accent: string;
   dotColor: string;
 }> = [
-  { value: "ALL", label: "Todos", accent: "text-slate-900", dotColor: "bg-slate-400" },
-  { value: "VTEX", label: "VTEX", accent: "text-indigo-700", dotColor: "bg-indigo-500" },
-  { value: "MELI", label: "Mercado Libre", accent: "text-amber-700", dotColor: "bg-amber-500" },
+  { value: "ALL", label: "Todos", accent: "text-ink", dotColor: "bg-ink-40" },
+  { value: "VTEX", label: "VTEX", accent: "text-ink", dotColor: "bg-ink" },
+  { value: "MELI", label: "Mercado Libre", accent: "text-ink", dotColor: "bg-amber-400" },
 ];
 
 export default function SourceTabs({ source, onSourceChange, sourceCounts }: SourceTabsProps) {
@@ -65,13 +65,13 @@ export default function SourceTabs({ source, onSourceChange, sourceCounts }: Sou
   return (
     <div
       ref={containerRef}
-      className="relative inline-flex items-center gap-0.5 p-1 rounded-[12px] border border-slate-200 bg-slate-50/60 backdrop-blur-sm"
+      className="relative inline-flex items-center gap-0.5 p-1 rounded-[12px] border border-hairline bg-surface/60 backdrop-blur-sm"
       role="tablist"
       aria-label="Filtro por plataforma"
     >
       {/* Indicador deslizante */}
       <div
-        className="absolute top-1 bottom-1 rounded-[9px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-slate-200/60"
+        className="absolute top-1 bottom-1 rounded-[9px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-hairline"
         style={{
           left: indicatorStyle.left,
           width: indicatorStyle.width,
@@ -94,7 +94,7 @@ export default function SourceTabs({ source, onSourceChange, sourceCounts }: Sou
             aria-selected={isActive}
             onClick={() => onSourceChange(tab.value)}
             className={`relative z-10 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-colors duration-200 ${
-              isActive ? tab.accent : "text-slate-500 hover:text-slate-700"
+              isActive ? tab.accent : "text-ink-40 hover:text-ink-60"
             }`}
           >
             <span
@@ -109,7 +109,7 @@ export default function SourceTabs({ source, onSourceChange, sourceCounts }: Sou
             {count !== null && (
               <span
                 className={`text-[10px] font-medium tabular-nums transition-colors duration-200 ${
-                  isActive ? "text-slate-500" : "text-slate-400"
+                  isActive ? "text-ink-60" : "text-ink-40"
                 }`}
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >

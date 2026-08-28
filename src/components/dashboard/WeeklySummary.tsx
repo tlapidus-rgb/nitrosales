@@ -34,7 +34,7 @@ export default function WeeklySummary({
     ) : revenueChange < -2 ? (
       <TrendingDown size={14} className="text-red-500" />
     ) : (
-      <Minus size={14} className="text-gray-400" />
+      <Minus size={14} className="text-ink-40" />
     );
 
   const revenueColor =
@@ -42,7 +42,7 @@ export default function WeeklySummary({
       ? "text-emerald-600"
       : revenueChange < -2
       ? "text-red-500"
-      : "text-gray-500";
+      : "text-ink-40";
 
   // Format best day name
   let bestDayLabel = "";
@@ -60,13 +60,13 @@ export default function WeeklySummary({
   }
 
   return (
-    <div className="bg-gradient-to-r from-indigo-50 via-white to-purple-50 rounded-xl border border-indigo-100 p-4 shadow-sm">
+    <div className="bg-surface rounded-xl border border-hairline p-4 shadow-ent-xs">
       <div className="flex items-start gap-3">
         <div className="flex-1">
-          <p className="text-sm text-gray-700 leading-relaxed">
+          <p className="text-sm text-ink-60 leading-relaxed">
             En los ultimos <strong>{daysInPeriod} dias</strong> facturaste{" "}
-            <strong className="text-gray-900">{formatCompact(totalRevenue)}</strong> en{" "}
-            <strong className="text-gray-900">{totalOrders.toLocaleString("es-AR")}</strong>{" "}
+            <strong className="text-ink">{formatCompact(totalRevenue)}</strong> en{" "}
+            <strong className="text-ink">{totalOrders.toLocaleString("es-AR")}</strong>{" "}
             ordenes.{" "}
             <span className={`inline-flex items-center gap-1 font-medium ${revenueColor}`}>
               {revenueIcon}
@@ -89,9 +89,9 @@ export default function WeeklySummary({
           </p>
         </div>
         <div className="flex-shrink-0 text-right hidden md:block">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Promedio diario</p>
-          <p className="text-sm font-bold text-gray-900">{formatCompact(avgRevenuePerDay)}/dia</p>
-          <p className="text-xs text-gray-500">{avgOrdersPerDay.toFixed(1)} ordenes/dia</p>
+          <p className="text-[10px] text-ink-40 uppercase tracking-wide">Promedio diario</p>
+          <p className="text-sm font-bold text-ink">{formatCompact(avgRevenuePerDay)}/dia</p>
+          <p className="text-xs text-ink-60">{avgOrdersPerDay.toFixed(1)} ordenes/dia</p>
         </div>
       </div>
     </div>

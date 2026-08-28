@@ -1091,7 +1091,7 @@ function PreviewModal({
               borderRadius: 12,
               background: "#F5F3EE",
               border: "1px solid rgba(28,27,24, 0.08)",
-              borderLeft: `4px solid ${data.preview.severity === "critical" ? "#ef4444" : data.preview.severity === "warning" ? "#f59e0b" : "#0ea5e9"}`,
+              borderLeft: `4px solid ${data.preview.severity === "critical" ? "#ef4444" : data.preview.severity === "warning" ? "#f59e0b" : "#83807A"}`,
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, color: "rgb(var(--ent-ink))", marginBottom: 8 }}>

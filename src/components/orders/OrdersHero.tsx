@@ -53,9 +53,9 @@ export default function OrdersHero({
   const isPositive = (revenueChange ?? 0) > 0;
   const isNeutral = (revenueChange ?? 0) === 0;
   const deltaColor = isNeutral
-    ? "text-slate-400"
+    ? "text-ink-40"
     : isPositive
-      ? "text-cyan-600"
+      ? "text-accent"
       : "text-rose-500";
   const DeltaIcon = isPositive ? ArrowUpRight : ArrowDownRight;
 
@@ -65,21 +65,18 @@ export default function OrdersHero({
         {/* Top row — tag + contexto + pulse */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-              <ShoppingBag className="w-3 h-3 text-orange-500" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-hairline px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">
+              <ShoppingBag className="w-3 h-3 text-ink-40" />
               {orgName} · Pedidos
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-ink-40">
               Resumen del período seleccionado
             </span>
           </div>
-          {/* Pulse indicator */}
+          {/* Freshness indicator — punto estático, sin glow */}
           <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium tabular-nums">
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+            <span className="text-[10px] text-ink-40 font-medium tabular-nums">
               {minutesAgo === 0 ? "Actualizado ahora" : `Hace ${minutesAgo} min`}
             </span>
           </div>
@@ -88,10 +85,10 @@ export default function OrdersHero({
         {/* Main row — facturación bruta (count-up) + secundarios */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-40 mb-2">
               Facturación bruta
             </p>
-            <p className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tabular-nums tracking-tight text-slate-900 leading-none">
+            <p className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tabular-nums tracking-tight text-ink leading-none">
               {animatedRevenue}
             </p>
             {hasDelta && (
@@ -100,13 +97,13 @@ export default function OrdersHero({
                 <span className={`text-sm font-semibold tabular-nums ${deltaColor}`}>
                   {Math.abs(revenueChange ?? 0).toFixed(1)}%
                 </span>
-                <span className="text-xs text-slate-500">vs período anterior</span>
+                <span className="text-xs text-ink-40">vs período anterior</span>
               </div>
             )}
           </div>
 
           {/* KPIs secundarios — vital signs */}
-          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 sm:border-l sm:border-slate-200/60 sm:pl-8">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 sm:border-l sm:border-hairline sm:pl-8">
             <HeroStat
               label="Neto sin IVA"
               value={formatARS(netRevenue)}
@@ -156,13 +153,13 @@ function HeroStat({
   const animated = useAnimatedValue(value, 1000);
   return (
     <div className="flex flex-col">
-      <span className={`text-[10px] font-semibold uppercase tracking-[0.2em] mb-0.5 ${emphasize ? "text-cyan-600" : "text-slate-500"}`}>
+      <span className={`text-[10px] font-semibold uppercase tracking-[0.2em] mb-0.5 ${emphasize ? "text-accent" : "text-ink-40"}`}>
         {label}
       </span>
-      <span className={`text-xl font-bold tabular-nums tracking-tight ${emphasize ? "text-cyan-700" : "text-slate-900"}`}>
+      <span className={`text-xl font-bold tabular-nums tracking-tight ${emphasize ? "text-accent" : "text-ink"}`}>
         {animated}
       </span>
-      {hint && <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">{hint}</span>}
+      {hint && <span className="text-[10px] text-ink-40 mt-0.5 leading-tight">{hint}</span>}
     </div>
   );
 }

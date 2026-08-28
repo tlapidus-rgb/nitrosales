@@ -10,9 +10,8 @@
 // Bible-compliant:
 //  - lucide icons only
 //  - cubic-bezier(0.16, 1, 0.3, 1) easing
-//  - multi-layer shadow boundary
-//  - backdrop saturate + blur
-//  - slate-900 + slate-500, no orange gradients
+//  - multi-layer shadow boundary (ink cálido)
+//  - ink / ink-60 sobre superficies planas, sin gradientes
 //  - rounded-2xl popover, rounded-xl segmented control
 //  - tabular-nums where applicable
 // ══════════════════════════════════════════════════════════════
@@ -145,10 +144,10 @@ export default function WidgetFilterPopover({
         aria-label="Filtros de la card"
         className={`relative inline-flex items-center justify-center w-7 h-7 rounded-md transition-all ${
           open
-            ? "bg-slate-100 text-slate-900"
+            ? "bg-surface-2 text-ink"
             : activeCount > 0
-              ? "text-slate-700 hover:bg-slate-100"
-              : "text-slate-300 hover:text-slate-700 hover:bg-slate-100"
+              ? "text-ink-60 hover:bg-surface-2"
+              : "text-ink-40 hover:text-ink-60 hover:bg-surface-2"
         }`}
         style={{
           transitionDuration: "180ms",
@@ -160,7 +159,7 @@ export default function WidgetFilterPopover({
           <span
             className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
             style={{
-              background: "#06b6d4",
+              background: "#2F9153",
               boxShadow: "0 0 0 2px #ffffff",
             }}
             aria-hidden
@@ -191,7 +190,7 @@ export default function WidgetFilterPopover({
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+              <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-ink-40">
                 Filtros
               </span>
               <div className="flex items-center gap-1">
@@ -199,7 +198,7 @@ export default function WidgetFilterPopover({
                   <button
                     onClick={handleClear}
                     type="button"
-                    className="text-[11px] font-medium text-slate-500 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                    className="text-[11px] font-medium text-ink-60 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2 transition-colors"
                     style={{
                       transitionDuration: "180ms",
                       transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -212,7 +211,7 @@ export default function WidgetFilterPopover({
                   onClick={() => setOpen(false)}
                   type="button"
                   aria-label="Cerrar"
-                  className="sm:hidden w-7 h-7 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                  className="sm:hidden w-7 h-7 inline-flex items-center justify-center rounded-md text-ink-60 hover:text-ink hover:bg-surface-2 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -234,11 +233,11 @@ export default function WidgetFilterPopover({
                 return (
                   <div key={f.id}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                      <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-ink-40">
                         {f.label}
                       </span>
                       {f.wired === false && (
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-ink-40 px-1.5 py-0.5 rounded bg-surface border border-hairline">
                           Beta
                         </span>
                       )}
@@ -263,7 +262,7 @@ export default function WidgetFilterPopover({
             </div>
 
             {/* Footer hint */}
-            <p className="mt-4 text-[10px] text-slate-400 leading-relaxed">
+            <p className="mt-4 text-[10px] text-ink-40 leading-relaxed">
               Los filtros refinan sólo esta card. El filtro de fecha global sigue activo.
             </p>
           </div>

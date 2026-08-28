@@ -937,7 +937,6 @@ function ModuleButton({
                 height: 6,
                 borderRadius: "50%",
                 background: "#dc2626",
-                boxShadow: "0 0 4px rgba(220, 38, 38, 0.5)",
               }}
             />
           )}

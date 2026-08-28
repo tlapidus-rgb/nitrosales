@@ -50,12 +50,12 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
     <section className="dash-card dash-fade-up p-5" style={{ fontVariantNumeric: "tabular-nums" }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-            <BookOpen className="w-4 h-4 text-indigo-600" />
+          <div className="w-9 h-9 rounded-xl bg-surface border border-hairline flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-ink-60" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Catálogo vs Individual</h3>
-            <p className="text-[11px] text-slate-500">Por tipo de publicación en ML</p>
+            <h3 className="text-sm font-semibold text-ink">Catálogo vs Individual</h3>
+            <p className="text-[11px] text-ink-40">Por tipo de publicación en ML</p>
           </div>
         </div>
         {/* Metric toggle */}
@@ -67,8 +67,8 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
             <button key={key} onClick={() => setMetric(key)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-200 ${
                 metric === key
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                  ? "bg-ink text-white shadow-sm"
+                  : "text-ink-40 hover:text-ink hover:bg-surface"
               }`}>
               {label}
             </button>
@@ -77,13 +77,13 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
       </div>
 
       {/* Stacked bar */}
-      <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex">
+      <div className="h-3 rounded-full bg-surface-2 overflow-hidden flex">
         <div
-          className="h-full bg-indigo-500 transition-all duration-700"
+          className="h-full bg-ink transition-all duration-700"
           style={{ width: `${catalogPct}%` }}
         />
         <div
-          className="h-full bg-slate-400 transition-all duration-700"
+          className="h-full bg-ink-40 transition-all duration-700"
           style={{ width: `${nonCatalogPct}%` }}
         />
       </div>
@@ -91,10 +91,10 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
       {/* Legend rows */}
       <div className="mt-4 space-y-3">
         <Row
-          icon={<BookOpen className="w-3.5 h-3.5 text-indigo-600" />}
+          icon={<BookOpen className="w-3.5 h-3.5 text-ink-60" />}
           label="Catálogo"
           sublabel="Publicaciones unificadas"
-          color="bg-indigo-500"
+          color="bg-ink"
           mainValue={catalogVal}
           metric={metric}
           orders={catalog?.orders ?? 0}
@@ -102,10 +102,10 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
           pct={catalogPct}
         />
         <Row
-          icon={<Package className="w-3.5 h-3.5 text-slate-500" />}
+          icon={<Package className="w-3.5 h-3.5 text-ink-40" />}
           label="Fuera de catálogo"
           sublabel="Publicaciones individuales"
-          color="bg-slate-400"
+          color="bg-ink-40"
           mainValue={nonCatalogVal}
           metric={metric}
           orders={nonCatalog?.orders ?? 0}
@@ -115,8 +115,8 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
       </div>
 
       {/* Footer insight */}
-      <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500">
-        <span className="font-semibold text-indigo-600">{catalogPct.toFixed(0)}%</span>{" "}
+      <div className="mt-4 pt-3 border-t border-hairline text-[11px] text-ink-40">
+        <span className="font-semibold text-ink">{catalogPct.toFixed(0)}%</span>{" "}
         de {metric === "revenue" ? "la facturación" : "los pedidos"} MELI viene de publicaciones en catálogo.
       </div>
     </section>
@@ -142,15 +142,15 @@ function Row({
         <div className={`w-2.5 h-2.5 rounded-full ${color} flex-shrink-0`} />
         {icon}
         <div className="min-w-0">
-          <p className="text-xs font-medium text-slate-800">{label}</p>
-          <p className="text-[10px] text-slate-400">{sublabel}</p>
+          <p className="text-xs font-medium text-ink">{label}</p>
+          <p className="text-[10px] text-ink-40">{sublabel}</p>
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="text-xs font-semibold text-slate-900">
+        <p className="text-xs font-semibold text-ink">
           {metric === "revenue" ? formatCompact(mainValue) : mainValue.toLocaleString("es-AR")}
         </p>
-        <p className="text-[10px] text-slate-400">
+        <p className="text-[10px] text-ink-40">
           {metric === "revenue"
             ? `${orders.toLocaleString("es-AR")} órd · ${units.toLocaleString("es-AR")} uds · ${pct.toFixed(0)}%`
             : `${formatCompact(mainValue)} · ${units.toLocaleString("es-AR")} uds · ${pct.toFixed(0)}%`

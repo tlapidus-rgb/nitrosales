@@ -304,7 +304,6 @@ export default function ReputacionPage() {
                         height: "100%", borderRadius: 999, width: `${pct}%`,
                         background: tone,
                         transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)",
-                        boxShadow: `0 0 8px ${tone}40`,
                       }}
                     />
                   </div>

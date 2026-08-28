@@ -3,9 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 // DashboardHero — hero header con narrativa del día
 // ══════════════════════════════════════════════════════════════
-// Light mode (página consumidor del dato).
-// Auroras radiales + prism delimiter (border-bottom multi-color)
-// matching el header del NitroPixel sesión 9.
+// Enterprise sobrio: superficie plana, sin auroras ni glows.
 // Number count-up animado en el valor principal de revenue.
 // ══════════════════════════════════════════════════════════════
 
@@ -78,9 +76,9 @@ export default function DashboardHero({
   const isPositive = (revenueChange ?? 0) > 0;
   const isNeutral = (revenueChange ?? 0) === 0;
   const deltaColor = isNeutral
-    ? "text-slate-400"
+    ? "text-ink-40"
     : isPositive
-      ? "text-cyan-600"
+      ? "text-accent"
       : "text-rose-500";
   const DeltaIcon = isPositive ? ArrowUpRight : ArrowDownRight;
 
@@ -89,11 +87,11 @@ export default function DashboardHero({
       <div className="dash-hero-inner px-6 py-6 sm:px-8 sm:py-7">
         {/* Top row — greeting + date */}
         <div className="flex items-center gap-2 mb-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            <Sparkles className="w-3 h-3 text-orange-500" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface border border-hairline px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-60">
+            <Sparkles className="w-3 h-3 text-ink-40" />
             {orgName}
           </span>
-          <span className="text-xs text-slate-500 capitalize">
+          <span className="text-xs text-ink-40 capitalize">
             {greeting}, {dayLabel}
           </span>
         </div>
@@ -101,10 +99,10 @@ export default function DashboardHero({
         {/* Main row — big revenue number + delta */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-1.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-40 mb-1.5">
               Facturación del período
             </p>
-            <p className="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight text-slate-900">
+            <p className="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight text-ink">
               {animatedRevenue}
             </p>
             {hasDelta && (
@@ -113,7 +111,7 @@ export default function DashboardHero({
                 <span className={`text-sm font-semibold tabular-nums ${deltaColor}`}>
                   {Math.abs(revenueChange ?? 0).toFixed(1)}%
                 </span>
-                <span className="text-xs text-slate-500">vs período anterior</span>
+                <span className="text-xs text-ink-40">vs período anterior</span>
               </div>
             )}
           </div>
@@ -134,10 +132,10 @@ function HeroStat({ label, value }: { label: string; value: string }) {
   const animated = useAnimatedValue(value, 900);
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-40">
         {label}
       </span>
-      <span className="text-lg font-semibold tabular-nums tracking-tight text-slate-900">
+      <span className="text-lg font-semibold tabular-nums tracking-tight text-ink">
         {animated}
       </span>
     </div>

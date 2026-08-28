@@ -64,10 +64,6 @@ export function BondlyKeyframes() {
         0% { background-position: -200% 0; }
         100% { background-position: 200% 0; }
       }
-      @keyframes bondlyLivePulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(6,182,212,0.45); }
-        50%      { box-shadow: 0 0 0 6px rgba(6,182,212,0.0); }
-      }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after {
           animation-duration: 0.01ms !important;
@@ -79,93 +75,15 @@ export function BondlyKeyframes() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BondlyAuroras — 3 radial-gradients blureados para hero sections.
-// Uso: dentro de un contenedor `relative overflow-hidden`.
-// Variantes:
-//   - bondly (default) — emerald + indigo + cyan
-//   - gold            — amber + orange (para paneles pLTV / VIP spotlight)
-//   - vip             — purple + pink + orange (para secciones tier VIP)
+// BondlyAuroras — DEPRECADO (migración enterprise sobrio).
+// Antes: 3 radial-gradients blureados (orbes decorativos) para hero
+// sections. El look enterprise elimina los orbes/glows ambientales.
+// Se conserva el export como no-op para no romper imports existentes.
 // ═══════════════════════════════════════════════════════════════════
 type AuroraVariant = "bondly" | "gold" | "vip";
 
-const AURORA_PALETTES: Record<
-  AuroraVariant,
-  Array<{ style: React.CSSProperties; color: string; blur: number }>
-> = {
-  bondly: [
-    {
-      style: { top: "-30%", left: "-10%", width: "55%", height: "140%" },
-      color: "rgba(16,185,129,0.18)",
-      blur: 50,
-    },
-    {
-      style: { top: "-20%", right: "-10%", width: "55%", height: "140%" },
-      color: "rgba(99,102,241,0.15)",
-      blur: 60,
-    },
-    {
-      style: { bottom: "-50%", left: "30%", width: "40%", height: "100%" },
-      color: "rgba(6,182,212,0.12)",
-      blur: 60,
-    },
-  ],
-  gold: [
-    {
-      style: { top: "-30%", left: "-10%", width: "55%", height: "140%" },
-      color: "rgba(251,191,36,0.18)",
-      blur: 50,
-    },
-    {
-      style: { top: "-20%", right: "-10%", width: "55%", height: "140%" },
-      color: "rgba(249,115,22,0.15)",
-      blur: 60,
-    },
-    {
-      style: { bottom: "-50%", left: "30%", width: "40%", height: "100%" },
-      color: "rgba(245,158,11,0.12)",
-      blur: 60,
-    },
-  ],
-  vip: [
-    {
-      style: { top: "-30%", left: "-10%", width: "55%", height: "140%" },
-      color: "rgba(168,85,247,0.18)",
-      blur: 50,
-    },
-    {
-      style: { top: "-20%", right: "-10%", width: "55%", height: "140%" },
-      color: "rgba(236,72,153,0.15)",
-      blur: 60,
-    },
-    {
-      style: { bottom: "-50%", left: "30%", width: "40%", height: "100%" },
-      color: "rgba(249,115,22,0.12)",
-      blur: 60,
-    },
-  ],
-};
-
-export function BondlyAuroras({
-  variant = "bondly",
-}: {
-  variant?: AuroraVariant;
-}) {
-  const palette = AURORA_PALETTES[variant] || AURORA_PALETTES.bondly;
-  return (
-    <div className="absolute inset-0 pointer-events-none">
-      {palette.map((a, i) => (
-        <div
-          key={i}
-          style={{
-            position: "absolute",
-            ...a.style,
-            background: `radial-gradient(circle, ${a.color} 0%, transparent 60%)`,
-            filter: `blur(${a.blur}px)`,
-          }}
-        />
-      ))}
-    </div>
-  );
+export function BondlyAuroras(_props: { variant?: AuroraVariant }) {
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -175,7 +93,7 @@ export function BondlyAuroras({
 //   label — UPPERCASE mono
 //   value — número (se anima con useCountUp)
 //   loading — si true, muestra shimmer skeleton
-//   live — si true, muestra badge LIVE con pulse cyan
+//   live — si true, muestra badge LIVE en acento verde (sin glow)
 // ═══════════════════════════════════════════════════════════════════
 export function KpiTile({
   icon: Icon,
@@ -216,12 +134,11 @@ export function KpiTile({
           <span
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono tracking-[0.15em] uppercase"
             style={{
-              background: "rgba(6,182,212,0.10)",
-              color: "#0891b2",
-              animation: `bondlyLivePulse 2.4s ${ES} infinite`,
+              background: "rgba(47,145,83,0.10)",
+              color: "#2F9153",
             }}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
             LIVE
           </span>
         )}

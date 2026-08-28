@@ -237,16 +237,16 @@ const TONE_STYLES: Record<
   { accent: string; bg: string; iconBg: string; iconColor: string; metricColor: string; dot: string }
 > = {
   positive: {
-    accent: "border-l-cyan-500",
-    bg: "bg-gradient-to-br from-cyan-50/40 to-white",
-    iconBg: "bg-cyan-50",
-    iconColor: "text-cyan-600",
-    metricColor: "text-cyan-600",
-    dot: "bg-cyan-500",
+    accent: "border-l-accent",
+    bg: "bg-accent-soft",
+    iconBg: "bg-accent-soft",
+    iconColor: "text-accent",
+    metricColor: "text-accent",
+    dot: "bg-accent",
   },
   negative: {
     accent: "border-l-rose-500",
-    bg: "bg-gradient-to-br from-rose-50/30 to-white",
+    bg: "bg-rose-50",
     iconBg: "bg-rose-50",
     iconColor: "text-rose-600",
     metricColor: "text-rose-600",
@@ -254,19 +254,19 @@ const TONE_STYLES: Record<
   },
   warning: {
     accent: "border-l-amber-500",
-    bg: "bg-gradient-to-br from-amber-50/40 to-white",
+    bg: "bg-amber-50",
     iconBg: "bg-amber-50",
     iconColor: "text-amber-600",
     metricColor: "text-amber-600",
     dot: "bg-amber-500",
   },
   neutral: {
-    accent: "border-l-slate-300",
-    bg: "bg-gradient-to-br from-slate-50/40 to-white",
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-600",
-    metricColor: "text-slate-700",
-    dot: "bg-slate-400",
+    accent: "border-l-hairline-2",
+    bg: "bg-surface",
+    iconBg: "bg-surface-2",
+    iconColor: "text-ink-60",
+    metricColor: "text-ink",
+    dot: "bg-ink-40",
   },
 };
 
@@ -280,8 +280,8 @@ export default function DashboardTodayBlock({ insights, loading }: DashboardToda
     return (
       <section className="dash-today mb-6">
         <header className="flex items-center gap-2 mb-3">
-          <Zap className="w-4 h-4 text-slate-400" />
-          <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+          <Zap className="w-4 h-4 text-ink-40" />
+          <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-ink-60">
             Lo que importa hoy
           </h2>
         </header>
@@ -299,11 +299,11 @@ export default function DashboardTodayBlock({ insights, loading }: DashboardToda
   return (
     <section className="dash-today mb-6">
       <header className="flex items-center gap-2 mb-3">
-        <Zap className="w-4 h-4 text-amber-500" />
-        <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+        <Zap className="w-4 h-4 text-ink-40" />
+        <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-ink-60">
           Lo que importa hoy
         </h2>
-        <span className="text-[11px] text-slate-400 font-normal normal-case tracking-normal">
+        <span className="text-[11px] text-ink-40 font-normal normal-case tracking-normal">
           · {insights.length} {insights.length === 1 ? "insight" : "insights"} detectados
         </span>
       </header>
@@ -327,7 +327,7 @@ export default function DashboardTodayBlock({ insights, loading }: DashboardToda
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className={`w-1 h-1 rounded-full ${styles.dot}`} />
-                    <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-slate-500">
+                    <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-ink-40">
                       {insight.category}
                     </span>
                     {insight.metric && (
@@ -339,15 +339,15 @@ export default function DashboardTodayBlock({ insights, loading }: DashboardToda
                     )}
                   </div>
 
-                  <h3 className="text-[14px] font-semibold tracking-tight text-slate-900 leading-snug mb-1">
+                  <h3 className="text-[14px] font-semibold tracking-tight text-ink leading-snug mb-1">
                     {insight.headline}
                   </h3>
 
-                  <p className="text-[12px] text-slate-500 leading-relaxed">{insight.detail}</p>
+                  <p className="text-[12px] text-ink-60 leading-relaxed">{insight.detail}</p>
 
                   {insight.hint && (
-                    <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-600/80 font-medium">
-                      <ArrowRight className="w-3 h-3 text-slate-400" />
+                    <p className="mt-2 flex items-center gap-1 text-[11px] text-ink-60 font-medium">
+                      <ArrowRight className="w-3 h-3 text-ink-40" />
                       {insight.hint}
                     </p>
                   )}

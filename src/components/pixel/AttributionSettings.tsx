@@ -219,18 +219,16 @@ export function AttributionSettings() {
                 type="button"
                 onClick={() => setDraft({ ...draft, attributionModel: m.id })}
                 className={`text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 ${
-                  active && m.isCustom
-                    ? "border-violet-500 bg-violet-50/60 shadow-sm"
-                    : active
-                      ? "border-cyan-500 bg-cyan-50/60 shadow-sm"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                  active
+                    ? "border-ink bg-surface-2 shadow-sm"
+                    : "border-gray-200 bg-white hover:border-gray-300"
                 }`}
                 title={m.example}
               >
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      active ? (m.isCustom ? "bg-violet-500" : "bg-cyan-500") : "bg-gray-300"
+                      active ? "bg-accent" : "bg-gray-300"
                     }`}
                   />
                   <span className="text-sm font-semibold text-gray-900">{m.label}</span>
@@ -256,7 +254,9 @@ export function AttributionSettings() {
           <div className="space-y-4">
             {(["first", "middle", "last"] as const).map((k) => {
               const label = k === "first" ? "Primer clic" : k === "middle" ? "Intermedios" : "Último clic";
-              const color = k === "first" ? "#06b6d4" : k === "middle" ? "#8b5cf6" : "#f97316";
+              // Secuencial monocromo que se oscurece hacia el último clic
+              // (enterprise sobrio: sin paleta arcoíris cyan/violeta/naranja).
+              const color = k === "first" ? "#83807A" : k === "middle" ? "#6B685F" : "#1C1B18";
               return (
                 <div key={k} className="flex items-center gap-3">
                   <div className="w-32 flex items-center gap-2">
@@ -296,7 +296,7 @@ export function AttributionSettings() {
                         if (!isNaN(v)) handleSlider(k, v);
                       }}
                       disabled={locked[k]}
-                      className="w-14 px-1.5 py-1 border border-gray-200 rounded-md text-sm font-semibold tabular-nums text-right outline-none focus:border-cyan-500 disabled:bg-gray-50 disabled:text-gray-400"
+                      className="w-14 px-1.5 py-1 border border-gray-200 rounded-md text-sm font-semibold tabular-nums text-right outline-none focus:border-accent disabled:bg-gray-50 disabled:text-gray-400"
                       style={{ color: locked[k] ? undefined : color }}
                     />
                     <span className="text-xs text-gray-400">%</span>
@@ -330,7 +330,7 @@ export function AttributionSettings() {
               onClick={() => setDraft({ ...draft, attributionWindowDays: d })}
               className={`p-3 rounded-xl border text-sm font-semibold transition-all ${
                 draft.attributionWindowDays === d
-                  ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                  ? "border-ink bg-ink text-white"
                   : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
               }`}
             >
@@ -365,7 +365,7 @@ export function AttributionSettings() {
                 <span
                   className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
                     isOverride
-                      ? "bg-violet-100 text-violet-700"
+                      ? "bg-surface-2 text-ink-60"
                       : "bg-gray-100 text-gray-500"
                   }`}
                 >
@@ -377,7 +377,7 @@ export function AttributionSettings() {
                     onClick={() => setChannelWindow(ch.id, null)}
                     className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
                       !isOverride
-                        ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                        ? "border-ink bg-ink text-white"
                         : "border-gray-200 text-gray-500 hover:bg-gray-50"
                     }`}
                   >
@@ -394,9 +394,9 @@ export function AttributionSettings() {
                       if (v === null) setChannelWindow(ch.id, null);
                       else if (v >= 1 && v <= 90) setChannelWindow(ch.id, v);
                     }}
-                    className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none transition-all ${
+                    className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none transition-all focus:border-accent ${
                       isOverride
-                        ? "border-violet-500 bg-violet-50 text-violet-700"
+                        ? "border-ink bg-surface-2 text-ink"
                         : "border-gray-200 text-gray-500"
                     }`}
                   />
@@ -431,7 +431,7 @@ export function AttributionSettings() {
           disabled={!isDirty || !weightsValid || saving}
           className={`px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all ${
             isDirty && weightsValid && !saving
-              ? "bg-cyan-600 hover:bg-cyan-700 shadow"
+              ? "bg-ink hover:bg-ink/90 shadow"
               : "bg-gray-200 text-gray-400 cursor-not-allowed"
           }`}
         >
@@ -579,7 +579,7 @@ function AuraCreatorWindows() {
             <span className="text-[10px] text-gray-400">({creators.length})</span>
           )}
         </div>
-        <span className="text-[10px] uppercase tracking-wider text-violet-500 font-semibold group-hover:text-violet-600">
+        <span className="text-[10px] uppercase tracking-wider text-ink-40 font-semibold group-hover:text-ink-60">
           Ventana por afiliado
         </span>
       </button>
@@ -625,7 +625,7 @@ function AuraCreatorWindows() {
                 return (
                   <div key={c.id} className={`flex flex-wrap items-center gap-3 py-1.5 ${isInactive ? "opacity-50" : ""}`}>
                     <div className="w-44 flex items-center gap-2.5 min-w-0">
-                      <span className="w-[26px] h-[26px] rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[11px] font-bold flex-shrink-0">
+                      <span className="w-[26px] h-[26px] rounded-full bg-surface-2 text-ink-60 flex items-center justify-center text-[11px] font-bold flex-shrink-0">
                         {c.name.charAt(0).toUpperCase()}
                       </span>
                       <div className="min-w-0">
@@ -639,7 +639,7 @@ function AuraCreatorWindows() {
                     {isSaved && <span className="text-[10px] text-emerald-600 font-medium">✓ Guardado</span>}
                     <span
                       className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
-                        isCustom ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-500"
+                        isCustom ? "bg-surface-2 text-ink-60" : "bg-gray-100 text-gray-500"
                       }`}
                     >
                       {isCustom
@@ -653,7 +653,7 @@ function AuraCreatorWindows() {
                         onClick={() => patchWindow(c, null)}
                         className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
                           !isCustom
-                            ? "border-cyan-500 bg-cyan-50 text-cyan-700 cursor-default"
+                            ? "border-ink bg-ink text-white cursor-default"
                             : "border-gray-200 text-gray-500 hover:bg-gray-50"
                         } disabled:opacity-60`}
                       >
@@ -671,9 +671,9 @@ function AuraCreatorWindows() {
                           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                         }}
                         aria-label={`Ventana de atribución de ${c.name} en días`}
-                        className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none focus:border-cyan-500 transition-all ${
+                        className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none focus:border-accent transition-all ${
                           isCustom
-                            ? "border-violet-500 bg-violet-50 text-violet-700"
+                            ? "border-ink bg-surface-2 text-ink"
                             : "border-gray-200 text-gray-500"
                         } disabled:opacity-60`}
                       />

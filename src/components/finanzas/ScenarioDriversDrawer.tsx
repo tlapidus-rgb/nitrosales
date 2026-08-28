@@ -357,7 +357,7 @@ export default function ScenarioDriversDrawer({
               <div className="flex items-center gap-2">
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
+                  style={{ background: color }}
                 />
                 <span
                   className="text-[10px] font-semibold uppercase tracking-[0.14em]"

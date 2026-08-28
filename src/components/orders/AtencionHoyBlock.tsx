@@ -156,14 +156,14 @@ export default function AtencionHoyBlock({
     return (
       <section className="dash-card dash-fade-up mb-5 p-5">
         <div className="flex items-center gap-3">
-          <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5 text-cyan-600" />
+          <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-accent-soft border border-accent/20 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-ink">
               Todo en orden
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-ink-40 mt-0.5">
               No encontramos pedidos ni eventos raros en este período.
             </p>
           </div>
@@ -187,10 +187,10 @@ export default function AtencionHoyBlock({
             <AlertTriangle className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-ink">
               Atención hoy
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-ink-40 mt-0.5">
               {alerts.length} {alerts.length === 1 ? "situación" : "situaciones"}{" "}
               que conviene revisar.
             </p>
@@ -221,9 +221,9 @@ export default function AtencionHoyBlock({
                 clickable ? () => onFilterByFlag!(alert.flag!) : undefined
               }
               disabled={!clickable}
-              className={`group text-left flex items-start gap-3 rounded-lg border border-slate-100 border-l-[3px] ${accent} bg-white px-3 py-2.5 transition-all ${
+              className={`group text-left flex items-start gap-3 rounded-lg border border-hairline border-l-[3px] ${accent} bg-white px-3 py-2.5 transition-all ${
                 clickable
-                  ? "hover:bg-slate-50 hover:shadow-sm cursor-pointer"
+                  ? "hover:bg-surface hover:shadow-sm cursor-pointer"
                   : "cursor-default"
               }`}
             >
@@ -234,18 +234,18 @@ export default function AtencionHoyBlock({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-900 truncate">
+                  <p className="text-sm font-semibold text-ink truncate">
                     {alert.title}
                   </p>
-                  <span className="flex-shrink-0 text-xs font-semibold tabular-nums text-slate-700">
+                  <span className="flex-shrink-0 text-xs font-semibold tabular-nums text-ink-60">
                     {alert.count}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                <p className="text-xs text-ink-40 mt-0.5 leading-snug">
                   {alert.message}
                 </p>
                 {clickable && (
-                  <span className="inline-block text-[10px] text-orange-600 font-medium mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="inline-block text-[10px] text-ink-60 font-medium mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     Clic para filtrar la tabla →
                   </span>
                 )}
@@ -256,7 +256,7 @@ export default function AtencionHoyBlock({
       </div>
 
       {hidden > 0 && (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-ink-40">
           Y {hidden} {hidden === 1 ? "situación más" : "situaciones más"} en la
           tabla de pedidos.
         </p>

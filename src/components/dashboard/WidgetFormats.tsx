@@ -172,7 +172,7 @@ function Delta({ change, inverse }: { change?: number; inverse?: boolean }) {
   const color = isNeutral
     ? "text-ink-40"
     : isGood
-      ? "text-cyan-600"
+      ? "text-accent"
       : "text-rose-500";
   const Icon = raw > 0 ? ArrowUpRight : ArrowDownRight;
   return (
@@ -324,33 +324,33 @@ export function FormatMiniLine({
               data={series}
               margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
             >
-              <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+              <CartesianGrid stroke="rgba(28,27,24,0.06)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDateShort}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#83807A" }}
               />
               <YAxis
                 tickFormatter={(v) => formatCompact(v)}
                 tickLine={false}
                 axisLine={false}
                 width={36}
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#83807A" }}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#fff",
-                  border: "1px solid rgba(15,23,42,0.08)",
+                  border: "1px solid rgba(28,27,24,0.08)",
                   borderRadius: 8,
                   fontSize: 12,
                 }}
                 formatter={(value: number) => [valueFormatter(value), ""]}
                 labelFormatter={formatDateShort}
                 cursor={{
-                  stroke: "rgba(15,23,42,0.12)",
+                  stroke: "rgba(28,27,24,0.12)",
                   strokeWidth: 1,
                   strokeDasharray: "4 4",
                 }}
@@ -391,32 +391,32 @@ export function FormatMiniBar({
               data={series}
               margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
             >
-              <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+              <CartesianGrid stroke="rgba(28,27,24,0.06)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDateShort}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#83807A" }}
               />
               <YAxis
                 tickFormatter={(v) => formatCompact(v)}
                 tickLine={false}
                 axisLine={false}
                 width={36}
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#83807A" }}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#fff",
-                  border: "1px solid rgba(15,23,42,0.08)",
+                  border: "1px solid rgba(28,27,24,0.08)",
                   borderRadius: 8,
                   fontSize: 12,
                 }}
                 formatter={(value: number) => [valueFormatter(value), ""]}
                 labelFormatter={formatDateShort}
-                cursor={{ fill: "rgba(15,23,42,0.04)" }}
+                cursor={{ fill: "rgba(28,27,24,0.04)" }}
               />
               <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -460,13 +460,13 @@ export function FormatDonut({
                   strokeWidth={2}
                 >
                   {items.map((it, i) => (
-                    <Cell key={it.key} fill={it.color || "#94a3b8"} />
+                    <Cell key={it.key} fill={it.color || "#83807A"} />
                   ))}
                 </Pie>
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "#fff",
-                    border: "1px solid rgba(15,23,42,0.08)",
+                    border: "1px solid rgba(28,27,24,0.08)",
                     borderRadius: 8,
                     fontSize: 12,
                   }}
@@ -490,7 +490,7 @@ export function FormatDonut({
                 <div key={it.key} className="flex items-center gap-2 text-[12px]">
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: it.color || "#94a3b8" }}
+                    style={{ background: it.color || "#83807A" }}
                   />
                   <span className="text-ink-60 truncate flex-1">{it.label}</span>
                   <span className="text-ink font-semibold tabular-nums">

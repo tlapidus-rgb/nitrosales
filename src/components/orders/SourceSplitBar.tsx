@@ -52,18 +52,18 @@ export default function SourceSplitBar({
   }) => (
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-medium text-ink-40 uppercase tracking-wide">{label}</span>
       </div>
-      <div className="relative h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+      <div className="relative h-2.5 w-full rounded-full bg-surface-2 overflow-hidden">
         <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-l-full"
+          className="absolute inset-y-0 left-0 bg-ink rounded-l-full"
           style={{
             width: `${vtexPct}%`,
             transition: "width 500ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         />
         <div
-          className="absolute inset-y-0 bg-gradient-to-r from-amber-400 to-amber-500 rounded-r-full"
+          className="absolute inset-y-0 bg-amber-400 rounded-r-full"
           style={{
             left: `${vtexPct}%`,
             width: `${meliPct}%`,
@@ -73,16 +73,16 @@ export default function SourceSplitBar({
       </div>
       <div className="flex items-center justify-between mt-2 text-[11px]">
         <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-          <span className="text-slate-600 font-medium">VTEX</span>
-          <span className="text-slate-400 tabular-nums">{vtexPct.toFixed(1)}%</span>
-          <span className="text-slate-500 tabular-nums">· {vtexAbs}</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-ink" />
+          <span className="text-ink-60 font-medium">VTEX</span>
+          <span className="text-ink-40 tabular-nums">{vtexPct.toFixed(1)}%</span>
+          <span className="text-ink-40 tabular-nums">· {vtexAbs}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-slate-500 tabular-nums">{meliAbs} ·</span>
-          <span className="text-slate-400 tabular-nums">{meliPct.toFixed(1)}%</span>
-          <span className="text-slate-600 font-medium">Mercado Libre</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          <span className="text-ink-40 tabular-nums">{meliAbs} ·</span>
+          <span className="text-ink-40 tabular-nums">{meliPct.toFixed(1)}%</span>
+          <span className="text-ink-60 font-medium">Mercado Libre</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
         </div>
       </div>
     </div>
@@ -90,13 +90,13 @@ export default function SourceSplitBar({
 
   return (
     <div
-      className="bg-white rounded-xl border border-slate-200/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+      className="bg-white rounded-xl border border-hairline p-5 shadow-ent-xs"
       style={{ fontVariantNumeric: "tabular-nums" }}
     >
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-semibold text-slate-800">Distribución por plataforma</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <h2 className="text-sm font-semibold text-ink">Distribución por plataforma</h2>
+          <p className="text-[11px] text-ink-40 mt-0.5">
             Cómo se reparte el período entre VTEX y Mercado Libre
           </p>
         </div>
