@@ -299,7 +299,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="px-4 h-14 shrink-0 flex items-center gap-2.5 border-b border-hairline">
-          <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setSidebarOpen(false)}>
+          <Link href="/" className="flex items-center gap-2.5" onClick={() => setSidebarOpen(false)}>
             <div className="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center font-semibold text-[13px] tracking-tight">N</div>
             <span className="text-[14px] font-semibold text-ink tracking-[-.02em]">NitroSales</span>
           </Link>
