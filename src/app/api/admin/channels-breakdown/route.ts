@@ -36,7 +36,7 @@ import { DIM_RULE_EXPRS } from "@/lib/pixel/channel-rollup";
 import { sourceDisplayName, mediumAxisLabel } from "@/lib/pixel/source-display-name";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   // F4: gate por permiso de sección (staff pasa por el bypass de requirePermission).
@@ -78,13 +78,7 @@ async function breakdown(orgId: string, min: number) {
   // Breakdown por canal RESUELTO POR REGLA (exacto, desde la dim). El passthrough
   // (orígenes sin regla) NO va acá — vive en la bandeja `sinMapear`. Así "Tus
   // canales" muestra solo canales de verdad y el conteo no incluye crudos.
-  const channels = (await prisma.$queryRawUnsafe(
-    `SELECT ${channelCase} AS channel, COUNT(*)::int AS visitantes
-     FROM pixel_visitor_first_source d
-     WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL AND (${isMapped})
-     GROUP BY 1 ORDER BY 2 DESC`,
-    orgId
-  )) as Array<{ channel: string; visitantes: number }>;
+  // channels: se deriva de originsRaw mas abajo (mismo scan).
 
   // Todos los orígenes con su canal RESUELTO, al grano (source, medium) — para el
   // drill-down. GRANO source+medium (2026-08-18, pedido de Tomy): "google" viene de
@@ -128,14 +122,28 @@ async function breakdown(orgId: string, min: number) {
   // Bandeja "sin mapear": los que NINGUNA regla agarra (passthrough), por volumen,
   // al MISMO grano (source, medium) — así paid vs orgánico del mismo source son filas
   // separadas y clasificables por separado.
-  const sinMapear = (await prisma.$queryRawUnsafe(
-    `SELECT d.source_raw AS codigo, d.medium_raw AS medium, COUNT(*)::int AS visitantes
-     FROM pixel_visitor_first_source d
-     WHERE d."organizationId" = $1 AND d.source_raw IS NOT NULL AND NOT (${isMapped})
-     GROUP BY 1, 2 HAVING COUNT(*) >= $2 ORDER BY 3 DESC`,
-    orgId,
-    min
-  )) as Array<{ codigo: string; medium: string | null; visitantes: number }>;
+  const channelAgg = new Map<string, number>();
+  for (const o of originsRaw) {
+    if (o.mapped) channelAgg.set(o.channel, (channelAgg.get(o.channel) ?? 0) + o.visitantes);
+  }
+  const channels = [...channelAgg.entries()]
+    .map(([channel, visitantes]) => ({ channel, visitantes }))
+    .sort((a, b) => b.visitantes - a.visitantes);
+
+  // Bandeja "sin mapear" DERIVADA de originsRaw (NOT mapped -> group by source+medium,
+  // sum, HAVING >= min). Mismo resultado que el GROUP BY SQL, sin scan extra.
+  const sinMapearAgg = new Map<string, { codigo: string; medium: string | null; visitantes: number }>();
+  for (const o of originsRaw) {
+    if (o.mapped) continue;
+    const k = JSON.stringify([o.codigo, o.medium ?? ""]);
+    const cur = sinMapearAgg.get(k);
+    if (cur) cur.visitantes += o.visitantes;
+    else sinMapearAgg.set(k, { codigo: o.codigo, medium: o.medium, visitantes: o.visitantes });
+  }
+  const sinMapear = [...sinMapearAgg.values()]
+    .filter((s) => s.visitantes >= min)
+    .sort((a, b) => b.visitantes - a.visitantes);
+
   // La "izquierda" del panel: el usuario ve el NOMBRE limpio (Tomy) + el label del
   // medium cuando desambigua; el `codigo`+`medium` crudos viajan para armar la regla.
   const sinMapearUI = sinMapear.map((s) => ({
