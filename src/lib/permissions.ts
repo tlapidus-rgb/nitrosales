@@ -112,22 +112,16 @@ export const DEFAULT_PERMISSIONS: PermissionsMatrix = {
     return { ...acc, [s.key]: level };
   }, {} as Record<Section, AccessLevel>),
   MEMBER: SECTIONS.reduce((acc, s) => {
-    // Member: read en finanzas, write en costos+escenarios+fiscal,
-    // read en ventas/marketing/alertas, none en config (excepto org=read)
-    let level: AccessLevel = "read";
-    if (["costos", "escenarios", "fiscal"].includes(s.key)) {
+    // Member ("Editor") = LO QUE VEN LOS CLIENTES (igual al rol custom "Standard"
+    // de Arredo/TeVe Compras): SOLO Aura (write) + NitroPixel Analytics (pixel: read)
+    // + NitroPixel Asset (nitropixel: read). TODO lo demás = none (no aparece en el
+    // sidebar). Antes daba read amplio a todo lo operativo; se restringió al set real
+    // de cliente (2026-08-26, pedido del usuario). Los clientes reales tienen el rol
+    // custom "Standard" asignado y no dependen de este default.
+    let level: AccessLevel = "none";
+    if (s.key === "aura") {
       level = "write";
-    } else if (
-      [
-        "settings_team",
-        "settings_integrations",
-        "settings_billing",
-        "settings_security",
-        "settings_api_keys",
-      ].includes(s.key)
-    ) {
-      level = "none";
-    } else if (s.key === "settings_org") {
+    } else if (s.key === "pixel" || s.key === "nitropixel") {
       level = "read";
     }
     return { ...acc, [s.key]: level };
