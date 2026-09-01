@@ -87,9 +87,33 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string 
   whatsapp: { icon: "W", color: "#25D366", label: "WhatsApp" },
 };
 
+// Resuelve la key de marca (icono + color) a partir del source O del NOMBRE de canal.
+// Con canales, `ch.source` puede ser el canal resuelto por reglas ("google ads",
+// "meta ads", "instagram organico"...) que NO matchea las keys crudas -> antes caia
+// al gris. Fuzzy por keyword para recuperar el logo/color de marca. "" = sin match.
+function iconKeyFor(source: string): string {
+  const canon = canonicalMarketingSource(source);
+  if (SOURCE_ICONS[canon]) return canon;
+  const n = (source || "").toLowerCase();
+  if (n.includes("meta")) return "meta";
+  if (n.includes("instagram")) return "instagram";
+  if (n.includes("facebook")) return "facebook";
+  if (n.includes("google")) return n.includes("org") ? "google_organic" : "google";
+  if (n.includes("tiktok")) return "tiktok";
+  if (n.includes("bing")) return n.includes("org") ? "bing_organic" : "bing";
+  if (n.includes("whatsapp")) return "whatsapp";
+  if (n.includes("carrito") || n.includes("abandon")) return "vtex-abandoned-cart";
+  if (n.includes("remarketing")) return "email-remarketing";
+  if (n.includes("email") || n.includes("mail")) return "email";
+  if (n.includes("referid") || n.includes("referr")) return "referral";
+  if (n.includes("directo") || n.includes("direct")) return "direct";
+  return "";
+}
+
 function getSourceInfo(source: string) {
-  const key = canonicalMarketingSource(source);
-  return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B685F", label: source };
+  const key = iconKeyFor(source);
+  if (SOURCE_ICONS[key]) return SOURCE_ICONS[key];
+  return { icon: (source || "?").charAt(0).toUpperCase(), color: "#6B685F", label: source };
 }
 
 // Alias wrapper — same canonical map as backend first-source SQL + conversionRates API.
@@ -99,7 +123,7 @@ function canonicalSource(source: string): string {
 
 // SVG channel logos — white icons inside colored circles
 function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) {
-  const s = (source || "").toLowerCase();
+  const s = iconKeyFor(source || "") || (source || "").toLowerCase();
   const props = { width: size, height: size, viewBox: "0 0 24 24", fill: "white", className: "flex-shrink-0" };
   switch (s) {
     case "meta":
