@@ -4,7 +4,12 @@
 // Admin: Aurum Usage Dashboard
 // ══════════════════════════════════════════════════════════════
 // Internal-only telemetry dashboard for NitroSales owner.
-// Access: /admin/usage?key=ADMIN_SECRET
+// Access: /admin/usage?key=<ADMIN_API_KEY>
+// ⚠️ CAMBIO 2026-09-05 (R-C01): la API aceptaba `?key=usage-2026`, un literal
+// hardcodeado que la volvia publica desde internet (devolvia la telemetria de
+// TODAS las organizaciones, incluido el ranking de uso por cliente). Ahora valida
+// contra ADMIN_API_KEY, la clave canonica del repo. La pagina no cambia: sigue
+// tomando la key de la URL, pero hay que pasarle la de verdad.
 // No auth beyond query-param key. Not in (app) group → no sidebar.
 // ══════════════════════════════════════════════════════════════
 

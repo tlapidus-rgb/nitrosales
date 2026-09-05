@@ -287,10 +287,28 @@ async function syncOneOrg(
 }
 
 export async function GET(req: NextRequest) {
-  // Optional: Verify cron secret
+  // ⚠️ FAIL-CLOSED (R-C04). Antes era `if (cronSecret && authHeader !== ...)`, o
+  // sea: si la variable de entorno NO estaba seteada, el `if` no se evaluaba y
+  // **el endpoint quedaba público**. Y `CRON_SECRET` no figura ni en
+  // `.env.example` ni en `vercel.json`, así que lo más probable es que no esté.
+  //
+  // Qué se podía hacer con eso: cualquiera que descubriera la URL la disparaba en
+  // loop. Cada llamada lanza un sync completo de MercadoLibre para todas las orgs
+  // con ML activo — satura Neon (que ya se cayó bajo carga, BP-NEON-CAPACITY) y
+  // consume la cuota de la app de ML, que ML puede desactivar por abuso.
+  //
+  // Ahora: sin secreto configurado, el endpoint no corre. Es preferible un cron
+  // que no arranca (y se nota) a uno abierto (que no se nota).
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error("[cron/ml-sync] CRON_SECRET no está seteada — el cron no corre (fail-closed)");
+    return NextResponse.json(
+      { error: "CRON_SECRET no configurada en el entorno" },
+      { status: 500 }
+    );
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
