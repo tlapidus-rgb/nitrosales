@@ -1,0 +1,757 @@
+<title>Radiografía de NitroSales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --canvas:#FBFAF7;
+    --surface:#F5F3EE;
+    --surface-2:#EFECE4;
+    --ink:#1C1B18;
+    --ink-70:#45423B;
+    --ink-45:#6F6C65;
+    --hairline:#E3DFD5;
+    --hairline-strong:#D3CEC1;
+    --sev-crit:#A32B18;
+    --sev-crit-bg:#F6E7E3;
+    --sev-high:#9A5F12;
+    --sev-high-bg:#F6EDDF;
+    --sev-med:#6B6320;
+    --sev-med-bg:#F1EFDF;
+    --sev-low:#4B5A63;
+    --sev-low-bg:#EAEEF0;
+    --good:#2F7C4C;
+    --good-bg:#E6EFE8;
+    --shadow:0 1px 0 rgba(28,27,24,.04), 0 1px 3px rgba(28,27,24,.05);
+    --sans:"Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:"Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas:#15140F;
+      --surface:#1D1B16;
+      --surface-2:#24221C;
+      --ink:#EEEAE0;
+      --ink-70:#BFB9AC;
+      --ink-45:#918B7E;
+      --hairline:#302D26;
+      --hairline-strong:#413D34;
+      --sev-crit:#E8836B;
+      --sev-crit-bg:#33201B;
+      --sev-high:#D9A557;
+      --sev-high-bg:#302614;
+      --sev-med:#B9AF63;
+      --sev-med-bg:#2A2716;
+      --sev-low:#96A8B2;
+      --sev-low-bg:#1E2428;
+      --good:#6BB588;
+      --good-bg:#1B2A20;
+      --shadow:0 1px 0 rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --canvas:#15140F;
+    --surface:#1D1B16;
+    --surface-2:#24221C;
+    --ink:#EEEAE0;
+    --ink-70:#BFB9AC;
+    --ink-45:#918B7E;
+    --hairline:#302D26;
+    --hairline-strong:#413D34;
+    --sev-crit:#E8836B;
+    --sev-crit-bg:#33201B;
+    --sev-high:#D9A557;
+    --sev-high-bg:#302614;
+    --sev-med:#B9AF63;
+    --sev-med-bg:#2A2716;
+    --sev-low:#96A8B2;
+    --sev-low-bg:#1E2428;
+    --good:#6BB588;
+    --good-bg:#1B2A20;
+    --shadow:0 1px 0 rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    background:var(--canvas);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 28px 96px; }
+  @media (max-width:640px){ .wrap{ padding:0 18px 64px; } }
+
+  /* ── Cabecera ── */
+  header.top {
+    border-bottom:1px solid var(--hairline);
+    padding:52px 0 34px;
+    margin-bottom:44px;
+  }
+  .eyebrow {
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.13em;
+    text-transform:uppercase;
+    color:var(--ink-45);
+    margin:0 0 18px;
+  }
+  h1 {
+    font-size:clamp(34px, 5.4vw, 54px);
+    line-height:1.04;
+    letter-spacing:-.028em;
+    font-weight:600;
+    margin:0 0 20px;
+    text-wrap:balance;
+  }
+  .lede { font-size:18px; line-height:1.6; color:var(--ink-70); max-width:66ch; margin:0 0 28px; }
+  .lede strong { color:var(--ink); font-weight:600; }
+
+  .meta {
+    display:flex; flex-wrap:wrap; gap:0 30px;
+    font-family:var(--mono); font-size:12px; color:var(--ink-45);
+    border-top:1px solid var(--hairline); padding-top:16px;
+  }
+  .meta b { font-weight:500; color:var(--ink-70); }
+
+  /* ── Tipografía general ── */
+  h2 {
+    font-size:13px; font-family:var(--mono); font-weight:500;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--ink-45);
+    margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--hairline);
+  }
+  h3 { font-size:23px; line-height:1.24; letter-spacing:-.016em; font-weight:600; margin:0 0 14px; text-wrap:balance; }
+  h4 { font-size:16px; font-weight:600; margin:0 0 8px; letter-spacing:-.008em; }
+  p { margin:0 0 14px; max-width:74ch; }
+  a { color:inherit; }
+  section { margin-bottom:66px; scroll-margin-top:74px; }
+  code, .mono { font-family:var(--mono); font-size:.885em; }
+  code {
+    background:var(--surface-2); padding:1px 5px; border-radius:4px;
+    color:var(--ink-70); overflow-wrap:anywhere;
+  }
+  ul { margin:0 0 14px; padding-left:20px; }
+  li { margin-bottom:7px; max-width:72ch; }
+
+  /* ── Barra de navegación ── */
+  nav.jump {
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--canvas) 92%, transparent);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--hairline);
+    margin:0 -28px 44px; padding:11px 28px;
+    display:flex; gap:22px; overflow-x:auto;
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.05em;
+  }
+  @media (max-width:640px){ nav.jump{ margin:0 -18px 32px; padding:10px 18px; gap:16px; } }
+  nav.jump a { color:var(--ink-45); text-decoration:none; white-space:nowrap; padding:3px 0; border-bottom:1.5px solid transparent; }
+  nav.jump a:hover, nav.jump a:focus-visible { color:var(--ink); border-bottom-color:var(--sev-crit); }
+
+  /* ── Números duros ── */
+  .figures { display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-bottom:34px; }
+  .fig { background:var(--surface); padding:18px 18px 16px; }
+  .fig .n { font-size:31px; font-weight:600; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1.1; display:block; }
+  .fig .l { font-family:var(--mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-45); margin-top:5px; display:block; line-height:1.45; }
+  .fig.crit .n { color:var(--sev-crit); }
+
+  /* ── Matriz ── */
+  .scroller { overflow-x:auto; border:1px solid var(--hairline); border-radius:10px; background:var(--surface); }
+  table { border-collapse:collapse; width:100%; font-size:14px; min-width:560px; }
+  th, td { text-align:left; padding:11px 15px; border-bottom:1px solid var(--hairline); }
+  thead th { font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-45); font-weight:500; background:var(--surface-2); }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr.total td { background:var(--surface-2); font-weight:600; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:13px; }
+  td.num.c { color:var(--sev-crit); font-weight:500; }
+  .dom { font-weight:500; }
+  .dom span { display:block; font-size:12px; color:var(--ink-45); font-weight:400; }
+
+  /* ── Familias y hallazgos ── */
+  .family { margin-bottom:52px; }
+  .family-head { display:flex; align-items:baseline; gap:14px; margin-bottom:6px; }
+  .family-num { font-family:var(--mono); font-size:12px; color:var(--sev-crit); letter-spacing:.08em; }
+  .family > p.intro { color:var(--ink-70); margin-bottom:22px; max-width:70ch; }
+
+  .finding {
+    border:1px solid var(--hairline);
+    border-left:3px solid var(--sev-crit);
+    border-radius:8px; background:var(--surface);
+    padding:20px 22px; margin-bottom:14px; box-shadow:var(--shadow);
+  }
+  .finding.high { border-left-color:var(--sev-high); }
+  .f-top { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-bottom:11px; }
+  .pill {
+    font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    padding:3px 8px; border-radius:4px; font-weight:500; white-space:nowrap;
+  }
+  .pill.crit { background:var(--sev-crit-bg); color:var(--sev-crit); }
+  .pill.high { background:var(--sev-high-bg); color:var(--sev-high); }
+  .pill.dom  { background:var(--surface-2); color:var(--ink-45); }
+  .pill.known{ background:var(--sev-low-bg); color:var(--sev-low); }
+  .finding h4 { margin-bottom:10px; font-size:17.5px; line-height:1.32; }
+  .finding p { font-size:14.5px; margin-bottom:11px; }
+  .finding p:last-child { margin-bottom:0; }
+  .where {
+    font-family:var(--mono); font-size:12px; color:var(--ink-45);
+    background:var(--canvas); border:1px solid var(--hairline);
+    border-radius:6px; padding:8px 11px; margin-bottom:12px;
+    overflow-x:auto; white-space:pre-wrap; word-break:break-word; line-height:1.7;
+  }
+  .consequence {
+    border-left:2px solid var(--hairline-strong); padding-left:13px;
+    font-size:14.5px; color:var(--ink-70);
+  }
+  .consequence b { color:var(--ink); font-weight:600; }
+
+  /* ── Filtros + tabla HIGH ── */
+  .filters { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
+  .chip {
+    font-family:var(--mono); font-size:11px; letter-spacing:.05em;
+    padding:6px 12px; border-radius:20px; cursor:pointer;
+    background:var(--surface); color:var(--ink-45);
+    border:1px solid var(--hairline); transition:background .12s, color .12s, border-color .12s;
+  }
+  .chip:hover { color:var(--ink); }
+  .chip[aria-pressed="true"] { background:var(--ink); color:var(--canvas); border-color:var(--ink); }
+  .chip:focus-visible, a:focus-visible, button:focus-visible { outline:2px solid var(--sev-crit); outline-offset:2px; }
+  tr[hidden] { display:none; }
+  td.hid { font-family:var(--mono); font-size:11px; color:var(--ink-45); white-space:nowrap; }
+
+  /* ── Bloques de cierre ── */
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .panel { border:1px solid var(--hairline); border-radius:10px; background:var(--surface); padding:20px 22px; }
+  .panel.good { border-left:3px solid var(--good); }
+  .panel h4 { margin-bottom:12px; }
+  .panel ul { padding-left:18px; margin-bottom:0; }
+  .panel li { font-size:14px; color:var(--ink-70); }
+  .panel li b { color:var(--ink); font-weight:600; }
+
+  ol.steps { list-style:none; padding:0; margin:0; counter-reset:s; }
+  ol.steps > li {
+    counter-increment:s; position:relative; padding:0 0 22px 46px;
+    border-left:1px solid var(--hairline); margin-left:14px; max-width:none;
+  }
+  ol.steps > li:last-child { border-left-color:transparent; padding-bottom:0; }
+  ol.steps > li::before {
+    content:counter(s); position:absolute; left:-14px; top:0;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--hairline-strong);
+    color:var(--ink-70); font-family:var(--mono); font-size:12px;
+    display:grid; place-items:center;
+  }
+  ol.steps h4 { margin-bottom:5px; }
+  ol.steps .when { font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--sev-crit); display:block; margin-bottom:5px; }
+  ol.steps p { font-size:14.5px; color:var(--ink-70); margin-bottom:0; }
+
+  .question { border-bottom:1px solid var(--hairline); padding:16px 0; }
+  .question:last-child { border-bottom:none; }
+  .question h4 { margin-bottom:5px; }
+  .question p { font-size:14px; color:var(--ink-70); margin:0; }
+
+  footer.end { border-top:1px solid var(--hairline); margin-top:60px; padding-top:24px; font-size:13.5px; color:var(--ink-45); }
+  footer.end p { max-width:72ch; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Auditoría de producción · seis frentes en paralelo</p>
+  <h1>Radiografía de NitroSales</h1>
+  <p class="lede">Seis revisiones independientes sobre el código que hoy corre en <code>nitrosales.vercel.app</code>: seguridad, datos, flujos, performance, diseño y arquitectura. <strong>197 hallazgos, 37 de ellos críticos.</strong> Nada se implementó — esto es el diagnóstico.</p>
+  <div class="meta">
+    <span><b>Commit</b> 9ad4616d</span>
+    <span><b>Rama</b> = origin/main = prod</span>
+    <span><b>Fecha</b> 2 sep 2026</span>
+    <span><b>Alcance</b> 846 archivos · 424 rutas de API · 227.200 líneas</span>
+  </div>
+</header>
+
+<nav class="jump">
+  <a href="#numeros">Números</a>
+  <a href="#veredicto">Veredicto</a>
+  <a href="#focos">Los focos</a>
+  <a href="#altos">60 hallazgos altos</a>
+  <a href="#bien">Lo que está bien</a>
+  <a href="#preguntas">Preguntas abiertas</a>
+  <a href="#orden">Orden de ataque</a>
+</nav>
+
+<section id="numeros">
+  <h2>Los números</h2>
+  <div class="figures">
+    <div class="fig crit"><span class="n">37</span><span class="l">Críticos</span></div>
+    <div class="fig"><span class="n">60</span><span class="l">Altos</span></div>
+    <div class="fig"><span class="n">60</span><span class="l">Medios</span></div>
+    <div class="fig"><span class="n">40</span><span class="l">Bajos</span></div>
+    <div class="fig"><span class="n">197</span><span class="l">Total</span></div>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr>
+          <th>Frente</th>
+          <th class="num">Crít.</th><th class="num">Alto</th><th class="num">Medio</th><th class="num">Bajo</th><th class="num">Total</th>
+          <th>El titular</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="dom">Flujos backend<span>crons, webhooks, sync, errores</span></td><td class="num c">11</td><td class="num">13</td><td class="num">12</td><td class="num">9</td><td class="num">45</td><td>El sistema no tiene forma de saber que está roto</td></tr>
+        <tr><td class="dom">Diseño y UX<span>82 pantallas + perímetro</span></td><td class="num c">6</td><td class="num">11</td><td class="num">10</td><td class="num">10</td><td class="num">37</td><td>La migración se detuvo justo antes de los estados no-felices</td></tr>
+        <tr><td class="dom">Datos y métricas<span>atribución, rollups, coherencia</span></td><td class="num c">5</td><td class="num">10</td><td class="num">11</td><td class="num">8</td><td class="num">34</td><td>Dos definiciones de la misma métrica según una env var</td></tr>
+        <tr><td class="dom">Performance<span>queries, índices, Neon</span></td><td class="num c">6</td><td class="num">10</td><td class="num">13</td><td class="num">4</td><td class="num">33</td><td>El propio sistema barre la base 24/7 y desaloja su cache</td></tr>
+        <tr><td class="dom">Seguridad<span>auth, RBAC, multi-tenant</span></td><td class="num c">6</td><td class="num">9</td><td class="num">7</td><td class="num">4</td><td class="num">26</td><td>Una cadena de compromiso total que nace de un archivo commiteado</td></tr>
+        <tr><td class="dom">Arquitectura<span>tests, tipos, duplicación</span></td><td class="num c">3</td><td class="num">7</td><td class="num">7</td><td class="num">5</td><td class="num">22</td><td>El motor que mueve la plata no tiene un solo test</td></tr>
+        <tr class="total"><td>Total</td><td class="num">37</td><td class="num">60</td><td class="num">60</td><td class="num">40</td><td class="num">197</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:14px; font-size:13.5px; color:var(--ink-45);">Los seis frentes se solaparon en varios puntos: la clave commiteada la encontraron tres agentes por caminos distintos, el «dashboard en cero» la encontraron cuatro. Abajo están consolidados y sin repetir.</p>
+</section>
+
+<section id="veredicto">
+  <h2>Veredicto</h2>
+  <h3>El producto está bien diseñado y mal protegido de sí mismo.</h3>
+  <p>El modelo de permisos es correcto, el grafo de módulos está limpio (0 ciclos, 0 violaciones de frontera), las claves de caché aíslan bien cada cliente, la criptografía de credenciales está bien hecha y el contrato de «orden válida» existe y es bueno. Nada de eso es casualidad: hay diseño real detrás.</p>
+  <p>El problema es lo que se construyó <em>alrededor</em> de ese diseño para salir del paso: claves en URLs, contraseñas escritas en el código, endpoints de debug que quedaron vivos, migraciones que corren desde el navegador, tablas de producción que no existen en el schema, señales de salud que se auto-confirman, y un antipatrón repetido — <strong>ante cualquier fallo, responder 200 con todo en cero</strong> — que aparece en el dashboard, en el webhook de órdenes y en la UI, y que hace que el sistema sea incapaz de avisar cuando se rompe.</p>
+  <p>De ahí sale el hallazgo que ordena a todos los demás: <strong>hoy no hay forma de distinguir «no hubo ventas» de «se perdieron las ventas»</strong>. Ni para el cliente, ni para ustedes.</p>
+</section>
+
+<section id="focos">
+  <h2>Los focos · 16 problemas críticos consolidados</h2>
+
+  <div class="family">
+    <div class="family-head"><span class="family-num">A</span><h3>Las llaves de la casa están en la puerta</h3></div>
+    <p class="intro">Los cuatro hallazgos de esta familia encadenan hasta control total de todos los clientes, y el punto de partida está en un archivo versionado del repo.</p>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Seguridad · Flujos · Arquitectura</span></div>
+      <h4>El secreto que firma las sesiones está commiteado y es la contraseña de todo</h4>
+      <div class="where">vercel.json:15-157 — literal <b>nitrosales-secret-key-2024-production</b> en las 28 entradas de cron
+src/lib/admin-key.ts:19 · src/app/api/sync/route.ts:139 · src/app/api/webhooks/vtex/orders/route.ts:79</div>
+      <p>Ese literal se manda como <code>?key=</code> a los 28 crons, y los endpoints lo validan contra tres variables distintas: <code>ADMIN_API_KEY</code>, <code>SYNC_KEY</code> y <code>NEXTAUTH_SECRET</code>. Para que los crons funcionen, las tres tienen que valer exactamente eso. Y <code>NEXTAUTH_SECRET</code> es la clave con la que se firman los JWT de sesión.</p>
+      <p>Peor: esa misma clave viaja dentro de la URL del webhook que se configura <strong>en el panel de VTEX de cada cliente</strong>. Cualquier operador de la tienda de Arredo puede leerla entrando a Configuración → Pedidos → Orders Broadcaster.</p>
+      <div class="consequence">Con ese secreto se puede <b>firmar un JWT propio como staff de cualquier organización</b>, forjar un token de impersonate, forjar un reset de contraseña para cualquier email, y correr las 36 migraciones admin. Es toma de control cross-tenant. <b>Y el reflejo natural de rotarla tumba en silencio los 28 crons y el webhook de órdenes de los cuatro clientes</b>, porque Vercel no alerta por 401 en crons.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Seguridad · Arquitectura</span></div>
+      <h4>Tres puertas traseras con la contraseña escrita al lado, en los endpoints que reescriben la atribución</h4>
+      <div class="where">src/app/api/admin/usage/route.ts:30      → key !== ADMIN_SECRET && key !== "usage-2026"
+src/app/api/admin/reattribute/route.ts:18 → ... && key !== 'reattribute-2026'
+src/app/api/admin/reconcile/route.ts:29   → ... && key !== 'reattribute-2026'</div>
+      <p>El <code>&&</code> con un literal convierte el control en decorativo: no hace falta sesión ni variable de entorno, la contraseña está en el código. Ninguno de los tres pasa por el middleware, así que son accesibles desde internet sin estar logueado.</p>
+      <div class="consequence"><code>POST /api/admin/reconcile?key=reattribute-2026&amp;org=&lt;cualquiera&gt;</code> reescribe la atribución de un cliente ajeno. <code>reattribute</code> recorre <b>todas las atribuciones de todas las organizaciones</b> en un loop secuencial: además de corromper datos, tumba Neon. Y <code>usage</code> filtra el consumo de Aurum de todos los clientes, incluido el ranking de quién usa más el producto.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Seguridad</span></div>
+      <h4>Inyección SQL que alcanza la tabla de órdenes de todos los clientes</h4>
+      <div class="where">src/app/api/backfill/vtex/route.ts:702 — UPDATE orders SET status = '${newStatus}' ... WHERE "organizationId" = '${ORG_ID}'
+src/app/api/backfill/vtex/route.ts:688-690 — newStatus y orderId salen crudos de searchParams</div>
+      <p>Los parámetros se interpolan sin escape dentro de un <code>$executeRawUnsafe</code>. El único control es otra clave hardcodeada (<code>nitrosales-backfill-2024</code>), y la ruta no figura en el mapa de secciones del middleware, así que cualquier usuario logueado de cualquier organización llega.</p>
+      <div class="consequence">Un <code>newStatus</code> que cierre la comilla y agregue <code>WHERE '1'='1</code> deja el <code>UPDATE</code> alcanzando la tabla <code>orders</code> <b>entera, de todos los tenants</b>. La variante <code>action=delete</code> llega a <code>DELETE FROM orders</code> por el mismo camino. Irreversible sin backup.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos</span></div>
+      <h4>Las credenciales VTEX de un cliente viven en variables compartidas entre requests</h4>
+      <div class="where">src/app/api/backfill/vtex/route.ts:25-28 — let VTEX_ACCOUNT, VTEX_KEY, VTEX_TOKEN a nivel de módulo
+src/app/api/fix-brands/route.ts:15-16 — mismo patrón, con un comentario que afirma lo contrario</div>
+      <p>Vercel Fluid Compute —que este código usa y menciona— ejecuta invocaciones concurrentes en la misma instancia. Dos requests simultáneos para organizaciones distintas se pisan las credenciales.</p>
+      <div class="consequence">Un backfill de un cliente nuevo corriendo al mismo tiempo que otra tarea de Arredo termina <b>pegándole a la tienda VTEX de Arredo y escribiendo esos datos bajo el ID del cliente nuevo</b>. Contaminación cruzada con datos de facturación reales, imposible de detectar sin auditar fila por fila.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Arquitectura · Seguridad</span></div>
+      <h4>Las contraseñas de los creadores se guardan en texto plano</h4>
+      <div class="where">src/app/api/influencers/route.ts:114-115 — dashboardPassword: hashPassword(...) + dashboardPasswordPlain: body.dashboardPassword
+prisma/schema.prisma:1261 — columna dashboardPasswordPlain, nunca leída en todo src/</div>
+      <p>Y el hash que la acompaña es SHA-256 sin salt, duplicado literal en siete archivos, mientras los usuarios de la app usan bcrypt. Es el peor de los dos mundos: la copia en claro más un hash que se rompe con una rainbow table en segundos.</p>
+      <div class="consequence">Los creadores reusan contraseñas. Un dump de esa tabla no expone «un dashboard de solo lectura»: expone <b>credenciales reales de personas</b>. La columna en texto plano no la lee nadie — es puro pasivo.</div>
+    </div>
+  </div>
+
+  <div class="family">
+    <div class="family-head"><span class="family-num">B</span><h3>Las ventas se pierden en silencio</h3></div>
+    <p class="intro">Tres caminos independientes por los que una orden real puede no llegar nunca a NitroSales, y ninguno dispara una alerta.</p>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos</span></div>
+      <h4>El webhook de órdenes de VTEX responde 200 cuando falla, así que VTEX nunca reintenta</h4>
+      <div class="where">src/app/api/webhooks/vtex/orders/route.ts:794-796 — catch → NextResponse.json({ok:false}) sin status (= 200)
+src/app/api/webhooks/vtex/orders/route.ts:152-159 — mismo patrón si la OMS de VTEX no responde</div>
+      <p>El Orders Broadcaster usa el código HTTP para decidir si reintenta. Cualquier excepción en las ~700 líneas del handler —un timeout de Neon, un item sin precio, VTEX lento— se convierte en un 200. Sumado: <code>maxDuration=30</code> pero el fetch a la OMS no tiene timeout, hay un N+1 de hasta 60 queries por orden, y el borrado+reinserción de ítems está fuera de transacción.</p>
+      <div class="consequence">En un pico de Hot Sale, las órdenes que primero se pasan de 30 segundos son <b>las de más ítems, o sea las de mayor ticket</b>. Cada una devuelve 200, VTEX la da por entregada, y la red de seguridad (<code>vtex-sync-recent</code>) está capada a 100 órdenes por corrida.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos</span></div>
+      <h4>Un webhook de MercadoLibre que falla queda marcado como recibido y nadie lo reintenta</h4>
+      <div class="where">src/app/api/webhooks/mercadolibre/route.ts:62-69 — responde 200 antes de procesar
+:94-112 — inserta en meli_webhook_events antes de procesar; si falla queda processed=false
+Ningún proceso en todo src/ lee las filas con processed=false</div>
+      <p>ML considera entregada la notificación. El outbox ya tiene el ID, así que si ML reenviara, el dedup lo descartaría. Y el POST <strong>no tiene autenticación de ningún tipo</strong> — ni clave, ni firma, ni filtro de IP.</p>
+      <div class="consequence">Es exactamente el mecanismo del incidente que ya vivieron: <b>1.600 órdenes de MELI perdidas durante 6 días</b>. Además, cualquiera que conozca el user_id de ML de un cliente puede pre-insertar IDs y envenenar el dedup para que las notificaciones reales se descarten.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos</span></div>
+      <h4>La señal de salud del sync se auto-confirma: nunca puede ponerse en rojo</h4>
+      <div class="where">src/app/api/sync/route.ts:83 y sync/chain/route.ts:95 — markSyncSuccess() se llama fuera del try/catch, sin mirar results
+src/lib/control/checks.ts:76-80 — el health-check mide staleness sobre ese mismo campo (umbral 24h)</div>
+      <p><code>/api/sync/chain</code> corre cada 2 horas y escribe «sync exitoso hace 0 minutos» pase lo que pase, y además borra el último error registrado. Con un umbral de alerta de 24 horas, la conexión VTEX de cualquier cliente <strong>es matemáticamente incapaz de cruzarlo</strong>.</p>
+      <div class="consequence">Y hay algo que ya está fallando así <b>ahora mismo</b>: <code>sync/chain</code> hace tres self-fetch usando la URL del deployment, que está detrás de Deployment Protection, sin el header de bypass. Cada 2 horas los tres devuelven 401, se anotan como error, y a continuación se marca éxito. Inventario, detalles de órdenes y reconcile de los cuatro clientes no corren. El módulo de P&amp;L usa un <code>costPrice</code> que nunca se puebla.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos</span><span class="pill known">Causa raíz ya conocida</span></div>
+      <h4>El caso Arredo puede repetirse literal: un onboarding trabado es invisible para siempre</h4>
+      <div class="where">src/lib/control/checks.ts:171 — WHERE status IN ('PENDING','NEEDS_INFO','IN_PROGRESS') ← falta BACKFILLING
+src/app/api/admin/onboardings/[id]/approve-backfill/route.ts:152-205 — pasa a BACKFILLING y devuelve ok:true aunque haya creado 0 jobs</div>
+      <p>Si el admin no cargó meses de historia, no se crea ningún job, el onboarding pasa a <code>BACKFILLING</code>, el cliente recibe el mail de «empezamos a traer tu historia» y ahí se queda. Ningún check mira ese estado. Y hay un segundo agujero en la misma cadena: el disparo de <code>post-backfill-finalize</code> es un fetch fire-and-forget sin <code>waitUntil</code>, que en Vercel puede no llegar a salir nunca.</p>
+      <div class="consequence">Los tres caminos terminan en la misma frase textual del incidente de Arredo: <b>«los gráficos me muestran 3 días»</b>. Está documentado como error a no repetir, y el mecanismo que lo permitió sigue intacto.</div>
+    </div>
+  </div>
+
+  <div class="family">
+    <div class="family-head"><span class="family-num">C</span><h3>Los números no son los números</h3></div>
+    <p class="intro">Cuatro formas distintas de que la pantalla muestre una cifra que no es la verdad — y en dos de ellas la cifra decide cuánta plata cobra alguien.</p>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Datos</span><span class="pill known">Ya conocido · BP-PIXEL-AUDIT</span></div>
+      <h4>El «merge por IP+UA» de la atribución es solo por IP: mezcla recorridos de personas distintas</h4>
+      <div class="where">src/lib/pixel/attribution.ts:216-267 — la query filtra por ipHash, sin ninguna condición sobre userAgent
+src/lib/pixel/identity.ts:139-141 — hashIP() no incluye el user agent</div>
+      <p>El bloque se justifica con «el 99,3% de las combinaciones IP+UA son de un solo visitante». Con la IP sola, bajo el CGNAT móvil argentino —Claro, Movistar y Personal comparten IP pública entre miles de abonados— esa premisa no se sostiene.</p>
+      <div class="consequence">Juan compra un sillón de $800.000 llegando por Google Orgánico. Otras 40 personas detrás del mismo CGNAT navegaron el sitio ese mes, tres clickearon un anuncio de Meta. Sus eventos se fusionan en el recorrido de Juan y <b>Meta se lleva el last-click de una venta que no generó</b>. El mismo motor calcula la comisión de los creadores de Aura: le paga plata real a quien no vendió.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Seguridad</span></div>
+      <h4>Cualquiera puede robarse la atribución de una venta ajena con un solo POST</h4>
+      <div class="where">src/app/api/pixel/event/route.ts:110 — el orgId es público y no hay firma ni allowlist de origen
+src/lib/pixel/identity.ts:380-433 — un IDENTIFY por email re-atribuye las últimas 10 órdenes del cliente</div>
+      <p>El vector documentado en el backlog (forjar un PURCHASE con un orderId real) queda confirmado. Pero apareció uno segundo, <strong>más barato</strong> y no documentado: mandar un <code>IDENTIFY</code> con el email de un comprador real linkea el visitante del atacante a ese cliente y recalcula la atribución de sus últimas 10 órdenes. No hace falta adivinar ningún ID.</p>
+      <div class="consequence">Un creador de Aura con comisión activa re-atribuye a su nombre diez compras históricas <b>con un solo request y el email de un seguidor</b>. Y el rate limit no lo frena: vive en memoria del proceso (inútil en serverless) y cuenta por organización, no por IP — o sea que además sirve para quemar la cuota de Arredo y hacer que se descarten los eventos de sus compradores reales.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Datos</span></div>
+      <h4>El revenue de la capa Gold solo se puede corregir hacia arriba</h4>
+      <div class="where">src/data/gold/gold-attribution-channel-transform.ts:85-100 — INSERT ... ON CONFLICT DO UPDATE, sin DELETE
+Contraste: src/lib/pixel/rollup-backfill.ts:356-372 — el rollup gemelo sí hace DELETE-then-insert, y el comentario explica exactamente por qué</div>
+      <p>Los cuatro rollups Gold basados en Silver tienen el arreglo de «días afectados + borrado de huérfanas». Los dos de atribución, no — y el canal forma parte de su clave primaria, así que cambia cuando cambian las reglas editables desde <code>/pixel/canales</code>.</p>
+      <div class="consequence">Una venta de $1.200.000 atribuida a TikTok Ads que el cliente cancela dos días después <b>sobrevive en la tabla para siempre</b>. Y si Tomy renombra una regla de canal, las filas viejas quedan junto a las nuevas: <b>el revenue de esos días se duplica</b> y la serie histórica queda partida en dos canales que son el mismo. Con el flag apagado el camino lento da otra cifra: dos números para la misma pantalla según una variable de entorno.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Datos</span></div>
+      <h4>El embudo por canal compara dos vocabularios distintos: la etapa «Compra» da cero</h4>
+      <div class="where">src/app/api/metrics/pixel/funnel/route.ts:60-75 — etapas 1-4 leen first_source, que sí tiene el sufijo _organic
+src/app/api/metrics/pixel/funnel/route.ts:178-181 — la etapa Compra compara contra el source crudo, que nunca lo tiene</div>
+      <p>El desplegable ofrece «Google Orgánico» (<code>google_organic</code>), pero el motor de atribución nunca escribe ese valor: escribe <code>source='google'</code> con <code>medium='organic'</code>. La igualdad no matchea jamás.</p>
+      <div class="consequence">Filtrando por Google Orgánico en Arredo: <b>84.300 visitas → 41.100 productos vistos → 6.900 carritos → 2.100 checkouts → 0 compras</b>. La verdad son unas 1.100 órdenes. El cliente ve que su canal orgánico más grande convierte 0%. Y el espejo del mismo error: filtrando por Google Ads la etapa Compra suma también las orgánicas, lo que produce <b>una tasa de conversión del 129%</b> visible en pantalla.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Datos</span></div>
+      <h4>Dos pantallas contiguas muestran dos revenues distintos de NitroSales</h4>
+      <div class="where">src/app/api/metrics/pixel/discrepancy/route.ts — ninguna de sus 7 queries aplica el filtro de orden válida ni excluye marketplace
+src/app/api/webhooks/vtex/orders/route.ts:430-434 + src/lib/pixel/attribution.ts:751 — la atribución no se recalcula si VTEX cambia el monto</div>
+      <p>La pantalla cuyo trabajo es comparar el número de NitroSales contra el de Meta y Google es justamente la que cuenta órdenes canceladas, pendientes y de marketplace. Y el valor atribuido se congela en el primer webhook, cuando la orden suele estar en <code>PENDING</code>.</p>
+      <div class="consequence">30 días de Arredo: <code>/pixel/analytics</code> dice <b>$850M</b>; <code>/pixel/discrepancia</code> dice <b>$970M</b> para el mismo rango y modelo. Y una orden que entra por $1.500.000 y queda en $900.000 tras cancelar un ítem sigue contando $1.500.000 en «Revenue por canal» mientras el KPI de al lado dice $900.000. Las dos cifras están en la misma pantalla. Esto <b>infla el ROAS</b>.</div>
+    </div>
+  </div>
+
+  <div class="family">
+    <div class="family-head"><span class="family-num">D</span><h3>Cuando algo falla, el producto miente</h3></div>
+    <p class="intro">El mismo antipatrón atravesando el backend y la interfaz: ante un error, mostrar ceros con cara de dato real.</p>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos · Performance · Diseño</span><span class="pill known">Ya conocido · BP-PIXEL-AUDIT</span></div>
+      <h4>Un fallo devuelve HTTP 200 con todo en cero — y el caché lo guarda</h4>
+      <div class="where">src/app/api/metrics/pixel/route.ts:1986-1996 — cualquier excepción → buildEmptyMockResponse() con status 200
+src/app/api/metrics/pixel/route.ts:365 — 28 queries en un solo Promise.all: una sola que falle rechaza el batch entero
+src/app/(app)/dashboard/page.tsx:445,544 — setError se llama una vez en 1.542 líneas, y es para vaciarlo</div>
+      <p>El frontend no puede distinguir «no hubo tráfico» de «la query murió», porque el backend no se lo dice y la página no tiene forma de mostrarlo: el banner de error del dashboard es código muerto y los 25 fetches hacen <code>.catch(() =&gt; null)</code>. La ruta hermana <code>/api/metrics/orders</code> sí tiene degradación parcial con <code>safeQuery</code> — o sea que se sabe hacer bien.</p>
+      <div class="consequence">Si el warm-cache toma la foto justo cuando la query se pasó del timeout, <b>el cero se persiste en el caché compartido de Postgres y se le sirve a todos los usuarios de esa organización</b> hasta el próximo TTL. El cliente abre la pantalla, ve todo en cero, llama diciendo «perdí mis datos», y no queda ningún registro de que hubo un fallo.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Diseño</span></div>
+      <h4>«Sin datos», «cargando» y «falló» se dibujan exactamente igual: un esqueleto que brilla para siempre</h4>
+      <div class="where">src/components/dashboard/WidgetFormats.tsx:211,254,290,319,386,445,528 — colección vacía → &lt;div class="dash-skeleton"&gt;
+src/components/dashboard/DashboardStyles.tsx:371-381 — animación infinita, sin estado terminal</div>
+      <p>Un cliente recién onboardeado con 0 pedidos, un cliente cuya API explotó, y un cliente con un período sin ventas ven <strong>la misma grilla de rectángulos grises brillando</strong>. Sin copy, sin ícono, sin «todavía no hay datos», sin botón de reintentar.</p>
+      <div class="consequence">El cliente asume que sigue cargando. Recarga a los cinco minutos. A la tercera, llama. Y en <code>/nitropixel</code> —la pantalla que el menú marca como el activo principal del producto— el fallo se renderiza como <b>«VALORACIÓN ESTIMADA: US$0 · 0 eventos · 0 días vivo»</b>, con el mensaje de error en rojo pálido tres pantallas más abajo.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Diseño</span></div>
+      <h4>El indicador «EN VIVO» de la barra superior está cableado a mano</h4>
+      <div class="where">src/app/(app)/layout.tsx:414 — &lt;LivePulse status="LIVE" /&gt;
+Existe el dato real y llega por API: pixelData.liveStatus.status, usado en pixel/analytics/page.tsx:730</div>
+      <p>El único indicador de salud del producto —el puntito que Tomy pidió para mostrar que el pixel mide en vivo— es un literal. En <code>/pixel/analytics</code> conviven dos indicadores a 40 píxeles de distancia: el falso de la barra y el verdadero de la página.</p>
+      <div class="consequence">Si el pixel de Arredo se cayó hace tres días, si el snippet nunca se instaló, si el período no tiene un solo evento: <b>la píldora sigue verde, sigue pulsando y sigue diciendo EN VIVO</b> en las 82 pantallas. Es peor que no tener indicador: instala confianza donde no la hay.</div>
+    </div>
+  </div>
+
+  <div class="family">
+    <div class="family-head"><span class="family-num">E</span><h3>La base de datos peleando contra sí misma</h3></div>
+    <p class="intro">Subir Neon de 2 a 4 CU atacó la oferta. Estos hallazgos son la demanda que la estaba consumiendo.</p>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Performance</span></div>
+      <h4>Hay dos planificadores disparando el mismo trabajo pesado, siete veces cada quince minutos</h4>
+      <div class="where">.github/workflows/keep-pixel-rollups-fresh.yml:18-44 — cada 15 min, y dentro un bucle de 6 llamadas seguidas
+vercel.json:126-129 — el mismo endpoint, también cada 15 min
+src/app/api/cron/refresh-pixel-rollups/route.ts:141 — INVOCATION_BUDGET_MS = 250.000</div>
+      <p>Siete invocaciones de hasta 250 segundos cada una, dentro de una ventana de 900 segundos, agregando con HLL sobre una tabla de <strong>43 GB</strong>. En régimen permanente hay dos o más escaneos concurrentes de <code>pixel_events</code>, 24 horas al día. Los dos planificadores eligen «la tabla más atrasada», así que eligen la misma y ejecutan el mismo statement dos veces.</p>
+      <div class="consequence">Esta es, mecánicamente, <b>la razón de que el working set del dashboard nunca quede caliente</b>. El diagnóstico de que el cuello era memoria y no CPU fue correcto; lo que faltó fue notar que hay un proceso propio barriendo 43 GB de forma continua y desalojando de la caché justo las páginas que la pantalla del cliente necesita. Subir a 8 CU compra tiempo; esto lo vuelve a gastar.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Performance</span></div>
+      <h4>El calentador de caché no espera, no cancela, y calienta la puerta equivocada</h4>
+      <div class="where">src/app/api/cron/warm-cache/route.ts:268 — aborta cada fetch a los 20s
+src/app/api/metrics/pixel/route.ts:1975 — el cómputo va a waitUntil(), que explícitamente mantiene viva la función
+src/app/(app)/pixel/analytics/page.tsx:519 — pide sin &model=; el warm calienta la clave con &model=NITRO</div>
+      <p>Tres errores encadenados. Abortar el fetch no cancela nada del lado del servidor, así que una sola corrida puede dejar <strong>hasta 11 cómputos huérfanos en paralelo</strong>, cada uno con 28 queries, contra un pool de 24 conexiones. Y el comentario del código describe un diseño «estrictamente secuencial, anti-thundering-herd» que no existe: es exactamente el herd que dice haber eliminado.</p>
+      <div class="consequence">Encima, la clave que calienta no es la que lee <code>/pixel/analytics</code> — difieren en un parámetro. <b>El 100% del trabajo dirigido a la pantalla que motivó todo el sistema de rollups se tira a la basura</b>, la página cae siempre en fallo de caché, el cómputo completo se pasa del límite de 85 segundos y devuelve el mock en cero. Se arregla agregando <code>&amp;model=</code> en una línea.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Performance</span></div>
+      <h4>Cada compra dispara dos búsquedas con comodín sobre una tabla de 24 millones de filas</h4>
+      <div class="where">src/app/api/pixel/event/route.ts:238-245 — props: { path:['orderId'], string_contains } → LIKE '%…%' sobre JSONB sin índice
+src/app/api/pixel/event/route.ts:283,313 — orders.externalId LIKE '%…%', que inutiliza el índice único</div>
+      <p>Para Arredo hay del orden de 100.000 eventos PURCHASE históricos, y cada compra los recorre fila por fila en el heap. Dos veces. A mil compras por día son del orden de 10⁸ lecturas diarias sobre la tabla de 43 GB.</p>
+      <div class="consequence">Es <b>el segundo gran envenenador de la caché de Neon</b> después de la tormenta de rollups, y a diferencia de aquella no aparece en ningún cron ni en ningún log. En picos, el receptor de eventos se pone lento, el <code>sendBeacon</code> del navegador se pierde y <b>se pierden eventos de compra en silencio</b>: el endpoint devuelve 204 pase lo que pase.</div>
+    </div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Flujos · Performance</span><span class="pill known">Ya conocido</span></div>
+      <h4>Unas 30 tablas y 13 índices de producción no existen en el schema de Prisma</h4>
+      <div class="where">prisma/schema.prisma — 63 modelos; faltan silver_orders, los seis gold_*, los siete pixel_daily_*,
+onboarding_requests, meli_webhook_events, backfill_jobs, api_cache, channel_rule, alert_rules…</div>
+      <p>Toda la capa medallion, todos los rollups del pixel, el onboarding, las alertas y el outbox de MercadoLibre viven fuera del schema. Se crean desde 36 endpoints <code>admin/migrate-*</code> que siguen vivos, y el registro de cuáles se ejecutaron existe solo en la memoria de quien los corrió.</p>
+      <div class="consequence">Un <code>prisma db push</code> —el comando más normal del mundo para sincronizar un campo nuevo— <b>detecta esas tablas como huérfanas y ofrece borrarlas</b>. Lo mismo con los 13 índices que sostienen la performance y que se crearon a mano. La reconstrucción es de días.</div>
+    </div>
+  </div>
+
+  <div class="family">
+    <div class="family-head"><span class="family-num">F</span><h3>Lo primero que ve un cliente</h3></div>
+
+    <div class="finding">
+      <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Diseño</span></div>
+      <h4>Cuatro sistemas visuales en las cinco primeras pantallas</h4>
+      <div class="where">src/app/login/page.tsx:32,79 — fondo casi negro con aurora naranja y botón con gradiente naranja fluo
+src/components/OnboardingGate.tsx:57-110 — AuroraLoader: pantalla completa #0A0A0F con dos blobs de 50vw, en cada F5
+src/components/OnboardingOverlay.tsx:190-219 — tres orbes naranja/púrpura/rosa
+src/app/accept-invite/page.tsx y unauthorized/page.tsx — bg-slate-50, el sistema anterior al anterior</div>
+      <p>El barrido cromático de la migración funcionó dentro del panel: cero clases <code>slate</code> y cero <code>gray</code> en las 82 páginas. Pero no cruzó ninguna de sus tres fronteras, y el perímetro es lo que el cliente ve <em>antes</em> de entrar. El botón del login usa gradiente fluo, que es el antipatrón número 8 de la propia biblia visual del producto.</p>
+      <div class="consequence">El recorrido de día 1 de un cliente nuevo: login oscuro con aurora naranja → onboarding negro con tres orbes flotando → panel hueso cálido y sobrio → invitar a un colega devuelve al slate frío. El test declarado en la biblia es <i>«lo muestro en una mesa con inversores y se quedan callados mirando»</i>: <b>la primera pantalla de la demo es de un producto distinto al que se está demostrando</b>. Y quedan vivas en producción <code>/design-preview</code> —pública, sin login, con cifras de un cliente real— y <code>/aura/paletas</code>.</div>
+    </div>
+  </div>
+</section>
+
+<section id="altos">
+  <h2>Los 60 hallazgos de severidad alta</h2>
+  <p style="color:var(--ink-70); margin-bottom:20px;">Sin la urgencia de los anteriores, pero cada uno con archivo y línea en el reporte de su frente. Filtrá por dominio:</p>
+  <div class="filters" role="group" aria-label="Filtrar por frente">
+    <button class="chip" data-f="all" aria-pressed="true">Todos · 60</button>
+    <button class="chip" data-f="flujos" aria-pressed="false">Flujos · 13</button>
+    <button class="chip" data-f="diseño" aria-pressed="false">Diseño · 11</button>
+    <button class="chip" data-f="datos" aria-pressed="false">Datos · 10</button>
+    <button class="chip" data-f="perf" aria-pressed="false">Performance · 10</button>
+    <button class="chip" data-f="seg" aria-pressed="false">Seguridad · 9</button>
+    <button class="chip" data-f="arq" aria-pressed="false">Arquitectura · 7</button>
+  </div>
+  <div class="scroller">
+    <table id="tabla-altos">
+      <thead><tr><th class="hid">Frente</th><th>Hallazgo</th></tr></thead>
+      <tbody>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>Enumeración de usuarios en el login y cero rate limiting</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>El token de impersonate cae a un secreto hardcodeado si falta la variable</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>Dashboard público del afiliado: SHA-256 sin salt, contraseña en la URL, sin rate limit</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>Webhook de MercadoLibre sin autenticación de ningún tipo</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>La verificación de firma de webhooks es un no-op por defecto</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td><code>/api/influencers/*</code> sin control de sección: cualquier logueado toca la plata de Aura</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>El snapshot de permisos vive en el JWT y no se revalida durante 24 horas</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>Aurum sin límite de costo y con un camino de prompt-injection hacia escritura</td></tr>
+        <tr data-d="seg"><td class="hid">Seguridad</td><td>365 endpoints devuelven <code>error.message</code> crudo; unos 15 devuelven el stack trace</td></tr>
+
+        <tr data-d="datos"><td class="hid">Datos</td><td>La página <code>/pedidos</code> ignora el contrato canónico de orden válida</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>Los toques posteriores a la compra entran en la ventana y se llevan el last-click</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>Dos estrategias del webhook asignan órdenes a visitantes al azar bajo concurrencia</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>La cobertura del rollup por canal solo chequea el borde inferior del rango</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td><code>customers.totalSpent</code>: tres definiciones incompatibles, ninguna canónica</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td><code>/finanzas</code> calcula el año en UTC: el acumulado anual se resetea 3 horas antes</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>Divergencia estructural entre Gold y Bronze en la ventana de <code>bad_packs</code></td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>El delta de ROAS usa el gasto del período actual para calcular el anterior</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>Las alertas predictivas de finanzas calculan revenue sin filtro de estado</td></tr>
+        <tr data-d="datos"><td class="hid">Datos</td><td>El merge de visitantes por teléfono solo puede colapsar personas distintas</td></tr>
+
+        <tr data-d="flujos"><td class="hid">Flujos</td><td><code>sync-lock</code> no es un mutex y además pisa los campos de salud de la conexión</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>El <code>maxDuration</code> declarado no es el techo real: varios crons no pueden terminar</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>El <code>statement_timeout</code> real es 150s y hay 24 conexiones; la doc del archivo dice otra cosa</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>Se ejecuta DDL (<code>ALTER TABLE</code>, <code>CREATE INDEX</code>) desde un endpoint de dashboard en cada arranque en frío</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>Un <code>webhookSecret</code> en cualquier conexión de una org rompe el webhook de VTEX de esa org</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>Las redes de seguridad de VTEX están capadas por debajo del volumen real de los clientes</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>El refresh del token de MercadoLibre tiene una carrera que puede matar la conexión de forma permanente</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td><code>/api/debug/meta</code> es público, sin autenticación, y devuelve datos de todos los tenants</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>207 rutas de API con <code>@ts-nocheck</code>: la validación previa al push no cubre el backend</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td><code>Promise.all</code> sin límite en el motor de alertas</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>Las alertas hacen <code>catch { return [] }</code> → «0 alertas evaluadas, todo OK»</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>37 endpoints de debug y test vivos en producción</td></tr>
+        <tr data-d="flujos"><td class="hid">Flujos</td><td>13 llamadas a <code>getServerSession()</code> sin pasarle <code>authOptions</code></td></tr>
+
+        <tr data-d="perf"><td class="hid">Performance</td><td><code>statement_timeout</code> de 150s contra rutas de 30-60s: quedan queries zombie corriendo</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td><code>/api/metrics/orders</code>: caché sin lock más 3 reintentos del frontend = estampida garantizada</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td>Un click en el tab VTEX/MELI desactiva toda la capa Gold de <code>/pedidos</code></td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td>El embudo por canal chequea mal la cobertura y su plan B en vivo devuelve «no disponible»</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td>13 de los 17 índices que sostienen la performance no están en el schema</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td><code>/api/metrics/pnl</code>: 14 queries en paralelo, sin <code>maxDuration</code>, sin caché, sin aislamiento</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td>La tabla <code>api_cache</code> nunca se purga y su espacio de claves crece todos los días</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td>El dashboard dispara 5-8 endpoints en paralelo desde el navegador, cada uno con 5-28 queries</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td><code>/discrepancy</code> corre en paralelo con <code>/metrics/pixel</code> desde la misma página</td></tr>
+        <tr data-d="perf"><td class="hid">Performance</td><td><code>ensureColumns()</code> toma un lock exclusivo sobre <code>orders</code> en cada arranque en frío</td></tr>
+
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>81 pantallas con «Cargando…» a mano contra 9 que usan el loader unificado</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>16 implementaciones distintas de tarjeta de KPI y 4 sistemas de Card en el mismo producto</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>El texto secundario no llega a AA (3,77:1) y son 1.489 usos; 964 textos de 10px o menos</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>28 fondos y bordes invisibles: alphas heredados del tema oscuro sobre fondo claro</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td><code>/aura/paletas</code>: un laboratorio dark neón publicado y accesible en producción</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td><code>/design-preview</code>: la maqueta del rediseño, pública y sin login, con cifras de un cliente real</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>231 gradientes y 496 clases de la paleta vieja siguen vivos en pantallas del menú</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>21 páginas sin <code>&lt;h1&gt;</code>, incluida la principal</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>3 <code>htmlFor</code> para 223 inputs, y 152 <code>outline-none</code> que apagan el foco de teclado</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>Sin <code>prefers-reduced-motion</code> global; el único que hay se activa solo dentro de Bondly</td></tr>
+        <tr data-d="diseño"><td class="hid">Diseño</td><td>39 <code>alert()</code> y <code>confirm()</code> del navegador, varios en acciones de plata de creadores</td></tr>
+
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td>El motor de atribución: 698 líneas en una función, cero tests, y es lo que reescribe el histórico</td></tr>
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td>El endpoint del dashboard no usa el contrato de orden válida — y ya divergió</td></tr>
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td><code>/api/alertas</code>: duplicado muerto en español que saltea el control de permisos</td></tr>
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td><code>/api/debug/meta</code> público, sin autenticación ni alcance de organización</td></tr>
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td>Ni el guard de <code>@ts-nocheck</code> ni los tests corren durante el build</td></tr>
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td>114 rutas leen JSON del cliente y ninguna lo valida (zod está instalado y se usa en 1 archivo)</td></tr>
+        <tr data-d="arq"><td class="hid">Arquitectura</td><td>122 <code>catch</code> silenciosos, 33 de ellos en el motor de alertas</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="bien">
+  <h2>Lo que está bien y no hay que romper</h2>
+  <div class="cols">
+    <div class="panel good">
+      <h4>Diseño de fondo</h4>
+      <ul>
+        <li><b>Grafo de módulos limpio</b>: 0 violaciones de frontera, 0 ciclos sobre 825 módulos y 2.594 dependencias. Los dos ciclos del baseline se cerraron.</li>
+        <li><b>El modelo RBAC está bien pensado</b>. El 68% de los endpoints admin sí tiene control de staff; el problema son los atajos que lo perforan, no el diseño.</li>
+        <li><b>Las claves de caché aíslan por organización</b> y están testeadas. No hay fuga de datos entre clientes por ahí.</li>
+        <li><b>Las herramientas de Aurum están correctamente acotadas por organización</b>, y los tokens de reset de contraseña son de calidad.</li>
+      </ul>
+    </div>
+    <div class="panel good">
+      <h4>Datos y disciplina</h4>
+      <ul>
+        <li><b>Las fechas están ancladas a Argentina</b> de forma consistente en los endpoints principales, con bordes inclusivos parejos. El día de los rollups es siempre AR.</li>
+        <li><b>Los cuatro rollups Gold sobre Silver</b> tienen bien aplicado el arreglo de días afectados y borrado de huérfanas, con el reloj tomado de la base y no de la app.</li>
+        <li><b><code>pixel_daily_channel</code> hace DELETE-then-insert</b>: es exactamente el modelo a copiar para arreglar los dos Gold de atribución.</li>
+        <li><b>396 tests en verde en 28 segundos</b>, autocontenidos con Postgres en proceso: no tocan red ni base externa.</li>
+        <li><b>Tres guards propios corren en el build</b> (contrato de órdenes, Gold-first, fronteras de módulos) y los tres pasan.</li>
+        <li>Cero archivos <code>.bak</code>, <code>.old</code> u <code>.orig</code> en el repo.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="preguntas">
+  <h2>Cinco preguntas que el código no puede responder</h2>
+  <p style="color:var(--ink-70);">De estas respuestas depende si varios hallazgos son un incendio activo o una bomba sin cebar. Ninguna requiere tocar nada.</p>
+
+  <div class="question">
+    <h4>1. ¿Las tres variables de entorno valen realmente ese literal?</h4>
+    <p>Es la verificación con mejor relación costo-beneficio de toda la lista: llamar cada cron a mano desde el dominio propio y mirar el status. Si alguno devuelve 401 o 403, <strong>hay crons muertos ahora mismo</strong>. Y si valen el literal, la clave de sesión está publicada en el repo.</p>
+  </div>
+  <div class="question">
+    <h4>2. ¿Qué feature flags están en <code>true</code> hoy en producción?</h4>
+    <p><code>PIXEL_USE_GOLD_CHANNEL</code> decide si el problema del revenue que solo sube es un incendio activo o algo latente. Lo mismo <code>PIXEL_USE_GOLD</code>, <code>PIXEL_USE_CHANNELS</code>, <code>ORDERS_USE_GOLD</code>.</p>
+  </div>
+  <div class="question">
+    <h4>3. ¿Alguna cuenta de Meta o Google Ads factura en dólares?</h4>
+    <p>La tabla de gasto publicitario <strong>no tiene columna de moneda</strong> y el conector no la pide. El ROAS de toda la plataforma es revenue en pesos dividido gasto en moneda desconocida. Si una sola cuenta factura en USD, el ROAS de ese canal está mal por un factor de mil y no hay forma de saberlo leyendo el código.</p>
+  </div>
+  <div class="question">
+    <h4>4. ¿<code>NEXTAUTH_URL</code> apunta al dominio propio o al del deployment?</h4>
+    <p>Seis flujos de sync funcionan hoy «por suerte»: no mandan el header de bypass pero salvan porque la URL base es el dominio propio. Si alguien la cambia, se rompen los seis a la vez y ninguno avisa.</p>
+  </div>
+  <div class="question">
+    <h4>5. ¿Cuáles de las 36 migraciones admin se ejecutaron?</h4>
+    <p>El registro existe solo en la memoria de quien las corrió y en una tabla de <code>CLAUDE.md</code> que cubre 3 de las 36. Se verifica contra <code>information_schema.columns</code>.</p>
+  </div>
+</section>
+
+<section id="orden">
+  <h2>Orden de ataque sugerido</h2>
+  <ol class="steps">
+    <li>
+      <span class="when">Hoy · 1 hora · sin tocar código</span>
+      <h4>Contestar las cinco preguntas</h4>
+      <p>Especialmente la primera. Media docena de llamadas a los crons desde el dominio propio, mirando el status, dicen si hay trabajo que se cree que corre y no corre.</p>
+    </li>
+    <li>
+      <span class="when">Esta semana · seguridad</span>
+      <h4>Cerrar las puertas, en el orden correcto</h4>
+      <p>Separar el secreto de sesión del de crons y webhooks <em>antes</em> de rotar nada — rotarlo primero tumba el webhook de órdenes de los cuatro clientes. Después: borrar las tres contraseñas hardcodeadas, borrar <code>/api/backfill/vtex</code> (o parametrizar su SQL), y sacar de producción <code>/api/debug/meta</code>, <code>/design-preview</code>, <code>/aura/paletas</code> y los 37 endpoints de debug. Dropear la columna de contraseñas en claro.</p>
+    </li>
+    <li>
+      <span class="when">Esta semana · pérdida de datos</span>
+      <h4>Que el sistema pueda gritar</h4>
+      <p>Que el webhook de VTEX devuelva 500 cuando falla, para que VTEX reintente. Que <code>markSyncSuccess</code> mire el resultado antes de declarar éxito. Agregar el header de bypass en <code>sync/chain</code>. Que <code>checkStuckOnboardings</code> mire también <code>BACKFILLING</code>. Y un destino de telemetría real: hoy hay 519 <code>console.error</code> y una sola casilla de mail.</p>
+    </li>
+    <li>
+      <span class="when">Corto plazo · alivio inmediato</span>
+      <h4>Los arreglos de una línea que devuelven más</h4>
+      <p>Agregar <code>&amp;model=</code> en la llamada de <code>/pixel/analytics</code> (recupera todo el trabajo del calentador de caché). Dejar un solo planificador de rollups y bajar el bucle de 6 a 2. Pasar las 28 queries del dashboard a <code>Promise.allSettled</code>. Indexar o reescribir el <code>LIKE '%…%'</code> de la ingesta.</p>
+    </li>
+    <li>
+      <span class="when">Tanda dedicada · números</span>
+      <h4>La coherencia de los datos</h4>
+      <p>Copiar el DELETE-then-insert a los dos Gold de atribución. Unificar el vocabulario de canales del embudo. Migrar <code>/discrepancy</code> y <code>/pedidos</code> al contrato canónico. Recalcular la atribución cuando cambia el monto. Y, antes de tocar nada del motor: <strong>un test de caracterización de <code>attribution.ts</code></strong> — 698 líneas que reescriben el histórico de todos los clientes y no tienen una sola red.</p>
+    </li>
+    <li>
+      <span class="when">Un día completo · diseño</span>
+      <h4>Que el producto deje de mentir, y cerrar el perímetro</h4>
+      <p>Estados de vacío y de error de verdad en el dashboard y en <code>/nitropixel</code>; el «EN VIVO» conectado al dato real; el loader oscuro fuera; login, onboarding e invitación migrados al sistema del panel. Es el mayor cambio de percepción por hora invertida, y arregla el recorrido que ve un cliente nuevo el día uno.</p>
+    </li>
+  </ol>
+</section>
+
+<footer class="end">
+  <p>Seis auditorías independientes en paralelo, en modo solo lectura: no se modificó ni un archivo del repositorio. Todos los hallazgos están citados con archivo y línea en los reportes completos de cada frente — seguridad, datos, diseño, flujos, performance y arquitectura.</p>
+  <p style="margin-top:12px;">Lo que no se pudo verificar sin acceso a producción está marcado como tal en los reportes. Nada de lo anterior se probó contra la base ni contra endpoints en vivo.</p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#tabla-altos tbody tr'));
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var f = chip.getAttribute('data-f');
+      chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)); });
+      rows.forEach(function (r) {
+        r.hidden = (f !== 'all' && r.getAttribute('data-d') !== f);
+      });
+    });
+  });
+})();
+</script>

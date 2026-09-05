@@ -1,3 +1,63 @@
+> ## 🚨 2026-09-02 — AUDITORIA DE PRODUCCION: leer `PLAN_REMEDIACION.md` ANTES de tocar codigo
+>
+> Se audito produccion (commit `9ad4616d`) con 6 agentes en paralelo: **197 hallazgos, 37 criticos**.
+> El plan de remediacion completo, con tareas numeradas, orden de ejecucion, dependencias y bitacora,
+> esta en **`PLAN_REMEDIACION.md`** (raiz del repo). La evidencia con `archivo:linea` esta en
+> `docs/auditoria-2026-09/` (un reporte por frente + el consolidado en HTML).
+>
+> **Nada esta implementado todavia — CERO cambios en `src/`.** Los 197 hallazgos siguen vivos en
+> produccion. Lo unico hecho es diagnostico: la auditoria, el plan, y la verificacion estatica de
+> los 20 hallazgos criticos contra el codigo real (los 20 son reales).
+>
+> **Estado: PAUSADO el 2026-09-02** — Axel lo freno para atender otro pedido de Tomy. El punto de
+> retorno exacto esta en la seccion "DONDE QUEDAMOS", arriba de todo en `PLAN_REMEDIACION.md`.
+>
+> Antes de arrancar cualquier trabajo en este repo, leer ese plan: hay hallazgos criticos que
+> cambian como se hacen las cosas. Los dos mas urgentes de saber:
+> - **NO correr `prisma db push`** — ~30 tablas de produccion (silver, gold, todos los `pixel_daily_*`,
+>   onboarding, outbox de ML) no estan en `schema.prisma` y Prisma las ofreceria borrar. Verificado.
+> - **NO rotar `NEXTAUTH_SECRET` sin seguir el orden del plan** — tumba en silencio los 28 crons y el
+>   webhook de ordenes de los 4 clientes. Verificado: 28 de 28 entradas de cron llevan el literal y
+>   38 rutas lo validan como `?key=`.
+>
+> Linea base de validacion tomada el 2026-09-02: `tsc --noEmit` 0 errores, `vitest run` 396 tests
+> en verde (22s). Todo cambio futuro tiene que mantener eso.
+>
+> El plan incluye la REGLA #0: documentar en su bitacora cada vez que se termina una tarea.
+>
+> **Nota de git:** `PLAN_REMEDIACION.md` y `docs/auditoria-2026-09/` estan SIN COMMITEAR y sin
+> trackear, por decision de Axel. Sobreviven a un checkout, pero `git clean -fd` los borra.
+
+---
+
+> ## 🚀 2026-09-05 — ESTUDIO DE EXPANSION: leer `PLAN_EXPANSION.md`
+>
+> Tomy quiere meter clientes nuevos y hacer crecer la app. Se corrio un estudio de 6 frentes sobre
+> el mismo commit. **Plan: `PLAN_EXPANSION.md` (raiz). Evidencia: `docs/expansion-2026-09/`.**
+>
+> **El numero titular: el sistema aguanta hoy 8-10 clientes y EXACTAMENTE UNO tamaño Arredo.** El
+> limite no es la base ni Vercel ni la plata: es un `for` sin chequeo de reloj en
+> `src/lib/pixel/rollup-backfill.ts:381-390`. Arreglarlo son 2-4 h y multiplica el techo por diez.
+>
+> **Tres cosas ya estan rotas HOY con 4 clientes** (no son proyecciones):
+> - `sync/chain` tiene `maxDuration=60` y necesita ~220s → procesa 1 sola org por corrida, las
+>   demas NUNCA sincronizan inventario, precios ni detalles de VTEX.
+> - `warm-cache` alcanza para ~1,4 orgs de las 4.
+> - `attribution-reconcile` procesa 1 org por corrida.
+>
+> **Y el peor sintoma comercial:** cuando se acaba el presupuesto de un cron, el cliente que se
+> queda sin procesar es SIEMPRE el mas nuevo (la lista sale ordenada por cuid = orden cronologico).
+> El cliente recien firmado es el que abre la app y la ve vacia.
+>
+> `PLAN_EXPANSION.md` manda sobre `PLAN_REMEDIACION.md` mientras el objetivo sea expandir: varios
+> criticos de la auditoria son precondiciones de vender y se ejecutan dentro de sus fases E0/E1.
+>
+> **Accion urgente de 1 hora:** el wizard de onboarding ya ofrece Shopify y Tiendanube y deja
+> completar el alta sin conectar nada. Un cliente Shopify hoy tendria /orders y /products
+> bloqueados, Bondly vacio y el pixel sin capturar ni una compra. Sacarlo o marcarlo "proximamente".
+
+---
+
 # CLAUDE_STATE.md â Estado del Proyecto NitroSales
 
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
