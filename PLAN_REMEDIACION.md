@@ -235,7 +235,7 @@ prendido). Empezar a arreglar sin eso es arreglar a ciegas, y en dos casos el ar
   vercel env ls production
   ```
   Y comparar el valor de `ADMIN_API_KEY`, `NEXTAUTH_SECRET` y `SYNC_KEY` contra
-  `nitrosales-secret-key-2024-production`.
+  `<CLAVE-EN-vercel.json-VER-R-C09>`.
 - **Alternativa sin acceso al panel — sondas de SOLO LECTURA** (importante: **no** usar
   `/api/sync?key=...` como sonda, que dispara un sync completo en producción). Usar un `GET` que
   solo lea, desde el dominio propio:
@@ -246,7 +246,7 @@ prendido). Empezar a arreglar sin eso es arreglar a ciegas, y en dos casos el ar
   Un **401/403** significa que esa familia de crons **está muerta ahora mismo** → es un incidente
   activo, no una tarea de plan.
 - **Qué hay que averiguar:** si `ADMIN_API_KEY`, `NEXTAUTH_SECRET` y `SYNC_KEY` valen
-  exactamente `nitrosales-secret-key-2024-production` (el literal que está en `vercel.json:15-157`).
+  exactamente `<CLAVE-EN-vercel.json-VER-R-C09>` (el literal que está en `vercel.json:15-157`).
 - **Cómo:** entrar al panel de Vercel → Settings → Environment Variables y leerlas. Si no hay
   acceso, la alternativa sin riesgo es llamar a mano, **desde el dominio propio**, un cron de
   cada familia y mirar el status:
@@ -549,7 +549,7 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
 ### R-C07 · Separar los secretos y aceptar los dos valores durante la transición
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Depende de:** R-V01 · **Frente:** Seguridad + Flujos
 - **Evidencia:** `review-seguridad.md` → CRIT-01, CRIT-02 · `review-flujos.md` → C-1, C-2
-- **La foto actual:** un solo literal (`nitrosales-secret-key-2024-production`, en `vercel.json:15-157`)
+- **La foto actual:** un solo literal (`<CLAVE-EN-vercel.json-VER-R-C09>`, en `vercel.json:15-157`)
   alimenta **cuatro** secretos distintos:
   | Secreto | Dónde se valida | Qué cubre |
   |---|---|---|

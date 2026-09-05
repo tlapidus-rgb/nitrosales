@@ -42,10 +42,30 @@ describe("E-05 — los crons que iteran organizaciones las aíslan", () => {
     describe(`cron/${cron}`, () => {
       const src = leerCron(cron);
 
-      it("tiene un try/catch POR organización, no sólo alrededor del bucle", () => {
-        // El marcador es explícito a propósito: hace el patrón buscable y obliga
-        // a que quien lo saque tenga que borrar el comentario que lo explica.
-        expect(src).toContain("E-05: aislamiento por organización");
+      it("abre un `try` DENTRO del bucle de organizaciones", () => {
+        // Verificación estructural, no del comentario: se busca el `for (const org
+        // of orgs) {` y se exige que lo primero sustantivo que aparezca sea un
+        // `try {`. Si alguien saca el try o lo mueve afuera del bucle, esto falla
+        // aunque el comentario siga estando.
+        const i = src.search(/for \(const org of orgs\) \{/);
+        expect(i, "no se encontró el bucle de organizaciones").toBeGreaterThan(-1);
+        const cuerpo = src.slice(i, i + 1200);
+        // Puede haber declaraciones y un `continue` de guarda antes del try, pero
+        // el try tiene que estar antes de cualquier `await`.
+        const posTry = cuerpo.indexOf("try {");
+        const posAwait = cuerpo.indexOf("await ");
+        expect(posTry, "no hay try dentro del bucle").toBeGreaterThan(-1);
+        expect(
+          posTry,
+          "el try aparece DESPUÉS del primer await: el trabajo de la org no está protegido"
+        ).toBeLessThan(posAwait);
+      });
+
+      it("no devuelve `ok: true` cuando fallaron TODAS las organizaciones", () => {
+        // Aislar sin esto cambia un 500 ruidoso por un 200 mudo, que es peor:
+        // nadie mira los 200. Con al menos una bien, ok:true es correcto.
+        expect(src).toContain("const todasFallaron = results.length === 0 && failures.length > 0;");
+        expect(src).toContain("ok: !todasFallaron");
       });
 
       it("acumula las organizaciones que fallaron en vez de tragarlas", () => {

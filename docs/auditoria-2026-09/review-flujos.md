@@ -25,7 +25,7 @@ Tres mecanismos concretos lo producen:
 ## C-1 · `NEXTAUTH_SECRET` (la clave que firma los JWT de sesión) se usa como API key y viaja en URLs
 **Severidad:** CRITICAL
 **Evidencia:**
-- `vercel.json:16` — `"/api/sync?key=nitrosales-secret-key-2024-production"` (el literal está commiteado, en las 28 entradas de cron)
+- `vercel.json:16` — `"/api/sync?key=<CLAVE-EN-vercel.json-VER-R-C09>"` (el literal está commiteado, en las 28 entradas de cron)
 - `src/app/api/sync/route.ts:92,139,161` — `if (syncKey !== process.env.NEXTAUTH_SECRET)`
 - `src/app/api/sync/chain/route.ts:133` — idem
 - `src/app/api/webhooks/vtex/orders/route.ts:80-82` — `if (key !== process.env.NEXTAUTH_SECRET)` → **este valor está configurado dentro de la URL del webhook en el VTEX Admin de cada cliente**
@@ -33,7 +33,7 @@ Tres mecanismos concretos lo producen:
 - `src/app/api/sync/trigger/route.ts:72-74` — `const syncKey = process.env.NEXTAUTH_SECRET` embebido en un self-fetch URL
 - 30+ endpoints `admin/migrate-*` comparan contra `process.env.NEXTAUTH_SECRET` (ej. `admin/migrate-aura-payouts/route.ts:21`, `admin/backfill-always-on/route.ts:20`)
 
-**Qué está mal:** el secreto que NextAuth usa para firmar y verificar los JWT de sesión es también la contraseña de los crons, del webhook de VTEX y de 30 endpoints de migración de esquema. Viaja como query param → queda en logs de acceso de Vercel, en logs de VTEX, y en la config del VTEX Admin de cada cliente (visible para el personal del cliente y para su agencia). Y, si `ADMIN_API_KEY == NEXTAUTH_SECRET == "nitrosales-secret-key-2024-production"` (condición necesaria para que los crons de `vercel.json` funcionen — ver C-2), entonces **el secreto de firma de sesión está en texto plano en el repositorio**.
+**Qué está mal:** el secreto que NextAuth usa para firmar y verificar los JWT de sesión es también la contraseña de los crons, del webhook de VTEX y de 30 endpoints de migración de esquema. Viaja como query param → queda en logs de acceso de Vercel, en logs de VTEX, y en la config del VTEX Admin de cada cliente (visible para el personal del cliente y para su agencia). Y, si `ADMIN_API_KEY == NEXTAUTH_SECRET == "<CLAVE-EN-vercel.json-VER-R-C09>"` (condición necesaria para que los crons de `vercel.json` funcionen — ver C-2), entonces **el secreto de firma de sesión está en texto plano en el repositorio**.
 
 **Escenario de falla concreto:** un dev de Arredo entra al VTEX Admin → Config tienda → Pedidos → hooks, ve la URL `.../api/webhooks/vtex/orders?key=<NEXTAUTH_SECRET>&org=...`. Con ese valor firma un JWT de NextAuth con `organizationId` = el de TeVeCompras y `isStaff: true`. Entra a la app como staff de NitroSales y ve la facturación, márgenes y clientes de las cuatro cuentas. Nada lo registra: es una sesión válida.
 
@@ -52,7 +52,7 @@ Tres mecanismos concretos lo producen:
 | `process.env.SYNC_KEY` | `cron/ads-utm-audit/route.ts:37`, `cron/anomalies/route.ts:27`, `cron/digest/route.ts:23`, `cron/exchange-rates/route.ts:66`, `cron/inflation-index/route.ts:51` | 5 crons |
 | literal `"nitrosales-backfill-2024"` | `app/api/backfill/vtex/route.ts:29`, `app/api/fix-brands/route.ts:9` | (no cron; endpoints manuales) |
 
-`vercel.json` manda **el mismo** `key=nitrosales-secret-key-2024-production` a los 28.
+`vercel.json` manda **el mismo** `key=<CLAVE-EN-vercel.json-VER-R-C09>` a los 28.
 
 **Qué está mal:** para que los 28 crons funcionen, `ADMIN_API_KEY`, `NEXTAUTH_SECRET` y `SYNC_KEY` tienen que valer exactamente ese literal en Vercel. Además `.env.example` **no documenta ninguna de las tres** (`ADMIN_API_KEY`, `SYNC_KEY`, `CRON_SECRET`, `VERCEL_AUTOMATION_BYPASS_SECRET`, `WEBHOOK_ENFORCE`, `VTEX_WEBHOOK_SECRET`, `SILVER_ORDERS_ENABLED` — ninguna aparece en `.env.example`). `src/lib/admin-key.ts:19-20` cae a un valor **aleatorio por proceso** si `ADMIN_API_KEY` no está seteada: fail-closed → 403 silencioso en 18 crons.
 
@@ -589,7 +589,7 @@ Con 200 implícito (`NextResponse.json` sin `status` dentro de un `catch`):
 
 Todo lo anterior es análisis estático del árbol de trabajo. Cuatro cosas **no** se pudieron verificar sin acceso a producción y quedan marcadas **SIN CONFIRMAR**:
 
-1. Si `ADMIN_API_KEY`, `NEXTAUTH_SECRET` y `SYNC_KEY` valen efectivamente `"nitrosales-secret-key-2024-production"` en Vercel. **Verificable sin riesgo** ejecutando cada cron a mano desde `app.nitrosales.ai` y mirando el status. Es la comprobación con mejor relación costo/beneficio de toda esta lista: si alguno da 401/403, hay crons muertos ahora mismo.
+1. Si `ADMIN_API_KEY`, `NEXTAUTH_SECRET` y `SYNC_KEY` valen efectivamente `"<CLAVE-EN-vercel.json-VER-R-C09>"` en Vercel. **Verificable sin riesgo** ejecutando cada cron a mano desde `app.nitrosales.ai` y mirando el status. Es la comprobación con mejor relación costo/beneficio de toda esta lista: si alguno da 401/403, hay crons muertos ahora mismo.
 2. Qué migraciones de las 36 se ejecutaron realmente en la DB de producción. Verificable con un `information_schema.columns` contra las columnas que cada endpoint agrega.
 3. Si `NEXTAUTH_URL` apunta al dominio custom (de eso dependen seis self-fetch, C-5).
 4. Si Fluid Compute está activo con concurrencia por instancia (condición de explotación de C-7). Los comentarios del propio código lo dan por sentado.

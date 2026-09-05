@@ -79,11 +79,14 @@ const VISIT_PAGEVIEW_NOALIAS = `type='PAGE_VIEW' AND ("pageUrl" IS NULL OR "page
 //     2. No arrancar un día que no vamos a poder terminar (ver DAY_RESERVE_MS).
 //        Sin esto, subir el techo sólo mueve el día en que vuelve a explotar.
 //
-// ACTUALIZACIÓN 2026-09-05 (E-01): `backfillDay` SÍ tiene tope ahora. Recibe un
-// `deadlineAt` y corta entre orgs devolviendo `nextOrgId`, así que la unidad de
-// trabajo dejó de ser (día × tabla × TODAS las orgs) y pasó a ser (día × tabla ×
-// UNA org). La reserva por día de acá abajo sigue siendo útil (evita empezar un
-// día que no rinde), pero ya no es lo único que separa al cron de un 504.
+// ACTUALIZACIÓN 2026-09-05: `backfillDay` PUEDE cortar entre orgs (recibe un
+// `deadlineAt` opcional), pero **el runner NO lo usa a propósito** — cortar a
+// mitad de las orgs escribe un día parcial y el cron elige el rango con el
+// `MAX(day)` GLOBAL de la tabla, así que ese día queda cerrado para las orgs que
+// no llegaron y se pierde para siempre. Ver el comentario del `while` de
+// `runRollupBackfill`. La reserva por día de acá abajo sigue siendo lo que
+// separa al cron de un 504, y la solución de fondo para días que no entran ni
+// solos es la cola persistida de (org, tabla, día) — E-10 del plan de expansión.
 export const TIME_BUDGET_MS = 700_000;
 
 // Cuánto tiempo hay que tener libre para animarse a arrancar OTRO día. Se
@@ -97,10 +100,10 @@ const DAY_RESERVE_FLOOR_MS = 180_000;
  *
  * Pura y exportada porque es la regla que falló: el chequeo viejo era
  * `elapsed > budget`, que autoriza arrancar un día en el segundo 699 de 700.
- * En ese momento `backfillDay` no tenía tope, así que ese día se pasaba del
- * maxDuration y Vercel devolvía un 504 con body vacío — sin cursor, sin días
- * hechos, sin nada. Desde E-01 el día corta entre orgs, pero la reserva sigue
- * evitando arrancar un día que no va a rendir nada útil.
+ * `backfillDay` procesa el día para TODAS las orgs (no se corta a mitad: ver el
+ * comentario del `while`), así que un día arrancado sin reserva se pasa del
+ * maxDuration y Vercel devuelve un 504 con body vacío — sin cursor, sin días
+ * hechos, sin nada. Esta reserva es lo que lo evita.
  *
  * No se puede testear `runRollupBackfill` entera (PGlite no trae `hll`), así que
  * la decisión vive acá para poder verificarla. Ver rollup-backfill-budget.test.ts.
@@ -506,13 +509,6 @@ export async function runRollupBackfill(params: {
    * del query string y se valida contra ROLLUP_TABLES.
    */
   table?: string | null;
-  /**
-   * Reanudación DENTRO de un día: org por la que seguir (E-01). Sale de
-   * `nextOrgCursor` de la respuesta anterior. Sin esto, cortar por presupuesto
-   * dejaba siempre afuera a las últimas orgs de la lista — que por el `ORDER BY`
-   * sobre el cuid son los clientes más nuevos.
-   */
-  orgCursor?: string | null;
 }): Promise<BackfillRunResult> {
   const startedAt = Date.now();
   const budget = params.budgetMs ?? TIME_BUDGET_MS;
@@ -590,28 +586,21 @@ export async function runRollupBackfill(params: {
   // Lista de orgs desde `pixel_visitor_first_source` (PK lidera con organizationId
   // → DISTINCT por índice). El guard de arriba garantiza que está poblada.
   //
-  // ⚠️ EL ORDEN IMPORTA, Y ANTES ERA EL PEOR POSIBLE (E-02, 2026-09-05):
-  //   Era `ORDER BY 1`, o sea por `organizationId`. Los cuid son ordenables por
-  //   tiempo de creación, así que eso ordenaba las orgs **de más vieja a más
-  //   nueva**. Cuando el presupuesto se acababa a mitad de la lista, el que
-  //   quedaba sin procesar era SIEMPRE el cliente más nuevo — el recién firmado
-  //   abría la app y la veía vacía, todos los días, hasta que alguien mirara.
+  // ⚠️ POR QUÉ EL ORDEN NO IMPORTA ACÁ (y por qué se probó otra cosa y se volvió):
+  //   El orden sólo decidiría algo si el día se pudiera cortar a mitad de las
+  //   orgs. No se puede (ver el comentario del `while`): un día se procesa para
+  //   TODAS o no se empieza. Con esa garantía **ninguna org queda sistemáticamente
+  //   afuera**, que es más fuerte que cualquier criterio de ordenamiento.
   //
-  //   El orden nuevo es por atraso del rollup: primero la org cuyo rollup está
-  //   más viejo (o no existe). Es auto-correctivo — la que se saltea una corrida
-  //   queda más atrasada y pasa primera en la siguiente— y no necesita persistir
-  //   ningún cursor entre invocaciones, que es la parte que no se puede hacer
-  //   barato hoy (~30 tablas de prod ya viven fuera de `schema.prisma`).
-  //
-  //   `ORDER BY 1` queda como desempate para que el orden sea determinista.
-  //   `pixel_daily_aggregates` es el proxy de atraso: es la tabla base y la
-  //   escriben todas las corridas. El nombre no sale de ningún input.
+  //   El 2026-09-05 se probó ordenar por "atraso del rollup" para que el cliente
+  //   más nuevo dejara de ser el último. Se revirtió porque no funcionaba: el cron
+  //   procesa UNA tabla por invocación, y el proxy de atraso
+  //   (`pixel_daily_aggregates`) no se escribe en 7 de las 8 tablas → el orden no
+  //   se movía nunca; y con todas las orgs al día empataba y desempataba por cuid,
+  //   o sea exactamente el `ORDER BY 1` que pretendía reemplazar. Complejidad y
+  //   un JOIN por corrida a cambio de nada.
   const orgsRes: any = await prisma.$queryRawUnsafe(
-    `SELECT f."organizationId" org, MAX(a.day) AS last_day
-       FROM (SELECT DISTINCT "organizationId" FROM pixel_visitor_first_source) f
-       LEFT JOIN pixel_daily_aggregates a ON a."organizationId" = f."organizationId"
-      GROUP BY f."organizationId"
-      ORDER BY MAX(a.day) ASC NULLS FIRST, f."organizationId" ASC`
+    `SELECT DISTINCT "organizationId" org FROM pixel_visitor_first_source ORDER BY 1`
   );
   let orgs: string[] = orgsRes.map((o: any) => o.org);
   if (params.org) {
@@ -633,9 +622,6 @@ export async function runRollupBackfill(params: {
   // Se calibra sola con el día más lento visto. Ver DAY_RESERVE_FLOOR_MS.
   let dayReserveMs = DAY_RESERVE_FLOOR_MS;
   let stoppedForBudget = false;
-  // Reanudación DENTRO de un día (E-01): si el presupuesto se acaba a mitad de
-  // las orgs, acá queda por cuál seguir. `null` = arrancar por la primera.
-  let orgCursor: string | null = params.orgCursor ?? null;
   const orgFailures: Array<{ org: string; day: string; error: string }> = [];
   while (cursor <= to) {
     // ⚠️ La reserva es lo que evita el 504. Chequear sólo `elapsed > budget`
@@ -646,26 +632,28 @@ export async function runRollupBackfill(params: {
     }
     const t0 = Date.now();
     try {
-      const outcome = await backfillDay(cursor, orgs, table, {
-        deadlineAt: startedAt + budget,
-        startOrgId: orgCursor,
-      });
+      // ⚠️ SIN `deadlineAt`: un día se procesa para TODAS las orgs o no se empieza.
+      //
+      // La versión anterior de este código cortaba a mitad de las orgs cuando se
+      // acababa el presupuesto y devolvía por cuál seguir. Parecía estrictamente
+      // mejor y **era un agujero de datos**: las orgs ya procesadas escriben sus
+      // filas del día D, y el cron elige el rango con `MAX(day)` GLOBAL de la
+      // tabla (`refresh-pixel-rollups/route.ts`, el fix BP-ROLLUP-STUCK). Alcanza
+      // que UNA org escriba el día D para que D quede cerrado para todas: al pasar
+      // la medianoche `from = MAX+1` salta ese día y las orgs que no llegaron lo
+      // pierden PARA SIEMPRE. Y no lo detecta nada — la alerta de frescura mira el
+      // `MAX(day)` global, que está al día, y la respuesta dice `ok: true`.
+      //
+      // Quién decide que un día "entra" es `canStartAnotherDay` (la reserva por
+      // día), que ya existía y para eso está. Si un día no entra ni solo, eso hoy
+      // es un 504 con `failedDay` — ruidoso, que es lo correcto — y la solución de
+      // fondo es la cola persistida de (org, tabla, día) del plan (E-10), no
+      // cortar a mitad y perder datos en silencio.
+      const outcome = await backfillDay(cursor, orgs, table);
       const dayMs = Date.now() - t0;
       orgFailures.push(
         ...outcome.failures.map((f) => ({ ...f, day: cursor }))
       );
-
-      if (outcome.nextOrgId !== null) {
-        // Día PARCIAL: se acabó el presupuesto a mitad de las orgs. No avanzamos
-        // el cursor de día — la próxima invocación retoma este mismo día desde
-        // `orgCursor`. Es lo que garantiza que ninguna org quede sin turno: sin
-        // esto, cortar por presupuesto siempre dejaba afuera a las últimas de la
-        // lista, que por el ORDER BY del cuid son los clientes MÁS NUEVOS.
-        days.push({ day: cursor, touched: outcome.touched, ms: dayMs });
-        orgCursor = outcome.nextOrgId;
-        stoppedForBudget = true;
-        break;
-      }
 
       days.push({ day: cursor, touched: outcome.touched, ms: dayMs });
       // El día más lento visto manda la reserva del próximo: los días de pico
@@ -674,8 +662,6 @@ export async function runRollupBackfill(params: {
       if (dayMs > dayReserveMs) dayReserveMs = dayMs;
       lastDone = cursor;
       cursor = addDays(cursor, 1);
-      // El día quedó completo: la próxima arranca por la primera org.
-      orgCursor = null;
     } catch (e: any) {
       return {
         httpStatus: 500,
@@ -696,9 +682,6 @@ export async function runRollupBackfill(params: {
   const done = cursor > to;
   const orgQs = params.org ? `&org=${params.org}` : "";
   const tableQs = table ? `&table=${table}` : "";
-  // Sin esto la reanudación intra-día se pierde: el caller repetiría el día
-  // desde la primera org y las últimas no avanzarían nunca.
-  const orgCursorQs = orgCursor ? `&orgCursor=${orgCursor}` : "";
   return {
     httpStatus: 200,
     body: {
@@ -714,10 +697,6 @@ export async function runRollupBackfill(params: {
       // Distingue "terminé el rango" de "corté por presupuesto". Sin esto, un
       // `done:false` no dice si hay que repetir o si algo se atascó.
       stoppedForBudget,
-      // Org por la que seguir dentro del día en curso. `null` = el día cerró y
-      // la próxima invocación arranca por la primera org. Hay que devolverlo en
-      // el `resume` o se pierde la reanudación y las últimas orgs no avanzan.
-      nextOrgCursor: orgCursor,
       // Orgs que fallaron sin frenar al resto (E-05). Si esto viene con datos,
       // hay clientes SIN rollups aunque `ok` sea true: mirarlo.
       orgFailures,
@@ -727,7 +706,7 @@ export async function runRollupBackfill(params: {
       nextCursor: done ? null : cursor,
       next: done
         ? "Listo. Verificá con GET ?phase=status"
-        : `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}${orgQs}${tableQs}${orgCursorQs}`,
+        : `POST ?phase=backfill&from=${from}&to=${to}&cursor=${cursor}${orgQs}${tableQs}`,
       ms: Date.now() - startedAt,
     },
   };

@@ -1369,8 +1369,28 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // ══════════════════════════════════════════════════════════
 
     const ls = liveStatusResult[0];
-    const kpisCurr = visitorKpisResult[0];
-    const kpisPrev = prevVisitorKpisResult[0];
+    // ⚠️ E-06: estas dos son agregados SIN `GROUP BY`, así que cuando la query
+    // anda devuelven exactamente 1 fila y `[0]` es correcto. Pero si la query
+    // falla, `allOrEmpty` mete `[]` y `[0]` queda `undefined` — y río abajo se
+    // usan SIN `?.` (`kpisCurr.totalSessions`, y ~10 campos más en la respuesta).
+    // Eso tiraba un TypeError que caía en el catch final y devolvía el mock en
+    // cero: exactamente el bug que E-06 vino a arreglar, sólo que ahora con un
+    // `_error` que dice "Cannot read properties of undefined" en vez del error de
+    // Postgres real, o sea más difícil de diagnosticar.
+    //
+    // El objeto de ceros NO es un dato: la respuesta va marcada en `_degraded` y
+    // no se cachea. Es lo que permite que las otras 27 queries lleguen con sus
+    // números en lugar de perder la pantalla entera.
+    const EMPTY_KPIS = {
+      totalVisitors: 0,
+      totalSessions: 0,
+      totalPageViews: 0,
+      identifiedVisitors: 0,
+      cartVisitors: 0,
+      purchaseVisitors: 0,
+    };
+    const kpisCurr = visitorKpisResult[0] ?? (EMPTY_KPIS as typeof visitorKpisResult[0]);
+    const kpisPrev = prevVisitorKpisResult[0] ?? (EMPTY_KPIS as typeof prevVisitorKpisResult[0]);
 
     // Live status
     const lastEventAt = ls?.lastEventAt;

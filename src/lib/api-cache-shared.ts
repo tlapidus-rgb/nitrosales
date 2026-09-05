@@ -111,10 +111,30 @@ export function setSharedCache(
     });
 }
 
-/** Borra las entradas vencidas. Lo llama el cron de warm-cache. */
-export async function purgeExpiredSharedCache(): Promise<number> {
+/**
+ * Borra las entradas vencidas. Lo llama el cron de warm-cache.
+ *
+ * ⚠️ ACOTADO A PROPÓSITO: el `DELETE` va con `LIMIT` porque corre en el camino
+ * crítico de `warm-cache`, que tiene presupuesto de tiempo. `api_cache` nunca se
+ * purgó, así que la PRIMERA corrida se encuentra con meses de basura acumulada
+ * (los payloads son de ~800 KB y el espacio de claves incluye el rango de fechas,
+ * o sea que se ensancha todos los días): un `DELETE` sin cota sobre eso puede
+ * tardar minutos, tomar locks y hacer que la función muera por timeout — y como
+ * el cron corre cada 5 minutos, entraría en un bucle de 504 sin llegar nunca a
+ * terminar. Con la cota, cada corrida saca un pedazo y en unas horas se pone al
+ * día sola. Devuelve cuántas borró para poder verlo.
+ */
+const PURGE_BATCH = 5_000;
+
+export async function purgeExpiredSharedCache(
+  limit: number = PURGE_BATCH
+): Promise<number> {
   try {
-    return await prisma.$executeRaw`DELETE FROM api_cache WHERE stale_until < now()`;
+    return await prisma.$executeRaw`
+      DELETE FROM api_cache
+      WHERE ctid IN (
+        SELECT ctid FROM api_cache WHERE stale_until < now() LIMIT ${limit}
+      )`;
   } catch {
     return 0;
   }

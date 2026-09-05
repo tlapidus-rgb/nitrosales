@@ -337,14 +337,20 @@ export async function GET(req: NextRequest) {
     // de claves incluye el rango de fechas, así que se ensancha todos los días y
     // nunca se reusa — basura pura dentro de la misma DB cuyo working set ya no
     // entra en RAM. Es barato y va al final: si falla, no afecta al warm.
+    // El chequeo de presupuesto es el mismo que usa el bloque de al lado para el
+    // mail: si no queda tiempo, se saltea y la próxima corrida (5 min) lo hace.
+    // La purga es acotada (ver PURGE_BATCH) pero igual no vale la pena arriesgar
+    // el retorno de la función por limpiar caché.
     let cachePurged = 0;
-    try {
-      cachePurged = await purgeExpiredSharedCache();
-      if (cachePurged > 0) {
-        console.log(`[warm-cache] api_cache: ${cachePurged} entradas vencidas borradas`);
+    if (Date.now() - startedAt < 260_000) {
+      try {
+        cachePurged = await purgeExpiredSharedCache();
+        if (cachePurged > 0) {
+          console.log(`[warm-cache] api_cache: ${cachePurged} entradas vencidas borradas`);
+        }
+      } catch (e: any) {
+        console.error("[warm-cache] purga de api_cache falló:", e?.message);
       }
-    } catch (e: any) {
-      console.error("[warm-cache] purga de api_cache falló:", e?.message);
     }
 
     return NextResponse.json({

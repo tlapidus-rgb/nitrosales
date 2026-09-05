@@ -37,9 +37,13 @@ jobs:
           # (7 monitoreadas + channel), así que pegamos varias veces para ciclarlas
           # y recuperar rápido tras un hueco. Idempotente.
           #
-          # ⚠️ POR QUÉ 2 Y NO 6 (E-04, 2026-09-05): este workflow es el ÚNICO
-          # scheduler de los rollups desde hoy — la entrada duplicada de
-          # `vercel.json` se borró. Antes convivían los dos (GH cada 15 min × 6
+          # ⚠️ POR QUÉ 2 Y NO 6 (E-04, 2026-09-05): este workflow es el disparador
+          # PRINCIPAL de los rollups; en `vercel.json` quedó una entrada de
+          # respaldo **una vez por hora** (`41 * * * *`), no cada 15 min como
+          # antes. El respaldo no es opcional: GitHub **deshabilita los workflows
+          # programados tras 60 días sin actividad en el repo**, que es justo el
+          # modo de falla que este workflow vino a cubrir. Antes convivían los
+          # dos a la misma frecuencia (GH cada 15 min × 6
           # hits + Vercel cada 15 min), y como los dos eligen "la tabla más
           # atrasada", elegían LA MISMA y corrían el mismo statement HLL de ~190s
           # dos veces en paralelo. Medido: hasta ~1.750s de escaneo sobre una

@@ -330,7 +330,7 @@
     <div class="finding">
       <div class="f-top"><span class="pill crit">Crítico</span><span class="pill dom">Seguridad · Flujos · Arquitectura</span></div>
       <h4>El secreto que firma las sesiones está commiteado y es la contraseña de todo</h4>
-      <div class="where">vercel.json:15-157 — literal <b>nitrosales-secret-key-2024-production</b> en las 28 entradas de cron
+      <div class="where">vercel.json:15-157 — literal <b><CLAVE-EN-vercel.json-VER-R-C09></b> en las 28 entradas de cron
 src/lib/admin-key.ts:19 · src/app/api/sync/route.ts:139 · src/app/api/webhooks/vtex/orders/route.ts:79</div>
       <p>Ese literal se manda como <code>?key=</code> a los 28 crons, y los endpoints lo validan contra tres variables distintas: <code>ADMIN_API_KEY</code>, <code>SYNC_KEY</code> y <code>NEXTAUTH_SECRET</code>. Para que los crons funcionen, las tres tienen que valer exactamente eso. Y <code>NEXTAUTH_SECRET</code> es la clave con la que se firman los JWT de sesión.</p>
       <p>Peor: esa misma clave viaja dentro de la URL del webhook que se configura <strong>en el panel de VTEX de cada cliente</strong>. Cualquier operador de la tienda de Arredo puede leerla entrando a Configuración → Pedidos → Orders Broadcaster.</p>

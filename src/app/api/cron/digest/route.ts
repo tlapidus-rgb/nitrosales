@@ -226,8 +226,13 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
       }
     }
 
+    // E-05: si NINGUNA org pudo procesarse, esto NO es un exito. Devolver
+    // ok:true con la lista vacia cambia un 500 ruidoso por un 200 mudo — que es
+    // peor, porque nadie mira los 200. Con al menos una bien, ok:true y las que
+    // fallaron en `failures`.
+    const todasFallaron = results.length === 0 && failures.length > 0;
     return NextResponse.json({
-      ok: true,
+      ok: !todasFallaron,
       timestamp: new Date().toISOString(),
       digests: results,
       // Con datos = esos clientes NO recibieron su digest, aunque ok sea true.

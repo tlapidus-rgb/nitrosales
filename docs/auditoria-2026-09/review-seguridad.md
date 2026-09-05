@@ -28,10 +28,10 @@ La parte buena: el modelo RBAC (`permissions.ts` / `permissions-resolve.ts` / `p
 **Archivo**: `vercel.json:19` (y repetida en las 28 entradas de `crons`, hasta `vercel.json:157`)
 
 ```json
-{ "path": "/api/sync?key=nitrosales-secret-key-2024-production", "schedule": "0 3 * * *" }
+{ "path": "/api/sync?key=<CLAVE-EN-vercel.json-VER-R-C09>", "schedule": "0 3 * * *" }
 ```
 
-El literal `nitrosales-secret-key-2024-production` está en el repo y se usa como `?key=` en los 28 crons. Los endpoints que reciben esa key la validan contra **tres env vars distintas**:
+El literal `<CLAVE-EN-vercel.json-VER-R-C09>` está en el repo y se usa como `?key=` en los 28 crons. Los endpoints que reciben esa key la validan contra **tres env vars distintas**:
 
 | Endpoint del cron | Valida contra | Evidencia |
 |---|---|---|
@@ -44,11 +44,11 @@ El literal `nitrosales-secret-key-2024-production` está en el repo y se usa com
 **Escenario de falla concreto**: cualquiera con acceso de lectura al repo (contratista, ex-colaborador, fuga de un backup, un fork accidental, el propio historial de git) lee `vercel.json` y obtiene `ADMIN_API_KEY`. Con eso llama sin sesión a los 20 endpoints admin protegidos solo por esa key. Ejemplo directo de fuga de PII cross-org:
 
 ```
-GET /api/admin/sample-customers?orgId=<orgId-de-Arredo>&key=nitrosales-secret-key-2024-production
+GET /api/admin/sample-customers?orgId=<orgId-de-Arredo>&key=<CLAVE-EN-vercel.json-VER-R-C09>
 ```
 → devuelve emails, nombres y apellidos reales de clientes de Arredo (`src/app/api/admin/sample-customers/route.ts:32-44`), y el `orgId` es un parámetro libre, así que sirve para cualquier tenant.
 
-**SIN CONFIRMAR**: que `NEXTAUTH_SECRET === "nitrosales-secret-key-2024-production"`. Es la lectura más probable (si no, el cron de `/api/sync` estaría devolviendo 401 desde siempre), pero solo se confirma leyendo el env de Vercel. Si se confirma, escala a CRIT-02.
+**SIN CONFIRMAR**: que `NEXTAUTH_SECRET === "<CLAVE-EN-vercel.json-VER-R-C09>"`. Es la lectura más probable (si no, el cron de `/api/sync` estaría devolviendo 401 desde siempre), pero solo se confirma leyendo el env de Vercel. Si se confirma, escala a CRIT-02.
 
 **Dirección de arreglo**: rotar las tres claves ya, moverlas a `Authorization: Bearer` desde un env var de Vercel, y usar el header `x-vercel-cron` / `CRON_SECRET` nativo en vez de query params.
 

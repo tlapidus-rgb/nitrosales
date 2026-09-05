@@ -886,7 +886,7 @@ una métrica que no existe.
 
 ## L-8 — Claves de API en texto plano en `vercel.json`
 
-`vercel.json:16-136` — `?key=nitrosales-secret-key-2024-production` repetido en las 28 entradas de
+`vercel.json:16-136` — `?key=<CLAVE-EN-vercel.json-VER-R-C09>` repetido en las 28 entradas de
 cron, commiteado al repo. Fuera del alcance de esta auditoría (dominio del auditor de seguridad), se
 menciona porque quedó a la vista al revisar la programación de los rollups.
 

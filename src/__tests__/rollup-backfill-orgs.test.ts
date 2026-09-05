@@ -111,53 +111,6 @@ describe("backfillDay — tope de tiempo y reanudación (E-01)", () => {
     expect(r.nextOrgId).toBeNull();
   });
 
-  it("EL BUG DE E-02: sin reanudación, el cliente más nuevo nunca se procesa", async () => {
-    // La lista está ordenada por cuid, o sea por antigüedad: org_d es el cliente
-    // recién firmado. Con presupuesto para dos, dos invocaciones SIN cursor
-    // procesan siempre las mismas dos primeras.
-    const sinCursor: string[] = [];
-    for (let i = 0; i < 2; i++) {
-      let ahora = 0;
-      await backfillDay("2026-09-01", ORGS, undefined, {
-        deadlineAt: 200,
-        now: () => ahora,
-        runOrg: async (_d, org) => {
-          sinCursor.push(org);
-          ahora += 100;
-          return 1;
-        },
-      });
-    }
-    // Se procesó dos veces lo mismo. org_d jamás aparece.
-    expect(sinCursor).toEqual(["org_a", "org_b", "org_a", "org_b"]);
-    expect(sinCursor).not.toContain("org_d");
-
-    // Con cursor, dos invocaciones cubren a las cuatro.
-    const conCursor: string[] = [];
-    let cursor: string | null = null;
-    for (let i = 0; i < 2; i++) {
-      let ahora = 0;
-      const r: Awaited<ReturnType<typeof backfillDay>> = await backfillDay(
-        "2026-09-01",
-        ORGS,
-        undefined,
-        {
-          deadlineAt: 200,
-          startOrgId: cursor,
-          now: () => ahora,
-          runOrg: async (_d, org) => {
-            conCursor.push(org);
-            ahora += 100;
-            return 1;
-          },
-        }
-      );
-      cursor = r.nextOrgId;
-    }
-    expect(conCursor).toEqual(ORGS);
-    expect(cursor).toBeNull();
-  });
-
   it("un cursor que ya no existe (org borrada) arranca de cero, no explota", async () => {
     const vistas: string[] = [];
     const r = await backfillDay("2026-09-01", ORGS, undefined, {
@@ -185,5 +138,37 @@ describe("backfillDay — tope de tiempo y reanudación (E-01)", () => {
     expect(r.touched).toBe(8);
     expect(r.nextOrgId).toBeNull();
     expect(r.failures).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// GUARD — el runner NO usa el corte intra-día (regresión del 2026-09-05)
+// ══════════════════════════════════════════════════════════════════════════
+// `backfillDay` SABE cortar entre orgs, y eso se testea arriba porque es la
+// pieza de la que va a colgar la cola persistida de (org, tabla, día) — E-10.
+// Pero `runRollupBackfill` NO debe usarlo, y esto es un guard, no un detalle:
+//
+//   Cortar a mitad escribe un día PARCIAL. El cron elige el rango con el
+//   `MAX(day)` GLOBAL de la tabla (fix BP-ROLLUP-STUCK), así que alcanza que UNA
+//   org escriba el día D para que D quede cerrado para todas. Al pasar la
+//   medianoche `from = MAX+1` salta ese día y las orgs que no llegaron lo pierden
+//   PARA SIEMPRE — con `ok: true` en la respuesta, la alerta de frescura en verde
+//   (mira el MAX global) y el auto-chequeo de coherencia salteado justo en ese
+//   caso, porque se saltea cuando hubo corte por presupuesto.
+//
+// Se detectó en la revisión de la branch antes de mergear, no en producción.
+describe("GUARD — el runner no corta un día a mitad de las organizaciones", () => {
+  it("`runRollupBackfill` llama a backfillDay SIN deadline", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const src = readFileSync(
+      join(process.cwd(), "src", "lib", "pixel", "rollup-backfill.ts"),
+      "utf8"
+    );
+    // La llamada del runner tiene que ser la de 3 argumentos.
+    expect(src).toContain("const outcome = await backfillDay(cursor, orgs, table);");
+    // Y no debe reaparecer el corte por presupuesto dentro del día.
+    expect(src).not.toContain("deadlineAt: startedAt + budget");
+    expect(src).not.toContain("nextOrgCursor");
   });
 });

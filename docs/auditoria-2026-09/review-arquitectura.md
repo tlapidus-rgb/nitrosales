@@ -123,10 +123,10 @@ repo. Proxy estructural medido:
 **Evidencia:**
 
 ```json
-{ "path": "/api/sync?key=nitrosales-secret-key-2024-production", "schedule": "0 3 * * *" }
+{ "path": "/api/sync?key=<CLAVE-EN-vercel.json-VER-R-C09>", "schedule": "0 3 * * *" }
 ```
 
-El literal `nitrosales-secret-key-2024-production` aparece en las 28 entradas de `crons`.
+El literal `<CLAVE-EN-vercel.json-VER-R-C09>` aparece en las 28 entradas de `crons`.
 
 Los endpoints validan contra `ADMIN_API_KEY` (`src/lib/admin-key.ts:27`):
 

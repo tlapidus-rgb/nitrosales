@@ -153,8 +153,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // E-05: ver digest. Ninguna org procesada + fallos = no es un exito.
+    const todasFallaron = results.length === 0 && failures.length > 0;
     return NextResponse.json({
-      ok: true,
+      ok: !todasFallaron,
       since: since.toISOString(),
       results,
       // Con datos = a esos clientes NO se les auditaron las UTMs, aunque ok sea true.
