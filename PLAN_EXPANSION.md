@@ -7,8 +7,8 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas** (E-01 a E-06, revisadas y corregidas) · branch `fix/expansion-gate-e0`, 9 commits, sin mergear
-> **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **438 pasan** · `next build` exit 0
+> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas + E-07 a medias** · branch `fix/expansion-gate-e0`, 12 commits, sin mergear
+> **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **446 pasan** · `next build` exit 0
 
 ---
 
@@ -235,7 +235,7 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   y error de verdad en el dashboard, el backend arregla algo que nadie ve.
 
 ### E-07 · Cerrar las puertas antes de firmar contratos
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio (la rotación de secretos es delicada) · **Esfuerzo:** ver plan hermano
+- **Estado:** 🟡 parcial (2026-09-05) — R-C01/R-C03/R-C04 hechos; R-C02 espera decisión, R-C05/06/07/08/09 esperan acceso a Vercel
 - **Qué:** ejecutar la **tanda 1.1 y 1.2 completas de `PLAN_REMEDIACION.md`** — los tres backdoors,
   la inyección SQL de `backfill/vtex`, los endpoints públicos (`/api/debug/meta` devuelve datos de
   todos los tenants sin autenticación), el fail-open de `ml-sync`, y la separación y rotación de
@@ -553,6 +553,36 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-05] E-07 (primera mitad) — puertas que se cierran solo con código
+- **Estado final:** 🟡 parcial — la mitad de código está hecha; **la rotación de secretos sigue
+  pendiente y necesita acceso a Vercel**
+- **Qué se cambió, en criollo:** había tres direcciones internas de la aplicación que tenían la
+  contraseña escrita al lado, en el propio código. Cualquiera que leyera el repositorio —o que
+  probara— podía entrar sin cuenta desde internet y, en uno de los casos, **reescribir a qué canal
+  se le atribuye cada venta de todos los clientes a la vez**, que es lo que define cuánta comisión
+  cobra cada creador. Se cerraron las tres. Además se borró una dirección pública que devolvía
+  conteos de pedidos y clientes de todos los clientes juntos, y se arregló un cron que quedaba
+  abierto si faltaba una variable de configuración.
+- **Commit:** `9021d657` en `fix/expansion-gate-e0`.
+- **Validación ejecutada:** `tsc` exit 0 · `vitest` exit 0, **446 pasan** · `next build` exit 0.
+- **⚠️ CAMBIO DE WORKFLOW para el equipo:** `/admin/usage` ahora pide `?key=<ADMIN_API_KEY>` en
+  vez de `?key=usage-2026`. La página sigue tomando la clave de la URL; hay que pasarle la de
+  verdad. Está documentado en la cabecera de la página.
+- **Qué NO quedó cubierto — y por qué:**
+  - **R-C02, la inyección SQL de `/api/backfill/vtex`.** Es una decisión de producto, no técnica:
+    lo correcto es **borrar el endpoint** (tres de sus fases están rotas de todos modos — escriben
+    con `organizationId = ''`, confirmado), pero hay que saber si el onboarding lo usa. No lo toqué
+    sin esa respuesta.
+  - **R-C05, los huecos del middleware.** Su último paso depende de que todos los JWT viejos hayan
+    expirado, o sea de la rotación.
+  - **R-C06, las contraseñas de creadores en texto plano.** Requiere avisarles y forzar reseteo.
+  - **R-C07/08/09, la separación y rotación de secretos.** Necesita el panel de Vercel, y el orden
+    es crítico: **rotar `NEXTAUTH_SECRET` antes de que el webhook de VTEX tenga su propio secreto
+    tumba el ingreso de órdenes de los cuatro clientes, en silencio.** El procedimiento paso a paso
+    está en `PLAN_REMEDIACION.md` § R-C07 → R-C08 → R-C09.
+
+---
 
 ### [2026-09-05] Revisión de la branch por dos agentes independientes → 8 correcciones
 - **Estado final:** ✅ hecho · commit `76060ec2`
