@@ -34,10 +34,18 @@ export async function GET(req: NextRequest) {
     });
 
     const results: { orgId: string; orgName: string; emailed: boolean }[] = [];
+    const failures: { orgId: string; orgName: string; error: string }[] = [];
 
     for (const org of orgs) {
       const ORG_ID = org.id;
       if (org.users.length === 0) continue;
+
+      // E-05: aislamiento por organización. El `try` de arriba envuelve TODO el
+      // loop, así que una org que explota (mail rebotado, métrica rota, Claude
+      // caído) cancelaba el digest de todas las que venían después — y como el
+      // orden es estable, siempre las mismas. Nadie se enteraba: el cron devolvía
+      // 500 y ese 500 no lo mira nadie.
+      try {
 
       const now = new Date();
       const sevenAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -211,12 +219,19 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
       const emailResult = await sendEmail({ to: recipients, subject, html });
 
       results.push({ orgId: ORG_ID, orgName: org.name, emailed: emailResult.ok });
+      } catch (e: any) {
+        // La org que falla se anota y se sigue con la siguiente.
+        console.error(`[cron/digest] org ${org.name} (${ORG_ID}) falló:`, e?.message);
+        failures.push({ orgId: ORG_ID, orgName: org.name, error: e?.message ?? String(e) });
+      }
     }
 
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
       digests: results,
+      // Con datos = esos clientes NO recibieron su digest, aunque ok sea true.
+      failures,
     });
   } catch (error: any) {
     console.error("[cron/digest] Error:", error);

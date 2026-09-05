@@ -48,8 +48,13 @@ export async function GET(req: NextRequest) {
       families: FamilyStats[];
       insightCreated: boolean;
     }> = [];
+    const failures: { orgId: string; orgName: string; error: string }[] = [];
 
     for (const org of orgs) {
+      // E-05: aislamiento por organización. El `try` de arriba envuelve TODO el
+      // loop: una org que explota cancelaba la auditoría de UTMs de todas las
+      // siguientes, y el 500 resultante no lo mira nadie.
+      try {
       // Pull recent landing-ish events (PAGEVIEW + SESSION_START) that have
       // some clickIds attached. We rely on the JSON column to be non-null.
       const events = await prisma.pixelEvent.findMany({
@@ -142,9 +147,19 @@ export async function GET(req: NextRequest) {
         families: familyList,
         insightCreated,
       });
+      } catch (e: any) {
+        console.error(`[ads-utm-audit] org ${org.name} (${org.id}) falló:`, e?.message);
+        failures.push({ orgId: org.id, orgName: org.name, error: e?.message ?? String(e) });
+      }
     }
 
-    return NextResponse.json({ ok: true, since: since.toISOString(), results });
+    return NextResponse.json({
+      ok: true,
+      since: since.toISOString(),
+      results,
+      // Con datos = a esos clientes NO se les auditaron las UTMs, aunque ok sea true.
+      failures,
+    });
   } catch (error) {
     console.error("[ads-utm-audit] error:", error);
     return NextResponse.json(

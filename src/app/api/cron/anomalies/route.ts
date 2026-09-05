@@ -35,9 +35,16 @@ export async function GET(req: NextRequest) {
     });
 
     const results: { orgId: string; orgName: string; anomalies: number; emailed: boolean }[] = [];
+    const failures: { orgId: string; orgName: string; error: string }[] = [];
 
     for (const org of orgs) {
       const ORG_ID = org.id;
+
+      // E-05: aislamiento por organización. El `try` de arriba envuelve TODO el
+      // loop, así que una org que explota cancelaba la detección de anomalías de
+      // todas las que venían después — siempre las mismas, porque el orden es
+      // estable. Y el síntoma es invisible: "0 anomalías" se lee como "todo bien".
+      try {
 
       // ── Build metric snapshots ──
       const now = new Date();
@@ -263,6 +270,10 @@ export async function GET(req: NextRequest) {
         anomalies: allAnomalies.length,
         emailed,
       });
+      } catch (e: any) {
+        console.error(`[cron/anomalies] org ${org.name} (${ORG_ID}) falló:`, e?.message);
+        failures.push({ orgId: ORG_ID, orgName: org.name, error: e?.message ?? String(e) });
+      }
     }
 
     return NextResponse.json({
@@ -270,6 +281,8 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString(),
       organizations: results,
       totalAnomalies: results.reduce((s, r) => s + r.anomalies, 0),
+      // Con datos = a esos clientes NO se les evaluaron anomalías, aunque ok sea true.
+      failures,
     });
   } catch (error: any) {
     console.error("[cron/anomalies] Error:", error);
