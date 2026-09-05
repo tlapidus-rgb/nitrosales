@@ -7,8 +7,8 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 en curso — **4 de 34 cerradas** (E-01, E-02, E-04, E-05) · branch `fix/expansion-gate-e0`, 4 commits, sin mergear
-> **Línea base de validación (2026-09-05):** `tsc` 0 errores · `vitest` **423 pasan** · `next build` OK
+> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas** (E-01 a E-06) · branch `fix/expansion-gate-e0`, 7 commits, sin mergear
+> **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **441 pasan** · `next build` exit 0
 
 ---
 
@@ -185,7 +185,7 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   acabás de vender es el que ve la app vacía.
 
 ### E-03 · `sync/chain`: subir `maxDuration` y agregar cursor
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 muy bajo · **Esfuerzo:** 1-2 h · **YA ESTÁ ROTO HOY**
+- **Estado:** ✅ hecho (2026-09-05) · **Riesgo:** 🟢 muy bajo · **Esfuerzo real:** ~1,5 h · **Incluye R-C14**
 - **Archivos:** `src/app/api/sync/chain/route.ts:13` (`maxDuration = 60`) y `/api/sync`.
 - **Qué está mal:** con 4 organizaciones el trabajo necesita ~220 segundos y tiene 60. **Entra una
   sola org por corrida y las demás nunca sincronizan** inventario, precios ni detalles de VTEX. El
@@ -224,7 +224,7 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   raros y tumbe la analítica de todos los demás.
 
 ### E-06 · Cambiar el modo de falla: `allSettled` en vez de "todo en cero"
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo, puramente aditivo · **Esfuerzo:** 3-5 h
+- **Estado:** ✅ hecho (2026-09-05) · **Riesgo:** 🟢 bajo, aditivo · **Esfuerzo real:** ~1,5 h
 - **Archivos:** `src/app/api/metrics/pixel/route.ts:365` (el `Promise.all` de 28 queries) ·
   `src/app/api/metrics/pnl/route.ts:60-75` (el de 14)
 - **Qué está mal:** cualquier timeout en una de las 28 rechaza el batch entero y devuelve el mock
@@ -554,6 +554,45 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
 
+### [2026-09-05] E-03 y E-06 — dos cosas que estaban rotas ahora, no en el futuro
+- **Estado final:** ✅ hecho
+- **Qué se cambió, en criollo:**
+  1. **El sync de VTEX atendía a un solo cliente por vuelta.** Tenía un minuto de techo y cada
+     cliente necesita casi un minuto entero, así que entraba uno y los demás se quedaban sin
+     actualizar inventario, precios ni detalles — por eso el módulo de rentabilidad de esos
+     clientes nunca tenía costos. Ahora el techo es de cinco minutos, entran todos, y se atiende
+     primero al que hace más tiempo que no corre.
+  2. **Si una consulta del panel fallaba, el panel entero mostraba cero.** Son 28 consultas en
+     paralelo y una sola que fallara tiraba abajo las 28: el cliente no veía "esta métrica no está
+     disponible", veía *"mi negocio facturó $0"*. Ahora la que falla deja su tarjeta vacía y las
+     otras 27 muestran sus datos. Y algo igual de importante: **ese resultado incompleto ya no se
+     guarda en la caché**, así que un fallo de segundos deja de convertirse en media hora de
+     números mal para todos los usuarios de ese cliente.
+- **Archivos tocados:** `src/app/api/sync/chain/route.ts`, `src/lib/sync/chain-budget.ts` (nuevo),
+  `src/app/api/metrics/pixel/route.ts`, y dos test nuevos.
+- **Commits:** `648b5265` (E-03 + R-C14) · `e7405554` (E-06).
+- **Validación ejecutada:** `tsc --noEmit` → **exit 0**. `vitest run` → **exit 0, 441 tests pasan**
+  (eran 396 al empezar el día; +45). `next build` → **exit 0**.
+- **Se cerró además `PLAN_REMEDIACION.md` R-C14** (el header de bypass que faltaba en los tres
+  self-fetch de `sync/chain`). Iba de la mano: subir el timeout sin eso sólo hacía que fallara más
+  lento, porque cuando dispara Vercel Cron los tres pasos recibían 401 con un body HTML.
+- **Qué NO quedó cubierto:**
+  - **R-C13 sigue abierto a propósito.** `markSyncSuccess` se llama incondicionalmente, así que
+    aunque los tres pasos fallen, la conexión queda marcada como sana. Lo dejé afuera porque
+    cerrarlo **va a hacer aparecer alertas que hoy están ocultas**, y eso hay que avisárselo a Tomy
+    antes de deployar para que no lo lea como una regresión.
+  - El `_degraded` que ahora devuelve la API **todavía no lo lee ninguna pantalla**. El backend ya
+    puede decir "esto no cargó"; falta que el front lo muestre (es la parte de UI de R-C17/E-30).
+    Hasta entonces, el cliente ve una tarjeta vacía en vez de un cero — mejor, pero no explicado.
+- **Efectos secundarios / lo que hay que vigilar:** `sync/chain` va a tardar bastante más por
+  corrida (de ~55 s a hasta ~4 min con 4 clientes), porque ahora hace el trabajo que antes se
+  saltaba. Es lo esperado, no una regresión. Y va a empezar a aparecer `_degraded` en las
+  respuestas: si aparece seguido, es una señal real que antes estaba tapada.
+- **Techo de clientes:** `sync/chain` pasó de **1 organización por corrida a ~4**, y el corte por
+  presupuesto ya no discrimina siempre a las mismas.
+
+---
+
 ### [2026-09-05] E-02 (de verdad) y E-05 completo — branch `fix/expansion-gate-e0`
 - **Estado final:** ✅ hecho — y **corrige un ✅ prematuro de la entrada anterior**
 - **Qué se cambió, en criollo:**
@@ -700,4 +739,4 @@ Todos son de solo lectura: no se modificó ni un archivo de la aplicación duran
 
 ---
 
-_Última actualización: 2026-09-05 — E-01, E-02, E-04 y E-05 implementadas, testeadas y commiteadas en `fix/expansion-gate-e0` (4 commits, sin mergear). Ver Bitácora._
+_Última actualización: 2026-09-05 — E-01 a E-06 implementadas, testeadas y commiteadas en `fix/expansion-gate-e0` (7 commits, sin mergear). Ver Bitácora._
