@@ -328,6 +328,12 @@ export async function GET(req: NextRequest) {
   let cursor = manualCursor && manualCursor >= from && manualCursor <= to ? manualCursor : from;
   let done = false;
   let error: string | null = null;
+  // E-01: por qué org seguir dentro del día en curso. Vive acá y no dentro del
+  // for para que sobreviva entre llamadas al backfill de la MISMA invocación.
+  let orgCursor: string | null = null;
+  // Orgs que fallaron sin frenar al resto (E-05). Si esto vuelve con datos, hay
+  // clientes sin rollups aunque la corrida diga ok.
+  const orgFailures: Array<{ org: string; day: string; error: string }> = [];
 
   for (let i = 0; i < MAX_CALLS; i++) {
     // Presupuesto restante de la invocación → se lo pasamos al backfill para que
@@ -336,7 +342,19 @@ export async function GET(req: NextRequest) {
     if (remainingMs < MIN_SLICE_MS) break;
     let body: any;
     try {
-      const r = await runRollupBackfill({ from, to, cursor, table, budgetMs: remainingMs });
+      const r = await runRollupBackfill({
+        from,
+        to,
+        cursor,
+        table,
+        budgetMs: remainingMs,
+        // E-01: reanudación DENTRO del día. Si la llamada anterior cortó a mitad
+        // de las orgs, acá viene por cuál seguir; si no, va null y arranca por la
+        // primera. Sin esto el corte por presupuesto reprocesaría siempre las
+        // mismas primeras orgs y las últimas (= los clientes más nuevos) no
+        // avanzarían nunca.
+        orgCursor,
+      });
       body = r.body;
     } catch (e: any) {
       error = `backfill failed: ${e?.message?.slice(0, 200)}`;
@@ -349,6 +367,15 @@ export async function GET(req: NextRequest) {
       daysProcessed: body?.daysProcessedThisCall ?? 0,
       ms: body?.ms ?? 0,
     });
+    if (Array.isArray(body?.orgFailures) && body.orgFailures.length > 0) {
+      orgFailures.push(...body.orgFailures);
+      console.error(
+        `[refresh-pixel-rollups] ${body.orgFailures.length} org(s) fallaron sin frenar al resto: ` +
+          body.orgFailures
+            .map((f: any) => `${f.org}@${f.day}: ${f.error}`)
+            .join(" | ")
+      );
+    }
     if (body?.ok === false) {
       error = (body?.error || "backfill devolvió ok:false")?.toString().slice(0, 200);
       break;
@@ -357,6 +384,17 @@ export async function GET(req: NextRequest) {
       done = true;
       break;
     }
+    // E-01: el día quedó a mitad de las orgs. El cursor de DÍA no avanza a
+    // propósito (el día no está completo), así que el corte de abajo lo leería
+    // como "no avanza → loop" y saldría. Acá se distingue: hay progreso real,
+    // sólo que medido en orgs y no en días.
+    if (body?.nextOrgCursor) {
+      orgCursor = body.nextOrgCursor;
+      cursor = body?.nextCursor ?? cursor;
+      continue;
+    }
+    orgCursor = null;
+
     // No terminó pero tampoco trae cursor de avance → cortar para no loopear.
     if (!body?.nextCursor || body.nextCursor === cursor) break;
     cursor = body.nextCursor;
@@ -456,6 +494,10 @@ export async function GET(req: NextRequest) {
       done,
       callsCount: calls.length,
       calls,
+      // E-05: orgs que fallaron y NO frenaron al resto. Vacío = ninguna. Con
+      // datos = hay clientes sin rollups de ese día aunque la corrida diga ok;
+      // es la señal que antes se perdía porque la excepción abortaba todo.
+      orgFailures,
       error,
       totalMs: Date.now() - startedAt,
     },
