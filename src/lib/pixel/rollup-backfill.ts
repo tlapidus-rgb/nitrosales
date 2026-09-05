@@ -589,8 +589,29 @@ export async function runRollupBackfill(params: {
 
   // Lista de orgs desde `pixel_visitor_first_source` (PK lidera con organizationId
   // → DISTINCT por índice). El guard de arriba garantiza que está poblada.
+  //
+  // ⚠️ EL ORDEN IMPORTA, Y ANTES ERA EL PEOR POSIBLE (E-02, 2026-09-05):
+  //   Era `ORDER BY 1`, o sea por `organizationId`. Los cuid son ordenables por
+  //   tiempo de creación, así que eso ordenaba las orgs **de más vieja a más
+  //   nueva**. Cuando el presupuesto se acababa a mitad de la lista, el que
+  //   quedaba sin procesar era SIEMPRE el cliente más nuevo — el recién firmado
+  //   abría la app y la veía vacía, todos los días, hasta que alguien mirara.
+  //
+  //   El orden nuevo es por atraso del rollup: primero la org cuyo rollup está
+  //   más viejo (o no existe). Es auto-correctivo — la que se saltea una corrida
+  //   queda más atrasada y pasa primera en la siguiente— y no necesita persistir
+  //   ningún cursor entre invocaciones, que es la parte que no se puede hacer
+  //   barato hoy (~30 tablas de prod ya viven fuera de `schema.prisma`).
+  //
+  //   `ORDER BY 1` queda como desempate para que el orden sea determinista.
+  //   `pixel_daily_aggregates` es el proxy de atraso: es la tabla base y la
+  //   escriben todas las corridas. El nombre no sale de ningún input.
   const orgsRes: any = await prisma.$queryRawUnsafe(
-    `SELECT DISTINCT "organizationId" org FROM pixel_visitor_first_source ORDER BY 1`
+    `SELECT f."organizationId" org, MAX(a.day) AS last_day
+       FROM (SELECT DISTINCT "organizationId" FROM pixel_visitor_first_source) f
+       LEFT JOIN pixel_daily_aggregates a ON a."organizationId" = f."organizationId"
+      GROUP BY f."organizationId"
+      ORDER BY MAX(a.day) ASC NULLS FIRST, f."organizationId" ASC`
   );
   let orgs: string[] = orgsRes.map((o: any) => o.org);
   if (params.org) {
