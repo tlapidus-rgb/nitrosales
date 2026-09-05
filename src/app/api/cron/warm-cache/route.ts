@@ -29,6 +29,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
+import { purgeExpiredSharedCache } from "@/lib/api-cache-shared";
 import { sendEmail } from "@/lib/email/send";
 import {
   checkPipelineFreshness,
@@ -329,8 +330,26 @@ export async function GET(req: NextRequest) {
       console.error("[warm-cache] check rollup stale falló:", e?.message);
     }
 
+    // ── Purga de api_cache (E-04, 2026-09-05) ──────────────────────────────
+    // `purgeExpiredSharedCache()` existía desde siempre, su docstring decía "lo
+    // llama el cron de warm-cache"… y NO tenía ningún caller (verificado por grep
+    // en el estudio de expansión). Resultado: `api_cache` sólo crecía. El espacio
+    // de claves incluye el rango de fechas, así que se ensancha todos los días y
+    // nunca se reusa — basura pura dentro de la misma DB cuyo working set ya no
+    // entra en RAM. Es barato y va al final: si falla, no afecta al warm.
+    let cachePurged = 0;
+    try {
+      cachePurged = await purgeExpiredSharedCache();
+      if (cachePurged > 0) {
+        console.log(`[warm-cache] api_cache: ${cachePurged} entradas vencidas borradas`);
+      }
+    } catch (e: any) {
+      console.error("[warm-cache] purga de api_cache falló:", e?.message);
+    }
+
     return NextResponse.json({
       ok: true,
+      cachePurged,
       // Frescura de TODO el pipeline. `stale` lista sólo las atrasadas para que
       // se lea de un vistazo; `freshness` trae la foto completa (incluidas las
       // que todavía no existen, marcadas `missing`).

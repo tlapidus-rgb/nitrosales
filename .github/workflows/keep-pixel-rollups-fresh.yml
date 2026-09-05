@@ -36,7 +36,20 @@ jobs:
           # El cron procesa la tabla MÁS atrasada por hit (rotación). Hay 8 tablas
           # (7 monitoreadas + channel), así que pegamos varias veces para ciclarlas
           # y recuperar rápido tras un hueco. Idempotente.
-          for i in 1 2 3 4 5 6; do
+          #
+          # ⚠️ POR QUÉ 2 Y NO 6 (E-04, 2026-09-05): este workflow es el ÚNICO
+          # scheduler de los rollups desde hoy — la entrada duplicada de
+          # `vercel.json` se borró. Antes convivían los dos (GH cada 15 min × 6
+          # hits + Vercel cada 15 min), y como los dos eligen "la tabla más
+          # atrasada", elegían LA MISMA y corrían el mismo statement HLL de ~190s
+          # dos veces en paralelo. Medido: hasta ~1.750s de escaneo sobre una
+          # tabla de 43 GB dentro de ventanas de 900s, o sea ≥2 escaneos
+          # concurrentes 24/7 desalojando de la RAM de Neon justo las páginas que
+          # el dashboard del cliente necesita. Con la rotación y el self-heal de
+          # warm-cache, 2 hits alcanzan; 6 sólo garantizaban trabajo pesado
+          # permanentemente en vuelo. Si las tablas se atrasan, subir de a uno y
+          # mirar el hit rate de Neon — no volver a 6 de una.
+          for i in 1 2; do
             code=$(curl -sS -o /tmp/out.json -w "%{http_code}" -m 290 \
               "$BASE/api/cron/refresh-pixel-rollups?key=$KEY" || echo "000")
             echo "hit $i → HTTP $code"; head -c 400 /tmp/out.json; echo
