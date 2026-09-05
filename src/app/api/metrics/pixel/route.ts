@@ -1,5 +1,41 @@
 export const dynamic = "force-dynamic";
 
+// ── Degradación parcial del batch (E-06, 2026-09-05) ────────────────────────
+// ⚠️ QUÉ PASABA ANTES:
+//   El batch de 28 queries corría con `Promise.all`. Una sola que rechazara
+//   —un `statement_timeout`, un plan malo, `hll` no disponible, una tabla que
+//   todavía no existe en esa DB— rechazaba el batch ENTERO, caía al catch final
+//   y devolvía `buildEmptyMockResponse()` con HTTP 200: **el dashboard completo
+//   en cero**. El cliente no ve "una métrica no disponible", ve "mi negocio
+//   facturó $0". Y si el warm-cache toma la foto en ese momento, ese cero se
+//   persiste en el caché compartido y se le sirve a toda la organización.
+//
+//   La ruta hermana `metrics/orders` ya resolvía esto bien con `safeQuery`. Acá
+//   se usa `allSettled` para lo mismo: la query que falla devuelve `[]`, se
+//   registra, y las otras 27 llegan con sus datos. Una tarjeta vacía en vez de
+//   un negocio en cero.
+//
+//   `[]` es el fallback correcto porque las 28 entradas del batch son consultas
+//   que devuelven arrays (24 `$queryRaw` directos + 4 ternarios que también
+//   resuelven a `$queryRaw`). Si algún día se agrega una que devuelva un escalar,
+//   hay que darle su propio fallback — de ahí el guard en el test.
+async function allOrEmpty<T extends readonly unknown[]>(
+  promises: readonly [...{ [K in keyof T]: Promise<T[K]> }],
+  degraded: number[]
+): Promise<T> {
+  const settled = await Promise.allSettled(promises);
+  return settled.map((r, i) => {
+    if (r.status === "fulfilled") return r.value;
+    degraded.push(i);
+    console.error(
+      `[metrics/pixel] query #${i} del batch falló (el resto sigue): ${
+        (r.reason as any)?.message ?? r.reason
+      }`
+    );
+    return [];
+  }) as unknown as T;
+}
+
 // ══════════════════════════════════════════════════════════════
 // Pixel Metrics API — NitroPixel Dashboard
 // ══════════════════════════════════════════════════════════════
@@ -326,6 +362,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
     // ══════════════════════════════════════════════════════════
+    // Índices del batch que fallaron. Vacío = todo bien. Con datos = la respuesta
+    // está incompleta y el front tiene que poder decirlo (ver `_degraded` abajo).
+    const degradedQueries: number[] = [];
     const [
       liveStatusResult,
       visitorKpisResult,
@@ -362,7 +401,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       channelPairsResult,
       // ── Comparacion de modelos: revenue por (model, source) ──
       attributionByModelChannelResult,
-    ] = await Promise.all([
+    ] = await allOrEmpty([
       // 1. Live status — solo agregados index-friendly. Dos subqueries separadas:
       //    - MAX(timestamp): index backward scan sobre (organizationId, timestamp) = instante.
       //    - lastHourEvents: index-range sobre la última hora = barato (no escanea toda la historia).
@@ -1267,7 +1306,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         ) > 0
         ORDER BY 1, 3 DESC
       ` as Promise<Array<{ model: string; source: string; revenue: number }>>),
-    ]);
+    ], degradedQueries);
 
     // ══════════════════════════════════════════════════════════
     // 26. Product purchases — DESPUÉS del batch, acotado y verificado
@@ -1626,6 +1665,12 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     });
 
     const response = {
+      // E-06: qué queries del batch no pudieron traer datos. Vacío (o ausente) =
+      // la respuesta está completa. Con datos = **hay métricas faltantes y los
+      // ceros de esas secciones NO son un dato real**. El front tiene que poder
+      // decir "no se pudo cargar" en vez de mostrar $0 con cara de verdad; sin
+      // este campo no tiene forma de distinguirlo.
+      _degraded: degradedQueries.length ? degradedQueries : undefined,
       liveStatus: {
         status,
         lastEventAt: lastEventAt ? new Date(lastEventAt).toISOString() : null,
@@ -1937,7 +1982,21 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // Escribe en memoria Y en el caché compartido de Postgres. Sin esto, el
     // warm-cache calienta una instancia y el usuario cae en otra: la primera
     // carga del día paga los ~25s completos. Ver src/lib/api-cache-shared.ts.
-    setSharedCache("pixel", response, ...cacheKey);
+    //
+    // ⚠️ E-06: una respuesta INCOMPLETA no se cachea. Antes, si una query del
+    // batch fallaba justo cuando corría el warm, el resultado degradado se
+    // persistía en el caché COMPARTIDO y se le servía a toda la organización
+    // hasta el próximo TTL — un fallo transitorio de segundos se convertía en
+    // media hora de números mal para todos. Es el mecanismo exacto del "perdí mis
+    // datos" que reporta el cliente. Sin cachear, la próxima carga reintenta.
+    if (degradedQueries.length === 0) {
+      setSharedCache("pixel", response, ...cacheKey);
+    } else {
+      console.error(
+        `[metrics/pixel] respuesta degradada (${degradedQueries.length} de 28 queries fallaron: ` +
+          `${degradedQueries.join(", ")}) — NO se cachea para no propagar el error a toda la org`
+      );
+    }
     return response;
     }; // ── fin computeAndCache ──
 
