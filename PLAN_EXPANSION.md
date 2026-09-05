@@ -7,8 +7,8 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas** (E-01 a E-06) · branch `fix/expansion-gate-e0`, 7 commits, sin mergear
-> **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **441 pasan** · `next build` exit 0
+> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas** (E-01 a E-06, revisadas y corregidas) · branch `fix/expansion-gate-e0`, 9 commits, sin mergear
+> **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **438 pasan** · `next build` exit 0
 
 ---
 
@@ -553,6 +553,51 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-05] Revisión de la branch por dos agentes independientes → 8 correcciones
+- **Estado final:** ✅ hecho · commit `76060ec2`
+- **Qué se hizo:** antes de mergear se revisó la branch con dos agentes: uno **sin contexto
+  previo** (para que no arrastrara las suposiciones de quien la escribió) y otro corriendo las
+  skills `code-review high` y `security-review`. Los dos llegaron, por caminos distintos, a la
+  misma conclusión: **no mergeable como estaba**.
+- **Lo más importante, y es incómodo: el fix central de E-01 abría un agujero de datos.** El corte
+  intra-día escribía las filas de las organizaciones ya procesadas, pero el cron elige el rango con
+  el `MAX(day)` **global** de la tabla. Alcanzaba que UNA organización escribiera el día D para que
+  D quedara cerrado para todas: al pasar la medianoche el rango arranca en `MAX+1` y las que no
+  llegaron **pierden ese día para siempre**. Con `ok: true` en la respuesta, la alerta de frescura
+  en verde y el auto-chequeo de coherencia salteado justo en ese caso. O sea: en el camino que
+  corre en producción, mi cambio dejaba las cosas **peor** que antes.
+- **Las 8 correcciones** (detalle completo en el mensaje del commit):
+  1. El runner ya no corta un día a mitad de las organizaciones — todo-o-nada, como era.
+  2. Se removió el andamiaje de `nextOrgCursor`, que era **código muerto**: nunca se parseaba del
+     query string, no salía en la respuesta, y el `continue` era inalcanzable.
+  3. **Se revirtió el orden "por atraso" de E-02.** No auto-corregía (el cron procesa una tabla por
+     invocación y el proxy no se escribe en 7 de 8) y con las organizaciones al día degeneraba
+     exactamente en el orden que pretendía reemplazar. Sin corte intra-día la equidad queda
+     garantizada por construcción, que es más fuerte que cualquier orden.
+  4. `allOrEmpty` metía `[]` en dos resultados que se consumen sin `?.` → TypeError → **el mismo
+     dashboard en cero que E-06 dice arreglar**.
+  5. La purga de `api_cache` corría sin `LIMIT` en el camino crítico.
+  6. Los tres crons de E-05 devolvían `ok: true` aunque fallaran todas las organizaciones.
+  7. Volvió una entrada de respaldo en `vercel.json` (1×/hora): GitHub **deshabilita los workflows
+     programados tras 60 días sin actividad**, que es justo el fallo que ese workflow cubría.
+  8. Se redactó el literal de la clave de admin en los 6 archivos de documentación que subí.
+- **Sobre los tests, que es donde más me equivoqué:** `cron-org-isolation.test.ts` verificaba que
+  un **comentario** siguiera existiendo. Un reviewer lo llamó *teatro* y tiene razón. Ahora
+  verifica que el `try` esté dentro del bucle y antes del primer `await`. También se borró
+  `rollup-org-order.test.ts`: pasaba porque **el propio test hacía el `INSERT` que en producción no
+  ocurre** — probaba una propiedad que el sistema no tiene.
+- **Validación ejecutada:** `tsc` exit 0 · `vitest` exit 0, **438 pasan** · `next build` exit 0 ·
+  `vercel.json` parsea, 28 crons, sólo claves `path`/`schedule`.
+- **Qué NO quedó cubierto:** ningún test cruza el borde de una invocación de cron, que es
+  exactamente donde estaba el bug principal. Eso pide un test de integración con la base, que hoy
+  no existe para este camino.
+- **La lección, para que quede escrita:** las cuatro tareas pasaban `tsc`, 45 tests propios y el
+  build, y aun así la funcionalidad central no funcionaba y una parte empeoraba las cosas. **Los
+  tests verdes no son evidencia de que el cambio haga lo que dice.** Una revisión sin contexto
+  antes de mergear costó ~20 minutos y evitó un agujero de datos silencioso en producción.
+
+---
 
 ### [2026-09-05] E-03 y E-06 — dos cosas que estaban rotas ahora, no en el futuro
 - **Estado final:** ✅ hecho
