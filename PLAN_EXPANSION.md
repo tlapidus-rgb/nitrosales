@@ -875,38 +875,42 @@ qué cada paso tarda más de lo que se le asignó.
 
 ## R-V02 CONTESTADO (2026-09-06) — y es la peor de las respuestas
 
-Medido con un endpoint temporal que espeja exactamente cómo lee los flags el
-serve (), corrido en preview — vale para producción
-porque las tres variables tienen alcance *Production and Preview*:
+Medido con un endpoint temporal (ya borrado) que espeja exactamente cómo lee los
+flags el serve (`metrics/pixel:264,294,324`), corrido en preview — vale para
+producción porque las tres variables tienen alcance *Production and Preview*:
 
-| Flag | Valor | Derivado |
+| Flag | Valor crudo | Derivado |
 |---|---|---|
-|  |  |  |
-|  |  |  |
-|  |  | **** |
-|  | no seteada |  |
-|  | no seteada | **activo** (es opt-out) |
-|  | no seteada | **activo** (es opt-out) |
+| `PIXEL_USE_GOLD` | `true` | `usePixelGold: true` |
+| `PIXEL_USE_CHANNELS` | `true` | `usePixelChannels: true` |
+| `PIXEL_USE_GOLD_CHANNEL` | `true` | **`useGoldChannel: TRUE`** |
+| `ORDERS_USE_GOLD` | no seteada | `false` |
+| `SILVER_ORDERS_ENABLED` | no seteada | **activo** (es opt-out) |
+| `ATTRIBUTION_ROLLUP_ENABLED` | no seteada | **activo** (es opt-out) |
 
-**Los tres están prendidos.  es  en producción.**
+**Los tres están prendidos. `useGoldChannel` es `true` en producción.**
 
 Y las dos mitades están vivas: el cron que materializa los Gold de atribución
-corre ( no está en ) **y** el dashboard los
+corre (`ATTRIBUTION_ROLLUP_ENABLED` no está en `false`) **y** el dashboard los
 lee. O sea que **R-C25 pasa de latente a ACTIVO**:
 
-1. Una venta cancelada **sobrevive en  para siempre**.
+1. Una venta cancelada **sobrevive en `gold_attribution_channel` para siempre**.
    El revenue por canal sólo se corrige hacia arriba.
-2. Editar una regla en  **duplica el revenue de los últimos
+2. Editar una regla en `/pixel/canales` **duplica el revenue de los últimos
    4 días** (quedan la fila del canal viejo y la del nuevo) y parte la serie
    histórica en dos canales que son el mismo.
 
 Esto no es una proyección de escala: **es lo que los clientes ven hoy**.
 
 El arreglo está bien acotado y el patrón ya existe en el repo: los otros cuatro
-rollups Gold usan  + ventana de días afectados
-(), y  hace DELETE-then-insert con el
+rollups Gold usan `buildDeleteOrphans` + ventana de días afectados
+(`affected-days.ts`), y `pixel_daily_channel` hace DELETE-then-insert con un
 comentario que explica exactamente este problema. Los dos de atribución son los
-únicos que no lo tienen. Ver  § R-C25.
+únicos que no lo tienen. Ver `PLAN_REMEDIACION.md` § R-C25.
+
+**Corrige mi lectura previa**, que decía que lo más probable era que estuviera
+apagado. Estaba equivocada: el default del código es opt-in, pero alguien lo
+prendió en Vercel.
 
 ## Pendiente de decisión
 
