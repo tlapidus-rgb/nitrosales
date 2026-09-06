@@ -7,7 +7,7 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas + E-07 a medias**, todo **verificado en un deployment real** (§ 13) · branch `fix/expansion-gate-e0`, sin mergear
+> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas + E-07 a medias (R-C05 y R-C06 sumadas el 2026-09-06)**, todo **verificado en un deployment real** (§ 13) · branch `fix/expansion-gate-e0`, sin mergear
 > **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **446 pasan** · `next build` exit 0
 
 ---
@@ -235,7 +235,15 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   y error de verdad en el dashboard, el backend arregla algo que nadie ve.
 
 ### E-07 · Cerrar las puertas antes de firmar contratos
-- **Estado:** 🟡 parcial (2026-09-05) — R-C01/R-C03/R-C04 hechos; R-C02 espera decisión, R-C05/06/07/08/09 esperan acceso a Vercel
+- **Estado:** 🟡 parcial (2026-09-06) — R-C01/R-C03/R-C04 hechos; **R-C05 y R-C06 hechos en su
+  parte de código** (`1e8b65c4`, `62ed2b5a`, más el hallazgo nuevo `83d13d1a`). Lo que falta ya no
+  es acceso a Vercel: **R-C02** espera una decisión de producto (borrar `/api/backfill/vtex` o
+  parametrizarlo), el paso 3 de **R-C05** va después de R-C09, el paso 3 de **R-C06** invalida las
+  contraseñas de creadores reales y hay que avisarles, y **R-C07 → R-C08 → R-C09** son la rotación
+  de secretos: riesgo alto, orden estricto, y necesitan el OK explícito de Tomy más los 7 pasos de
+  `CLAUDE.md` § "Cambios en config de sistemas externos en prod". **Rotar `NEXTAUTH_SECRET` antes
+  de que el webhook de VTEX tenga su propio secreto mata la ingesta de órdenes de los 4 clientes,
+  en silencio.**
 - **Qué:** ejecutar la **tanda 1.1 y 1.2 completas de `PLAN_REMEDIACION.md`** — los tres backdoors,
   la inyección SQL de `backfill/vtex`, los endpoints públicos (`/api/debug/meta` devuelve datos de
   todos los tenants sin autenticación), el fail-open de `ml-sync`, y la separación y rotación de

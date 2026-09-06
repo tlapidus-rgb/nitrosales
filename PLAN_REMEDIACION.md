@@ -10,7 +10,7 @@
 > **Estado global:** 🟨 FASE 0 en curso — verificación estática ✅ hecha (20 hallazgos confirmados,
 > 1 ampliado, 1 ascendido de "sin confirmar" a confirmado) · el acceso a Vercel/Neon que bloqueaba
 > 5 verificaciones **ya está resuelto**: R-V01 y R-V02 contestadas (2026-09-06) · **1 de 31 tareas
-> críticas cerradas** (R-C25, en branch propia, sin mergear)
+> críticas cerradas** (R-C25) + R-C05 y R-C06 parciales — todo en branches, sin mergear
 > **Línea base de validación (2026-09-02):** `tsc --noEmit` → 0 errores · `vitest run` → 396 pasan,
 > 7 skipped, 22s. **Cualquier cambio tiene que mantener esto en verde.**
 
@@ -491,7 +491,10 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
 - **Validar:** `curl` sin header → 401 con la variable puesta, 500 sin ella.
 
 ### R-C05 · Cerrar los huecos del middleware
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio (puede dejar afuera a alguien) · **Frente:** Seguridad
+- **Estado:** 🟡 **PARCIAL (2026-09-06)** — huecos 1 y 2 cerrados en `1e8b65c4`
+  (branch `fix/expansion-gate-e0`). El hueco 3 (los dos fail-open) sigue abierto y va
+  **después de R-C09**, como dice el paso 3 de acá abajo.
+- **Riesgo:** 🟡 medio (puede dejar afuera a alguien) · **Frente:** Seguridad
 - **Evidencia:** `review-seguridad.md` → CRIT-06
 - **Archivos:** `src/lib/section-access.ts:21-56, 144, 155` · `src/middleware.ts:65`
 - **Tres huecos:**
@@ -511,9 +514,30 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
 - **Cuidado:** el paso 3 depende de R-C09. Hacerlo antes deja a usuarios legítimos afuera.
 - **Validar:** probar con las cuentas reales (`mromero@arredo.com.ar` y `leandroc@tevecompras.com`
   tienen rol Standard restringido) que sigan viendo lo que deben y nada más.
+- **Lo hecho (2026-09-06):** `/api/admin/*` y `/api/backfill/*` son staff-only, **fail-closed**.
+  Dos cosas que casi lo vuelven un incidente y quedaron con test:
+    · los crons y los self-fetch server-to-server le pegan a `/api/admin/*` **sin cookie**, así
+      que no tienen token y el gate no los evalúa. Un 403 ahí no lo alerta Vercel;
+    · `/api/admin/channel-rules` y `/api/admin/channels-breakdown` las llama el **cliente** desde
+      `/pixel/canales`. Van como excepción, a la sección `pixel`. Un gate ciego a `/api/admin`
+      le apagaba el panel de canales a Arredo y a TeVe.
+- **De paso:** el middleware decidía staff con `token.isStaff` a secas mientras `auth.ts` usa
+  `isStaffUser()` (flag de DB **+** allowlist por email). Era el único lugar con ese criterio.
+- **Del resto de prefijos que pedía la auditoría, revisados y NO gateados a propósito:**
+  `/api/pixel/*` es el ingest **público** del pixel y el serve del snippet; `/api/webhooks/*` los
+  llaman VTEX y MELI con su propia key; `/api/settings` y `/api/dashboard` tienen flujos SELF.
+  Queda documentado en `section-access.ts` para no rehacer el análisis.
+- **Hallazgo aparte, no estaba en la auditoría** (`83d13d1a`): `/admin/onboardings` vive en
+  `src/app/(app)/admin/`, otro grupo de rutas, así que el `isInternalUser()` de
+  `src/app/admin/layout.tsx` **no le aplicaba**. Cualquier usuario logueado podía abrir la
+  pantalla de solicitudes de activación. Cerrado con un layout propio + un test que recorre las
+  18 páginas bajo `admin`/`control` y exige guard en algún ancestro.
 
 ### R-C06 · Contraseñas de creadores: dejar de guardarlas en texto plano
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio (invalida contraseñas existentes) · **Frente:** Seguridad + Arquitectura
+- **Estado:** 🟡 **PARCIAL (2026-09-06)** — pasos 1 y 2 hechos en `62ed2b5a`. Los pasos 3, 4 y 5
+  siguen pendientes: **el paso 3 invalida las contraseñas de creadores reales y hay que
+  coordinarlo con Tomy.**
+- **Riesgo:** 🟡 medio (invalida contraseñas existentes) · **Frente:** Seguridad + Arquitectura
 - **Evidencia:** `review-arquitectura.md` → H-03 · `review-seguridad.md` → HIGH-03
 - **Archivos:**
   - `src/app/api/influencers/route.ts:114-115` — escribe `dashboardPasswordPlain`
@@ -537,6 +561,18 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
   5. Borrar `/api/admin/migrate-creator-password-plain` (además, su comentario tiene un `curl` con
      el secreto adentro).
 - **Coordinar con Tomy:** hay creadores reales con acceso. Hay que avisarles.
+- **⚠️ ERA PEOR DE LO QUE DICE ESTA FICHA (encontrado el 2026-09-06):** no es sólo un problema de
+  almacenamiento. Los **cuatro** handlers de `/api/influencers` devolvían la fila **entera** (el
+  GET usa `findMany` sin `select`; los otros tres hacen `...influencer`), así que en cada listado
+  **viajaban al navegador las contraseñas en claro de todos los creadores de la org**. Ninguna
+  pantalla las usa: `manage/page.tsx` sólo las manda al crear o editar.
+- **Además la ficha listaba un solo sitio de escritura; son dos** (también el PUT de
+  `[id]/route.ts:108`).
+- **Lo hecho:** se dejó de escribir la copia en claro y se sacaron las dos columnas de toda
+  respuesta, con un sanitizador único en `src/lib/influencer-secretos.ts`. En su lugar va un
+  booleano `tieneDashboardPassword`, que es lo único que la UI necesitaba.
+- **Lo que sigue abierto:** los valores en claro **ya guardados** siguen en la base hasta borrar
+  la columna (pasos 4-5), y el hash sigue siendo SHA-256 sin salt hasta el paso 3.
 
 ---
 
@@ -1300,6 +1336,55 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora** y hay que corregir
 > el estado.
 
+### [2026-09-06] 🟡 R-C05 y R-C06 — las dos puertas de E-07 que se cierran sin tocar secretos
+- **Estado final:** 🟡 las dos PARCIALES a propósito; lo que falta de cada una depende de algo que
+  no es código. Commits `1e8b65c4` (R-C05), `62ed2b5a` (R-C06), `83d13d1a` (hallazgo nuevo), en
+  `fix/expansion-gate-e0`. **Sin mergear.**
+
+**R-C05 — `/api/admin/*` y `/api/backfill/*` pasan a ser staff-only.** Ninguno de los dos prefijos
+estaba en `API_SECTION_PREFIXES`, así que `requiredSectionForPath` devolvía `null` e `isPathAllowed`
+devolvía `true`: cualquier usuario logueado de cualquier org atravesaba el middleware hacia las 154
+rutas admin, y lo único que lo frenaba era el `isInternalUser()` de cada handler — que 50 de esas
+154 no tienen. El gate nuevo es **fail-closed**, al revés que el resto del archivo (los dos
+fail-open existen para no lockear a alguien con un JWT viejo; con `maxAge` de 24 h no puede quedar
+vivo uno anterior a RBAC, y "no sé si sos staff" no puede resolverse como "pasá").
+
+- **Las dos formas en que esto podía tumbar producción, ambas con test:**
+    1. los crons y los self-fetch server-to-server le pegan a `/api/admin/*` **sin cookie de
+       NextAuth** → sin token → el middleware no los evalúa. Un 403 ahí no lo alerta Vercel: se
+       descubre semanas después, con datos faltantes;
+    2. `/api/admin/channel-rules` y `/api/admin/channels-breakdown` las llama el **cliente** desde
+       `/pixel/canales`. Van como excepción → sección `pixel`. Un gate ciego le apagaba el panel de
+       canales a Arredo y a TeVe.
+- **De yapa:** el middleware era el único lugar que decidía staff con `token.isStaff` a secas, en vez
+  de `isStaffUser()` (flag de DB + allowlist por email). Un staff sin `users.isStaff=true` pasaba de
+  "ve menos secciones" a "no entra más a `/control`".
+- **Prefijos revisados y NO gateados a propósito:** `/api/pixel/*` (ingest público del pixel),
+  `/api/webhooks/*` (VTEX y MELI con su propia key), `/api/settings` y `/api/dashboard` (flujos
+  SELF). Documentado en `section-access.ts` para no rehacer el análisis.
+
+**Hallazgo nuevo, no estaba en la auditoría** (`83d13d1a`): `src/app/admin/layout.tsx` gatea por
+`isInternalUser()` todo lo que cuelga de `src/app/admin/*`, pero `/admin/onboardings` vive en
+`src/app/(app)/admin/onboardings/` — otro grupo de rutas, otra cadena de layouts, sin guard. La
+pantalla de solicitudes de activación la podía abrir **cualquier usuario logueado**. Desde la URL
+los dos `/admin` se ven como uno solo; por eso pasó desapercibido. El test recorre `src/app` y
+exige guard en algún ancestro para las 18 páginas bajo `admin`/`control`.
+
+**R-C06 — las contraseñas de los creadores salían por la API.** La ficha lo describía como un
+problema de almacenamiento. Es peor: los **cuatro** handlers de `/api/influencers` devolvían la fila
+entera, así que en cada listado viajaban al navegador **las contraseñas en claro de todos los
+creadores de la org**. Ninguna pantalla las usa. Y había **dos** sitios de escritura, no uno.
+Se dejó de escribir la copia en claro y se sacaron las dos columnas de toda respuesta, con un
+sanitizador único. **No arregla lo ya guardado** (borrar la columna, pasos 4-5) ni el hash SHA-256
+sin salt (paso 3, migrar a bcrypt: invalida contraseñas de creadores reales, coordinar con Tomy).
+
+- **Validación:** `tsc` 0 · `vitest` **526 passed** · `next build` 0. Todos los casos nuevos
+  verificados en rojo sin su fix (14 del gate staff-only, 2 de la allowlist, 4 de las guardias de
+  R-C06, 1 del layout faltante).
+- **Lo que NO se hizo y por qué:** el paso 3 de R-C05 (convertir los dos fail-open en fail-closed)
+  va **después de R-C09**, que rota el secreto e invalida las sesiones. Hacerlo antes deja afuera a
+  usuarios legítimos.
+
 ### [2026-09-06] ✅ R-C25 — borrado de huérfanas en los dos rollups Gold de atribución
 - **Estado final:** ✅ hecho y verificado en preview · **sin mergear** (el merge espera al plan entero).
 - **Dónde:** branch `hotfix/gold-attribution-huerfanas` (sale de `origin/main` 9ad4616d).
@@ -1410,4 +1495,4 @@ romper", y las preguntas que no se pueden responder leyendo código.
 
 ---
 
-_Última actualización de este archivo: 2026-09-06 — R-C25 ✅ hecha, testeada y verificada en preview (branch `hotfix/gold-attribution-huerfanas`, sin mergear): se encontraron 698 filas huérfanas reales en producción. FASE 0: R-V01/R-V02 contestadas; R-V07 cerrada. Punto de retorno: sección "DÓNDE QUEDAMOS" y la Bitácora.
+_Última actualización de este archivo: 2026-09-06 — R-C25 ✅ (verificada en preview: 698 huérfanas reales en prod). R-C05 y R-C06 🟡 parciales: lo que falta de cada una depende de R-C09 o de coordinar con Tomy. Hallazgo nuevo: /admin/onboardings se colaba por el grupo de rutas (app). Todo en branches, sin mergear. Punto de retorno: la Bitácora._
