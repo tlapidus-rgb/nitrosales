@@ -112,14 +112,49 @@ ON CONFLICT (organization_id, day, source) DO UPDATE SET
 }
 
 /**
- * Incremental: recomputa las órdenes con orderDate >= $1 (ISO timestamptz).
- * pa."createdAt" >= $1 es un lower-bound redundante (createdAt >= orderDate) que
+ * Inicio del día AR que contiene `$1`, como timestamptz.
+ * Ver el comentario de `buildGoldAttributionSourceUpsert`.
+ */
+const DESDE_INICIO_DEL_DIA_AR = `(date_trunc('day', $1::timestamptz AT TIME ZONE '${AR_TZ}') AT TIME ZONE '${AR_TZ}')`;
+
+/**
+ * Incremental: recomputa las órdenes desde el inicio del DÍA AR que contiene $1.
+ * `pa."createdAt" >= …` es un lower-bound redundante (createdAt >= orderDate) que
  * habilita el índice (organizationId, createdAt) del scan.
+ *
+ * ⚠️ POR QUÉ `date_trunc` Y NO `$1` A SECAS (bug encontrado el 2026-09-06):
+ *   El cron pasa `since = ahora − 4 días`, o sea un instante CON HORA, pero el
+ *   rollup agrupa por `day` en zona AR. Con `orderDate >= $1` a secas el día del
+ *   borde se recomputaba PARCIALMENTE y quedaba subvaluado — y volvía imposible
+ *   borrar huérfanas sin perder revenue real. Ver el espejo por canal.
  */
 export function buildGoldAttributionSourceUpsert(): string {
   return buildRollup(
-    `\n    AND o."orderDate" >= $1::timestamptz\n    AND pa."createdAt" >= $1::timestamptz`,
+    `\n    AND o."orderDate" >= ${DESDE_INICIO_DEL_DIA_AR}\n    AND pa."createdAt" >= ${DESDE_INICIO_DEL_DIA_AR}`,
   );
+}
+
+/**
+ * Borra las filas que el upsert ya NO emite, acotado a la ventana recomputada.
+ *
+ * ⚠️ SIN ESTO EL REVENUE SÓLO SE CORRIGE HACIA ARRIBA: una venta cancelada que
+ * era la única de su bucket (día, source) deja la fila vieja viva con la plata
+ * vieja, para siempre.
+ *
+ * A diferencia del espejo por canal, este rollup NO está scopeado por org
+ * (procesa todas juntas), así que el DELETE tampoco lo está.
+ *
+ * Params: `$1` = since · `$2` = runStartedAt
+ *
+ * ⚠️ `$2` DEBE salir del reloj de la BASE (`SELECT now()`). Correr DESPUÉS del
+ * upsert y EN LA MISMA TRANSACCIÓN. Mismo contrato que `buildDeleteOrphans` de
+ * `affected-days.ts`, que usan los otros cuatro rollups Gold.
+ */
+export function buildGoldAttributionSourceDeleteOrphans(): string {
+  return `
+DELETE FROM gold_attribution_source g
+WHERE g.day >= date_trunc('day', $1::timestamptz AT TIME ZONE '${AR_TZ}')::date
+  AND g.gold_updated_at < $2::timestamptz;`.trim();
 }
 
 /** Backfill inicial: toda la historia. Correr una vez en Neon. */

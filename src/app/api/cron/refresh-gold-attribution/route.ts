@@ -20,7 +20,10 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { buildGoldAttributionSourceUpsert } from "@/data/gold/gold-attribution-source-transform";
+import {
+  buildGoldAttributionSourceUpsert,
+  buildGoldAttributionSourceDeleteOrphans,
+} from "@/data/gold/gold-attribution-source-transform";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -47,11 +50,33 @@ export async function GET(req: NextRequest) {
     : new Date(Date.now() - DAYS_BACK * 86_400_000).toISOString();
 
   try {
-    await prisma.$executeRawUnsafe(buildGoldAttributionSourceUpsert(), since);
+    // ⚠️ El reloj de la BASE, no `new Date()`. `gold_updated_at` lo escribe
+    // Postgres; con desfasaje de reloj el DELETE de huérfanas borraría lo recién
+    // insertado. Mismo criterio que refresh-gold-daily-revenue.
+    const [{ now: runStartedAt }] = await prisma.$queryRawUnsafe<
+      Array<{ now: Date }>
+    >(`SELECT now() AS now`);
+
+    // Upsert + borrado de huérfanas EN LA MISMA TRANSACCIÓN. Separarlos deja una
+    // ventana en la que el rollup queda con filas viejas y nuevas a la vez, o sea
+    // revenue duplicado si alguien lee justo ahí.
+    const [filasUpsert, huerfanasBorradas] = await prisma.$transaction([
+      prisma.$executeRawUnsafe(buildGoldAttributionSourceUpsert(), since),
+      prisma.$executeRawUnsafe(
+        buildGoldAttributionSourceDeleteOrphans(),
+        since,
+        runStartedAt,
+      ),
+    ]);
+
     return NextResponse.json({
       ok: true,
       mode: full ? "backfill" : "incremental",
       since,
+      filasUpsert: Number(filasUpsert),
+      // >0 = había buckets que ya no existen (ventas canceladas, reglas de canal
+      // editadas). Antes sobrevivían para siempre y el revenue sólo subía.
+      huerfanasBorradas: Number(huerfanasBorradas),
       durationMs: Date.now() - startedAt,
     });
   } catch (e: any) {
