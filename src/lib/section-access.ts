@@ -19,6 +19,10 @@ import type { Section } from "@/lib/permissions";
 // Prefijos de API (rutas /api/*) → sección requerida (read).
 // El primer prefijo que matchea gana; ordenar de más específico a menos.
 const API_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
+  // Las dos rutas bajo /api/admin que NO son de staff (ver STAFF_ONLY_EXCEPTIONS).
+  // Van primero por la regla de "más específico gana".
+  { prefix: "/api/admin/channel-rules", section: "pixel" },
+  { prefix: "/api/admin/channels-breakdown", section: "pixel" },
   { prefix: "/api/bondly", section: "bondly" },
   { prefix: "/api/aura", section: "aura" },
   { prefix: "/api/finanzas", section: "pulso" },
@@ -53,7 +57,55 @@ const API_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
   //   de Tomy (¿parte de aura? ¿campaigns? ¿sección nueva?). Dejado sin gatear.
   // ⚠️ /api/alertas parece duplicado en español de /api/alerts — verificar si es
   //   dead code antes de gatearlo.
+  //
+  // ── Revisados el 2026-09-06 (R-C05) y deliberadamente NO gateados ──
+  //   · `/api/pixel/*` → es el **ingest público** del pixel (`/event`) y el serve
+  //     del snippet (`/script`). Los llama el navegador del visitante en el sitio
+  //     del cliente, sin sesión. Mapearlo a una sección no es un arreglo: es un
+  //     error de concepto.
+  //   · `/api/webhooks/*` → los llaman VTEX y MercadoLibre, no un usuario. Cada
+  //     uno valida su propia key. Sin token no pasan por este gate igual.
+  //   · `/api/admin/*` y `/api/backfill/*` → ya no se resuelven por sección: son
+  //     STAFF-ONLY. Ver `STAFF_ONLY_API_PREFIXES` abajo.
 ];
+
+// ══════════════════════════════════════════════════════════════
+// Rutas de API exclusivas del staff de NitroSales (R-C05, auditoría 2026-09)
+// ══════════════════════════════════════════════════════════════
+// El agujero: `/api/admin` y `/api/backfill` no estaban en NINGUNA tabla, así que
+// `requiredSectionForPath` devolvía null y el middleware dejaba pasar. Un MEMBER
+// de cualquier organización atravesaba el gate hacia las 154 rutas admin, y lo
+// único que lo frenaba era el `isInternalUser()` de cada handler — **que 50 de
+// esas 154 rutas no tienen**.
+//
+// Esto NO afecta a los crons ni a los self-fetch server-to-server: no llevan
+// cookie de NextAuth, no tienen token, y el middleware sólo gatea `if (token)`.
+// Cada uno sigue autenticando con su `?key=`.
+const STAFF_ONLY_API_PREFIXES = ["/api/admin", "/api/backfill"];
+
+// Las dos rutas bajo `/api/admin` que el CLIENTE usa de verdad: el panel de
+// canales (`/pixel/canales`) es self-service desde el pivot v2, y viven bajo
+// `/api/admin` sólo por historia. Sus handlers ya gatean con
+// `requirePermission("pixel")`; acá se las manda a la sección `pixel` (arriba, en
+// API_SECTION_PREFIXES) en vez de exigir staff.
+//
+// ⚠️ Si alguna vez se mueven a `/api/pixel/*`, borrar la excepción. Mientras
+// tanto, agregar una ruta de cliente bajo `/api/admin` SIN sumarla acá la deja
+// muerta para todos los clientes.
+const STAFF_ONLY_EXCEPTIONS = [
+  "/api/admin/channel-rules",
+  "/api/admin/channels-breakdown",
+];
+
+function startsWithPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
+/** True si `pathname` sólo la puede tocar el staff interno de NitroSales. */
+export function isStaffOnlyApiPath(pathname: string): boolean {
+  if (STAFF_ONLY_EXCEPTIONS.some((p) => startsWithPrefix(pathname, p))) return false;
+  return STAFF_ONLY_API_PREFIXES.some((p) => startsWithPrefix(pathname, p));
+}
 
 // Prefijos de páginas (rutas no-/api) → sección requerida (read).
 const PAGE_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
@@ -95,7 +147,7 @@ function matchPrefix(
   table: Array<{ prefix: string; section: Section }>
 ): Section | null {
   for (const { prefix, section } of table) {
-    if (pathname === prefix || pathname.startsWith(prefix + "/")) {
+    if (startsWithPrefix(pathname, prefix)) {
       return section;
     }
   }
@@ -139,6 +191,14 @@ export function isPathAllowed(params: {
   writableSections: string[] | undefined;
 }): boolean {
   if (params.isStaff) return true;
+
+  // ⚠️ FAIL-CLOSED A PROPÓSITO, y es la única regla del archivo que lo es.
+  // Los dos fail-open de abajo existen para no lockear a un usuario legítimo con
+  // un JWT viejo. Acá no aplica ese razonamiento: `maxAge` de la sesión son 24 h
+  // (auth.ts), o sea que no puede quedar vivo un token anterior al deploy de
+  // RBAC, y "no sé si sos staff" nunca puede resolverse como "pasá".
+  if (isStaffOnlyApiPath(params.pathname)) return false;
+
   const section = requiredSectionForPath(params.pathname);
   if (section === null) return true;
   if (!Array.isArray(params.allowedSections)) return true; // fail-open token viejo

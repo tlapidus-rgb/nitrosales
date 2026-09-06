@@ -19,6 +19,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isPathAllowed } from "@/lib/section-access";
+import { isStaffUser } from "@/lib/staff";
 
 const READ_ONLY_EXCEPTIONS = [
   "/api/auth/", // NextAuth internal (signOut, session, csrf)
@@ -67,7 +68,17 @@ export default async function middleware(req: NextRequest) {
       pathname,
       method,
       isApi,
-      isStaff: token.isStaff === true,
+      // ⚠️ `isStaffUser`, NO `token.isStaff` a secas (R-C05, 2026-09-06).
+      // `staff.ts` es la fuente de verdad y combina el flag de DB con la
+      // allowlist de transición por email; auth.ts ya decide así. El middleware
+      // era el único lugar que miraba sólo el flag, así que un staff que todavía
+      // no tiene `users.isStaff=true` en la base quedaba fuera del bypass — y
+      // con el gate staff-only de abajo eso pasaba de "ve menos secciones" a
+      // "no entra a /control". `staff.ts` es puro, corre en edge sin problema.
+      isStaff: isStaffUser({
+        isStaff: token.isStaff === true,
+        email: typeof token.email === "string" ? token.email : null,
+      }),
       allowedSections: token.allowedSections as string[] | undefined,
       writableSections: token.writableSections as string[] | undefined,
     });
