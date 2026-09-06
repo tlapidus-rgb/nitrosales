@@ -23,6 +23,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
     const orgId = url.searchParams.get("orgId");
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl();
 
     // Detectar qué connections tiene la org para llamar solo los catalog-refresh relevantes.
     const connections = await prisma.connection.findMany({

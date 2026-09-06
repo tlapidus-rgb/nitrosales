@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db/client";
 import { markSyncSuccess } from "@/lib/sync-tracker";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
 import { ORG_BUDGET_MS, canStartAnotherOrg } from "@/lib/sync/chain-budget";
+import { selfFetchBaseUrl, selfFetchHeaders } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -40,22 +41,6 @@ interface ChainResult {
   error?: string;
   skipped?: boolean;
   reason?: string;
-}
-
-// ── Self-fetch: headers (R-C14 / E-03) ──────────────────────────────────────
-// Cuando Vercel Cron dispara esta ruta, `req.nextUrl.origin` es la URL del
-// DEPLOYMENT, que está detrás de Deployment Protection → los tres self-fetch
-// reciben 401 con un body HTML, `res.json()` explota, y el paso se anota como
-// error… que después `markSyncSuccess` tapa igual (ver R-C13). Invocado a mano
-// desde el dominio propio funciona, y eso es lo que despistó durante semanas en
-// el incidente BP-ROLLUP-CRON.
-//
-// El header de bypass lo mandan hoy `cron/warm-cache` y
-// `cron/refresh-pixel-first-source`; acá faltaba. Sin el secreto seteado (local)
-// no se manda nada y el comportamiento es el de antes.
-function selfFetchHeaders(): HeadersInit | undefined {
-  const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-  return secret ? { "x-vercel-protection-bypass": secret } : undefined;
 }
 
 async function runChainForOrg(
@@ -172,11 +157,9 @@ export async function GET(req: NextRequest) {
     const skipDetails = req.nextUrl.searchParams.get("skip_details") === "true";
     const skipReconcile = req.nextUrl.searchParams.get("skip_reconcile") === "true";
     const orgParam = req.nextUrl.searchParams.get("org");
-    // Preferimos el dominio propio: `req.nextUrl.origin` es la URL del deployment
-    // cuando dispara Vercel Cron, y esa está detrás de Deployment Protection.
-    // Con el header de bypass los dos funcionan, pero el dominio propio no
-    // depende de que el secreto esté seteado.
-    const baseUrl = process.env.NEXTAUTH_URL || req.nextUrl.origin;
+    // A qué dominio le pega la app cuando se llama a sí misma. En preview NUNCA
+    // es producción — ver src/lib/self-fetch.ts, que documenta el incidente.
+    const baseUrl = selfFetchBaseUrl(req.nextUrl.origin);
 
     if (orgParam) {
       const r = await runChainForOrg(orgParam, key, baseUrl, skipInventory, skipDetails, skipReconcile);

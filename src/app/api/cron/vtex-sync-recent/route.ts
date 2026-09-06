@@ -15,6 +15,7 @@
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "No active VTEX connections", orgs: 0 });
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl();
     // Trigger-vtex-sync usa "from"/"to" como YYYY-MM-DD. Para cubrir 3 hs,
     // usamos hoy y ayer (rango chico, idempotente).
     const now = new Date();

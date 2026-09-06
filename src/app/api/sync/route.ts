@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { markSyncSuccess } from "@/lib/sync-tracker";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,7 +17,7 @@ async function runSyncForOrg(orgId: string, syncKey: string) {
   }
 
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl();
     const results: any = {
       orgId,
       vtex: null,

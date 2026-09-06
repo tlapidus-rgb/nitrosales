@@ -31,6 +31,7 @@ import {
 import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
 import { dataReadyEmailActive } from "@/lib/onboarding/emails";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 // (onboardingActivationEmail ya no se usa aca — se manda en /activate)
 
 export const dynamic = "force-dynamic";
@@ -141,7 +142,7 @@ export async function GET(req: NextRequest) {
         if (currentJob.onboardingRequestId) {
           const allDone = await areAllJobsComplete(currentJob.onboardingRequestId);
           if (allDone) {
-            const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+            const baseUrl = selfFetchBaseUrl();
             const KEY = ADMIN_API_KEY;
             const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${KEY}`;
             fetch(finalizeUrl, { method: "GET" })

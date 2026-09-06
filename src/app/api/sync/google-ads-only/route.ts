@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -14,7 +15,7 @@ export async function POST() {
   }
 
   const syncKey = process.env.NEXTAUTH_SECRET || "";
-  const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+  const baseUrl = selfFetchBaseUrl();
 
   try {
     const res = await fetch(

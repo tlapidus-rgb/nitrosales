@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     // Fire-and-forget: trigger sync in background
     const syncKey = process.env.NEXTAUTH_SECRET || "";
-    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl();
     const syncUrl = `${baseUrl}${syncPath}?key=${encodeURIComponent(syncKey)}`;
 
     waitUntil(

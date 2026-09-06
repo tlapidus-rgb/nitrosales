@@ -94,7 +94,27 @@ describe("E-03 — guards sobre el archivo", () => {
     // HTML, `res.json()` explota, y el error queda tapado por markSyncSuccess.
     const conHeaders = src.match(/headers: selfFetchHeaders\(\)/g) ?? [];
     expect(conHeaders).toHaveLength(3);
-    expect(src).toContain("x-vercel-protection-bypass");
+
+    // El header en sí vive en el lib compartido desde el 2026-09-06, junto con
+    // `selfFetchBaseUrl` — que es lo que impide que un preview le pegue a
+    // producción. Ver src/lib/self-fetch.ts.
+    const lib = readFileSync(
+      join(process.cwd(), "src", "lib", "self-fetch.ts"),
+      "utf8"
+    );
+    expect(lib).toContain("x-vercel-protection-bypass");
+  });
+
+  it("el baseUrl sale del helper que distingue producción de preview", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const src = readFileSync(
+      join(process.cwd(), "src", "app", "api", "sync", "chain", "route.ts"),
+      "utf8"
+    );
+    expect(src).toContain("selfFetchBaseUrl(req.nextUrl.origin)");
+    // La forma vieja hacía que el preview saliera a producción.
+    expect(src).not.toContain('process.env.NEXTAUTH_URL || "https://app.nitrosales.ai"');
   });
 
   it("las organizaciones se ordenan por antigüedad de sync, no arbitrariamente", async () => {
