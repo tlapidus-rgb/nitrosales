@@ -7,7 +7,7 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas + E-07 a medias** · branch `fix/expansion-gate-e0`, 12 commits, sin mergear
+> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas + E-07 a medias**, todo **verificado en un deployment real** (§ 13) · branch `fix/expansion-gate-e0`, sin mergear
 > **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **446 pasan** · `next build` exit 0
 
 ---
@@ -815,3 +815,69 @@ Todos son de solo lectura: no se modificó ni un archivo de la aplicación duran
 ---
 
 _Última actualización: 2026-09-05 — E-01 a E-06 implementadas, testeadas y commiteadas en `fix/expansion-gate-e0` (7 commits, sin mergear). Ver Bitácora._
+
+---
+
+# 13. Verificado en preview (2026-09-06)
+
+Primera tanda de cambios de este plan probada contra un deployment real, no sólo
+con tests locales. Resultados y lo que se aprendió del entorno.
+
+## Lo que quedó verificado
+
+| Qué | Resultado |
+|---|---|
+| Build de Vercel con el `vercel.json` modificado | ✅ Ready, 1m 4s |
+| `refresh-pixel-rollups` (E-01/E-02/E-05) | ✅ HTTP 200, `orgFailures: []`, 18,7 s, cursor avanzado |
+| `sync/chain` (E-03) | ✅ **`orgsProcessed: 4` de 4**, `stoppedForBudget: false`, ~190 s |
+| Puerta trasera `?key=usage-2026` (R-C01) | ✅ 401 — cerrada |
+| `/api/admin/usage` con la clave real | ✅ 200 — **no rompe el workflow del equipo** |
+| `/api/debug/meta` (R-C03) | ✅ 404 — borrado |
+| **R-V01** — ¿la clave configurada es el literal de `vercel.json`? | ✅ **Sí.** El secreto está efectivamente publicado en el repo |
+| **R-V02 parcial** — `PIXEL_USE_GOLD_CHANNEL` | 🔴 **`true` en Production** (ver abajo) |
+
+## Lo que se aprendió del entorno de preview
+
+1. **Cada branch tiene su propia base.** La integración de Neon crea un
+   `DATABASE_URL` con alcance `Preview / <branch>` al pushear. Eso es bueno y hace
+   viable probar caminos de escritura.
+2. **Pero eso NO alcanzaba**: siete rutas se auto-invocaban usando `NEXTAUTH_URL`
+   (valor de producción, alcance *All Environments*) o el literal
+   `https://app.nitrosales.ai`. Un preview le pegaba a producción y escribía ahí.
+   **Pasó de verdad**: la primera corrida de `sync/chain` desde el preview
+   desactivó 12 productos y repuntó 730 order items **en producción**. Es la misma
+   operación que el cron corre cada 2 h, así que no hubo daño — pero podría haber
+   sido un backfill. Arreglado con `src/lib/self-fetch.ts` y verificado en vivo.
+3. **`VERCEL_AUTOMATION_BYPASS_SECRET` existe en runtime** aunque no figure en la
+   lista de variables del proyecto: Vercel la inyecta como variable de sistema
+   cuando "Protection Bypass for Automation" está activo. Buscarla en la UI de
+   Environment Variables da un falso negativo.
+
+## Hallazgo NUEVO, no estaba en el estudio
+
+**`sync/chain`: los pasos `inventory` y `vtexDetails` se agotan por tiempo para
+casi todas las organizaciones, siempre.** Se ve en las tres corridas, contra
+producción y contra preview:
+
+```
+inv: ERR timeout (25s) | det: ERR timeout (13s) | rec: OK
+```
+
+Los presupuestos por paso (25 s y 13 s) no alcanzan para el trabajo real. E-03
+arregló que se procesen las 4 organizaciones en vez de 1, pero **esos dos pasos
+siguen sin completar para nadie** — o sea que inventario, precios y detalles de
+órdenes de VTEX no se están sincronizando por esta vía. Explica río abajo por qué
+el `costPrice` que usa el módulo de P&L no se puebla.
+
+No es una regresión de esta branch: es preexistente y recién ahora es visible.
+**Candidato a tarea nueva del plan** (E-32): revisar esos dos presupuestos y por
+qué cada paso tarda más de lo que se le asignó.
+
+## Pendiente de decisión
+
+`PIXEL_USE_GOLD_CHANNEL = true` en Production. Si `PIXEL_USE_GOLD` y
+`PIXEL_USE_CHANNELS` también lo están —no se pueden leer, están marcadas como
+sensibles— entonces **R-C25 es un problema activo, no latente**: el revenue de la
+capa Gold sólo se corrige hacia arriba y editar una regla en `/pixel/canales`
+duplica el de los últimos 4 días. Verificar esos dos valores es la próxima acción
+de mayor valor por minuto invertido.
