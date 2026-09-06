@@ -873,9 +873,44 @@ No es una regresión de esta branch: es preexistente y recién ahora es visible.
 **Candidato a tarea nueva del plan** (E-32): revisar esos dos presupuestos y por
 qué cada paso tarda más de lo que se le asignó.
 
+## R-V02 CONTESTADO (2026-09-06) — y es la peor de las respuestas
+
+Medido con un endpoint temporal que espeja exactamente cómo lee los flags el
+serve (), corrido en preview — vale para producción
+porque las tres variables tienen alcance *Production and Preview*:
+
+| Flag | Valor | Derivado |
+|---|---|---|
+|  |  |  |
+|  |  |  |
+|  |  | **** |
+|  | no seteada |  |
+|  | no seteada | **activo** (es opt-out) |
+|  | no seteada | **activo** (es opt-out) |
+
+**Los tres están prendidos.  es  en producción.**
+
+Y las dos mitades están vivas: el cron que materializa los Gold de atribución
+corre ( no está en ) **y** el dashboard los
+lee. O sea que **R-C25 pasa de latente a ACTIVO**:
+
+1. Una venta cancelada **sobrevive en  para siempre**.
+   El revenue por canal sólo se corrige hacia arriba.
+2. Editar una regla en  **duplica el revenue de los últimos
+   4 días** (quedan la fila del canal viejo y la del nuevo) y parte la serie
+   histórica en dos canales que son el mismo.
+
+Esto no es una proyección de escala: **es lo que los clientes ven hoy**.
+
+El arreglo está bien acotado y el patrón ya existe en el repo: los otros cuatro
+rollups Gold usan  + ventana de días afectados
+(), y  hace DELETE-then-insert con el
+comentario que explica exactamente este problema. Los dos de atribución son los
+únicos que no lo tienen. Ver  § R-C25.
+
 ## Pendiente de decisión
 
-`PIXEL_USE_GOLD_CHANNEL = true` en Production. Si `PIXEL_USE_GOLD` y
+~~`PIXEL_USE_GOLD_CHANNEL = true` en Production. Si `PIXEL_USE_GOLD` y~~ **RESUELTO arriba: los tres en `true`.** Antes se leía: si `PIXEL_USE_GOLD` y
 `PIXEL_USE_CHANNELS` también lo están —no se pueden leer, están marcadas como
 sensibles— entonces **R-C25 es un problema activo, no latente**: el revenue de la
 capa Gold sólo se corrige hacia arriba y editar una regla en `/pixel/canales`
