@@ -12,6 +12,7 @@ import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { createHash } from "crypto";
 import { getStoreUrl } from "@/lib/org-store-url";
+import { sinSecretosDeCreador, sinSecretosDeCreadores } from "@/lib/influencer-secretos";
 
 function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
@@ -71,7 +72,9 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({ influencers: enriched });
+    // R-C06: sin `dashboardPasswordPlain` ni el hash. Antes salia la fila
+    // entera y la contrasena en claro de cada creador viajaba al navegador.
+    return NextResponse.json({ influencers: sinSecretosDeCreadores(enriched) });
   } catch (error: any) {
     console.error("[Influencers GET]", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -112,7 +115,7 @@ export async function POST(req: NextRequest) {
         profileImage: body.profileImage || null,
         isPublicDashboardEnabled: body.isPublicDashboardEnabled ?? true,
         dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
-        dashboardPasswordPlain: body.dashboardPassword || null,
+        // R-C06: ya no se guarda la copia en texto plano.
         attributionWindowDays: clampWindow(body.attributionWindowDays),
       },
     });
@@ -122,7 +125,7 @@ export async function POST(req: NextRequest) {
     const trackingLink = `${baseUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     return NextResponse.json({
-      influencer,
+      influencer: sinSecretosDeCreador(influencer),
       trackingLink,
     });
   } catch (error: any) {

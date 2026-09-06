@@ -13,6 +13,7 @@ import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { createHash } from "crypto";
 import { getStoreUrl } from "@/lib/org-store-url";
+import { sinSecretosDeCreador } from "@/lib/influencer-secretos";
 
 function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
@@ -58,13 +59,13 @@ export async function GET(
     const trackingLink = `${baseUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     return NextResponse.json({
-      influencer: {
+      influencer: sinSecretosDeCreador({
         ...influencer,
         totalRevenue: agg._sum.attributedValue || 0,
         totalCommission: agg._sum.commissionAmount || 0,
         totalConversions: agg._count.id || 0,
         trackingLink,
-      },
+      }),
     });
   } catch (error: any) {
     console.error("[Influencer GET]", error);
@@ -105,7 +106,7 @@ export async function PUT(
         }),
         ...(body.dashboardPassword !== undefined && {
           dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
-          dashboardPasswordPlain: body.dashboardPassword || null,
+          // R-C06: ya no se guarda la copia en texto plano.
         }),
         ...(body.attributionWindowDays !== undefined && {
           attributionWindowDays: clampWindow(body.attributionWindowDays),
@@ -113,7 +114,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({ influencer });
+    return NextResponse.json({ influencer: sinSecretosDeCreador(influencer) });
   } catch (error: any) {
     console.error("[Influencer PUT]", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
