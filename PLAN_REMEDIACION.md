@@ -8,8 +8,9 @@
 > R-C16, R-C17, R-C18, R-C19 y las tandas 1.1/1.2) son **precondiciones de vender** y se ejecutan
 > dentro de las fases E0/E1 de aquel plan, no por separado.
 > **Estado global:** 🟨 FASE 0 en curso — verificación estática ✅ hecha (20 hallazgos confirmados,
-> 1 ampliado, 1 ascendido de "sin confirmar" a confirmado) · 5 verificaciones 🔒 bloqueadas por
-> falta de acceso a Vercel/Neon · 0 de 31 tareas críticas cerradas
+> 1 ampliado, 1 ascendido de "sin confirmar" a confirmado) · el acceso a Vercel/Neon que bloqueaba
+> 5 verificaciones **ya está resuelto**: R-V01 y R-V02 contestadas (2026-09-06) · **1 de 31 tareas
+> críticas cerradas** (R-C25, en branch propia, sin mergear)
 > **Línea base de validación (2026-09-02):** `tsc --noEmit` → 0 errores · `vitest run` → 396 pasan,
 > 7 skipped, 22s. **Cualquier cambio tiene que mantener esto en verde.**
 
@@ -920,7 +921,10 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
      backdatear para caer dentro de la ventana de atribución de un creador.
 
 ### R-C25 · Gold de atribución: agregar el borrado de huérfanas
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Depende de:** R-V02 · **Frente:** Datos
+- **Estado:** ✅ **HECHO (2026-09-06)** — branch `hotfix/gold-attribution-huerfanas`, commits
+  `aaf41b81` (fix + tests) y `8b8063db` (verificación). **Sin mergear**: el merge espera al plan entero.
+  Verificación completa en `docs/VERIFICACION-R-C25.md` (en esa branch).
+- **Riesgo:** 🟡 medio · **Depende de:** R-V02 (contestado: los 3 flags en `true`) · **Frente:** Datos
 - **Evidencia:** `review-datos.md` → C-2
 - **Archivos:** `src/data/gold/gold-attribution-channel-transform.ts:28-101` ·
   `gold-attribution-source-transform.ts:37-121` · `cron/refresh-gold-attribution-channel/route.ts:34, 76`
@@ -936,6 +940,13 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
 - **Además:** `DAYS_BACK = 4` con filtro `o."orderDate" >= $2` hace que una orden re-atribuida con
   fecha de hace 10 días **nunca entre a Gold**. Revisar esa ventana.
 - **Prioridad según R-V02:** si `PIXEL_USE_GOLD_CHANNEL=true` en prod, esto es un incendio activo.
+- **Medido en prod (2026-09-06):** con `?full=1` sobre la copia aislada de producción aparecieron
+  **672 huérfanas sobre 12.502 filas** en `gold_attribution_source` (**5,4 % de la tabla**) y **26**
+  en `gold_attribution_channel` (todas de TeVe Compras). O sea: no era teórico, el panel venía
+  sumando ~698 filas de plata que ya no existe.
+- **Lo que hizo que no fuera copiar y pegar:** la ventana usaba el instante **con hora**, así que
+  el día del borde se recomputaba parcial. Agregar el DELETE sobre eso habría borrado revenue
+  **real**. La ventana ahora se trunca al inicio del día AR.
 
 ### R-C26 · Unificar el vocabulario de canales del embudo
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Frente:** Datos
@@ -1289,6 +1300,31 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora** y hay que corregir
 > el estado.
 
+### [2026-09-06] ✅ R-C25 — borrado de huérfanas en los dos rollups Gold de atribución
+- **Estado final:** ✅ hecho y verificado en preview · **sin mergear** (el merge espera al plan entero).
+- **Dónde:** branch `hotfix/gold-attribution-huerfanas` (sale de `origin/main` 9ad4616d).
+  `aaf41b81` fix + tests · `8b8063db` doc de verificación.
+- **Qué se cambió:** `gold-attribution-source-transform.ts` y `gold-attribution-channel-transform.ts`
+  suman `buildGold…DeleteOrphans()`, y la ventana incremental pasa de `>= $2` crudo a
+  `>= date_trunc('day', $2 AT TIME ZONE AR)`. Los dos crons sacan `runStartedAt` de `SELECT now()`
+  de la **base** y corren upsert + DELETE en **una sola transacción**.
+- **Por qué el truncado al día AR es parte del fix, no cosmética:** con la hora cruda el día del
+  borde se recomputaba parcialmente, así que un bucket cuyas órdenes fueran todas anteriores a la
+  hora de corte no se re-emitía — y el DELETE se lo habría llevado, perdiendo plata real.
+- **Hallazgo (esto es lo importante):** con `?full=1` contra la copia aislada de prod salieron
+  **672 huérfanas / 12.502 filas en `gold_attribution_source` (5,4 %)** y **26 en
+  `gold_attribution_channel`** (TeVe Compras). Con `PIXEL_USE_GOLD` y `PIXEL_USE_GOLD_CHANNEL` en
+  `true`, el panel venía leyendo esas filas. **Es plata inflada que se está mostrando hoy.**
+- **Verificación:** 3 pasadas incrementales dan conteos idénticos (272 · 71/44/160) y 0 huérfanas
+  — el DELETE no se come lo que el upsert acaba de escribir. La 2ª pasada de `full=1` da 0 en las
+  dos tablas. `tsc` 0 · `vitest` 401 passed · `next build` 0. Tests nuevos:
+  `gold-attribution-huerfanas.test.ts` (5 casos con PGlite, verificados en rojo sin el fix).
+- **Se corrió contra el preview, NO contra producción:** se comprobó en Settings → Environment
+  Variables que la integración de Neon creó un `DATABASE_URL` scopeado a la branch.
+- **Al mergear, pendiente:** correr `?full=1` una vez en los dos endpoints (21 s, una sola
+  invocación cada uno) para barrer las ~698 acumuladas, y **avisar que los totales de atribución
+  van a bajar** — no es regresión, es la plata que sobraba.
+
 ### [2026-09-02] ⏸️ PAUSA — se frena la remediación para atender otro pedido de Tomy
 - **Estado final:** 🟡 parcial — FASE 0 a medias, FASE 1 sin empezar
 - **Qué se cambió:** nada del código. Axel frenó el trabajo acá para pasar a otra cosa que pidió
@@ -1374,4 +1410,4 @@ romper", y las preguntas que no se pueden responder leyendo código.
 
 ---
 
-_Última actualización de este archivo: 2026-09-02 — PAUSADO. FASE 0: R-V07 cerrada; R-V01..R-V06 bloqueadas por acceso. FASE 1 sin empezar, cero cambios en src/. Punto de retorno: sección "DÓNDE QUEDAMOS".
+_Última actualización de este archivo: 2026-09-06 — R-C25 ✅ hecha, testeada y verificada en preview (branch `hotfix/gold-attribution-huerfanas`, sin mergear): se encontraron 698 filas huérfanas reales en producción. FASE 0: R-V01/R-V02 contestadas; R-V07 cerrada. Punto de retorno: sección "DÓNDE QUEDAMOS" y la Bitácora.
