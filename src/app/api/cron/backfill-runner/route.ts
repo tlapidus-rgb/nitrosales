@@ -37,6 +37,7 @@
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { waitUntil } from "@vercel/functions";
 import { isInternalUser } from "@/lib/feature-flags";
 import {
   reclamarProximoJob,
@@ -250,9 +251,21 @@ export async function GET(req: NextRequest) {
             const baseUrl = selfFetchBaseUrl();
             const KEY = ADMIN_API_KEY;
             const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${KEY}`;
-            fetch(finalizeUrl, { method: "GET" })
-              .then((r) => console.log(`[backfill-runner] post-backfill-finalize triggered: HTTP ${r.status}`))
-              .catch((err) => console.error(`[backfill-runner] post-backfill-finalize failed: ${err.message}`));
+            // ⚠️ waitUntil, NO fire-and-forget (revisión del 2026-09-07).
+            // Sin esto la lambda del runner responde y se congela ANTES de que
+            // este fetch salga: post-backfill-finalize no corría nunca. Y el
+            // header de ese endpoint afirma que "waitUntil lo mantiene corriendo
+            // en background" — era falso justamente acá.
+            //
+            // Lo que se perdía: catalog-refresh, recompute-customer-aggregates y
+            // backfill-orderitem-costs. O sea que el cliente nuevo entraba con
+            // Product.costPrice en null y veía RENTABILIDAD Y P&L EN CERO, con
+            // toda la pinta de estar bien. Nada lo reintentaba.
+            waitUntil(
+              fetch(finalizeUrl, { method: "GET" })
+                .then((r) => console.log(`[backfill-runner] post-backfill-finalize triggered: HTTP ${r.status}`))
+                .catch((err) => console.error(`[backfill-runner] post-backfill-finalize failed: ${err.message}`))
+            );
 
             await finalizeOnboarding(currentJob.onboardingRequestId);
           }

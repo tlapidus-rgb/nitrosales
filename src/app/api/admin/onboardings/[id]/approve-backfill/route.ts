@@ -148,6 +148,31 @@ export async function POST(
       }
     }
 
+    // ⚠️ SIN JOBS NO HAY BACKFILL (revisión del 2026-09-07).
+    // Antes esto marcaba BACKFILLING y mandaba el mail "ya arrancamos"
+    // INCONDICIONALMENTE, aunque no se hubiera creado un solo job — pasa con un
+    // cliente que no conectó ni VTEX ni ML, o al que se le pusieron los meses de
+    // historia en 0.
+    //
+    // Del otro lado, `areAllJobsComplete` devuelve `total > 0 && pending === 0`,
+    // así que con cero jobs da false; y además sólo se evalúa cuando un job
+    // completa, cosa que nunca pasaba. Resultado: el cliente recibía el mail
+    // "ya arrancamos", entraba, y veía "preparando tu data — 0%" PARA SIEMPRE.
+    //
+    // Ahora se corta acá y se le dice al admin qué falta, en vez de dejar al
+    // cliente esperando algo que no existe.
+    if (createdJobs.length === 0) {
+      return NextResponse.json(
+        {
+          error: "No se creó ningún job de backfill.",
+          detalle:
+            "El cliente no tiene una conexión activa de VTEX ni de MercadoLibre, o los meses de historia quedaron en 0. Revisá las credenciales y la selección de plataformas antes de aprobar.",
+          onboardingId: ob.id,
+        },
+        { status: 409 }
+      );
+    }
+
     // Status onboarding → BACKFILLING
     await prisma.$executeRawUnsafe(
       `UPDATE "onboarding_requests"
