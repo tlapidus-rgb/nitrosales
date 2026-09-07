@@ -108,8 +108,22 @@ export async function POST(req: NextRequest) {
     // de credenciales. El cliente manda pixelId + pixelAccessToken como
     // campos opcionales dentro del payload de META_ADS y se guardan tal cual.
     const created: string[] = [];
+    // E-14 — lo que el wizard manda y el backend no reconoce ya no desaparece
+    // en silencio. El caso concreto: el checkbox "ya pegué el snippet" viaja
+    // como NITROPIXEL, que no está en VALID_PLATFORMS, así que este `continue`
+    // lo tiraba sin que se enterara nadie — ni el cliente, ni el admin. Un
+    // cliente podía completar el alta entera sin haber instalado el pixel.
+    //
+    // NITROPIXEL no se guarda como conexión a propósito: no tiene credenciales
+    // que probar, se verifica mirando si llegaron eventos de verdad. Eso lo
+    // hace el semáforo (`/api/admin/onboardings/[id]/readiness`), que consulta
+    // `pixel_events`, en vez de confiar en un checkbox.
+    const ignoradas: string[] = [];
     for (const p of platforms) {
-      if (!VALID_PLATFORMS.has(p.platform)) continue;
+      if (!VALID_PLATFORMS.has(p.platform)) {
+        ignoradas.push(p.platform);
+        continue;
+      }
 
       const validationError = validatePlatformCreds(p.platform, p.credentials);
       if (validationError) {
@@ -260,6 +274,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       message: "Wizard enviado. Esperando aprobación de NitroSales para arrancar el backfill.",
       platformsConnected: created,
+      // E-14: lo que el backend no reconoció. Antes se descartaba en silencio.
+      // Se reporta para que quede rastro en los logs y para que el día que el
+      // wizard mande algo nuevo se note en el momento y no seis meses después.
+      platformsIgnoradas: ignoradas,
     });
   } catch (error: any) {
     console.error("[me/onboarding/submit-wizard] error:", error);
