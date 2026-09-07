@@ -7,8 +7,8 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos · E1 arrancada · **E2 a más
-> de la mitad** — **13 de 31 tareas hechas** (E-01…E-06, E-08, E-11, E-12, E-15, E-16, E-18)
+> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos · E1 arrancada · **E2 casi
+> cerrada** — **14 de 31 tareas hechas** (E-01…E-06, E-08, E-11, E-12, E-15, E-16, E-17, E-18)
 > **+ E-07 y E-14 a medias** · **E-13 esperando una decisión de producto**.
 >
 > **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
@@ -19,7 +19,7 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **729 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **740 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -456,7 +456,21 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 - El mismo archivo usa `waitUntil` bien en otras dos partes: es un olvido, no una decisión.
 
 ### E-17 · Versionar lo que hoy vive solo en el disco de Axel
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
+- **Estado:** ✅ **HECHO (2026-09-07)** — `0d17b172`.
+- **El SQL por cliente:** los tres `.local.sql` pesaban exactamente 9.827 bytes cada uno — el mismo
+  SQL con el cuid cambiado a mano. Ahora es `src/lib/pixel/first-source-repair.ts` parametrizado y
+  `POST /api/admin/pixel/repair-first-source?org=<id>`, con 11 tests contra Postgres.
+- **Lo que hacía falta arreglar no era la repetición:** cada archivo llevaba pegado un **snapshot**
+  del CASE de clasificación de origen, que en el código cambia. Un backfill corrido con un archivo
+  viejo clasifica distinto que el cron, y eso aparece como visitantes en `sin_clasificar` que nadie
+  entiende. Ahora el CASE se importa de la misma fuente que usa el cron y un test lo verifica.
+- **El handoff:** `docs/HANDOFF.md`, con el secreto redactado. Se autodescribía como *"documento
+  maestro, para un chat nuevo leé esto primero"* y estaba excluido del repo.
+- **De paso salieron dos cosas del harness de tests**, las dos anotadas en el commit: el helper que
+  lee código fuente se comía bloques enteros cuando un `//` contenía `/*` (7 archivos afectados), y
+  la suite agotaba la memoria con el paralelismo por defecto — más de veinte Postgres en WASM a la
+  vez. Tope de 2 workers en `vitest.config.ts`, con el síntoma explicado ahí mismo porque no se
+  parece a un problema de memoria. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
 - **Qué está mal:** `.gitignore` excluye `*.local.md` y `*.local.sql`. Eso saca del repositorio:
   `PROJECT-HANDOFF.local.md` —que se autodescribe como *"documento maestro, para un chat nuevo leé
   esto primero"*—, y **los `.sql` de backfill por cliente**: `backfill-1-cmod6ns.local.sql`,
