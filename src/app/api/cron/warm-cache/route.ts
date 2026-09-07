@@ -29,6 +29,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
+import { planDeWarm } from "@/lib/cache/warm-plan";
 import { purgeExpiredSharedCache } from "@/lib/api-cache-shared";
 import { sendEmail } from "@/lib/email/send";
 import {
@@ -209,6 +210,7 @@ export async function GET(req: NextRequest) {
         WHERE pe."organizationId" = o.id
           AND pe.timestamp > NOW() - INTERVAL '30 days'
       )
+      ORDER BY o.id
     `);
 
     // Espejo de la resolución del endpoint y de la UI: settings → NITRO, y
@@ -247,9 +249,25 @@ export async function GET(req: NextRequest) {
     // (maxDuration), con margen de sobra para la query de activeOrgs y el cierre.
     const TIME_BUDGET_MS = 220_000;
     let budgetHit = false;
-    outer: for (const org of activeOrgs) {
-      for (const range of ranges) {
-        for (const endpoint of endpoints) {
+
+    // E-12 — EL ORDEN IMPORTA MAS QUE LA VELOCIDAD ACA.
+    // Antes el recorrido era organizacion -> rango -> endpoint: 8 fetches por
+    // organizacion (4 rangos x 2 endpoints) con presupuesto para ~11 en total.
+    // Con 4 clientes eso significaba que la primera se llevaba sus 8, la segunda
+    // alcanzaba 3, y la tercera y la cuarta NO SE CALENTABAN NUNCA. Y sin
+    // ORDER BY el orden lo elegia Postgres, en la practica estable: siempre las
+    // mismas afuera. Con 20 clientes se calentaria el 7%.
+    //
+    // Ahora manda el RANGO: "hoy" para todas las organizaciones, despues "ayer"
+    // para todas, y asi. Si el presupuesto corta, corta en un rango menos mirado
+    // para todos, en vez de dejar clientes enteros sin nada. Y la organizacion
+    // ROTA entre corridas (el cron corre cada 5 min), asi lo que igual queda
+    // truncado no le toca siempre al mismo. La rotacion sale del reloj: no hay
+    // cursor que persistir. Ver src/lib/cache/warm-plan.ts.
+    const plan = planDeWarm({ orgs: activeOrgs, ranges, endpoints, ahoraMs: startedAt });
+
+    outer: {
+      for (const { org, range, endpoint } of plan) {
           if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break outer; }
           const start = Date.now();
           // `model` solo aplica a /api/metrics/pixel (es parte de SU cache key).
@@ -296,7 +314,6 @@ export async function GET(req: NextRequest) {
               error: e.message?.slice(0, 100),
             });
           }
-        }
       }
     }
 
