@@ -81,9 +81,30 @@ revertir el truncado al día AR rompe el de "no borra revenue real".
 
 `tsc` exit 0 · `vitest` 401 passed · `next build` exit 0.
 
-## Pendiente al mergear
+## Mergeado y ejecutado en producción — 2026-09-06
 
-1. Correr una vez `?full=1` en producción en **los dos** endpoints, para barrer las ~698
-   huérfanas acumuladas. Después el incremental las mantiene a raya solo.
-2. Avisar que los totales de atribución del panel van a **bajar** tras esa corrida. No es
-   una regresión: es la plata que sobraba.
+Mergeado a `main` con fast-forward (`9ad4616d` → `8b8063db`) y deployado. Antes de tocar nada se
+confirmó que el código nuevo estuviera vivo con un discriminador confiable: el campo
+`huerfanasBorradas` no existe en la respuesta del código viejo. La primera consulta post-push
+todavía servía el build anterior — vale la pena esperar el "Ready" en vez de asumir.
+
+### La limpieza (`?full=1`, una sola invocación por endpoint)
+
+| Tabla | Filas | **Huérfanas borradas** |
+|---|---|---|
+| `gold_attribution_source` | 12.507 | **673** |
+| `gold_attribution_channel` | 12.189 | **27** (26 TeVe Compras · 1 Arredo) |
+
+**700 filas fantasma salieron de producción.** Eran revenue que ya no existía y que el panel venía
+sumando desde que se prendió `PIXEL_USE_GOLD`.
+
+### Convergencia verificada
+
+La segunda pasada de `?full=1` da **0 huérfanas en las dos tablas**, y el incremental (lo que corre
+el cron cada 30 min) también. O sea que la limpieza es de una sola vez: de acá en más el cron
+mantiene las tablas correctas solo.
+
+### Consecuencia visible
+
+**Los totales de atribución del panel bajaron** para las tres orgs con datos. No es una regresión:
+es la plata que sobraba. Si alguien lo reporta como bug, es esto.
