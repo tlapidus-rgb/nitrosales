@@ -7,8 +7,18 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 en curso — **6 de 34 cerradas + E-07 a medias (R-C05 y R-C06 sumadas el 2026-09-06)**, todo **verificado en un deployment real** (§ 13) · branch `fix/expansion-gate-e0`, sin mergear
-> **Línea base de validación (2026-09-05):** `tsc` exit 0 · `vitest` exit 0, **446 pasan** · `next build` exit 0
+> **Estado global:** 🟨 FASE E0 casi cerrada — **7 de 31 tareas hechas** (E-01…E-06 y E-08) **+ E-07
+> a medias**, todo verificado en un deployment real (§ 13).
+>
+> **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
+> mergea nada a `main` hasta terminarlo, probarlo y revisarlo completo.** Se acabaron las branches
+> sueltas: `feat/backfill-alta-controlada` ya se consolidó acá y cualquier tarea nueva sale de esta
+> branch y vuelve a esta branch. Única excepción ya ejecutada: **R-C25**, que se mergeó a `main` el
+> 2026-09-06 con autorización explícita porque producción estaba mostrando revenue inflado.
+>
+> **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
+> E-31). Era un error del texto, no trabajo faltante.
+> **Línea base de validación (2026-09-06, branch consolidada):** `tsc` exit 0 · `vitest` exit 0, **564 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -253,7 +263,25 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   pasa de ser una filtración menor a ser una brecha reportable.
 
 ### E-08 · Convertir el backfill de alta en un evento controlado
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Esfuerzo:** 4-6 h
+- **Estado:** ✅ **hecho (2026-09-06)** — commits `6e502614` y `0389d7fb`, consolidados en esta
+  branch. Runbook operativo en `docs/E-08-BACKFILL-ADMISION.md`.
+- **Lo que se encontró de más:** además de la falta de límites, **el claim del job no era atómico**.
+  `pickNextJob()` (SELECT) y `markJobRunning()` (UPDATE) eran dos queries; entre una y otra otra
+  invocación salía con el **mismo job** y el chunk se procesaba dos veces en paralelo. El "lock" por
+  frescura de `lastChunkAt` no servía para un job en `QUEUED` — todavía no tenía ninguno. Y hay dos
+  disparadores que pueden coincidir en el mismo segundo: el cron de cada minuto y el trigger de
+  `approve-backfill`. Reproducido contra Postgres antes de arreglarlo.
+- **Lo hecho:** claim atómico (`UPDATE … FOR UPDATE SKIP LOCKED`) + control de admisión en
+  `src/lib/backfill/admision.ts`: ventana horaria (`BACKFILL_VENTANA`, opt-in), tope de
+  concurrencia (`BACKFILL_MAX_CONCURRENTES`, default **1**) y freno por latencia
+  (`BACKFILL_LATENCIA_MAX_MS`, default **2000**), re-evaluado entre chunks.
+- **⚠️ ACCIÓN PENDIENTE DE TOMY/AXEL:** para que la ventana de madrugada tenga efecto hay que
+  poner `BACKFILL_VENTANA=1-7` en Vercel. Sin esa variable el backfill corre a cualquier hora
+  (los otros dos frenos sí están activos solos).
+- **Lo que NO cubre:** el bootstrap de MercadoLibre lo dispara `approve-backfill` en paralelo y no
+  pasa por el control de admisión; la cola sigue FIFO global (eso es E-10); y no hay alerta si un
+  backfill queda frenado horas.
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Esfuerzo:** 4-6 h
 - **Archivos:** `src/lib/backfill/job-manager.ts:71-84` (cola FIFO **global**, sin noción de org) ·
   `admin/onboardings/[id]/approve-backfill/route.ts:181-188` (disparo inmediato al aprobar) ·
   `vercel.json:120-123` (`backfill-runner` corre **cada minuto** con `maxDuration=300`)
@@ -561,6 +589,23 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-06] 🔀 Todo el plan pasa a UNA sola branch
+- **Decisión de Axel:** "quiero que todo el plan esté en una branch antes de mergear a prod, así lo
+  tenemos 100% probado y revisado antes de mandarlo". Todavía falta para los clientes nuevos, así que
+  no hay apuro por mergear.
+- **Qué se consolidó en `fix/expansion-gate-e0`:**
+    · `origin/main` (que ya trae R-C25, lo único del plan que está en producción);
+    · `feat/backfill-alta-controlada` (E-08, commits `6e502614` y `0389d7fb`).
+- **Único conflicto:** `backfill-runner/route.ts`, donde las dos ramas habían agregado imports en el
+  mismo lugar (`selfFetchBaseUrl` de un lado, el módulo de admisión del otro). Se quedaron los dos.
+- **Validación de la branch consolidada:** `tsc` 0 · `vitest` **564 passed**, 7 skipped ·
+  `next build` 0.
+- **Consecuencia práctica:** ninguna de las protecciones del plan está viva en producción todavía.
+  Si entra un cliente nuevo antes de mergear, entra contra el código de hoy. Eso es aceptado a
+  propósito: se prioriza revisar el conjunto por encima de shipear de a pedazos.
+- **Regla operativa de acá en adelante:** toda tarea nueva sale de esta branch y vuelve a esta
+  branch. Nada de branches sueltas por tarea.
 
 ### [2026-09-05] E-07 (primera mitad) — puertas que se cierran solo con código
 - **Estado final:** 🟡 parcial — la mitad de código está hecha; **la rotación de secretos sigue
