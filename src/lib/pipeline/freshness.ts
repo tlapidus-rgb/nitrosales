@@ -190,30 +190,64 @@ export function orgsRealmenteAtrasadas(
   maxHours: number,
   /** org → última marca de la fuente. `null` = no hay fuente, o no se pudo leer. */
   fuentePorOrg: ReadonlyMap<string, Date> | null,
-): { atrasadas: Array<{ org: string; hours: number }>; sinNovedad: number } {
+): {
+  atrasadas: Array<{ org: string; hours: number }>;
+  sinNovedad: number;
+  /**
+   * El atraso de la organización PEOR **entre las que tienen algo que
+   * refrescar**. `null` si ninguna lo tiene.
+   *
+   * ⚠️ ESTE NÚMERO NO ES COSMÉTICO. `maybeSelfHealRollups` en `warm-cache` lo
+   * usa para decidir si dispara una corrida extra de `refresh-pixel-rollups`
+   * (umbral 2.5 h, cooldown 4 min), y esa corrida es un escaneo HLL de ~190 s
+   * sobre una tabla de 43 GB. Si acá saliera el máximo sobre TODAS las orgs,
+   * un solo cliente dormido —cuya marca puede ser de hace meses— dejaría ese
+   * escaneo disparándose cada cuatro minutos, para siempre, desalojando de la
+   * RAM de Neon justo las páginas que el dashboard necesita. El síntoma sería
+   * "la app está lenta", no "hay una alerta".
+   */
+  peorConTrabajo: number | null;
+} {
   const viejas = filas.filter((f) => f.hours > maxHours);
+  const peor = (xs: ReadonlyArray<{ hours: number }>) =>
+    xs.length > 0 ? Math.max(...xs.map((x) => x.hours)) : null;
+
   if (!fuentePorOrg) {
-    return { atrasadas: viejas.map((f) => ({ org: f.org, hours: f.hours })), sinNovedad: 0 };
+    // Sin saber nada de las fuentes, toda la tabla cuenta como trabajo
+    // pendiente: ante la duda esto hace ruido, nunca silencio.
+    const todas = filas.map((f) => ({ org: f.org, hours: f.hours }));
+    return {
+      atrasadas: viejas.map((f) => ({ org: f.org, hours: f.hours })),
+      sinNovedad: 0,
+      peorConTrabajo: peor(todas),
+    };
   }
 
   const atrasadas: Array<{ org: string; hours: number }> = [];
   let sinNovedad = 0;
-  for (const f of viejas) {
+  // Las que todavía no pasaron el umbral pero sí tienen datos nuevos pendientes:
+  // no son alerta, pero son trabajo real y cuentan para el self-heal.
+  const conTrabajo: Array<{ hours: number }> = [];
+
+  const tieneNovedad = (f: FilaDeOrg): boolean => {
     const fuente = fuentePorOrg.get(f.org);
     // La fuente no tiene NADA de esta org: no hay nada que refrescar. Pasa con
     // un cliente recién dado de alta cuyo backfill todavía no trajo órdenes.
-    if (!fuente) {
-      sinNovedad++;
-      continue;
-    }
+    if (!fuente) return false;
     // La fuente tampoco se movió desde el último refresco: al día.
-    if (f.last && fuente <= f.last) {
-      sinNovedad++;
+    if (f.last && fuente <= f.last) return false;
+    return true;
+  };
+
+  for (const f of filas) {
+    if (!tieneNovedad(f)) {
+      if (f.hours > maxHours) sinNovedad++;
       continue;
     }
-    atrasadas.push({ org: f.org, hours: f.hours });
+    conTrabajo.push({ hours: f.hours });
+    if (f.hours > maxHours) atrasadas.push({ org: f.org, hours: f.hours });
   }
-  return { atrasadas, sinNovedad };
+  return { atrasadas, sinNovedad, peorConTrabajo: peor(conTrabajo) };
 }
 
 /**
@@ -345,7 +379,7 @@ export async function checkPipelineFreshness(
         // Una organización vieja NO está atrasada si su fuente tampoco se
         // movió: un cliente sin ventas hace cuatro días no tiene nada que
         // refrescar. Ver `fuente` en `FreshnessTarget`.
-        const { atrasadas, sinNovedad } = orgsRealmenteAtrasadas(
+        const { atrasadas, sinNovedad, peorConTrabajo } = orgsRealmenteAtrasadas(
           conHoras,
           t.maxHours,
           fuentePorOrg,
@@ -353,12 +387,11 @@ export async function checkPipelineFreshness(
         // El "atraso de la tabla" pasa a ser el de la organización PEOR, no el
         // de la mejor. Con el MAX global era literalmente al revés.
         //
-        // Y si hay atrasos reales, el número sale de ESAS y no de las quietas:
-        // un cliente que dejó de vender hace seis meses tiene la marca más
-        // vieja de todas, y decir "sin refrescar hace 4.300h" cuando el atraso
-        // real es de siete manda a buscar el problema al lugar equivocado.
-        const deDonde = atrasadas.length > 0 ? atrasadas : conHoras;
-        const peor = deDonde.length > 0 ? Math.max(...deDonde.map((f) => f.hours)) : null;
+        // Y sale de las que TIENEN algo que refrescar: un cliente que dejó de
+        // vender hace seis meses tiene la marca más vieja de todas, y decir
+        // "sin refrescar hace 4.300h" manda a buscar el problema al lugar
+        // equivocado — además de disparar el self-heal de warm-cache en loop.
+        const peor = peorConTrabajo;
         const masReciente = conHoras.reduce<Date | null>(
           (acc, f) => (f.last && (!acc || f.last > acc) ? f.last : acc),
           null,

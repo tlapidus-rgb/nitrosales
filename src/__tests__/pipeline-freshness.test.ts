@@ -238,7 +238,69 @@ describe("orgsRealmenteAtrasadas", () => {
   });
 
   it("sin filas no explota", () => {
-    expect(orgsRealmenteAtrasadas([], 3, new Map())).toEqual({ atrasadas: [], sinNovedad: 0 });
+    expect(orgsRealmenteAtrasadas([], 3, new Map())).toEqual({
+      atrasadas: [],
+      sinNovedad: 0,
+      peorConTrabajo: null,
+    });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// El self-heal no puede quedarse encendido por un cliente dormido
+// ══════════════════════════════════════════════════════════════════════════
+// `hoursStale` no es un número decorativo: `maybeSelfHealRollups` en warm-cache
+// lo compara contra 2.5 h para disparar una corrida extra de
+// `refresh-pixel-rollups`, y esa corrida es un escaneo HLL de ~190 s sobre una
+// tabla de 43 GB. Si el número saliera del máximo sobre TODAS las orgs, un
+// cliente dormido —marca de hace meses— dejaría ese escaneo disparándose cada
+// cuatro minutos para siempre, desalojando de la RAM de Neon justo las páginas
+// que el dashboard necesita. El síntoma sería "la app está lenta", no "hay una
+// alerta", que es la peor forma de descubrirlo.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("peorConTrabajo — el número que dispara el self-heal", () => {
+  const VIEJO = new Date("2026-03-01T00:00:00Z");
+  const MEDIO = new Date("2026-09-05T00:00:00Z");
+  const NUEVO = new Date("2026-09-07T12:00:00Z");
+
+  it("un cliente dormido no infla el número", () => {
+    const r = orgsRealmenteAtrasadas(
+      [
+        { org: "dormido", hours: 4300, last: VIEJO }, // fuente igual de vieja
+        { org: "activo", hours: 1, last: MEDIO },
+      ],
+      8,
+      new Map([
+        ["dormido", VIEJO],
+        ["activo", NUEVO],
+      ]),
+    );
+    expect(r.atrasadas).toEqual([]); // ninguno pasó el umbral con trabajo real
+    expect(r.peorConTrabajo).toBe(1); // …y el número es el del activo
+  });
+
+  it("cuenta el trabajo pendiente aunque todavía no sea alerta", () => {
+    // 3h no llega al umbral de 8, pero hay datos nuevos sin procesar: el
+    // self-heal tiene que poder verlo ANTES de que se vuelva una alerta. Para
+    // eso existe (2.5h < 8h).
+    const r = orgsRealmenteAtrasadas([{ org: "a", hours: 3, last: MEDIO }], 8, new Map([["a", NUEVO]]));
+    expect(r.atrasadas).toEqual([]);
+    expect(r.peorConTrabajo).toBe(3);
+  });
+
+  it("sin ninguna org con trabajo, es null: no hay nada que sanar", () => {
+    const r = orgsRealmenteAtrasadas(
+      [{ org: "dormido", hours: 4300, last: VIEJO }],
+      8,
+      new Map([["dormido", VIEJO]]),
+    );
+    expect(r.peorConTrabajo).toBeNull();
+  });
+
+  it("sin fuente conocida cuenta todo: ante la duda, sanar de más", () => {
+    const r = orgsRealmenteAtrasadas([{ org: "a", hours: 9, last: VIEJO }], 8, null);
+    expect(r.peorConTrabajo).toBe(9);
   });
 });
 
