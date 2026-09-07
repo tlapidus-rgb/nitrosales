@@ -41,9 +41,9 @@ import { isInternalUser } from "@/lib/feature-flags";
 import {
   reclamarProximoJob,
   contarJobsActivos,
+  matarJobsSinProgreso,
   updateJobProgress,
   completeJob,
-  failJob,
   areAllJobsComplete,
   getJob,
 } from "@/lib/backfill/job-manager";
@@ -73,6 +73,13 @@ const LOOP_BUDGET_MS = 240_000;
 // Con 2000 ordenes/iter y 50 iter = 100k ordenes max por invocacion,
 // que es mas de lo que cualquier cliente razonable tiene en 3 anios.
 const MAX_ITERATIONS = 50;
+
+// Un job RUNNING que no completa un solo chunk en este tiempo se da por muerto.
+// Es "sin PROGRESO", no "sin intentos": lastChunkAt solo se mueve cuando un
+// chunk sale bien, asi que un backfill largo pero sano nunca lo alcanza.
+// 30 min es holgado: el chunk mas pesado del repo (500 ordenes de VTEX con
+// enrichment) ronda los 30 SEGUNDOS.
+const SIN_PROGRESO_MS = 30 * 60 * 1000;
 
 /**
  * Mide cuánto tarda la base en contestar lo más barato que existe. Es el
@@ -114,6 +121,17 @@ export async function GET(req: NextRequest) {
     // cuando entra uno nuevo. Antes de tocar un solo chunk: ¿estamos en la
     // ventana horaria?, ¿hay otro backfill corriendo?, ¿la base está bien?
     const ignorarVentana = url.searchParams.get("ignorarVentana") === "1";
+
+    // Sacar de la cola los jobs zombie ANTES de contar los activos. Si no, un
+    // job roto se cuenta como "corriendo" y el limite de concurrencia deja
+    // afuera al alta de todos los demas clientes. Ver matarJobsSinProgreso.
+    const abandonados = await matarJobsSinProgreso(SIN_PROGRESO_MS);
+    if (abandonados.length > 0) {
+      console.error(
+        `[backfill-runner] ${abandonados.length} job(s) marcados FAILED por falta de progreso: ${abandonados.join(", ")}`
+      );
+    }
+
     const latenciaInicial = await latenciaDeLaBase();
     const admision = decidirAdmision({
       now: new Date(),
@@ -131,6 +149,7 @@ export async function GET(req: NextRequest) {
         ok: true,
         admitido: false,
         motivo: admision.motivo,
+        abandonados,
         ...admision.detalle,
         latenciaMs: latenciaInicial,
         elapsedMs: Date.now() - startTime,
@@ -181,12 +200,18 @@ export async function GET(req: NextRequest) {
       const total = result.totalEstimate || currentJob.totalEstimate || 0;
       const pct = total > 0 ? Math.round((newProcessed / total) * 100) : (result.isComplete ? 100 : 0);
 
-      await updateJobProgress(currentJob.id, {
-        cursor: result.newCursor,
-        processedCount: newProcessed,
-        totalEstimate: result.totalEstimate || Number(currentJob.totalEstimate) || undefined,
-        progressPct: pct,
-      });
+      await updateJobProgress(
+        currentJob.id,
+        {
+          cursor: result.newCursor,
+          processedCount: newProcessed,
+          totalEstimate: result.totalEstimate || Number(currentJob.totalEstimate) || undefined,
+          progressPct: pct,
+        },
+        // Si el chunk fallo NO se toca el latido: un job roto tiene que dejar de
+        // parecer vivo, si no bloquea el limite de concurrencia para todos.
+        { tocarLatido: !result.error }
+      );
 
       if (result.error) {
         // Error en chunk: marcar lastError pero no failimos inmediatamente.
@@ -244,6 +269,10 @@ export async function GET(req: NextRequest) {
       ok: true,
       admitido: true,
       frenado,
+      // Jobs que se dieron por muertos en esta corrida. Si esto viene con algo
+      // seguido, hay un cliente cuyo backfill no avanza y alguien tiene que
+      // mirarlo.
+      abandonados,
       iterations: iterations.length,
       totalProcessed,
       elapsedMs: Date.now() - startTime,

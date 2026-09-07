@@ -101,9 +101,19 @@ export async function updateJobProgress(
     processedCount?: number;
     totalEstimate?: number;
     progressPct?: number;
-  }
+  },
+  // `lastChunkAt` es el LATIDO del job: dice "esto todavia esta avanzando".
+  // Lo usan dos cosas: `contarJobsActivos` (para el limite de concurrencia) y
+  // `reclamarProximoJob` (para saber si un job quedo abandonado).
+  //
+  // Por eso un chunk que FALLA no tiene que tocarlo: si lo tocara, un job roto
+  // seguiria pareciendo vivo para siempre. Ver el reaper de abajo.
+  opts: { tocarLatido?: boolean } = {}
 ): Promise<void> {
-  const sets: string[] = [`"lastChunkAt" = NOW()`, `"updatedAt" = NOW()`];
+  const tocarLatido = opts.tocarLatido !== false;
+  const sets: string[] = tocarLatido
+    ? [`"lastChunkAt" = NOW()`, `"updatedAt" = NOW()`]
+    : [`"updatedAt" = NOW()`];
   const values: any[] = [id];
   let idx = 2;
 
@@ -187,6 +197,47 @@ export async function contarJobsActivos(cooldownMs: number): Promise<number> {
     corte
   );
   return Number(rows[0]?.n || 0);
+}
+
+/**
+ * Marca FAILED los jobs que quedaron RUNNING sin avanzar un solo chunk en
+ * `sinProgresoMs`. Devuelve los que mató.
+ *
+ * ⚠️ POR QUE ESTO ES NECESARIO Y NO UN LUJO (encontrado en revision, 2026-09-07):
+ * `failJob` estaba importado en el runner y NO SE LLAMABA DESDE NINGUN LADO. Un
+ * job cuyo chunk falla siempre —credenciales de VTEX vencidas, una plataforma no
+ * soportada— se quedaba RUNNING para siempre. Y como el limite de concurrencia
+ * es 1 por default, ese job zombie bloqueaba EL ALTA DE TODOS LOS DEMAS
+ * CLIENTES: cada tick del cron devolvia `admitido:false, otro-backfill-corriendo`,
+ * con HTTP 200, sin error, sin mail, sin nada que nadie mire.
+ *
+ * O sea que el freno de concurrencia que se agrego para proteger la base
+ * convertia un job roto en una caida total del onboarding. Esto lo cierra.
+ *
+ * El criterio es "sin PROGRESO", no "sin intentos": `lastChunkAt` solo se
+ * actualiza cuando un chunk sale bien (ver `updateJobProgress`), asi que un job
+ * que reintenta y falla no lo mueve. Un backfill largo pero sano lo refresca en
+ * cada chunk y nunca lo alcanza este corte.
+ */
+export const MATAR_JOBS_SIN_PROGRESO_SQL = `UPDATE "backfill_jobs"
+        SET "status" = 'FAILED',
+            "lastError" = COALESCE("lastError", '') ||
+              ' [abandonado: sin progreso por mas de ' || $2 || ' minutos]',
+            "updatedAt" = NOW()
+      WHERE "status" = 'RUNNING'
+        AND "startedAt" IS NOT NULL
+        AND ("lastChunkAt" IS NULL OR "lastChunkAt" < $1)
+        AND "startedAt" < $1
+      RETURNING "id"`;
+
+export async function matarJobsSinProgreso(sinProgresoMs: number): Promise<string[]> {
+  const corte = new Date(Date.now() - sinProgresoMs);
+  const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    MATAR_JOBS_SIN_PROGRESO_SQL,
+    corte,
+    Math.round(sinProgresoMs / 60000)
+  );
+  return rows.map((r) => r.id);
 }
 
 /**
