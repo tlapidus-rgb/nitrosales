@@ -1,0 +1,177 @@
+# Runbook — Alta de un cliente, de punta a punta
+
+> Creado el 2026-09-07 (E-18). Los seis runbooks que existían son recetas de SQL para construir la
+> capa Medallion; **no había ninguno operativo**. Este es el primero.
+>
+> Todo lo que está acá se verificó contra el código, no contra la memoria de nadie.
+
+---
+
+## 0. Lo que más se olvida, primero
+
+**Registrar el Orders Broadcaster de VTEX es el paso que rompe todo si falta, y no hay UI para
+hacerlo.** Ya pasó: TeVe Compras entró con **0 de 8 órdenes atribuidas** porque nadie lo registró.
+
+VTEX tiene **dos** mecanismos de webhook y hay que configurar los dos, cada uno con `?org=<orgId>`
+en la URL:
+
+| Mecanismo | Dónde | Qué manda |
+|---|---|---|
+| **Afiliados** | VTEX Admin → Config tienda → Pedidos → Config → tab "Afiliados" | Cambios de SKU e inventario |
+| **Orders Broadcaster** | `POST /api/orders/hook/config` — **API-only, NO hay UI** | Estados de orden: creada, pagada, facturada, cancelada |
+
+Ver qué hay configurado hoy:
+
+```bash
+curl -H "X-VTEX-API-AppKey: $KEY" -H "X-VTEX-API-AppToken: $TOKEN" \
+  "https://{account}.vtexcommercestable.com.br/api/orders/hook/config"
+```
+
+**Si la URL registrada no termina en `?org=<orgId>`, las órdenes llegan y no se sabe de quién son.**
+
+Síntoma de que falta: el cliente ve las órdenes históricas del backfill y **ninguna nueva**. No hay
+error, no hay alerta. `vtex-sync-recent` (cada 30 min) tapa parte del agujero, pero no la atribución.
+
+---
+
+## 1. El flujo completo
+
+```
+wizard público                  → onboarding_requests = PENDING
+admin "Activar"                 → crea org + usuario, manda credenciales → NEEDS_INFO
+admin "Aprobar backfill"        → crea backfill_jobs (QUEUED)            → BACKFILLING
+cron backfill-runner (1×/min)   → procesa chunks
+todos los jobs completos        → post-backfill-finalize + READY_FOR_REVIEW
+admin "Habilitar"               → configura el Orders Broadcaster, manda mail → ACTIVE
+```
+
+**Dos puntos donde el flujo espera a un humano** y el cliente no ve nada moverse:
+`BACKFILLING` (espera al cron) y `READY_FOR_REVIEW` (espera un click).
+Desde 2026-09-07 los dos están vigilados por `control-alerts` (cada 6 h), con umbrales de 12 h y 6 h.
+
+### Antes de aprobar el backfill
+
+```
+GET /api/admin/onboardings/<id>/readiness
+```
+
+Es el semáforo (E-15). Contesta las cinco cosas que antes había que chequear en cinco pantallas:
+credenciales, pixel, webhook de VTEX, backfill y órdenes. Cada item que no está en verde dice
+**qué hacer**.
+
+`listo: false` con `bloqueantes > 0` significa que hay algo que arreglar antes de habilitar.
+
+---
+
+## 2. "El cliente dice que ve todo en cero"
+
+En orden, del más común al menos:
+
+### a) ¿Tiene órdenes?
+
+```
+GET /api/admin/onboardings/<id>/readiness
+```
+
+Si `órdenes: 0` con el backfill en `COMPLETED`, el backfill corrió y no trajo nada: revisar
+credenciales, el rango de fechas pedido, y que la cuenta tenga ventas en ese período.
+
+### b) ¿El backfill quedó trabado?
+
+```
+GET /api/cron/backfill-runner?key=<ADMIN_API_KEY>
+```
+
+Si devuelve `admitido: false`, **el freno funcionó y nadie se enteró**. Los motivos posibles:
+
+| `motivo` | Qué pasó | Qué hacer |
+|---|---|---|
+| `fuera-de-ventana` | `BACKFILL_VENTANA` está seteada y estamos fuera | Esperar, o `&ignorarVentana=1` |
+| `otro-backfill-corriendo` | Hay otro job activo (el default es 1 a la vez) | Esperar; si lleva horas, ver abajo |
+| `base-lenta` | La latencia de Neon pasó el umbral | Mirar la carga de la base |
+
+Si un job quedó zombie, el runner lo mata solo a los 30 min sin progreso y lo reporta en
+`abandonados`. `control-alerts` avisa a las 3 h de un job en `QUEUED`.
+
+### c) ¿El P&L está en cero pero las órdenes están?
+
+Falta `Product.costPrice`. Lo puebla `post-backfill-finalize`, que se dispara solo al completar el
+último job:
+
+```
+GET /api/cron/post-backfill-finalize?orgId=<orgId>&key=<ADMIN_API_KEY>
+```
+
+Es idempotente: correrlo de más no rompe nada.
+
+### d) ¿El panel de NitroPixel muestra ceros?
+
+`/api/metrics/pixel` devuelve **HTTP 200 con ceros** en tres casos: timeout global, cache miss con
+el lock tomado por otro request, y excepción del handler. **Ninguna de las tres pantallas distingue
+eso de "no hubo ventas"** — es un agujero conocido, todavía abierto.
+
+Para descartarlo, mirar el JSON crudo: si trae `_timeoutMs`, `_error` o `_degraded`, los ceros son
+falsos.
+
+---
+
+## 3. Verificar que el pixel está sano
+
+```
+GET /api/nitropixel/install-status
+```
+
+O directo:
+
+```sql
+SELECT COUNT(*) FROM pixel_events
+ WHERE "organizationId" = '<orgId>' AND timestamp >= NOW() - INTERVAL '48 hours';
+```
+
+**El checkbox "ya pegué el snippet" del wizard no verifica nada** — el backend lo descarta. La única
+verificación real es que hayan llegado eventos.
+
+Si hay eventos pero el panel muestra poco, el problema suele ser la atribución, no la ingesta:
+mirar `pixel_attributions` para esas órdenes y correr `attribution-reconcile`.
+
+---
+
+## 4. Pedido de borrado de datos
+
+**No hay un endpoint que lo haga completo.** Lo que existe:
+
+- `/api/admin/orgs/<orgId>/wipe-account` — borra los datos de la organización.
+- La retención de `pixel_events` **no existe todavía** (es E-09): hay eventos desde 2024 en la tabla
+  caliente.
+
+Al recibir un pedido, verificar a mano que no queden filas en: `orders`, `order_items`, `customers`,
+`pixel_events`, `pixel_visitors`, `pixel_attributions`, `silver_orders` y las tablas `gold_*`.
+
+**Esto es deuda conocida** — E-28 lo cubre y todavía no se hizo.
+
+---
+
+## 5. Después de mergear la branch del plan
+
+Hay tres acciones manuales que, si no se hacen, dejan cosas apagadas **en silencio**:
+
+| Acción | Si no se hace |
+|---|---|
+| `POST /api/admin/migrate-cron-cursors` | Los cursores de los crons no guardan nada: a algunos clientes no les corre nunca |
+| `BACKFILL_VENTANA=1-7` en Vercel *(opcional)* | El backfill corre a cualquier hora. Los otros dos frenos sí están activos solos |
+| `?full=1` en los dos crons de atribución Gold | Quedan las huérfanas históricas acumuladas |
+
+---
+
+## 6. Lo que este runbook no cubre, y hay que saber
+
+- **`NEXTAUTH_SECRET` es el mismo literal que está en `vercel.json`**, verificado contra producción.
+  Con ese valor se puede forjar una sesión de staff. La rotación está pendiente y tiene un orden
+  estricto: rotarlo antes de que el webhook de VTEX tenga su propio secreto **corta la ingesta de
+  órdenes de los cuatro clientes, en silencio**. Ver R-C07/08/09.
+- **El wizard no valida credenciales.** El endpoint existe (`/api/onboarding/test-credentials`) y
+  está desconectado del UI **por una decisión de UX documentada**: "el cliente no debe ver fallas,
+  las valida el admin". Mientras siga así, cada cliente cuesta una ida y vuelta.
+- **Un `.sql` de backfill por cliente** vive en el disco de Axel y no está versionado
+  (`backfill-1-cmod6ns.local.sql` y compañía). Es el mismo SQL con el `organizationId` cambiado.
+  Es E-17 y sigue pendiente: **es lo que hace que el bus factor sea 1.**

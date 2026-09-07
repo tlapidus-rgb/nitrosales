@@ -7,9 +7,9 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos · FASE E1 arrancada —
-> **10 de 31 tareas hechas** (E-01…E-06, E-08, E-11, E-12) **+ E-07 a medias** (sólo le falta la
-> rotación de secretos, congelada por decisión de Axel).
+> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos · E1 arrancada · **E2 a más
+> de la mitad** — **13 de 31 tareas hechas** (E-01…E-06, E-08, E-11, E-12, E-15, E-16, E-18)
+> **+ E-07 y E-14 a medias** · **E-13 esperando una decisión de producto**.
 >
 > **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
 > mergea nada a `main` hasta terminarlo, probarlo y revisarlo completo.** Se acabaron las branches
@@ -19,7 +19,7 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **706 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **729 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -400,14 +400,27 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 > De 12 horas a 3-4 por alta. Estimado: 2-3 semanas. Es lo que sube el techo de 2-3 clientes por mes.
 
 ### E-13 · Exponer el test de credenciales en el wizard
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-5 h
+- **Estado:** 🔒 **ESPERA DECISIÓN DE PRODUCTO (2026-09-07).** La ficha lo describe como "la pieza
+  más cara del self-serve ya está escrita y apagada", pero el endpoint
+  (`/api/onboarding/test-credentials`) **no está apagado por olvido**: su propio comentario dice que
+  se sacó del wizard *"por decisión de UX — el cliente no debe ver fallas, las valida el admin antes
+  de aprobar el backfill"*. Encenderlo es **revertir una decisión de producto documentada**, no
+  destapar un descuido.
+- **La pregunta para Tomy:** ¿preferimos que el cliente vea "estas credenciales no andan" y lo
+  resuelva solo (ahorra una ida y vuelta por alta), o que no vea fallas nunca y lo valide el admin
+  (cuesta esa ida y vuelta)? Hay un punto medio: validar al enviar y bloquear el submit con un
+  mensaje accionable, sin botón de "probar" ni errores crudos.
+- **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-5 h · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-5 h
 - **Qué:** `credential-tests.ts` son **1.054 líneas que ya cubren 6 plataformas** y hoy están
   disponibles solo para el admin, por decisión explícita. Exponerlo en el wizard y **bloquear el
   submit hasta que las credenciales pasen** elimina una ida y vuelta completa por cliente.
 - **La pieza más cara del self-serve ya está escrita y apagada.**
 
 ### E-14 · Verificación real del pixel, no un checkbox
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-6 h
+- **Estado:** 🟡 **PARCIAL (2026-09-07)** — `deca13a2`. Lo que el backend no reconoce ya no se
+  descarta en silencio (vuelve en `platformsIgnoradas`), y la verificación real —que hayan llegado
+  eventos— la hace el semáforo de E-15 consultando `pixel_events`, en vez del checkbox.
+  **Falta la mitad de UI:** el wizard sigue mostrando un checkbox que no verifica nada. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-6 h
 - **Qué está mal:** el wizard tiene un checkbox "ya pegué el snippet" **que el backend descarta**
   (`NITROPIXEL` no está en `VALID_PLATFORMS`). Lo mismo con la propertyUrl de GSC.
 - **Qué hacer:** verificar de verdad — que hayan llegado eventos de esa organización en los últimos
@@ -415,7 +428,15 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 - **Sin esto, un cliente puede completar el alta entero sin haber instalado el pixel.**
 
 ### E-15 · `checkOnboardingReadiness()` — el semáforo que falta
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 6-10 h
+- **Estado:** ✅ **HECHO (2026-09-07)** — `deca13a2`. Criterio puro en
+  `src/lib/onboarding/readiness.ts` (16 tests), recolección en
+  `GET /api/admin/onboardings/[id]/readiness`. Bloquean: credenciales que fallan, ningún job, un
+  job fallado y **cero órdenes** (el que separa un backfill exitoso de uno que "completó" sin traer
+  nada). No bloquean pero se ven: pixel sin eventos, conexiones sin probar, backfill en curso. El
+  webhook de VTEX sale siempre con la instrucción exacta al lado. "No se pudo consultar" nunca se
+  traduce a verde.
+- **Lo de R-C15 ya está**: `BACKFILLING` y `READY_FOR_REVIEW` entraron al check de trabados en
+  `08c4696a`. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 6-10 h
 - **Qué:** no existe ningún objeto que diga "este cliente está listo". Los insumos sí existen
   (install-status, data-quality-score, conteo de órdenes, conexiones); falta el que los junta.
 - **El NitroScore no sirve como semáforo** aunque sea tentador: mide calidad del pixel, no
@@ -424,7 +445,10 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
   trabados. El estudio encontró que **también falta `READY_FOR_REVIEW`**.
 
 ### E-16 · Arreglar la cadena de finalización del backfill
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-3 h
+- **Estado:** ✅ **HECHO (2026-09-07)** — `abfe65ea`. Era exactamente lo que decía la ficha: un
+  olvido de `waitUntil`, no una decisión. Con él se perdían `catalog-refresh`,
+  `recompute-customer-aggregates` y `backfill-orderitem-costs`, así que el cliente entraba con
+  `costPrice` en null y el P&L en cero. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-3 h
 - **Qué está mal:** el disparo de `post-backfill-finalize` es un `fetch` fire-and-forget **sin
   `waitUntil`**; en Vercel la función se congela al responder y ese fetch puede no salir nunca.
   Si se pierde, **nunca corren el catalog-refresh, el recompute de agregados ni el backfill de
@@ -444,7 +468,10 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
   sino porque la que importa no está versionada y describe procedimientos manuales.
 
 ### E-18 · Runbook operativo de alta de cliente
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-4 h
+- **Estado:** ✅ **HECHO (2026-09-07)** — `docs/RUNBOOK-ALTA-DE-CLIENTE.md`. Arranca con el paso
+  que más se olvida (el Orders Broadcaster de VTEX, API-only, que ya rompió a TeVe Compras), el
+  flujo completo, qué hacer cuando el cliente dice que ve todo en cero, cómo verificar el pixel, el
+  pedido de borrado, y las tres acciones manuales del merge. Todo verificado contra el código. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-4 h
 - **Qué:** los 6 runbooks que existen son excelentes y son todos del mismo tipo: recetas de SQL para
   construir la capa Medallion. **No hay un solo runbook operativo.** Falta: cómo onboardear de punta
   a punta, qué hacer cuando un cliente dice que ve todo en cero, cómo verificar que su pixel está
