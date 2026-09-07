@@ -7,8 +7,9 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos — **8 de 31 tareas hechas**
-> (E-01…E-06, E-08, E-12) **+ E-07 y E-11 a medias**.
+> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos · FASE E1 arrancada —
+> **10 de 31 tareas hechas** (E-01…E-06, E-08, E-11, E-12) **+ E-07 a medias** (sólo le falta la
+> rotación de secretos, congelada por decisión de Axel).
 >
 > **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
 > mergea nada a `main` hasta terminarlo, probarlo y revisarlo completo.** Se acabaron las branches
@@ -18,7 +19,7 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **622 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **639 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -339,9 +340,35 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   organizaciones refrescadas hace poco, así que arrancar de cero **ya es correcto y
   autocorrectivo**. Meterles un cursor de índice los **empeora**: puede saltear orgs que sí
   necesitan trabajo. Lo empecé a hacer y lo reverti al darme cuenta.
-- **Quedan:** `attribution-reconcile`, `alerts-scheduler`, `control-alerts`, `vtex-sync-recent`.
-  Los tres últimos además **no tienen presupuesto de tiempo**, así que antes del cursor les falta
-  el corte por reloj — es media tarea distinta. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
+- **Cerrada el 2026-09-07** (`9215476c`). Los cuatro que faltaban, y **cada uno necesitaba algo
+  distinto**:
+    · **`attribution-reconcile`** → cursor + `orderBy`. Gasta hasta 240s en UNA org con 250s de
+      presupuesto, o sea que atiende una por corrida; sin cursor las orgs 2..N no se reconciliaban
+      nunca.
+    · **`vtex-sync-recent`** → reloj + cursor. No tenía presupuesto: tandas de 5 en paralelo × 50s,
+      con 30 orgs son 300s justos, el `maxDuration`. El corte va **entre** tandas: una tanda en
+      vuelo no se puede cortar.
+    · **`alerts-scheduler`** → **sólo reloj, sin cursor**. La cola ya se ordena por
+      `nextFireAt ASC NULLS FIRST` y una regla que dispara sale de la lista: el orden ES el cursor.
+    · **`control-alerts`** → **ni cursor ni reloj: se hizo barato.** `checkInactiveClients` era un
+      N+1 (2 queries secuenciales por org, con `maxDuration = 60`), y a ~30 clientes moría en el
+      muro sin mandar el mail. Ahora son dos agregaciones con `GROUP BY`. Un cursor acá **sería un
+      error**: no es trabajo incremental, es un reporte que se manda por mail, y medio reporte diría
+      "todo bien" sobre clientes que ni miró.
+
+### ⚠️ Hallazgo abierto en `alerts-scheduler` — necesita decisión de producto
+
+`evaluateRule` hace `if (!result.triggered) return null` **antes** de actualizar `nextFireAt`
+(`src/lib/alerts/engine.ts:118` vs `:155`). O sea que **una regla de schedule que no dispara nunca
+avanza su próxima fecha**: queda `dueNow` para siempre, se re-evalúa en cada corrida (~5s cada una)
+y, por el `ORDER BY nextFireAt ASC`, se queda **permanentemente a la cabeza de la cola**.
+
+Con varios clientes, un puñado de reglas que nunca disparan alcanza para que las de atrás **no se
+evalúen nunca** — que es exactamente el modo de falla que E-11 ataca, por otro camino.
+
+**La decisión:** una regla diaria que no dispara a las 09:00, ¿se re-chequea a las 09:15 (lo que pasa
+hoy) o recién al día siguiente (lo que significa "schedule")? Arreglarlo baja el ruido y el costo,
+pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No se tocó.** · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
 - **Qué:** de los 14 crons que iteran todas las organizaciones, **8 no tienen forma de continuar
   donde quedaron** (o no tienen cursor, o lo calculan y nadie lo llama). El modo de falla al crecer
   no es "más lento": es **"a algunos clientes no les corre nunca"**, en silencio.
