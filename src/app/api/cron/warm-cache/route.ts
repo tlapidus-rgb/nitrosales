@@ -77,12 +77,26 @@ async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
   if (Date.now() - lastRollupAlertSent < ALERT_COOLDOWN_H * 3600_000) return; // cooldown
   lastRollupAlertSent = Date.now(); // marcar ANTES del await (evita doble envío en carrera)
   const lines = stale
-    .map(
-      (r) =>
-        `<li><code>${r.table}</code>: sin refrescar hace <b>${r.hoursStale}h</b> (último: ${
-          r.lastRefresh || "?"
-        }) — lo refresca <code>${r.refreshedBy}</code></li>`
-    )
+    .map((r) => {
+      // E-19: desde que el chequeo agrupa por organización, se puede decir QUÉ
+      // CLIENTE está congelado. Antes el mail decía "la tabla X está atrasada",
+      // que con un solo cliente roto entre veinte no alcanzaba para actuar: había
+      // que ir a buscar cuál a mano. Ahora los nombra, ordenados por atraso.
+      const orgs = r.orgsStale ?? [];
+      const detalleOrgs =
+        orgs.length > 0
+          ? `<br><span style="opacity:.75">Organizaciones: ${orgs
+              .slice()
+              .sort((a, b) => b.hours - a.hours)
+              .map((o) => `<code>${o.org}</code> (${o.hours}h)`)
+              .join(", ")}</span>`
+          : r.porOrg === false
+            ? `<br><span style="opacity:.6">(medida global: no se encontró la columna de organización)</span>`
+            : "";
+      return `<li><code>${r.table}</code>: la peor organización lleva <b>${r.hoursStale}h</b> sin refrescar (último: ${
+        r.lastRefresh || "?"
+      }) — lo refresca <code>${r.refreshedBy}</code>${detalleOrgs}</li>`;
+    })
     .join("");
   const crons = Array.from(new Set(stale.map((r) => r.refreshedBy)));
   try {

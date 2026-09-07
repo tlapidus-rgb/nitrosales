@@ -85,6 +85,48 @@ export interface FreshnessRow {
   stale: boolean;
   /** true = la tabla no existe (aún no se corrió su runbook). No es una alerta. */
   missing: boolean;
+  /**
+   * Las organizaciones atrasadas EN ESTA TABLA, con su atraso en horas.
+   *
+   * Vacío puede significar dos cosas distintas: que ninguna está atrasada, o
+   * que no se pudo agrupar por organización (ver `porOrg`).
+   */
+  orgsStale?: Array<{ org: string; hours: number }>;
+  /**
+   * `true` si el chequeo se hizo POR ORGANIZACIÓN. `false` = se cayó al modo
+   * global viejo porque no se encontró la columna de organización.
+   */
+  porOrg?: boolean;
+}
+
+/**
+ * Las tablas del pipeline usan DOS convenciones para la columna de
+ * organización: los rollups del pixel tienen `"organizationId"` (camelCase,
+ * creada por `setup-pixel-rollups`) y Silver/Gold tienen `organization_id`
+ * (snake, de los `.schema.sql`).
+ *
+ * Se DETECTA en vez de hardcodear: una lista escrita a mano se desincroniza en
+ * silencio cuando se agrega una tabla, y el modo de falla sería que el chequeo
+ * vuelva a ser global sin que nadie lo note — o sea el bug que esto arregla,
+ * de vuelta.
+ */
+async function columnasDeOrg(tablas: readonly string[]): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  if (tablas.length === 0) return mapa;
+  try {
+    const filas = await prisma.$queryRawUnsafe<Array<{ table_name: string; column_name: string }>>(
+      `SELECT table_name, column_name
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND column_name IN ('organization_id', 'organizationId')
+          AND table_name = ANY($1::text[])`,
+      tablas,
+    );
+    for (const f of filas) mapa.set(f.table_name, f.column_name);
+  } catch {
+    // Sin esto se cae al modo global, que es el comportamiento anterior.
+  }
+  return mapa;
 }
 
 /**
@@ -96,9 +138,64 @@ export interface FreshnessRow {
 export async function checkPipelineFreshness(
   targets: readonly FreshnessTarget[] = PIPELINE_FRESHNESS_TARGETS
 ): Promise<FreshnessRow[]> {
+  // E-19 — POR QUÉ ESTO AHORA AGRUPA POR ORGANIZACIÓN.
+  //
+  // Era `SELECT MAX(columna) FROM tabla`, SIN `WHERE` y sin `GROUP BY`. O sea
+  // que medía la tabla entera: con 20 clientes, si 19 refrescan bien y uno queda
+  // congelado, `MAX` sigue siendo de hace 10 minutos y **el chequeo da verde**.
+  //
+  // La detección se diluía exactamente en proporción al crecimiento: cuantos más
+  // clientes, menos probable que un cliente roto se note. Agrupando, el chequeo
+  // **se afila** con cada cliente nuevo en vez de embotarse.
+  //
+  // Si no se encuentra la columna de organización se cae al modo global, que es
+  // el comportamiento anterior — degradar es preferible a no medir nada.
+  const orgCols = await columnasDeOrg(targets.map((t) => t.table));
+
   const out: FreshnessRow[] = [];
   for (const t of targets) {
+    const orgCol = orgCols.get(t.table);
     try {
+      if (orgCol) {
+        const filas = await prisma.$queryRawUnsafe<
+          Array<{ org: string; last: Date | null; hours: number | null }>
+        >(
+          `SELECT "${orgCol}" AS org,
+                  MAX("${t.column}") AS last,
+                  EXTRACT(EPOCH FROM (NOW() - MAX("${t.column}")))/3600 AS hours
+             FROM ${t.table}
+            GROUP BY 1`,
+        );
+        const conHoras = filas
+          .map((f) => ({
+            org: String(f.org),
+            hours: f.hours != null ? Math.round(Number(f.hours) * 10) / 10 : null,
+            last: f.last,
+          }))
+          .filter((f) => f.hours != null) as Array<{ org: string; hours: number; last: Date | null }>;
+
+        const atrasadas = conHoras.filter((f) => f.hours > t.maxHours);
+        // El "atraso de la tabla" pasa a ser el de la organización PEOR, no el
+        // de la mejor. Con el MAX global era literalmente al revés.
+        const peor = conHoras.length > 0 ? Math.max(...conHoras.map((f) => f.hours)) : null;
+        const masReciente = conHoras.reduce<Date | null>(
+          (acc, f) => (f.last && (!acc || f.last > acc) ? f.last : acc),
+          null,
+        );
+
+        out.push({
+          table: t.table,
+          refreshedBy: t.refreshedBy,
+          hoursStale: peor,
+          lastRefresh: masReciente ? new Date(masReciente).toISOString() : null,
+          stale: atrasadas.length > 0,
+          missing: false,
+          orgsStale: atrasadas.map((f) => ({ org: f.org, hours: f.hours })),
+          porOrg: true,
+        });
+        continue;
+      }
+
       const r = await prisma.$queryRawUnsafe<Array<{ last: Date | null; hours: number | null }>>(
         `SELECT MAX("${t.column}") AS last,
                 EXTRACT(EPOCH FROM (NOW() - MAX("${t.column}")))/3600 AS hours
@@ -113,6 +210,7 @@ export async function checkPipelineFreshness(
         lastRefresh: last,
         stale: hours != null && hours > t.maxHours,
         missing: false,
+        porOrg: false,
       });
     } catch {
       // relation does not exist → runbook pendiente, no es una alerta.
