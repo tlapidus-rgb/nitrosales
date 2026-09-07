@@ -177,6 +177,12 @@ export async function POST(
     // Trigger inmediato del runner: no esperar al proximo tick del cron (1 min).
     // Disparamos el runner en background para que arranque a procesar AHORA.
     // waitUntil mantiene la funcion alive despues de responder 200 al admin.
+    //
+    // E-08: este trigger puede volver 200 con admitido:false y NO arrancar nada
+    // — si estamos fuera de BACKFILL_VENTANA, si ya hay otro backfill corriendo,
+    // o si la base esta lenta. No es una falla: los jobs quedan en QUEUED y el
+    // cron de cada minuto los toma cuando se pueda. Si estas debugueando "aprobe
+    // y no arranco", mira el campo `motivo` de la respuesta del runner.
     const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     if (createdJobs.length > 0) {
       const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
