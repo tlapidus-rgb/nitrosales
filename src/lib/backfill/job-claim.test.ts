@@ -52,18 +52,32 @@ async function nuevaDb(): Promise<PGlite> {
 async function encolar(
   db: PGlite,
   id: string,
-  opts: { org?: string; creadoHaceMs?: number; status?: string; ultimoChunkHaceMs?: number | null } = {},
+  opts: {
+    org?: string;
+    creadoHaceMs?: number;
+    status?: string;
+    /** Último chunk EXITOSO. Es el reloj de "avanza", el que mira el reaper. */
+    ultimoChunkHaceMs?: number | null;
+    /**
+     * Última vez que alguien lo tocó. Es el reloj de "está tomado", el que mira
+     * el claim para decidir si está libre. Por defecto acompaña al chunk, que
+     * es lo que pasa en un job sano; se separa a propósito en los casos donde
+     * la diferencia entre los dos relojes es justo lo que se prueba.
+     */
+    tocadoHaceMs?: number | null;
+  } = {},
 ) {
+  const hace = (ms: number | null | undefined) =>
+    ms === undefined || ms === null ? null : new Date(Date.now() - ms);
   const creado = new Date(Date.now() - (opts.creadoHaceMs ?? 0));
-  const ultimoChunk =
-    opts.ultimoChunkHaceMs === undefined || opts.ultimoChunkHaceMs === null
-      ? null
-      : new Date(Date.now() - opts.ultimoChunkHaceMs);
+  const ultimoChunk = hace(opts.ultimoChunkHaceMs);
+  const tocado =
+    opts.tocadoHaceMs !== undefined ? hace(opts.tocadoHaceMs) : ultimoChunk;
   await db.query(
     `INSERT INTO "backfill_jobs"
-       ("id","organizationId","platform","status","monthsRequested","fromDate","toDate","createdAt","lastChunkAt")
-     VALUES ($1,$2,'VTEX',$3,12,NOW(),NOW(),$4,$5)`,
-    [id, opts.org ?? "org1", opts.status ?? "QUEUED", creado, ultimoChunk],
+       ("id","organizationId","platform","status","monthsRequested","fromDate","toDate","createdAt","lastChunkAt","updatedAt")
+     VALUES ($1,$2,'VTEX',$3,12,NOW(),NOW(),$4,$5,$6)`,
+    [id, opts.org ?? "org1", opts.status ?? "QUEUED", creado, ultimoChunk, tocado],
   );
 }
 
@@ -95,10 +109,15 @@ describe("E-08 — el claim es atómico", () => {
     const j = await reclamar(db);
 
     expect(j.status).toBe("RUNNING");
-    // `lastChunkAt` se escribe EN el claim, no después del primer chunk: si no,
-    // entre el claim y el chunk el job seguiría pareciendo libre.
-    expect(j.lastChunkAt).not.toBeNull();
+    // El claim marca `updatedAt` — "esto está tomado" — así que entre el claim
+    // y el primer chunk el job NO parece libre.
+    expect(j.updatedAt).not.toBeNull();
     expect(j.startedAt).not.toBeNull();
+    // Y NO toca `lastChunkAt`, que es el reloj de "avanza". Si el claim lo
+    // pisara, un job que falla siempre se refrescaría el latido solo cada vez
+    // que lo re-toman, y el reaper no llegaría nunca a los 30 minutos.
+    // Ver `job-reaper.test.ts` → "el reaper y el claim, juntos".
+    expect(j.lastChunkAt).toBeNull();
     await db.close();
   });
 
@@ -136,9 +155,30 @@ describe("E-08 — qué se considera libre y qué no", () => {
     await db.close();
   });
 
-  it("un RUNNING sin ningún chunk todavía también se recupera", async () => {
+  it("un RUNNING recién tomado que todavía no hizo un chunk NO se re-reclama", async () => {
+    // Los dos relojes en desacuerdo, que es el caso que importa: nunca avanzó
+    // (`lastChunkAt` null) pero lo tomaron hace 10 segundos. Sin mirar
+    // `updatedAt`, otra invocación se lo llevaría y procesaría el mismo chunk
+    // dos veces en paralelo.
     const db = await nuevaDb();
-    await encolar(db, "j1", { status: "RUNNING", ultimoChunkHaceMs: null });
+    await encolar(db, "recien", {
+      status: "RUNNING",
+      ultimoChunkHaceMs: null,
+      tocadoHaceMs: 10_000,
+    });
+    expect(await reclamar(db)).toBeNull();
+    await db.close();
+  });
+
+  it("un RUNNING abandonado antes del primer chunk SÍ se recupera", async () => {
+    // La lambda se murió entre el claim y el primer chunk. Nadie lo tocó hace
+    // 5 minutos, así que está libre aunque nunca haya avanzado.
+    const db = await nuevaDb();
+    await encolar(db, "j1", {
+      status: "RUNNING",
+      ultimoChunkHaceMs: null,
+      tocadoHaceMs: 5 * 60_000,
+    });
     expect((await reclamar(db))?.id).toBe("j1");
     await db.close();
   });

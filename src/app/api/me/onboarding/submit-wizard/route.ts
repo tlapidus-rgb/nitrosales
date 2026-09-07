@@ -19,7 +19,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendEmail } from "@/lib/email/send";
 import { waitUntil } from "@vercel/functions";
-import { validarCredenciales, mensajeParaElCliente } from "@/lib/onboarding/validacion-wizard";
+import {
+  validarCredenciales,
+  mensajeParaElCliente,
+  plataformasAValidar,
+} from "@/lib/onboarding/validacion-wizard";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
 export const dynamic = "force-dynamic";
@@ -127,9 +131,18 @@ export async function POST(req: NextRequest) {
     // valor crudo, el test explotaría para credenciales que en realidad andan
     // —porque abajo se guardan ya limpias— y la verificación no serviría de nada
     // justo en el caso más común.
-    const aValidar = platforms
-      .filter((p: any) => VALID_PLATFORMS.has(p.platform))
-      .map((p: any) => ({ platform: p.platform, credentials: sanitizeCreds(p.credentials) }));
+    //
+    // ⚠️ SÓLO las plataformas cuyas credenciales el cliente TIPEA acá. La
+    // primera versión validaba todas y ROMPÍA EL ALTA para tres de las cuatro:
+    // en Meta, Google y MercadoLibre los tokens de verdad no viajan en el
+    // wizard —viven en la Connection, puestos por el callback de OAuth, y se
+    // mergean más abajo (línea ~190)—, así que acá se veían vacíos y el tester
+    // devolvía "OAuth pendiente" sobre un cliente que ya había hecho OAuth.
+    // 400 en cada intento y sin forma de salir del loop desde la interfaz.
+    // Ver PLATAFORMAS_QUE_SE_TIPEAN en validacion-wizard.ts.
+    const aValidar = plataformasAValidar(platforms as any[], (p: string) =>
+      VALID_PLATFORMS.has(p),
+    ).map((p: any) => ({ platform: p.platform, credentials: sanitizeCreds(p.credentials) }));
     if (aValidar.length > 0) {
       const resultados = await validarCredenciales(aValidar);
       const mensaje = mensajeParaElCliente(resultados);

@@ -15,7 +15,11 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
-import { completeJob, areAllJobsComplete } from "@/lib/backfill/job-manager";
+import {
+  completeJob,
+  contarJobsDelOnboarding,
+  esAltaCompleta,
+} from "@/lib/backfill/job-manager";
 import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
@@ -70,8 +74,21 @@ export async function POST(
 
     // Si es el ultimo job pendiente del onboarding → triggerear finalize
     let triggeredFinalize = false;
+    // Por que no finalizo, cuando no finalizo. Sin esto el admin ve
+    // `triggeredFinalize: false` y no tiene forma de saber si falta un job
+    // corriendo o si hay uno FAILED esperando una decision suya.
+    let porQueNoFinalizo: string | null = null;
     if (job.onboardingRequestId) {
-      const allDone = await areAllJobsComplete(job.onboardingRequestId);
+      const conteo = await contarJobsDelOnboarding(job.onboardingRequestId);
+      const allDone = esAltaCompleta(conteo);
+      if (!allDone) {
+        porQueNoFinalizo =
+          conteo.pendientes > 0
+            ? `Faltan ${conteo.pendientes} job(s) por terminar.`
+            : conteo.fallados > 0
+              ? `Hay ${conteo.fallados} job(s) en FAILED. El alta no se da por completa con un backfill fallado: mira el lastError de esos jobs, y si la data parcial alcanza, forzalos tambien.`
+              : "El onboarding no tiene ningun job de backfill.";
+      }
       if (allDone) {
         const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
         const KEY = ADMIN_API_KEY;
@@ -99,8 +116,9 @@ export async function POST(
       ok: true,
       jobId: job.id,
       platform: job.platform,
-      message: `Job ${job.platform} marcado como COMPLETED.${triggeredFinalize ? " Onboarding paso a READY_FOR_REVIEW." : ""}`,
+      message: `Job ${job.platform} marcado como COMPLETED.${triggeredFinalize ? " Onboarding paso a READY_FOR_REVIEW." : porQueNoFinalizo ? " " + porQueNoFinalizo : ""}`,
       triggeredFinalize,
+      porQueNoFinalizo,
     });
   } catch (err: any) {
     console.error("[force-complete-job] error:", err);

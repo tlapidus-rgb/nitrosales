@@ -32,6 +32,76 @@ import { testCredentialsByPlatform } from "@/lib/onboarding/credential-tests";
 /** Cuánto se espera en total por TODAS las verificaciones, en paralelo. */
 export const PRESUPUESTO_VALIDACION_MS = 20_000;
 
+/**
+ * Las únicas plataformas cuyas credenciales el cliente TIPEA en el wizard.
+ *
+ * ⚠️ ESTO ES EL CORAZÓN DEL ARREGLO (revisión del 2026-09-07). La primera
+ * versión validaba TODAS las plataformas y rompía el alta para tres de las
+ * cuatro.
+ *
+ * Motivo: en Meta Ads, Google Ads y MercadoLibre las credenciales de verdad
+ * —`accessToken`, `refreshToken`— **no viajan en el wizard**. Viven en la
+ * Connection del lado del servidor, puestas ahí por el callback de OAuth, y el
+ * componente del wizard ni siquiera las conoce (`grep -c refreshToken
+ * OnboardingOverlay.tsx` → 0). El submit las recupera y las mergea, pero
+ * **después** de este punto.
+ *
+ * Con lo cual la validación las veía vacías y los testers devolvían una falla
+ * CONFIRMADA —"OAuth pendiente, falta autorizar Google Ads"— sobre un cliente
+ * que ya había hecho OAuth. Resultado: 400 en cada intento, sin ninguna forma
+ * de salir del loop desde la interfaz. El alta quedaba imposible de completar.
+ *
+ * Y aunque se validara después del merge, seguiría estando mal: una falla de
+ * OAuth **no es accionable por el cliente desde el wizard**. Lo que E-13 viene
+ * a evitar es la ida y vuelta por credenciales MAL TIPEADAS, y las tipeadas son
+ * las de VTEX. El estado de las conexiones OAuth lo mira el admin en el semáforo
+ * (`/api/admin/onboardings/[id]/readiness`), que corre sobre las credenciales
+ * ya guardadas.
+ */
+export const PLATAFORMAS_QUE_SE_TIPEAN = new Set(["VTEX"]);
+
+/**
+ * De todo lo que mandó el wizard, qué se valida realmente.
+ *
+ * Vive acá y no en la route para poder testear el criterio: el bug de arriba
+ * era exactamente esta línea, y estaba escrita adentro del handler donde no la
+ * cubría nada.
+ *
+ * `esPlataformaConocida` lo inyecta quien llama porque la lista de plataformas
+ * válidas es de la route (incluye cosas como NITROPIXEL que no son una conexión
+ * con credenciales).
+ */
+export function plataformasAValidar<T extends { platform: string }>(
+  platforms: readonly T[],
+  esPlataformaConocida: (p: string) => boolean,
+): T[] {
+  return platforms.filter(
+    (p) => esPlataformaConocida(p.platform) && PLATAFORMAS_QUE_SE_TIPEAN.has(p.platform),
+  );
+}
+
+/**
+ * Fallas que NO son culpa de las credenciales: la plataforma tardó o la red
+ * falló. Se tratan como inconcluso.
+ *
+ * ⚠️ Esto está acoplado al texto que devuelve `credential-tests.ts`, y eso es
+ * feo, pero la alternativa era peor. Los testers ya convierten el timeout en
+ * `ok:false` con su propio tope de 10s (`credential-tests.ts:499`), o sea que
+ * el "no sé" se vuelve "no" ANTES de que el presupuesto de acá se entere. Sin
+ * esto, una Graph API de Meta que tarda 11 segundos le bloquea el alta a un
+ * cliente cuyas credenciales están perfectas.
+ *
+ * El acoplamiento está pineado por un test: si alguien cambia el texto, salta
+ * ahí y no en producción.
+ */
+const SEÑALES_DE_FALLA_TRANSITORIA = ["timeout", "error de red"];
+
+function esTransitoria(detalle?: string): boolean {
+  if (!detalle) return false;
+  const d = detalle.toLowerCase();
+  return SEÑALES_DE_FALLA_TRANSITORIA.some((s) => d.includes(s));
+}
+
 export type ResultadoDePlataforma = {
   plataforma: string;
   /** `true` pasó · `false` falló de verdad · `null` no se pudo determinar. */
@@ -101,7 +171,9 @@ export async function validarCredenciales(
           testCredentialsByPlatform(platform, credentials).then(
             (x): ResultadoDePlataforma => ({
               plataforma: platform,
-              ok: !!x.ok,
+              // Una falla transitoria vuelve como inconcluso: no es culpa de
+              // las credenciales y no puede trabar un alta.
+              ok: x.ok ? true : esTransitoria(x.detail) ? null : false,
               detalle: x.detail,
               hint: x.hint,
             }),

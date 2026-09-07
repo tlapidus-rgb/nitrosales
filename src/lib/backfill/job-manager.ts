@@ -166,18 +166,56 @@ export async function failJob(id: string, error: string): Promise<void> {
 }
 
 // Todos los jobs de un onboarding estan completos?
-export async function areAllJobsComplete(onboardingRequestId: string): Promise<boolean> {
+export type ConteoDeJobs = { total: number; pendientes: number; fallados: number };
+
+export const CONTEO_DE_JOBS_SQL = `SELECT
+        COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED', 'FAILED')) as pendientes,
+        COUNT(*) FILTER (WHERE "status" = 'FAILED') as fallados,
+        COUNT(*) as total
+   FROM "backfill_jobs"
+  WHERE "onboardingRequestId" = $1`;
+
+export async function contarJobsDelOnboarding(
+  onboardingRequestId: string,
+): Promise<ConteoDeJobs> {
   const rows = await prisma.$queryRawUnsafe<Array<any>>(
-    `SELECT COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED', 'FAILED')) as pending,
-            COUNT(*) as total
-     FROM "backfill_jobs"
-     WHERE "onboardingRequestId" = $1`,
-    onboardingRequestId
+    CONTEO_DE_JOBS_SQL,
+    onboardingRequestId,
   );
   const r = rows[0];
-  const pending = Number(r?.pending || 0);
-  const total = Number(r?.total || 0);
-  return total > 0 && pending === 0;
+  return {
+    total: Number(r?.total || 0),
+    pendientes: Number(r?.pendientes || 0),
+    fallados: Number(r?.fallados || 0),
+  };
+}
+
+/**
+ * El criterio, separado de la query, para poder testearlo sin una base.
+ *
+ * ⚠️ UN JOB FALLADO NO ES UN ALTA COMPLETA (corregido el 2026-09-07).
+ * Antes FAILED contaba como terminado. O sea: si VTEX se caia media hora en
+ * medio del backfill, el reaper marcaba el job FAILED, esto devolvia `true`, se
+ * disparaba `post-backfill-finalize` y el cliente quedaba "listo" con un
+ * backfill parcial o vacio. Nadie lo re-encolaba y nada volvia a mirarlo: la
+ * unica senal habria sido que los numeros estaban bajos, y eso en un cliente
+ * nuevo no se nota, porque nadie sabe todavia cuanto tendria que dar.
+ *
+ * Ahora un fallado deja el onboarding en BACKFILLING, que es donde
+ * `checkStuckOnboardings` lo levanta a las 12 h y lo mira una persona. Es peor
+ * como experiencia y mucho mejor como resultado.
+ *
+ * Para desatascarlo a mano esta `force-complete-job`, que sobre un job FAILED
+ * lo pasa a COMPLETED: el admin decide explicitamente, job por job, que la data
+ * parcial alcanza. Lo que ya no pasa es que lo decida un timeout.
+ */
+export function esAltaCompleta(c: ConteoDeJobs): boolean {
+  return c.total > 0 && c.pendientes === 0 && c.fallados === 0;
+}
+
+// Todos los jobs de un onboarding estan completos?
+export async function areAllJobsComplete(onboardingRequestId: string): Promise<boolean> {
+  return esAltaCompleta(await contarJobsDelOnboarding(onboardingRequestId));
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -190,6 +228,9 @@ export async function areAllJobsComplete(onboardingRequestId: string): Promise<b
  * no cuenta — si contara, un job huérfano bloquearía la cola para siempre.
  */
 export async function contarJobsActivos(cooldownMs: number): Promise<number> {
+  // Cuenta los que AVANZAN, no los que se reintentan. `lastChunkAt` solo se
+  // mueve cuando un chunk sale bien (ver `updateJobProgress`), asi que un job
+  // que falla en loop no cuenta como activo y deja de bloquear la cola.
   const corte = new Date(Date.now() - cooldownMs);
   const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
     `SELECT COUNT(*)::int AS n FROM "backfill_jobs"
@@ -253,20 +294,30 @@ export async function matarJobsSinProgreso(sinProgresoMs: number): Promise<strin
  * `FOR UPDATE SKIP LOCKED` hace que dos invocaciones concurrentes nunca vean la
  * misma fila: la segunda saltea la que la primera está por tomar.
  *
- * `lastChunkAt = NOW()` se escribe **en el claim**, no después del primer chunk.
- * Si se escribiera después, entre el claim y el primer chunk el job seguiría
- * pareciendo libre.
+ * ⚠️ EL CLAIM NO TOCA `lastChunkAt` (corregido el 2026-09-07, tras revisión).
+ * Hay DOS relojes y confundirlos rompia el reaper:
+ *
+ *   · `updatedAt` = "alguien lo tiene tomado". Lo pisa el claim. Sirve de lock:
+ *     evita que dos invocaciones se lleven el mismo job, y que uno recien
+ *     tomado parezca libre entre el claim y el primer chunk.
+ *   · `lastChunkAt` = "la ultima vez que AVANZO". Solo lo mueve un chunk
+ *     exitoso.
+ *
+ * La version anterior escribia `lastChunkAt = NOW()` en el claim, y con eso el
+ * reaper era inalcanzable: el cron corre cada MINUTO y el cooldown es de 2, asi
+ * que un job roto se re-reclamaba cada 2 minutos y su latido se refrescaba
+ * solo. Nunca acumulaba los 30 minutos que `matarJobsSinProgreso` exige. O sea
+ * que el arreglo del job zombie no arreglaba nada: seguia bloqueando la cola.
  */
 export const RECLAMAR_PROXIMO_JOB_SQL = `UPDATE "backfill_jobs" j
         SET "status" = 'RUNNING',
             "startedAt" = COALESCE(j."startedAt", NOW()),
-            "lastChunkAt" = NOW(),
             "updatedAt" = NOW()
       WHERE j."id" = (
         SELECT c."id" FROM "backfill_jobs" c
          WHERE c."status" = 'QUEUED'
             OR (c."status" = 'RUNNING'
-                AND (c."lastChunkAt" IS NULL OR c."lastChunkAt" < $1))
+                AND (c."updatedAt" IS NULL OR c."updatedAt" < $1))
          ORDER BY CASE c."status" WHEN 'RUNNING' THEN 0 ELSE 1 END,
                   c."createdAt" ASC
          LIMIT 1

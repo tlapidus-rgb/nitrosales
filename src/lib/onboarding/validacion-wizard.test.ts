@@ -22,7 +22,9 @@ vi.mock("@/lib/onboarding/credential-tests", () => ({
   testCredentialsByPlatform: (...a: unknown[]) => testCredentialsByPlatform(...a),
 }));
 
-const { mensajeParaElCliente, validarCredenciales } = await import("./validacion-wizard");
+const { mensajeParaElCliente, validarCredenciales, plataformasAValidar } = await import(
+  "./validacion-wizard"
+);
 
 describe("mensajeParaElCliente", () => {
   it("todo bien → no hay mensaje, el alta sigue", () => {
@@ -142,5 +144,104 @@ describe("validarCredenciales", () => {
 
   it("sin plataformas devuelve vacío", async () => {
     expect(await validarCredenciales([])).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// LOS DOS BUGS QUE ESTA MISMA FEATURE INTRODUJO
+// ══════════════════════════════════════════════════════════════════════════
+// Encontrados en la revisión del 2026-09-07, los dos rompían el alta que la
+// feature venía a mejorar. Van juntos porque el modo de falla es el mismo:
+// un 400 en cada intento, sin ninguna forma de salir desde la interfaz.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("C1 — sólo se valida lo que el cliente TIPEA", () => {
+  // El bug: la primera versión validaba las cuatro plataformas. Pero en Meta,
+  // Google y MercadoLibre las credenciales de verdad (`accessToken`,
+  // `refreshToken`) NO viajan en el wizard: las pone el callback de OAuth del
+  // lado del servidor, y el submit las mergea DESPUÉS de este punto
+  // (`grep -c refreshToken OnboardingOverlay.tsx` → 0).
+  //
+  // Con lo cual la validación las veía vacías y los testers devolvían una falla
+  // CONFIRMADA —"OAuth pendiente, falta autorizar Google Ads"— sobre un cliente
+  // que ya había hecho OAuth. 400 en cada intento, sin salida desde la
+  // interfaz: el alta quedaba imposible de completar para 3 de 4 plataformas.
+  const conocida = (p: string) =>
+    ["VTEX", "MERCADOLIBRE", "META_ADS", "GOOGLE_ADS"].includes(p);
+
+  it("VTEX se valida: es la única que el cliente escribe a mano", () => {
+    expect(plataformasAValidar([{ platform: "VTEX" }], conocida)).toEqual([
+      { platform: "VTEX" },
+    ]);
+  });
+
+  it("las de OAuth NO se validan, aunque vengan en el body", () => {
+    const r = plataformasAValidar(
+      [{ platform: "META_ADS" }, { platform: "GOOGLE_ADS" }, { platform: "MERCADOLIBRE" }],
+      conocida,
+    );
+    expect(r).toEqual([]);
+  });
+
+  it("un wizard completo valida VTEX y deja pasar el resto", () => {
+    const r = plataformasAValidar(
+      [
+        { platform: "VTEX" },
+        { platform: "META_ADS" },
+        { platform: "GOOGLE_ADS" },
+        { platform: "NITROPIXEL" },
+      ],
+      conocida,
+    );
+    expect(r.map((x) => x.platform)).toEqual(["VTEX"]);
+  });
+
+  it("una plataforma desconocida no se valida", () => {
+    expect(plataformasAValidar([{ platform: "SHOPIFY" }], conocida)).toEqual([]);
+  });
+
+  it("sin VTEX no se valida nada y el alta no se frena", () => {
+    expect(plataformasAValidar([{ platform: "META_ADS" }], conocida)).toEqual([]);
+  });
+});
+
+describe("C2 — una falla transitoria no puede trabar un alta", () => {
+  // `credential-tests.ts` tiene su PROPIO tope de 10 s y convierte el timeout en
+  // `ok:false` con detail "timeout". O sea que el "no sé" se vuelve "no" ANTES
+  // de que el presupuesto de 20 s de acá se entere: sin esto, una Graph API de
+  // Meta que tarda 11 segundos bloquea a un cliente con las credenciales
+  // perfectas.
+  it("un timeout del tester vuelve como INCONCLUSO, no como falla", async () => {
+    testCredentialsByPlatform.mockResolvedValue({ ok: false, detail: "timeout" });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok).toBeNull();
+    expect(mensajeParaElCliente(r)).toBeNull();
+  });
+
+  it("un error de red también", async () => {
+    testCredentialsByPlatform.mockResolvedValue({
+      ok: false,
+      detail: "Error de red al contactar VTEX",
+    });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok).toBeNull();
+  });
+
+  it("pero una credencial MAL sigue bloqueando: para eso existe la feature", async () => {
+    testCredentialsByPlatform.mockResolvedValue({
+      ok: false,
+      detail: "401 Unauthorized",
+      hint: "Revisá el App Token",
+    });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok).toBe(false);
+    expect(mensajeParaElCliente(r)).toContain("Revisá el App Token");
+  });
+
+  it("el acoplamiento al texto del tester queda pineado acá", async () => {
+    // Esto depende del literal que devuelve `credential-tests.ts`. Es feo y es
+    // a propósito: si alguien cambia el texto, salta este test y no producción.
+    testCredentialsByPlatform.mockResolvedValue({ ok: false, detail: "TIMEOUT (10s)" });
+    expect((await validarCredenciales([{ platform: "VTEX", credentials: {} }]))[0].ok).toBeNull();
   });
 });
