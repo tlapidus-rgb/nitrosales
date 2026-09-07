@@ -108,6 +108,18 @@ export const config = {
   // necesitan estar acá: el gating sólo bloquea lo restringido.
   matcher: [
     "/api/:path*",
+    // ⚠️ Los tres de abajo faltaban (revision del 2026-09-07). Estaban mapeados
+    // en PAGE_SECTION_PREFIXES pero NO en este matcher, asi que el middleware
+    // ni los evaluaba: eran gates escritos y desconectados. El comentario de
+    // section-access.ts dice que se gatearon justamente "para poder ENTREGAR una
+    // org con acceso restringido (ej: TeVeCompras solo-pixel)" — y un usuario
+    // solo-pixel podia escribir /rentabilidad en la barra y ver el P&L.
+    //
+    // Un prefijo que este en PAGE_SECTION_PREFIXES y no aca no protege nada. Hay
+    // un test que compara las dos listas para que no vuelva a pasar.
+    "/products/:path*",
+    "/rentabilidad/:path*",
+    "/pixel/:path*",
     "/dashboard/:path*",
     "/bondly/:path*",
     "/aura/:path*",

@@ -21,8 +21,18 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isValidAdminKey } from "@/lib/admin-key";
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
+  // Este endpoint NO tenia NINGUNA autenticacion (revision del 2026-09-07):
+  // un POST anonimo desde internet corria DDL sobre la base de produccion. El
+  // dano directo era bajo porque es idempotente y los indices ya existen, pero
+  // confirma que el modelo "cada handler valida lo suyo" no lo verificaba nadie.
+  // Ahora hay un test que barre TODAS las rutas bajo /api/admin y exige que
+  // cada una tenga alguna forma de auth.
+  if (!isValidAdminKey(new URL(req.url).searchParams.get("key"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   try {
     // D1 — solo 1 comisión activa por creador.
     await prisma.$executeRawUnsafe(`

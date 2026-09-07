@@ -111,7 +111,7 @@ export function isStaffOnlyApiPath(pathname: string): boolean {
 }
 
 // Prefijos de páginas (rutas no-/api) → sección requerida (read).
-const PAGE_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
+export const PAGE_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
   // Core "shared" pages: hasta S60 pasaban siempre. Se gatean para poder
   // ENTREGAR una org con acceso restringido (ej: TeVeCompras solo-pixel).
   // Solo afecta a users con customRole que NO tenga la sección; los base
