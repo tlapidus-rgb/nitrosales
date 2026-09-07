@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { PAGE_SECTION_PREFIXES } from "@/lib/section-access";
@@ -22,6 +22,19 @@ import { PAGE_SECTION_PREFIXES } from "@/lib/section-access";
 //
 // Estos dos casos barren el árbol en vez de mirar una lista escrita a mano, así
 // que valen también para el código que todavía no existe.
+//
+// ── LO QUE ESTE ARCHIVO NO PROBABA ───────────────────────────────────────
+// La comparación `matcher` vs `PAGE_SECTION_PREFIXES` lee el fuente y no
+// ejecuta nada. La auditoría del 2026-09-07 mostró que con un
+// `return NextResponse.next()` como primera línea del middleware —RBAC
+// apagado, read-only de impersonate apagado, gate staff-only apagado— los 21
+// casos seguían en verde. Lo único que garantizaban era que dos listas de
+// strings coincidieran, que es el bug que motivó el archivo, pero el título
+// prometía más.
+//
+// El último bloque cierra eso: ejecuta el middleware con un token de un
+// usuario solo-pixel y verifica que las tres rutas del hallazgo lo frenen de
+// verdad.
 // ══════════════════════════════════════════════════════════════════════════
 
 const MIDDLEWARE = readFileSync(join(process.cwd(), "src/middleware.ts"), "utf8");
@@ -98,4 +111,80 @@ describe("ninguna ruta admin queda sin autenticación", () => {
     });
     expect(sinAuth).toEqual([]);
   });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Y el gate, ejecutado
+// ══════════════════════════════════════════════════════════════════════════
+// Lo de arriba prueba que el `matcher` y `PAGE_SECTION_PREFIXES` no se
+// desincronicen, que es barato y es el bug real que pasó. Esto prueba la
+// consecuencia: que un usuario solo-pixel no vea el P&L.
+
+const getToken = vi.fn();
+vi.mock("next-auth/jwt", () => ({ getToken: (...a: unknown[]) => getToken(...a) }));
+
+const { default: middleware } = await import("@/middleware");
+
+function pedido(pathname: string) {
+  return {
+    nextUrl: { pathname, clone: () => new URL(`https://app.nitrosales.ai${pathname}`) },
+    method: "GET",
+    url: `https://app.nitrosales.ai${pathname}`,
+    headers: new Headers(),
+    cookies: { get: () => undefined },
+  } as never;
+}
+
+describe("un usuario solo-pixel no entra a las secciones que no le tocan", () => {
+  // El caso de TeVeCompras, que es el que el comentario de section-access.ts
+  // dice que el gate viene a cubrir: se le entrega una org con acceso
+  // restringido y tiene que quedar restringida de verdad.
+  beforeEach(() =>
+    getToken.mockResolvedValue({
+      isStaff: false,
+      email: "cliente@tevecompras.com",
+      allowedSections: ["pixel"],
+      writableSections: [],
+    }),
+  );
+
+  it.each(["/products", "/rentabilidad", "/finanzas"])(
+    "%s lo manda a /unauthorized",
+    async (ruta) => {
+      const r = await middleware(pedido(ruta));
+      // Redirect (307/308) a /unauthorized, no un `next()`.
+      expect(r.headers.get("location")).toContain("/unauthorized");
+    },
+  );
+
+  it("/pixel sí lo deja pasar: es la sección que tiene", async () => {
+    const r = await middleware(pedido("/pixel"));
+    expect(r.headers.get("location")).toBeNull();
+  });
+
+  it("una API de una sección ajena devuelve 403, no un redirect", async () => {
+    // Las APIs que alimentan el dashboard compartido (`/api/metrics/orders`,
+    // `/api/metrics/pixel`…) NO se gatean a propósito; las de una sección
+    // restringida sí.
+    expect((await middleware(pedido("/api/finanzas/pnl"))).status).toBe(403);
+  });
+
+  it("y una API del dashboard compartido NO se bloquea", async () => {
+    // El otro lado del filo: si esto se gateara, un cliente solo-pixel se
+    // quedaría sin el dashboard que sí le corresponde.
+    expect((await middleware(pedido("/api/metrics/orders"))).status).not.toBe(403);
+  });
+});
+
+describe("el staff sigue entrando a todo", () => {
+  beforeEach(() =>
+    getToken.mockResolvedValue({ isStaff: true, email: "tomy@99media.com.ar" }),
+  );
+
+  it.each(["/products", "/rentabilidad", "/finanzas", "/control"])(
+    "%s pasa",
+    async (ruta) => {
+      expect((await middleware(pedido(ruta))).headers.get("location")).toBeNull();
+    },
+  );
 });

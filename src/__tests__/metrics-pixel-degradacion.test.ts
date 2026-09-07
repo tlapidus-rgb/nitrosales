@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { allOrEmpty } from "@/lib/api/all-or-empty";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,38 +20,22 @@ import { join } from "node:path";
 // hace lo mismo con `allSettled`: la que falla devuelve `[]`, se registra su
 // índice, y las otras 27 llegan con sus datos.
 //
-// El helper es privado de la ruta (no se puede importar sin arrastrar Prisma y
-// el resto del módulo), así que se testea su ALGORITMO con una réplica y se
-// verifica con guards que la ruta lo siga usando. Es el mismo compromiso que el
-// repo ya toma en `rollup-backfill-budget.test.ts`.
+// ── POR QUÉ EL HELPER NO VIVE EN LA ROUTE ────────────────────────────────
+// Vivía adentro, privado, y este archivo lo cubría con una RÉPLICA del
+// algoritmo escrita acá mismo. O sea que el test verificaba su propia copia: si
+// alguien cambiaba el original, la réplica seguía en verde y lo único que
+// quedaba eran unos greps que se esquivan escribiendo `Promise["all"]`. Lo
+// levantó la auditoría de calidad de tests del 2026-09-07.
+//
+// Ahora el helper es `@/lib/api/all-or-empty` y esto ejecuta el original. Los
+// guards sobre el fuente de la route se quedan, pero ya no son la única red:
+// cubren que la route SIGA usándolo, que es otra cosa.
 // ══════════════════════════════════════════════════════════════════════════
 
-/** Réplica exacta del algoritmo de `allOrEmpty` en metrics/pixel/route.ts. */
-async function allOrEmpty<T extends readonly unknown[]>(
-  promises: readonly [...{ [K in keyof T]: Promise<T[K]> }],
-  degraded: number[]
-): Promise<T> {
-  const settled = await Promise.allSettled(promises);
-  return settled.map((r, i) => {
-    if (r.status === "fulfilled") return r.value;
-    degraded.push(i);
-    return [];
-  }) as unknown as T;
-}
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("E-06 — degradación parcial del batch", () => {
-  it("EL BUG: con Promise.all, una query que falla tumba las 28", async () => {
-    const batch = [
-      Promise.resolve([{ visitantes: 84_300 }]),
-      Promise.reject(new Error("canceling statement due to statement timeout")),
-      Promise.resolve([{ revenue: 850_000_000 }]),
-    ];
-    // Así se comportaba antes: el batch entero rechaza → catch → mock en cero.
-    await expect(Promise.all(batch)).rejects.toThrow("statement timeout");
-  });
-
   it("con allSettled, las otras 27 llegan con sus datos", async () => {
     const degraded: number[] = [];
     const [visitas, roto, revenue] = await allOrEmpty(
@@ -111,14 +96,15 @@ describe("E-06 — guards sobre la ruta", () => {
   );
 
   it("el batch grande ya no usa Promise.all", () => {
-    expect(src).toContain("] = await allOrEmpty([");
+    expect(src).toContain("] = await degradadoDelBatch([");
     // El `Promise.all` del batch de 28 no debe volver.
     expect(src).not.toContain("] = await Promise.all([");
   });
 
-  it("el helper usa allSettled y acumula los índices degradados", () => {
-    expect(src).toContain("await Promise.allSettled(promises)");
-    expect(src).toContain("degraded.push(i)");
+  it("la route sigue pasando por el helper compartido", () => {
+    // El algoritmo en sí se prueba ejecutándolo, arriba. Lo que esto cuida es
+    // que nadie vuelva a escribir un `Promise.all` a mano en la route.
+    expect(src).toContain(String.raw`from "@/lib/api/all-or-empty"`);
   });
 
   it("GUARD: el fallback `[]` sólo vale si el batch son queries que devuelven arrays", () => {
@@ -127,7 +113,7 @@ describe("E-06 — guards sobre la ruta", () => {
     // `[] ?? 0` es `[]`, y de ahí sale NaN. Este guard cuenta las entradas y
     // avisa si la forma del batch cambió.
     const batch = src.slice(
-      src.indexOf("] = await allOrEmpty(["),
+      src.indexOf("] = await degradadoDelBatch(["),
       src.indexOf("], degradedQueries);")
     );
     // Nada de agregaciones de Prisma dentro del batch.

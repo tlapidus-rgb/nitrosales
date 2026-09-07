@@ -19,22 +19,13 @@ export const dynamic = "force-dynamic";
 //   que devuelven arrays (24 `$queryRaw` directos + 4 ternarios que también
 //   resuelven a `$queryRaw`). Si algún día se agrega una que devuelva un escalar,
 //   hay que darle su propio fallback — de ahí el guard en el test.
-async function allOrEmpty<T extends readonly unknown[]>(
-  promises: readonly [...{ [K in keyof T]: Promise<T[K]> }],
-  degraded: number[]
-): Promise<T> {
-  const settled = await Promise.allSettled(promises);
-  return settled.map((r, i) => {
-    if (r.status === "fulfilled") return r.value;
-    degraded.push(i);
-    console.error(
-      `[metrics/pixel] query #${i} del batch falló (el resto sigue): ${
-        (r.reason as any)?.message ?? r.reason
-      }`
-    );
-    return [];
-  }) as unknown as T;
-}
+// El helper vive en `@/lib/api/all-or-empty` desde la auditoria de tests del
+// 2026-09-07: estando privado aca, su unico test era una REPLICA del algoritmo
+// escrita en el propio archivo de test, o sea que verificaba su propia copia.
+const degradadoDelBatch = <T extends readonly unknown[]>(
+  ps: readonly [...{ [K in keyof T]: Promise<T[K]> }],
+  deg: number[],
+) => allOrEmpty<T>(ps, deg, "metrics/pixel");
 
 // ══════════════════════════════════════════════════════════════
 // Pixel Metrics API — NitroPixel Dashboard
@@ -50,6 +41,7 @@ async function allOrEmpty<T extends readonly unknown[]>(
 // Timezone: Argentina (UTC-3)
 // ══════════════════════════════════════════════════════════════
 
+import { allOrEmpty } from "@/lib/api/all-or-empty";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -405,7 +397,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       channelPairsResult,
       // ── Comparacion de modelos: revenue por (model, source) ──
       attributionByModelChannelResult,
-    ] = await allOrEmpty([
+    ] = await degradadoDelBatch([
       // 1. Live status — solo agregados index-friendly. Dos subqueries separadas:
       //    - MAX(timestamp): index backward scan sobre (organizationId, timestamp) = instante.
       //    - lastHourEvents: index-range sobre la última hora = barato (no escanea toda la historia).
