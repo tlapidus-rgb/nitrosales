@@ -36,6 +36,27 @@ export const ORDER_STATUS_NOT_CONCRETED = [
   "RETURNED",
 ] as const;
 
+/**
+ * TODOS los valores del enum `OrderStatus` de Postgres, para validar contra
+ * allowlist cualquier status que venga de afuera (querystring, body, CSV).
+ *
+ * Se arma uniendo las dos listas de arriba a proposito: si manana se agrega un
+ * status y se lo clasifica como concretado o no concretado, esta lista se
+ * actualiza sola. Una tercera copia a mano se desincronizaria en silencio, que
+ * es justo el modo de falla que hace que una allowlist deje de servir.
+ *
+ * Tiene que coincidir con `enum OrderStatus` de `prisma/schema.prisma`.
+ */
+export const ORDER_STATUS_TODOS = [
+  ...ORDER_STATUS_CONCRETED,
+  ...ORDER_STATUS_NOT_CONCRETED,
+] as const;
+
+/** `true` si `v` es un valor valido del enum OrderStatus. */
+export function esOrderStatusValido(v: string): boolean {
+  return (ORDER_STATUS_TODOS as readonly string[]).includes(v);
+}
+
 // ────────────────────────────────────────────────────────────────
 // SQL fragments para inyectar en queries crudas
 // ────────────────────────────────────────────────────────────────
