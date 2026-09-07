@@ -33,8 +33,48 @@ export interface FreshnessTarget {
   maxHours: number;
   /** Para el mensaje: qué cron debería estar refrescándola. */
   refreshedBy: string;
+  /**
+   * De dónde sale la data de esta tabla.
+   *
+   * ⚠️ SIN ESTO, EL CHEQUEO POR ORGANIZACIÓN ALERTA PARA SIEMPRE (revisión del
+   * 2026-09-07). Todos los upserts del pipeline filtran por ventana:
+   * `... FROM orders WHERE "organizationId" = $1 AND "orderDate" >= $2`. Si un
+   * cliente no vendió nada en tres días, ese upsert afecta CERO filas y
+   * `silver_updated_at` de sus filas viejas no se mueve. El cron corrió, hizo
+   * exactamente lo que tenía que hacer, y el chequeo lo reporta atrasado.
+   *
+   * El chequeo global viejo tapaba esto (un solo `MAX` sobre toda la tabla), y
+   * al agruparlo por organización quedó a la vista: **cada cliente tranquilo
+   * genera una alerta permanente**. Con clientes chicos entrando, la casilla se
+   * llena de ruido el primer día y a la semana nadie mira más los mails — que
+   * es peor que no tener el chequeo, porque encima da sensación de cobertura.
+   *
+   * Con la fuente, el criterio pasa a ser el correcto: una tabla derivada está
+   * atrasada si su fuente tiene algo MÁS NUEVO que ella. Sin nada nuevo arriba,
+   * no hay nada que refrescar abajo.
+   */
+  fuente?: { tabla: string; columna: string };
 }
 
+/**
+ * Las fuentes de cada capa. La regla es que la fuente tiene que ser BARATA de
+ * agrupar por organizacion: esto corre dentro de `warm-cache`, no puede
+ * costar mas que el trabajo que vigila.
+ *
+ * Por eso `pixel_events` NO es la fuente de los rollups aunque lo sea de
+ * verdad: no hay indice por `receivedAt` y es la tabla mas grande de todas, o
+ * sea justo la query que se cuelga. Se usa `pixel_daily_aggregates`, que es
+ * chica, la refresca el mismo cron y ya es el centinela historico del
+ * pipeline. Si `aggregates` se movio para una org y `source` no, eso es un
+ * atraso real; si no se movio ninguna, esa org no tuvo trafico.
+ *
+ * `pixel_daily_aggregates` se queda SIN fuente a proposito: alguien tiene que
+ * ser el canario y medirse contra el reloj y nada mas.
+ */
+const FUENTE_ORDENES = { tabla: "orders", columna: "updatedAt" } as const;
+const FUENTE_SILVER = { tabla: "silver_orders", columna: "silver_updated_at" } as const;
+const FUENTE_ATRIBUCIONES = { tabla: "pixel_attributions", columna: "createdAt" } as const;
+const FUENTE_ROLLUPS = { tabla: "pixel_daily_aggregates", columna: "refreshed_at" } as const;
 /**
  * Qué se vigila y con qué tolerancia.
  *
@@ -44,16 +84,16 @@ export interface FreshnessTarget {
  */
 export const PIPELINE_FRESHNESS_TARGETS: readonly FreshnessTarget[] = [
   // Silver — refresh-silver-orders, cada 30 min
-  { table: "silver_orders", column: "silver_updated_at", maxHours: 3, refreshedBy: "refresh-silver-orders" },
-  { table: "silver_customer_firsts", column: "silver_updated_at", maxHours: 3, refreshedBy: "refresh-silver-orders" },
+  { table: "silver_orders", column: "silver_updated_at", maxHours: 3, refreshedBy: "refresh-silver-orders", fuente: FUENTE_ORDENES },
+  { table: "silver_customer_firsts", column: "silver_updated_at", maxHours: 3, refreshedBy: "refresh-silver-orders", fuente: FUENTE_ORDENES },
   // Gold de órdenes — refresh-gold-daily-revenue
-  { table: "gold_daily_revenue", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue" },
-  { table: "gold_order_segments", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue" },
-  { table: "gold_product_sales", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue" },
-  { table: "gold_customer_daily", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue" },
+  { table: "gold_daily_revenue", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue", fuente: FUENTE_SILVER },
+  { table: "gold_order_segments", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue", fuente: FUENTE_SILVER },
+  { table: "gold_product_sales", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue", fuente: FUENTE_SILVER },
+  { table: "gold_customer_daily", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-daily-revenue", fuente: FUENTE_SILVER },
   // Gold de atribución — refresh-gold-attribution
-  { table: "gold_attribution_source", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution" },
-  { table: "gold_attribution_channel", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution-channel" },
+  { table: "gold_attribution_source", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution", fuente: FUENTE_ATRIBUCIONES },
+  { table: "gold_attribution_channel", column: "gold_updated_at", maxHours: 6, refreshedBy: "refresh-gold-attribution-channel", fuente: FUENTE_ATRIBUCIONES },
   // Rollups del pixel — refresh-pixel-rollups. Se vigilan TODOS y no sólo
   // `aggregates` (ampliado 2026-07-21): el cron corre 7 statements y cada uno
   // puede fallar por separado sin tumbar los demás. Con un solo centinela, un
@@ -68,12 +108,12 @@ export const PIPELINE_FRESHNESS_TARGETS: readonly FreshnessTarget[] = [
   // recuperación y SIGUE detectando un cron desagendado el mismo día. NO subir más
   // sin bajar también la cadencia — 8h es el techo antes de perder señal útil.
   { table: "pixel_daily_aggregates", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_source", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_funnel_by_source", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_device", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_product", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_type", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
-  { table: "pixel_daily_page", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups" },
+  { table: "pixel_daily_source", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups", fuente: FUENTE_ROLLUPS },
+  { table: "pixel_daily_funnel_by_source", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups", fuente: FUENTE_ROLLUPS },
+  { table: "pixel_daily_device", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups", fuente: FUENTE_ROLLUPS },
+  { table: "pixel_daily_product", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups", fuente: FUENTE_ROLLUPS },
+  { table: "pixel_daily_type", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups", fuente: FUENTE_ROLLUPS },
+  { table: "pixel_daily_page", column: "refreshed_at", maxHours: 8, refreshedBy: "refresh-pixel-rollups", fuente: FUENTE_ROLLUPS },
 ];
 
 export interface FreshnessRow {
@@ -97,6 +137,83 @@ export interface FreshnessRow {
    * global viejo porque no se encontró la columna de organización.
    */
   porOrg?: boolean;
+  /**
+   * El chequeo no se pudo hacer, y NO es porque la tabla no exista.
+   *
+   * ⚠️ ESTO ES LA DIFERENCIA ENTRE "NO HAY PROBLEMA" Y "NO SÉ" (revisión del
+   * 2026-09-07). Antes había un `catch {}` que marcaba todo como `missing:
+   * true`, o sea "el runbook está pendiente, no es una alerta". Cualquier
+   * `statement_timeout`, cualquier permiso, cualquier error de sintaxis en la
+   * query nueva por organización caía ahí y salía por la puerta de "todo bien".
+   *
+   * Es el peor modo de falla posible para un módulo de monitoreo: el chequeo
+   * que existe para avisar que algo dejó de correr se rompe, y lo que reporta
+   * es silencio. Y es exactamente lo que pasó con la query agrupada nueva, que
+   * es bastante más cara que el `MAX` de antes.
+   */
+  error?: string;
+  /**
+   * Organizaciones que están viejas pero cuya fuente TAMPOCO se movió: no hay
+   * nada que refrescar. No cuentan como atraso. Se reportan igual porque
+   * "quince clientes quietos" es un dato en sí mismo.
+   */
+  orgsSinNovedad?: number;
+}
+
+/** `true` si el error de Postgres es "la relación no existe" (42P01). */
+function esTablaAusente(e: unknown): boolean {
+  const msg = String((e as { message?: string })?.message || e);
+  return msg.includes("42P01") || /relation .* does not exist/i.test(msg);
+}
+
+export type FilaDeOrg = { org: string; hours: number; last: Date | null };
+
+/**
+ * Qué organizaciones están REALMENTE atrasadas en una tabla.
+ *
+ * El criterio tiene dos partes y las dos importan:
+ *
+ *   1. pasó el umbral de horas;
+ *   2. y su fuente tiene algo más nuevo que ella.
+ *
+ * Sin (2), todo cliente tranquilo alerta para siempre (ver `fuente` en
+ * `FreshnessTarget`). Con (2) de más, se perdería la señal cuando la fuente
+ * misma se cae — por eso, si de la fuente no se sabe nada, se alerta igual:
+ * **ante la duda esto hace ruido, nunca silencio.** Un chequeo de frescura que
+ * prefiere callarse no sirve para nada.
+ *
+ * Es una función aparte de la query para poder probar el criterio, que es la
+ * parte que se rompe.
+ */
+export function orgsRealmenteAtrasadas(
+  filas: readonly FilaDeOrg[],
+  maxHours: number,
+  /** org → última marca de la fuente. `null` = no hay fuente, o no se pudo leer. */
+  fuentePorOrg: ReadonlyMap<string, Date> | null,
+): { atrasadas: Array<{ org: string; hours: number }>; sinNovedad: number } {
+  const viejas = filas.filter((f) => f.hours > maxHours);
+  if (!fuentePorOrg) {
+    return { atrasadas: viejas.map((f) => ({ org: f.org, hours: f.hours })), sinNovedad: 0 };
+  }
+
+  const atrasadas: Array<{ org: string; hours: number }> = [];
+  let sinNovedad = 0;
+  for (const f of viejas) {
+    const fuente = fuentePorOrg.get(f.org);
+    // La fuente no tiene NADA de esta org: no hay nada que refrescar. Pasa con
+    // un cliente recién dado de alta cuyo backfill todavía no trajo órdenes.
+    if (!fuente) {
+      sinNovedad++;
+      continue;
+    }
+    // La fuente tampoco se movió desde el último refresco: al día.
+    if (f.last && fuente <= f.last) {
+      sinNovedad++;
+      continue;
+    }
+    atrasadas.push({ org: f.org, hours: f.hours });
+  }
+  return { atrasadas, sinNovedad };
 }
 
 /**
@@ -130,6 +247,53 @@ async function columnasDeOrg(tablas: readonly string[]): Promise<Map<string, str
 }
 
 /**
+ * Última marca de cada fuente, por organización.
+ *
+ * Se consulta UNA vez por fuente distinta y no una por tabla vigilada: cuatro
+ * fuentes cubren las quince tablas. Si una falla, esa fuente queda en `null` y
+ * las tablas que dependen de ella vuelven al criterio de sólo-reloj — ruidoso,
+ * pero nunca ciego.
+ */
+async function marcasDeLasFuentes(
+  targets: readonly FreshnessTarget[],
+): Promise<Map<string, Map<string, Date> | null>> {
+  const fuentes = new Map<string, { tabla: string; columna: string }>();
+  for (const t of targets) {
+    if (t.fuente) fuentes.set(`${t.fuente.tabla}.${t.fuente.columna}`, t.fuente);
+  }
+  const orgCols = await columnasDeOrg([...fuentes.values()].map((f) => f.tabla));
+
+  const out = new Map<string, Map<string, Date> | null>();
+  for (const [clave, f] of fuentes) {
+    const orgCol = orgCols.get(f.tabla);
+    if (!orgCol) {
+      out.set(clave, null);
+      continue;
+    }
+    try {
+      const filas = await prisma.$queryRawUnsafe<Array<{ org: string; last: Date | null }>>(
+        `SELECT "${orgCol}" AS org, MAX("${f.columna}") AS last
+           FROM ${f.tabla}
+          GROUP BY 1`,
+      );
+      const m = new Map<string, Date>();
+      for (const fila of filas) {
+        if (fila.last) m.set(String(fila.org), new Date(fila.last));
+      }
+      out.set(clave, m);
+    } catch (e) {
+      // Una fuente que no se puede leer no puede silenciar el chequeo de las
+      // tablas que dependen de ella. `null` = volvé al criterio de sólo-reloj.
+      if (!esTablaAusente(e)) {
+        console.error(`[freshness] no se pudo leer la fuente ${clave}:`, e);
+      }
+      out.set(clave, null);
+    }
+  }
+  return out;
+}
+
+/**
  * Mide el atraso de cada tabla. Una tabla inexistente NO cuenta como atrasada:
  * hay tablas cuyo runbook todavía no se corrió y no queremos alertar por eso.
  * Cada tabla se consulta por separado a propósito: si una no existe, las demás
@@ -151,10 +315,14 @@ export async function checkPipelineFreshness(
   // Si no se encuentra la columna de organización se cae al modo global, que es
   // el comportamiento anterior — degradar es preferible a no medir nada.
   const orgCols = await columnasDeOrg(targets.map((t) => t.table));
+  const marcas = await marcasDeLasFuentes(targets);
 
   const out: FreshnessRow[] = [];
   for (const t of targets) {
     const orgCol = orgCols.get(t.table);
+    const fuentePorOrg = t.fuente
+      ? (marcas.get(`${t.fuente.tabla}.${t.fuente.columna}`) ?? null)
+      : null;
     try {
       if (orgCol) {
         const filas = await prisma.$queryRawUnsafe<
@@ -174,10 +342,23 @@ export async function checkPipelineFreshness(
           }))
           .filter((f) => f.hours != null) as Array<{ org: string; hours: number; last: Date | null }>;
 
-        const atrasadas = conHoras.filter((f) => f.hours > t.maxHours);
+        // Una organización vieja NO está atrasada si su fuente tampoco se
+        // movió: un cliente sin ventas hace cuatro días no tiene nada que
+        // refrescar. Ver `fuente` en `FreshnessTarget`.
+        const { atrasadas, sinNovedad } = orgsRealmenteAtrasadas(
+          conHoras,
+          t.maxHours,
+          fuentePorOrg,
+        );
         // El "atraso de la tabla" pasa a ser el de la organización PEOR, no el
         // de la mejor. Con el MAX global era literalmente al revés.
-        const peor = conHoras.length > 0 ? Math.max(...conHoras.map((f) => f.hours)) : null;
+        //
+        // Y si hay atrasos reales, el número sale de ESAS y no de las quietas:
+        // un cliente que dejó de vender hace seis meses tiene la marca más
+        // vieja de todas, y decir "sin refrescar hace 4.300h" cuando el atraso
+        // real es de siete manda a buscar el problema al lugar equivocado.
+        const deDonde = atrasadas.length > 0 ? atrasadas : conHoras;
+        const peor = deDonde.length > 0 ? Math.max(...deDonde.map((f) => f.hours)) : null;
         const masReciente = conHoras.reduce<Date | null>(
           (acc, f) => (f.last && (!acc || f.last > acc) ? f.last : acc),
           null,
@@ -190,7 +371,8 @@ export async function checkPipelineFreshness(
           lastRefresh: masReciente ? new Date(masReciente).toISOString() : null,
           stale: atrasadas.length > 0,
           missing: false,
-          orgsStale: atrasadas.map((f) => ({ org: f.org, hours: f.hours })),
+          orgsStale: atrasadas,
+          orgsSinNovedad: sinNovedad,
           porOrg: true,
         });
         continue;
@@ -212,15 +394,28 @@ export async function checkPipelineFreshness(
         missing: false,
         porOrg: false,
       });
-    } catch {
-      // relation does not exist → runbook pendiente, no es una alerta.
+    } catch (e) {
+      // ⚠️ "LA TABLA NO EXISTE" Y "NO PUDE MEDIR" NO SON LO MISMO.
+      // Antes esto era un `catch {}` que marcaba todo como `missing: true`, o
+      // sea "no es una alerta". Un `statement_timeout` de la query agrupada
+      // —que es bastante más cara que el `MAX` de antes— salía por ahí y el
+      // chequeo reportaba silencio. El módulo que existe para avisar que algo
+      // dejó de correr se rompía y decía que todo estaba bien.
+      const ausente = esTablaAusente(e);
+      if (!ausente) {
+        console.error(`[freshness] no se pudo medir ${t.table}:`, e);
+      }
       out.push({
         table: t.table,
         refreshedBy: t.refreshedBy,
         hoursStale: null,
         lastRefresh: null,
-        stale: false,
-        missing: true,
+        // Un chequeo que no se puede hacer ES un problema, y se reporta como
+        // tal. Sólo la tabla ausente sigue siendo el caso benigno de siempre
+        // (hay runbooks pendientes a propósito).
+        stale: !ausente,
+        missing: ausente,
+        error: ausente ? undefined : String((e as { message?: string })?.message || e).slice(0, 300),
       });
     }
   }
@@ -231,9 +426,24 @@ export async function checkPipelineFreshness(
 export function formatStaleSummary(rows: FreshnessRow[]): string {
   return rows
     .filter((r) => r.stale)
-    .map(
-      (r) =>
-        `${r.table}: sin refrescar hace ${r.hoursStale}h (último: ${r.lastRefresh}) — lo refresca ${r.refreshedBy}`
-    )
+    .map((r) => {
+      // El chequeo se rompió. Decirlo con todas las letras: si esto se
+      // confundiera con un atraso normal, alguien iría a mirar el cron
+      // equivocado.
+      if (r.error) {
+        return `${r.table}: NO SE PUDO MEDIR LA FRESCURA (${r.error}) — el chequeo está ciego para esta tabla`;
+      }
+      const base = `${r.table}: sin refrescar hace ${r.hoursStale}h (último: ${r.lastRefresh}) — lo refresca ${r.refreshedBy}`;
+      // Cuáles clientes, no sólo "la tabla". Con el MAX global no se sabía.
+      if (r.orgsStale && r.orgsStale.length > 0) {
+        const orgs = r.orgsStale
+          .slice(0, 5)
+          .map((o) => `${o.org} (${o.hours}h)`)
+          .join(", ");
+        const resto = r.orgsStale.length > 5 ? ` y ${r.orgsStale.length - 5} más` : "";
+        return `${base}\n    orgs atrasadas: ${orgs}${resto}`;
+      }
+      return base;
+    })
     .join("\n");
 }

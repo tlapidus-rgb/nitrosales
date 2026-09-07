@@ -39,8 +39,34 @@ describe("los crons que reparten trabajo guardan por dónde van", () => {
   it.each(CON_CURSOR)("%s usa el cursor persistido", (p) => {
     const src = fuente(p);
     expect(src).toContain("ultimoProcesado");
-    expect(src).toContain("indiceDespuesDe");
     expect(src).toContain("guardarCorte");
+    // Cómo se traduce el cursor en un índice: o `indiceDespuesDe` directo, o
+    // `arranqueDeLaVuelta`, que además decide si a esta corrida le corresponde
+    // mover el cursor. Los dos crons que aceptan `?full=1` usan el segundo,
+    // porque el primero solo no alcanza — ver A4 en cursor-store.test.ts.
+    expect(src).toMatch(/indiceDespuesDe|arranqueDeLaVuelta/);
+  });
+
+  /**
+   * Los que además tienen un modo manual. Acá el cursor no puede aplicarse ni
+   * guardarse a ciegas: `refresh-silver-orders` lo hacía y un `?full=1` se
+   * salteaba en silencio las orgs anteriores al cursor, además de pisárselo al
+   * incremental.
+   */
+  const CON_MODO_MANUAL = [
+    "src/app/api/cron/refresh-gold-attribution-channel/route.ts",
+    "src/app/api/cron/refresh-silver-orders/route.ts",
+  ];
+
+  it.each(CON_MODO_MANUAL)("%s no deja que un ?full=1 toque el cursor", (p) => {
+    const src = fuente(p);
+    // El `full` tiene que llegar hasta la decisión del arranque. Si alguien
+    // vuelve a calcular el índice sin pasarlo, esto salta.
+    expect(src).toContain("arranqueDeLaVuelta");
+    expect(src).toMatch(/arranqueDeLaVuelta\(\{[\s\S]{0,220}\bfull\b/);
+    // Y el guardado tiene que estar condicionado. Un `guardarCorte` suelto,
+    // fuera de un if, es el bug original.
+    expect(src).toMatch(/if \(persisteCursor\) \{\s*await guardarCorte/);
   });
 
   it.each(CON_CURSOR)("%s corta por reloj antes del maxDuration", (p) => {

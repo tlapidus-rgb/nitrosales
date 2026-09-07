@@ -28,7 +28,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DAYS_BACK = 3; // ventana incremental (cubre huecos de hasta 3 días)
-import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
+import {
+  ultimoProcesado,
+  arranqueDeLaVuelta,
+  guardarCorte,
+} from "@/lib/cron/cursor-store";
 
 const INVOCATION_BUDGET_MS = 250_000;
 
@@ -80,7 +84,16 @@ export async function GET(req: NextRequest) {
   const results: Array<{ org: string; ok: boolean; ms: number; error?: string }> = [];
   let budgetHit = false;
   const ids = orgs.map((o) => o.id);
-  const arrancoEn = indiceDespuesDe(ids, await ultimoProcesado(CRON));
+
+  // El cursor es SOLO del modo incremental: un `?full=1` no puede arrancar
+  // desde donde quedo el cron de cada hora ni pisarle el cursor. La regla vive
+  // en `arranqueDeLaVuelta` para no reescribirla en cada route.
+  const { desde: arrancoEn, persiste: persisteCursor } = arranqueDeLaVuelta({
+    ids,
+    cursorGuardado: await ultimoProcesado(CRON),
+    cursorExplicito: url.searchParams.get("orgCursor"),
+    full,
+  });
   let i = arrancoEn;
   for (; i < orgs.length; i++) {
     const { id } = orgs[i];
@@ -105,7 +118,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  await guardarCorte(CRON, i, ids);
+  if (persisteCursor) {
+    await guardarCorte(CRON, i, ids);
+  }
 
   return NextResponse.json({
     ok: results.every((r) => r.ok),
@@ -114,6 +129,10 @@ export async function GET(req: NextRequest) {
     orgsProcessed: results.length,
     totalOrgs: orgs.length,
     budgetHit,
+    cursorPersistido: persisteCursor,
+    // Con qué seguir si se cortó por budget. En `?full=1` el cursor no se
+    // guarda, así que sin esto no habría forma de retomar el backfill.
+    resume: budgetHit ? `?orgCursor=${i}${full ? "&full=1" : ""}` : null,
     // E-11: de donde arranco esta corrida y donde corto. Si budgetHit es true,
     // la proxima invocacion sigue en `cortoEn` en vez de volver a empezar.
     arrancoEn,

@@ -41,6 +41,7 @@ const {
   guardarUltimo,
   indiceDespuesDe,
   guardarCorte,
+  arranqueDeLaVuelta,
   TABLA_CURSORES,
 } = await import("./cursor-store");
 
@@ -237,5 +238,96 @@ describe("el escenario completo: nadie queda sin procesar", () => {
     await corrida(ids, 3);
     expect(await ultimoProcesado("cron-a")).toBeNull();
     expect(await corrida(ids, 1)).toEqual(["orgA"]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// A4 — el cursor es del modo incremental, no del manual
+// ══════════════════════════════════════════════════════════════════════════
+// `refresh-silver-orders` aplicaba Y guardaba el cursor también en `?full=1`.
+// Las dos mitades rompían algo distinto:
+//
+//   · un `?full=1` —el "rehacé toda la historia", que se corre justamente
+//     cuando algo ya salió mal— arrancaba desde donde había quedado el cron
+//     automático, salteándose en silencio todas las orgs anteriores. Devolvía
+//     `ok` sin haber rehecho lo que se le pidió, que es la peor combinación
+//     posible en una herramienta de reparación;
+//   · y al terminar movía el cursor del incremental, con lo cual el cron de
+//     cada media hora se salteaba justo las orgs que le faltaban.
+//
+// `refresh-gold-attribution-channel` lo hacía bien. Ahora los dos comparten
+// esta función, que es de donde salió la asimetría.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("arranqueDeLaVuelta", () => {
+  const ids = ["orgA", "orgB", "orgC", "orgD"];
+
+  it("incremental sin cursor: del principio, y persiste", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: null, cursorExplicito: null, full: false }),
+    ).toEqual({ desde: 0, persiste: true });
+  });
+
+  it("incremental con cursor: sigue donde quedó, y persiste", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: "orgB", cursorExplicito: null, full: false }),
+    ).toEqual({ desde: 2, persiste: true });
+  });
+
+  it("EL BUG: un ?full=1 NO arranca desde el cursor del incremental", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: "orgC", cursorExplicito: null, full: true }).desde,
+    ).toBe(0);
+  });
+
+  it("EL OTRO BUG: un ?full=1 tampoco pisa el cursor del incremental", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: "orgC", cursorExplicito: null, full: true })
+        .persiste,
+    ).toBe(false);
+  });
+
+  it("un ?orgCursor= explícito manda, y tampoco persiste", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: "orgA", cursorExplicito: "3", full: false }),
+    ).toEqual({ desde: 3, persiste: false });
+  });
+
+  it("?orgCursor=0 es un valor válido, no un ausente", () => {
+    // `parseInt("0") || 0` y `!cursorExplicito` los confunden; el chequeo es
+    // contra `null` justamente por esto.
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: "orgC", cursorExplicito: "0", full: false }),
+    ).toEqual({ desde: 0, persiste: false });
+  });
+
+  it("un ?orgCursor= más grande que la lista no se sale del array", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: null, cursorExplicito: "999", full: false }).desde,
+    ).toBe(4);
+  });
+
+  it("un ?orgCursor= negativo tampoco", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: null, cursorExplicito: "-5", full: false }).desde,
+    ).toBe(0);
+  });
+
+  it("un ?orgCursor= que no es un número arranca de cero en vez de romper", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: null, cursorExplicito: "ayer", full: false }),
+    ).toEqual({ desde: 0, persiste: false });
+  });
+
+  it("?orgCursor= mandando junto con ?full=1: gana el explícito", () => {
+    expect(
+      arranqueDeLaVuelta({ ids, cursorGuardado: "orgD", cursorExplicito: "2", full: true }),
+    ).toEqual({ desde: 2, persiste: false });
+  });
+
+  it("con la lista vacía no explota", () => {
+    expect(
+      arranqueDeLaVuelta({ ids: [], cursorGuardado: "orgA", cursorExplicito: null, full: false }),
+    ).toEqual({ desde: 0, persiste: true });
   });
 });

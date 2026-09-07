@@ -138,6 +138,45 @@ export function indiceDespuesDe(ids: readonly string[], cursor: string | null): 
 }
 
 /**
+ * Dónde arranca esta vuelta y si le corresponde mover el cursor persistido.
+ *
+ * ⚠️ EL CURSOR ES SOLO DEL MODO INCREMENTAL (revisión del 2026-09-07).
+ * Los crons tienen dos modos y confundirlos rompe los dos:
+ *
+ *   · el **incremental**, que es el que corre por schedule y el único dueño del
+ *     cursor;
+ *   · el **manual** —`?full=1` para rehacer toda la historia, `?orgCursor=N`
+ *     para retomar a mano— que se corre cuando algo ya salió mal.
+ *
+ * Si el manual arranca desde el cursor del incremental, un `?full=1` se saltea
+ * en silencio todas las orgs anteriores: decís "rehacé todo", devuelve `ok` y
+ * no rehizo lo que le pediste. Y si además lo guarda, mueve el cursor del
+ * incremental y el cron de todos los días se saltea justo las que le faltaban.
+ * `refresh-gold-attribution-channel` ya lo hacía bien; `refresh-silver-orders`
+ * lo hacía mal de las dos formas.
+ *
+ * Está acá, y no repetido en cada route, porque es la clase de regla que se
+ * escribe bien en un cron y mal en el siguiente.
+ */
+export function arranqueDeLaVuelta(o: {
+  ids: readonly string[];
+  /** Lo que devolvió `ultimoProcesado`. */
+  cursorGuardado: string | null;
+  /** El `?orgCursor=` crudo de la URL, o `null` si no vino. */
+  cursorExplicito: string | null;
+  /** `?full=1`. */
+  full: boolean;
+}): { desde: number; persiste: boolean } {
+  if (o.cursorExplicito !== null) {
+    const n = parseInt(o.cursorExplicito, 10);
+    const desde = Number.isFinite(n) ? Math.max(0, Math.min(n, o.ids.length)) : 0;
+    return { desde, persiste: false };
+  }
+  if (o.full) return { desde: 0, persiste: false };
+  return { desde: indiceDespuesDe(o.ids, o.cursorGuardado), persiste: true };
+}
+
+/**
  * Guarda el corte al terminar la invocación.
  *
  * `siguiente` es el índice del primer elemento NO procesado (o `ids.length` si

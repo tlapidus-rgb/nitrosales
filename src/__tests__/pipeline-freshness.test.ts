@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   PIPELINE_FRESHNESS_TARGETS,
   formatStaleSummary,
+  orgsRealmenteAtrasadas,
   type FreshnessRow,
 } from "@/lib/pipeline/freshness";
 
@@ -99,5 +100,170 @@ describe("formatStaleSummary", () => {
 
   it("sin atrasadas devuelve vacío", () => {
     expect(formatStaleSummary([row({ table: "x", stale: false })])).toBe("");
+  });
+
+  it("dice QUÉ clientes están atrasados, no sólo qué tabla", () => {
+    const s = formatStaleSummary([
+      row({
+        table: "silver_orders",
+        stale: true,
+        hoursStale: 9,
+        orgsStale: [
+          { org: "arredo", hours: 9 },
+          { org: "mundo", hours: 4 },
+        ],
+      }),
+    ]);
+    expect(s).toContain("arredo");
+    expect(s).toContain("mundo");
+  });
+
+  it("con muchas orgs no escupe una pared: corta y dice cuántas faltan", () => {
+    const s = formatStaleSummary([
+      row({
+        table: "silver_orders",
+        stale: true,
+        hoursStale: 9,
+        orgsStale: Array.from({ length: 12 }, (_, i) => ({ org: `org${i}`, hours: 9 })),
+      }),
+    ]);
+    expect(s).toContain("7 más");
+    expect(s).not.toContain("org11");
+  });
+
+  it("un chequeo que se rompió se lee distinto de una tabla atrasada", () => {
+    // Si los dos se leyeran igual, alguien iría a mirar el cron equivocado.
+    const s = formatStaleSummary([
+      row({ table: "silver_orders", stale: true, error: "canceling statement due to statement timeout" }),
+    ]);
+    expect(s).toContain("NO SE PUDO MEDIR");
+    expect(s).toContain("statement timeout");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// A1 — un cliente tranquilo no puede alertar para siempre
+// ══════════════════════════════════════════════════════════════════════════
+// Todos los upserts del pipeline filtran por ventana. Si un cliente no vendió
+// en tres días, el upsert afecta cero filas, `silver_updated_at` no se mueve y
+// el chequeo por organización lo reporta atrasado — todas las corridas, para
+// siempre. El chequeo global viejo lo tapaba; al agruparlo quedó a la vista.
+//
+// El criterio correcto es relativo: una tabla derivada está atrasada si su
+// FUENTE tiene algo más nuevo que ella.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("orgsRealmenteAtrasadas", () => {
+  const t = (iso: string) => new Date(iso);
+  const HACE_MUCHO = t("2026-09-01T00:00:00Z");
+  const RECIEN = t("2026-09-07T12:00:00Z");
+
+  it("EL BUG: un cliente sin ventas hace días NO está atrasado", () => {
+    // silver_orders de esta org es de hace 6 días… y `orders` también. No hay
+    // nada que refrescar: el cron hizo exactamente lo que tenía que hacer.
+    const r = orgsRealmenteAtrasadas(
+      [{ org: "quieto", hours: 144, last: HACE_MUCHO }],
+      3,
+      new Map([["quieto", HACE_MUCHO]]),
+    );
+    expect(r.atrasadas).toEqual([]);
+    expect(r.sinNovedad).toBe(1);
+  });
+
+  it("pero si entraron órdenes nuevas y Silver no las tomó, SÍ", () => {
+    const r = orgsRealmenteAtrasadas(
+      [{ org: "arredo", hours: 144, last: HACE_MUCHO }],
+      3,
+      new Map([["arredo", RECIEN]]),
+    );
+    expect(r.atrasadas).toEqual([{ org: "arredo", hours: 144 }]);
+    expect(r.sinNovedad).toBe(0);
+  });
+
+  it("una org sin nada en la fuente tampoco alerta", () => {
+    // Cliente recién dado de alta: el backfill todavía no trajo una orden.
+    const r = orgsRealmenteAtrasadas(
+      [{ org: "nuevo", hours: 99, last: HACE_MUCHO }],
+      3,
+      new Map(),
+    );
+    expect(r.atrasadas).toEqual([]);
+    expect(r.sinNovedad).toBe(1);
+  });
+
+  it("lo que no pasó el umbral de horas no se mira siquiera", () => {
+    const r = orgsRealmenteAtrasadas(
+      [{ org: "ok", hours: 1, last: HACE_MUCHO }],
+      3,
+      new Map([["ok", RECIEN]]),
+    );
+    expect(r.atrasadas).toEqual([]);
+    expect(r.sinNovedad).toBe(0);
+  });
+
+  it("SIN saber nada de la fuente, alerta igual: ante la duda hace ruido", () => {
+    // La query de la fuente falló, o esa tabla no tiene fuente configurada. Un
+    // chequeo de frescura que prefiere callarse no sirve para nada.
+    const r = orgsRealmenteAtrasadas([{ org: "arredo", hours: 99, last: HACE_MUCHO }], 3, null);
+    expect(r.atrasadas).toEqual([{ org: "arredo", hours: 99 }]);
+  });
+
+  it("varias orgs mezcladas: se separan bien", () => {
+    const r = orgsRealmenteAtrasadas(
+      [
+        { org: "rota", hours: 50, last: HACE_MUCHO },
+        { org: "quieta", hours: 50, last: HACE_MUCHO },
+        { org: "sana", hours: 1, last: RECIEN },
+      ],
+      6,
+      new Map([
+        ["rota", RECIEN],
+        ["quieta", HACE_MUCHO],
+        ["sana", RECIEN],
+      ]),
+    );
+    expect(r.atrasadas.map((o) => o.org)).toEqual(["rota"]);
+    expect(r.sinNovedad).toBe(1);
+  });
+
+  it("la fuente EXACTAMENTE igual de vieja no es novedad", () => {
+    // Borde: `<=`, no `<`. Un refresco que corrió justo en el mismo instante
+    // que el último dato no dejó nada afuera.
+    const r = orgsRealmenteAtrasadas(
+      [{ org: "borde", hours: 50, last: HACE_MUCHO }],
+      6,
+      new Map([["borde", HACE_MUCHO]]),
+    );
+    expect(r.atrasadas).toEqual([]);
+  });
+
+  it("sin filas no explota", () => {
+    expect(orgsRealmenteAtrasadas([], 3, new Map())).toEqual({ atrasadas: [], sinNovedad: 0 });
+  });
+});
+
+describe("cada tabla derivada declara de dónde sale", () => {
+  it("todas menos el centinela tienen fuente", () => {
+    // `pixel_daily_aggregates` se mide sólo contra el reloj a propósito:
+    // alguien tiene que ser el canario.
+    const sinFuente = PIPELINE_FRESHNESS_TARGETS.filter((t) => !t.fuente).map((t) => t.table);
+    expect(sinFuente).toEqual(["pixel_daily_aggregates"]);
+  });
+
+  it("ninguna tabla es su propia fuente", () => {
+    for (const t of PIPELINE_FRESHNESS_TARGETS) {
+      expect(t.fuente?.tabla).not.toBe(t.table);
+    }
+  });
+
+  it("las fuentes son pocas: una query por fuente, no por tabla", () => {
+    const fuentes = new Set(
+      PIPELINE_FRESHNESS_TARGETS.filter((t) => t.fuente).map(
+        (t) => `${t.fuente!.tabla}.${t.fuente!.columna}`,
+      ),
+    );
+    // Esto corre dentro de warm-cache: no puede costar más que el trabajo que
+    // vigila. Catorce tablas, cuatro queries.
+    expect(fuentes.size).toBeLessThanOrEqual(4);
   });
 });

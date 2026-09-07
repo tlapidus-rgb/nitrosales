@@ -30,7 +30,7 @@ import {
 } from "@/data/gold/gold-attribution-channel-transform";
 import { buildTouchpointChannelCase } from "@/lib/pixel/touchpoint-channel-sql";
 import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
-import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
+import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -87,12 +87,12 @@ export async function GET(req: NextRequest) {
     // El cursor guardado solo aplica al modo incremental. Un `?full=1` es una
     // operacion manual sobre toda la historia: arranca donde el que la corre
     // diga, no donde quedo la corrida automatica de hace media hora.
-    const start =
-      cursorExplicito !== null
-        ? Math.max(0, parseInt(cursorExplicito, 10) || 0)
-        : full
-          ? 0
-          : indiceDespuesDe(orgs, await ultimoProcesado(CRON));
+    const { desde: start, persiste: persisteCursor } = arranqueDeLaVuelta({
+      ids: orgs,
+      cursorGuardado: await ultimoProcesado(CRON),
+      cursorExplicito,
+      full,
+    });
 
     const done: Array<{ org: string; rows: number; huerfanasBorradas: number }> = [];
     let i = start;
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
     // Guardar donde cortamos. Si terminamos la vuelta, se borra el cursor y la
     // proxima arranca de cero. Solo para el modo automatico: una corrida manual
     // con ?orgCursor= o ?full=1 no tiene por que mover el cursor del cron.
-    if (cursorExplicito === null && !full) {
+    if (persisteCursor) {
       await guardarCorte(CRON, i, orgs);
     }
     return NextResponse.json({
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
       // Desde E-11 esto ya no depende de que alguien lea `resume`: el corte
       // queda persistido y la proxima invocacion del cron arranca ahi sola.
       arrancoEn: start,
-      cursorPersistido: cursorExplicito === null && !full,
+      cursorPersistido: persisteCursor,
       durationMs: Date.now() - startedAt,
     });
   } catch (e: any) {
