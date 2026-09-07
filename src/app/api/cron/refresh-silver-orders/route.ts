@@ -28,7 +28,22 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DAYS_BACK = 3; // ventana incremental (cubre huecos de hasta 3 días)
+import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
+
 const INVOCATION_BUDGET_MS = 250_000;
+
+// E-11 — sin cursor, cada corrida arrancaba de la primera org. Si el budget se
+// acaba antes de llegar al final, las ultimas de la lista NO SE PROCESAN NUNCA:
+// el orden es estable, asi que son siempre las mismas. Ahora el corte se
+// persiste y la proxima invocacion sigue ahi.
+const CRON = "refresh-silver-orders";
+//
+// Ojo: el cursor por INDICE solo sirve cuando el cron procesa a TODAS las orgs
+// en cada vuelta, como este. En un cron que ya saltea las orgs hechas hace poco
+// —refresh-product-dimensions, refresh-pixel-name-dict— arrancar siempre de
+// cero YA es correcto y autocorrectivo: las stale se hacen, las frescas se
+// saltean. Ahi un cursor de indice EMPEORA las cosas, porque puede saltear orgs
+// que si necesitan trabajo. Por eso esos dos quedan como estan.
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -56,12 +71,18 @@ export async function GET(req: NextRequest) {
 
   // Todas las orgs; el upsert filtra por org+fecha, las que no tienen datos = no-op.
   const orgs = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
-    `SELECT id FROM organizations`
+    // ORDER BY obligatorio: el cursor de E-11 es un INDICE, asi que si el orden
+    // que devuelve Postgres cambia entre corridas, reanudar en el indice 5
+    // saltea organizaciones distintas cada vez.
+    `SELECT id FROM organizations ORDER BY id`
   );
 
   const results: Array<{ org: string; ok: boolean; ms: number; error?: string }> = [];
   let budgetHit = false;
-  for (const { id } of orgs) {
+  const arrancoEn = await indiceDeArranque(CRON, orgs.length);
+  let i = arrancoEn;
+  for (; i < orgs.length; i++) {
+    const { id } = orgs[i];
     if (Date.now() - startedAt > INVOCATION_BUDGET_MS) {
       budgetHit = true;
       break;
@@ -83,6 +104,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await guardarCorte(CRON, i, orgs.length);
+
+  await guardarCorte(CRON, i, orgs.length);
+
   return NextResponse.json({
     ok: results.every((r) => r.ok),
     mode: full ? "backfill" : "incremental",
@@ -90,6 +115,10 @@ export async function GET(req: NextRequest) {
     orgsProcessed: results.length,
     totalOrgs: orgs.length,
     budgetHit,
+    // E-11: de donde arranco esta corrida y donde corto. Si budgetHit es true,
+    // la proxima invocacion sigue en `cortoEn` en vez de volver a empezar.
+    arrancoEn,
+    cortoEn: i >= orgs.length ? 0 : i,
     durationMs: Date.now() - startedAt,
     results,
   });
