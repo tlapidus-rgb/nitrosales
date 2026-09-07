@@ -19,8 +19,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendEmail } from "@/lib/email/send";
 import { waitUntil } from "@vercel/functions";
+import { validarCredenciales, mensajeParaElCliente } from "@/lib/onboarding/validacion-wizard";
 
 export const dynamic = "force-dynamic";
+// E-13: el submit ahora verifica credenciales contra las APIs de las
+// plataformas antes de guardar. El presupuesto interno son 20s; este tope da
+// margen para eso mas el resto del handler.
+export const maxDuration = 60;
 
 // BP-S58-003: META_PIXEL eliminado como plataforma del wizard. Los campos
 // pixelId + pixelAccessToken viajan dentro del payload de META_ADS y se
@@ -101,6 +106,42 @@ export async function POST(req: NextRequest) {
           settings: { ...existingSettings, ...cleanOrgInfo },
         },
       });
+    }
+
+    // ── E-13: verificar las credenciales ANTES de guardarlas ──────────────
+    // Punto medio entre lo que pedía la ficha ("exponer el test en el wizard y
+    // bloquear el submit") y la decisión de UX que ya estaba tomada ("el cliente
+    // no debe ver fallas, las valida el admin"): NO hay botón de "probar" y no
+    // se muestra ningún error crudo, pero si algo no anda al enviar, se corta y
+    // se le dice QUÉ corregir. Los `hint` de credential-tests ya están escritos
+    // para un humano no técnico.
+    //
+    // Lo que NO alcanza a verificarse a tiempo, o lo que explota, DEJA PASAR.
+    // Un cliente no puede quedar trabado en el alta porque nuestra verificación
+    // estuvo lenta. Ver src/lib/onboarding/validacion-wizard.ts.
+    //
+    // ⚠️ Se valida lo SANITIZADO, no lo crudo. Al copiar credenciales de
+    // Notion o de un PDF se cuelan caracteres invisibles (U+2028, NBSP) que
+    // rompen `fetch` con "Cannot convert argument to a ByteString". Probando el
+    // valor crudo, el test explotaría para credenciales que en realidad andan
+    // —porque abajo se guardan ya limpias— y la verificación no serviría de nada
+    // justo en el caso más común.
+    const aValidar = platforms
+      .filter((p: any) => VALID_PLATFORMS.has(p.platform))
+      .map((p: any) => ({ platform: p.platform, credentials: sanitizeCreds(p.credentials) }));
+    if (aValidar.length > 0) {
+      const resultados = await validarCredenciales(aValidar);
+      const mensaje = mensajeParaElCliente(resultados);
+      if (mensaje) {
+        return NextResponse.json(
+          {
+            error: mensaje,
+            // Para el log y para el admin; el cliente ve `error`.
+            verificacion: resultados.map((r) => ({ plataforma: r.plataforma, ok: r.ok })),
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // Validar y crear/actualizar connections
