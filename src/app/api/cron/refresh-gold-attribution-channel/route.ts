@@ -30,11 +30,15 @@ import {
 } from "@/data/gold/gold-attribution-channel-transform";
 import { buildTouchpointChannelCase } from "@/lib/pixel/touchpoint-channel-sql";
 import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
+import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DAYS_BACK = 4; // ventana incremental + margen de borde
+
+// Nombre bajo el que este cron guarda por donde iba. E-11.
+const CRON = "refresh-gold-attribution-channel";
 const BUDGET_MS = 250_000; // bajo el cap real de 300s
 
 export async function GET(req: NextRequest) {
@@ -52,7 +56,18 @@ export async function GET(req: NextRequest) {
   const since = full
     ? "1970-01-01T00:00:00Z"
     : new Date(Date.now() - DAYS_BACK * 86_400_000).toISOString();
-  const start = Math.max(0, parseInt(url.searchParams.get("orgCursor") || "0", 10) || 0);
+  // E-11 — EL CURSOR EXISTIA Y NO LO LEIA NADIE.
+  // Este endpoint venia devolviendo `resume: "?orgCursor=7"` desde siempre, pero
+  // el unico que lo invoca es Vercel Cron con la URL fija de vercel.json: nadie
+  // leia ese campo ni volvia a llamar. O sea que cada corrida arrancaba de la
+  // org 0 y, si el budget se acababa antes de llegar al final, las ultimas
+  // organizaciones de la lista NO SE PROCESABAN NUNCA. Siempre las mismas,
+  // porque el orden es `ORDER BY 1` sobre el organizationId — estable.
+  //
+  // Ahora el corte se persiste y la proxima invocacion arranca ahi. El
+  // `?orgCursor=` explicito sigue mandando por encima del guardado, para poder
+  // reanudar a mano desde donde uno quiera.
+  const cursorExplicito = url.searchParams.get("orgCursor");
 
   try {
     // ⚠️ El reloj de la BASE, no `new Date()`. `gold_updated_at` lo escribe
@@ -68,6 +83,16 @@ export async function GET(req: NextRequest) {
       since,
     );
     const orgs: string[] = orgsRes.map((o: any) => o.org);
+
+    // El cursor guardado solo aplica al modo incremental. Un `?full=1` es una
+    // operacion manual sobre toda la historia: arranca donde el que la corre
+    // diga, no donde quedo la corrida automatica de hace media hora.
+    const start =
+      cursorExplicito !== null
+        ? Math.max(0, parseInt(cursorExplicito, 10) || 0)
+        : full
+          ? 0
+          : await indiceDeArranque(CRON, orgs.length);
 
     const done: Array<{ org: string; rows: number; huerfanasBorradas: number }> = [];
     let i = start;
@@ -97,6 +122,12 @@ export async function GET(req: NextRequest) {
       done.push({ org, rows: Number(n), huerfanasBorradas: Number(huerfanas) });
     }
     const remaining = i < orgs.length;
+    // Guardar donde cortamos. Si terminamos la vuelta, se borra el cursor y la
+    // proxima arranca de cero. Solo para el modo automatico: una corrida manual
+    // con ?orgCursor= o ?full=1 no tiene por que mover el cursor del cron.
+    if (cursorExplicito === null && !full) {
+      await guardarCorte(CRON, i, orgs.length);
+    }
     return NextResponse.json({
       ok: true,
       mode: full ? "backfill" : "incremental",
@@ -106,6 +137,10 @@ export async function GET(req: NextRequest) {
       done,
       done_all: !remaining,
       resume: remaining ? `?orgCursor=${i}${full ? "&full=1" : ""}` : null,
+      // Desde E-11 esto ya no depende de que alguien lea `resume`: el corte
+      // queda persistido y la proxima invocacion del cron arranca ahi sola.
+      arrancoEn: start,
+      cursorPersistido: cursorExplicito === null && !full,
       durationMs: Date.now() - startedAt,
     });
   } catch (e: any) {
