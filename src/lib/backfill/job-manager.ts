@@ -169,3 +169,62 @@ export async function areAllJobsComplete(onboardingRequestId: string): Promise<b
   const total = Number(r?.total || 0);
   return total > 0 && pending === 0;
 }
+
+// ══════════════════════════════════════════════════════════════
+// E-08 — claim atómico + conteo de jobs activos
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Cuántos jobs están efectivamente corriendo AHORA: RUNNING con `lastChunkAt`
+ * fresco. Un RUNNING con el chunk viejo está abandonado (la lambda se murió) y
+ * no cuenta — si contara, un job huérfano bloquearía la cola para siempre.
+ */
+export async function contarJobsActivos(cooldownMs: number): Promise<number> {
+  const corte = new Date(Date.now() - cooldownMs);
+  const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+    `SELECT COUNT(*)::int AS n FROM "backfill_jobs"
+     WHERE "status" = 'RUNNING' AND "lastChunkAt" IS NOT NULL AND "lastChunkAt" >= $1`,
+    corte
+  );
+  return Number(rows[0]?.n || 0);
+}
+
+/**
+ * Toma el próximo job y lo marca RUNNING en UNA sola sentencia.
+ *
+ * ⚠️ POR QUÉ REEMPLAZA A `pickNextJob` + `markJobRunning` (E-08):
+ * eran dos queries separadas, así que dos invocaciones que arrancaban juntas
+ * —el cron de cada minuto y el trigger inmediato de `approve-backfill`— podían
+ * hacer el SELECT las dos antes de que ninguna hiciera el UPDATE, y salir las
+ * dos con el MISMO job. El "lock" por frescura de `lastChunkAt` no servía para
+ * un job en QUEUED: todavía no tenía ninguno.
+ *
+ * `FOR UPDATE SKIP LOCKED` hace que dos invocaciones concurrentes nunca vean la
+ * misma fila: la segunda saltea la que la primera está por tomar.
+ *
+ * `lastChunkAt = NOW()` se escribe **en el claim**, no después del primer chunk.
+ * Si se escribiera después, entre el claim y el primer chunk el job seguiría
+ * pareciendo libre.
+ */
+export const RECLAMAR_PROXIMO_JOB_SQL = `UPDATE "backfill_jobs" j
+        SET "status" = 'RUNNING',
+            "startedAt" = COALESCE(j."startedAt", NOW()),
+            "lastChunkAt" = NOW(),
+            "updatedAt" = NOW()
+      WHERE j."id" = (
+        SELECT c."id" FROM "backfill_jobs" c
+         WHERE c."status" = 'QUEUED'
+            OR (c."status" = 'RUNNING'
+                AND (c."lastChunkAt" IS NULL OR c."lastChunkAt" < $1))
+         ORDER BY CASE c."status" WHEN 'RUNNING' THEN 0 ELSE 1 END,
+                  c."createdAt" ASC
+         LIMIT 1
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING j.*`;
+
+export async function reclamarProximoJob(cooldownMs: number): Promise<any | null> {
+  const corte = new Date(Date.now() - cooldownMs);
+  const rows = await prisma.$queryRawUnsafe<Array<any>>(RECLAMAR_PROXIMO_JOB_SQL, corte);
+  return rows[0] || null;
+}
