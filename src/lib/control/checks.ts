@@ -27,6 +27,15 @@ export interface StuckOnboarding {
   hoursOld: number;
 }
 
+export interface JobDeBackfillAtascado {
+  jobId: string;
+  organizationId: string;
+  platform: string;
+  status: string;
+  horas: number;
+  lastError: string | null;
+}
+
 export interface InactiveClient {
   orgId: string;
   orgName: string;
@@ -49,6 +58,25 @@ const SYNC_THRESHOLDS_MIN: Record<string, number> = {
 const ON_DEMAND_PLATFORMS = new Set(["META_ADS", "GOOGLE_ADS"]);
 
 const STUCK_ONBOARDING_HOURS = 72;
+
+// Los dos estados donde el alta espera a algo que puede no llegar nunca, con su
+// propio umbral. Son MAS cortos que los 72 h de arriba a proposito: un alta en
+// PENDING espera a que alguien la mire y puede aguantar; una en BACKFILLING o
+// READY_FOR_REVIEW ya le prometio al cliente que su data esta en camino.
+//
+// ⚠️ NINGUNO DE LOS DOS ESTABA CUBIERTO (revision del 2026-09-07). El chequeo
+// miraba PENDING, NEEDS_INFO e IN_PROGRESS — o sea, ninguno de los dos estados
+// donde el flujo realmente se para. Un backfill que termina un viernes a las
+// 23:00 deja al cliente viendo "preparando tu data" todo el fin de semana,
+// control-alerts corre 8 veces y reporta "sin problemas".
+const BACKFILLING_HORAS = 12;      // un backfill grande puede tardar horas, no 12
+const READY_FOR_REVIEW_HORAS = 6;  // esto solo espera un click del admin
+
+// Un job de backfill en QUEUED mas de esto es una senal de que el control de
+// admision lo esta frenando y nadie se entera: ventana horaria mal puesta, otro
+// job trabado, o la base lenta. El runner devuelve HTTP 200 con
+// admitido:false, asi que ningun monitor de status lo ve.
+const JOB_ENCOLADO_HORAS = 3;
 const INACTIVE_CLIENT_DAYS = 14;
 
 // ─── Check 1: conexiones caídas/lentas ───
@@ -165,13 +193,24 @@ export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
 export async function checkStuckOnboardings(): Promise<StuckOnboarding[]> {
   const since = new Date(Date.now() - STUCK_ONBOARDING_HOURS * 3600 * 1000);
 
+  const desdeBackfilling = new Date(Date.now() - BACKFILLING_HORAS * 3600 * 1000);
+  const desdeReview = new Date(Date.now() - READY_FOR_REVIEW_HORAS * 3600 * 1000);
+
+  // Para los estados de espera se mide desde `updatedAt` (cuanto lleva EN ESE
+  // ESTADO) y no desde `createdAt`: un alta creada hace un mes que entro a
+  // BACKFILLING hace 10 minutos no esta atrasada.
   const rows = await prisma.$queryRawUnsafe<Array<any>>(
-    `SELECT "id", "companyName", "contactEmail", "status", "createdAt"
+    `SELECT "id", "companyName", "contactEmail", "status", "createdAt", "updatedAt",
+            CASE WHEN "status" IN ('BACKFILLING','READY_FOR_REVIEW')
+                 THEN "updatedAt" ELSE "createdAt" END AS "desde"
      FROM "onboarding_requests"
-     WHERE "status" IN ('PENDING', 'NEEDS_INFO', 'IN_PROGRESS')
-       AND "createdAt" < $1
-     ORDER BY "createdAt" ASC`,
-    since
+     WHERE ("status" IN ('PENDING', 'NEEDS_INFO', 'IN_PROGRESS') AND "createdAt" < $1)
+        OR ("status" = 'BACKFILLING'       AND "updatedAt" < $2)
+        OR ("status" = 'READY_FOR_REVIEW'  AND "updatedAt" < $3)
+     ORDER BY "desde" ASC`,
+    since,
+    desdeBackfilling,
+    desdeReview
   );
 
   return rows.map((r) => ({
@@ -179,8 +218,44 @@ export async function checkStuckOnboardings(): Promise<StuckOnboarding[]> {
     companyName: r.companyName,
     contactEmail: r.contactEmail,
     status: r.status,
-    hoursOld: Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 3600000),
+    hoursOld: Math.floor((Date.now() - new Date(r.desde).getTime()) / 3600000),
   }));
+}
+
+/**
+ * Jobs de backfill que llevan demasiado sin arrancar o sin avanzar.
+ *
+ * Es el unico aviso de que el control de admision (E-08) esta frenando algo y
+ * nadie se entera. El runner devuelve HTTP 200 con `admitido:false` cuando la
+ * ventana horaria, el limite de concurrencia o el freno por latencia cortan, asi
+ * que Vercel ve verde y ningun monitor de status lo nota.
+ *
+ * Resiliente: si la tabla no existe, devuelve vacio en vez de romper el resto
+ * del reporte.
+ */
+export async function checkJobsDeBackfillAtascados(): Promise<JobDeBackfillAtascado[]> {
+  const corte = new Date(Date.now() - JOB_ENCOLADO_HORAS * 3600 * 1000);
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<any>>(
+      `SELECT "id", "organizationId", "platform", "status", "lastError",
+              COALESCE("lastChunkAt", "startedAt", "createdAt") AS "desde"
+         FROM "backfill_jobs"
+        WHERE "status" IN ('QUEUED','RUNNING')
+          AND COALESCE("lastChunkAt", "startedAt", "createdAt") < $1
+        ORDER BY "desde" ASC`,
+      corte
+    );
+    return rows.map((r) => ({
+      jobId: r.id,
+      organizationId: r.organizationId,
+      platform: r.platform,
+      status: r.status,
+      horas: Math.floor((Date.now() - new Date(r.desde).getTime()) / 3600000),
+      lastError: r.lastError ?? null,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 // ─── Check 3: clientes inactivos (sin login >14d) ───

@@ -6,11 +6,13 @@ import type {
   ConnectionIssue,
   StuckOnboarding,
   InactiveClient,
+  JobDeBackfillAtascado,
 } from "./checks";
 
 interface BuildAlertEmailArgs {
   connectionIssues: ConnectionIssue[];
   stuckOnboardings: StuckOnboarding[];
+  jobsAtascados: JobDeBackfillAtascado[];
   inactiveClients: InactiveClient[];
   appUrl: string;
 }
@@ -19,13 +21,14 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
   subject: string;
   html: string;
 } {
-  const { connectionIssues, stuckOnboardings, inactiveClients, appUrl } = args;
+  const { connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados, appUrl } = args;
 
   const errorCount = connectionIssues.filter((i) => i.level === "error").length;
   const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
   const stuckCount = stuckOnboardings.length;
   const inactiveCount = inactiveClients.length;
-  const totalIssues = errorCount + warnCount + stuckCount + inactiveCount;
+  const atascadosCount = jobsAtascados.length;
+  const totalIssues = errorCount + warnCount + stuckCount + inactiveCount + atascadosCount;
 
   const headlineTone = errorCount > 0 ? "#EF4444" : warnCount > 0 ? "#F59E0B" : "#22C55E";
   const headlineLabel =
@@ -99,6 +102,14 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
       <div style="color:#fff; font-size:13px; font-weight:600;">${escapeHtml(o.companyName)}</div>
       <div style="color:#A1A1AA; font-size:11px; margin-top:3px;">
         ${escapeHtml(o.contactEmail)} — <strong style="color:#FBBF24;">${escapeHtml(o.status)}</strong> hace ${o.hoursOld}h
+      </div>
+    </td></tr>`).join("")) : ""}
+
+  ${atascadosCount > 0 ? renderSection("⛓️ Backfills trabados", "#EF4444", jobsAtascados.map(j => `
+    <tr><td style="padding:12px 14px; border-bottom:1px solid #1F1F23;">
+      <div style="color:#fff; font-size:13px; font-weight:600;">${escapeHtml(j.platform)} · ${escapeHtml(j.status)} hace ${j.horas}h</div>
+      <div style="color:#A1A1AA; font-size:11px; margin-top:3px;">
+        org ${escapeHtml(j.organizationId)}${j.lastError ? " — " + escapeHtml(j.lastError.slice(0, 120)) : ""}
       </div>
     </td></tr>`).join("")) : ""}
 

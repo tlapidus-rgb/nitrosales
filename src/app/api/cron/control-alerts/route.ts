@@ -19,6 +19,7 @@ import {
   checkConnectionIssues,
   checkStuckOnboardings,
   checkInactiveClients,
+  checkJobsDeBackfillAtascados,
 } from "@/lib/control/checks";
 import { buildAlertEmailHtml } from "@/lib/control/email-template";
 import { sendEmail } from "@/lib/email/send";
@@ -49,22 +50,28 @@ export async function GET(req: NextRequest) {
     }
 
     // Corre checks en paralelo
-    const [connectionIssues, stuckOnboardings, inactiveClients] = await Promise.all([
+    const [connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados] = await Promise.all([
       checkConnectionIssues(),
       checkStuckOnboardings(),
       checkInactiveClients(),
+      // E-11 bis: el unico aviso de que el control de admision del backfill esta
+      // frenando un alta. El runner devuelve HTTP 200 con admitido:false, asi
+      // que sin esto nadie se entera nunca.
+      checkJobsDeBackfillAtascados(),
     ]);
 
     const errorCount = connectionIssues.filter((i) => i.level === "error").length;
     const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
     const totalIssues =
-      errorCount + warnCount + stuckOnboardings.length + inactiveClients.length;
+      errorCount + warnCount + stuckOnboardings.length + inactiveClients.length +
+      jobsAtascados.length;
 
     const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const { subject, html } = buildAlertEmailHtml({
       connectionIssues,
       stuckOnboardings,
       inactiveClients,
+      jobsAtascados,
       appUrl,
     });
 

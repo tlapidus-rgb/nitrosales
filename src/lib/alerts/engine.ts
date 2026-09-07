@@ -115,7 +115,42 @@ export async function evaluateRule(
       lastFiredAt: rule.lastFiredAt,
     });
 
-    if (!result.triggered) return null;
+    if (!result.triggered) {
+      // ⚠️ UNA REGLA QUE NO DISPARA TIENE QUE MOVERSE AL FONDO DE LA COLA.
+      // (Encontrado en la revisión del 2026-09-07.)
+      //
+      // `loadAllPendingSchedules` trae las reglas con `nextFireAt <= NOW()`
+      // ordenadas por `nextFireAt ASC NULLS FIRST`, y `alerts-scheduler` las
+      // evalúa en ese orden con un presupuesto de tiempo. La equidad del sistema
+      // depende de que una regla evaluada SALGA de la cabeza de la cola.
+      //
+      // Hasta acá, este `return null` salía ANTES del UPDATE de `nextFireAt`
+      // que está más abajo. O sea que una regla de schedule que NO dispara
+      // NUNCA avanzaba su próxima fecha: quedaba vencida para siempre, se
+      // re-evaluaba en cada corrida (~5 s cada una) y se quedaba
+      // PERMANENTEMENTE PRIMERA. Con varios clientes, un puñado de reglas que
+      // nunca disparan alcanza para que las de atrás no se evalúen jamás — el
+      // mismo modo de falla que E-11 vino a eliminar, por otro camino.
+      //
+      // No se salta al próximo período completo a propósito: eso cambiaría el
+      // comportamiento visible (una regla diaria que no dispara a las 09:00 hoy
+      // se re-chequea a las 09:15 y puede disparar; con el salto, recién
+      // mañana). Se la manda al fondo con un reintento corto: se sigue
+      // chequeando igual de seguido, pero deja de tapar a las demás.
+      if (rule.type === "schedule") {
+        await prisma
+          .$executeRawUnsafe(
+            `UPDATE "alert_rules" SET "nextFireAt" = $2, "updatedAt" = NOW() WHERE "id" = $1`,
+            rule.id,
+            new Date(Date.now() + REINTENTO_SIN_DISPARO_MS)
+          )
+          .catch((e) =>
+            // No romper la evaluación por no poder mover el cursor de la cola.
+            console.warn(`[alerts/engine] no se pudo reprogramar ${rule.id}:`, e?.message)
+          );
+      }
+      return null;
+    }
 
     const id = result.dedupeKey ?? `rule.${rule.id}.${rule.lastFiredAt ? new Date(rule.lastFiredAt).getTime() : Date.now()}`;
     const alert: UnifiedAlert = {
@@ -251,6 +286,16 @@ export async function evaluateAllUserRules(
 
 // Carga TODAS las schedules pendientes de disparo (cualquier user / org).
 // Solo para el cron — no para ningún flow del usuario logueado.
+/**
+ * Cuánto se posterga una regla de schedule que se evaluó y NO disparó.
+ *
+ * Tiene que ser mayor o igual a la cadencia del cron (cada 15 min en
+ * vercel.json) para que la regla ceda el turno de verdad. Si fuera menor,
+ * volvería a estar vencida antes de la próxima corrida y no se movería del
+ * frente de la cola.
+ */
+const REINTENTO_SIN_DISPARO_MS = 15 * 60 * 1000;
+
 export async function loadAllPendingSchedules(): Promise<StoredRule[]> {
   try {
     const rows = await prisma.$queryRawUnsafe<StoredRule[]>(
