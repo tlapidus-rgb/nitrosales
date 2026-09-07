@@ -106,8 +106,6 @@ export async function GET(req: NextRequest) {
 
   await guardarCorte(CRON, i, orgs.length);
 
-  await guardarCorte(CRON, i, orgs.length);
-
   return NextResponse.json({
     ok: results.every((r) => r.ok),
     mode: full ? "backfill" : "incremental",

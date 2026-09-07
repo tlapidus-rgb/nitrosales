@@ -41,6 +41,21 @@ function fuente(p = RUTA): string {
     .replace(/^\s*\/\/.*$/gm, "");
 }
 
+/**
+ * Indice de la proxima llamada a $executeRawUnsafe / $queryRawUnsafe desde
+ * `desde`. Contempla la forma con generico —`$queryRawUnsafe<{id:string}[]>(`—
+ * que la version anterior de este escaner no veia: buscaba literalmente
+ * "RawUnsafe(" y se salteaba 6 de las 15 llamadas del archivo.
+ */
+function siguienteLlamada(src: string, desde: number): number {
+  const i = src.indexOf("RawUnsafe", desde);
+  if (i < 0) return -1;
+  const resto = src.slice(i + "RawUnsafe".length);
+  // Puede seguir "(" directo, o "<...>(" si esta tipada.
+  if (/^s*[(<]/.test(resto)) return i;
+  return siguienteLlamada(src, i + 1);
+}
+
 describe("R-C02 — no queda una sola interpolacion en SQL crudo", () => {
   const src = fuente();
 
@@ -57,10 +72,10 @@ describe("R-C02 — no queda una sola interpolacion en SQL crudo", () => {
     let desde = 0;
     let encontradas = 0;
     for (;;) {
-      const i = src.indexOf("RawUnsafe(", desde);
+      const i = siguienteLlamada(src, desde);
       if (i < 0) break;
       encontradas++;
-      let j = i + "RawUnsafe(".length;
+      let j = src.indexOf("(", i) + 1;
       while (j < src.length && src[j].trim() === "") j++;
       if (src[j] !== "`") {
         sospechosas.push(`arg no es template literal: ${src.slice(i, i + 90)}`);
@@ -92,8 +107,8 @@ describe("R-C02 — las credenciales ya no viven en el modulo", () => {
 
   it("no hay variables de modulo con la cuenta ni las claves VTEX", () => {
     // Sin anclar a `^let`: var, doble espacio o const pasaban igual.
-    expect(src).not.toMatch(/(?:let|var|const)s+VTEX_(?:ACCOUNT|KEY|TOKEN)/);
-    expect(src).not.toMatch(/(?:let|var|const)s+ORG_ID/);
+    expect(src).not.toMatch(/\b(?:let|var|const)\s+VTEX_(?:ACCOUNT|KEY|TOKEN)\b/);
+    expect(src).not.toMatch(/\b(?:let|var|const)\s+ORG_ID\b/);
   });
 
   it("VTEX_BASE ya no es un const de modulo: la base se arma por request", () => {
@@ -127,7 +142,7 @@ describe("R-C02 — el endpoint es staff-only", () => {
     // Antes el SQL se scopeaba por la org de la SESION mientras las
     // credenciales VTEX salian del ?org=. Para un staff con View-as-Org eso
     // consultaba la base de una organizacion con las credenciales de otra.
-    expect(src.match(/^s*ORG_ID,s*$/gm) ?? []).toEqual([]);
+    expect(src.match(/^\s*ORG_ID,\s*$/gm) ?? []).toEqual([]);
     expect(src).toContain("ctx.orgId");
   });
 
