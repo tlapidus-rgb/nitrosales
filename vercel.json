@@ -73,6 +73,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/alertas-clientes?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 12 * * *"
+    },
+    {
       "path": "/api/cron/control-alerts?key=nitrosales-secret-key-2024-production",
       "schedule": "0 */6 * * *"
     },

@@ -57,6 +57,7 @@ import {
   formatCoherenceSummary,
   type CoherenceRow,
 } from "@/lib/pipeline/coherence";
+import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
 // ── Alerta de INCOHERENCIA (2026-08-19, BP-ROLLUP-STUCK) ─────────────────────
 // El auto-chequeo de coherencia detecta "tabla fresca, contenido viejo" (el bug
@@ -64,7 +65,8 @@ import {
 // 104.454). Antes SÓLO lo logueaba → moría en los logs del server y nadie se
 // enteraba. Ahora además manda mail: es exactamente la preocupación de "info mal
 // recogida". Cooldown en memoria para no spamear (el cron corre cada 15 min).
-const INCOHERENCE_ALERT_TO = "tlapidus@99media.com.ar";
+// E-19.3: la casilla se resuelve en un solo lugar y acepta varias.
+// Sin ALERTAS_EMAILS ni ADMIN_EMAIL seteadas, es exactamente la de antes.
 const INCOHERENCE_COOLDOWN_H = 6;
 let lastIncoherenceAlertSent = 0;
 
@@ -80,7 +82,7 @@ async function alertIncoherence(rows: CoherenceRow[], checkDay: string) {
     .join("");
   try {
     await sendEmail({
-      to: INCOHERENCE_ALERT_TO,
+      to: destinatariosDeAlertas(),
       subject: `🔴 NitroSales: rollup del pixel INCOHERENTE (${checkDay})`,
       html: `<p>El auto-chequeo detectó que <code>pixel_daily_source</code> se escribió con datos que NO coinciden con el crudo para el día <b>${checkDay}</b>:</p>
 <ul>${lines}</ul>

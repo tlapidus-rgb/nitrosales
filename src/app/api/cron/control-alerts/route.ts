@@ -24,6 +24,7 @@ import {
 import { buildAlertEmailHtml } from "@/lib/control/email-template";
 import { sendEmail } from "@/lib/email/send";
 import { isInternalUser } from "@/lib/feature-flags";
+import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
 export const dynamic = "force-dynamic";
 // E-11: 300 y no 60. El limite viejo era el que mataba este cron cuando
@@ -33,7 +34,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const CRON_KEY = ADMIN_API_KEY;
-const ADMIN_EMAIL = "tlapidus@99media.com.ar";
+// E-19.3: la casilla se resuelve en un solo lugar y acepta varias.
+// Sin ALERTAS_EMAILS ni ADMIN_EMAIL seteadas, es exactamente la de antes.
 
 export async function GET(req: NextRequest) {
   try {
@@ -95,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     // Envía el email
     const result = await sendEmail({
-      to: ADMIN_EMAIL,
+      to: destinatariosDeAlertas(),
       subject,
       html,
     });

@@ -20,6 +20,7 @@ import { authOptions } from "@/lib/auth";
 import { sendEmail } from "@/lib/email/send";
 import { waitUntil } from "@vercel/functions";
 import { validarCredenciales, mensajeParaElCliente } from "@/lib/onboarding/validacion-wizard";
+import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
 export const dynamic = "force-dynamic";
 // E-13: el submit ahora verifica credenciales contra las APIs de las
@@ -283,7 +284,8 @@ export async function POST(req: NextRequest) {
     );
 
     // Notificar a Tomy
-    const adminEmail = "tlapidus@99media.com.ar";
+    // E-19.3: una sola fuente para el destinatario de alertas.
+    const adminEmail = destinatariosDeAlertas();
     const orgName = await prisma.organization.findUnique({
       where: { id: user.organizationId },
       select: { name: true },

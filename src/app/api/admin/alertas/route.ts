@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,9 +41,17 @@ interface Alerta {
   metric: string | null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const allowed = await isInternalUser();
+    // E-19.2 — estos cuatro checks son de los mejores del repo (pixel caído
+    // habiendo tenido eventos, pixel nunca instalado, baja identificación,
+    // tráfico con cero compras = webhook roto) y hasta ahora eran **una página
+    // que había que acordarse de abrir**. No estaban en ningún cron.
+    //
+    // Se acepta `?key=` además de la sesión para que `cron/alertas-clientes`
+    // pueda consumirlos. La sesión sigue funcionando igual para el panel.
+    const key = new URL(req.url).searchParams.get("key");
+    const allowed = isValidAdminKey(key) || (await isInternalUser());
     if (!allowed) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }

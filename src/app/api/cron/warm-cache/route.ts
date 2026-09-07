@@ -37,6 +37,7 @@ import {
   formatStaleSummary,
   type FreshnessRow,
 } from "@/lib/pipeline/freshness";
+import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — warm de N orgs puede tardar
@@ -51,7 +52,8 @@ const WARM_CACHE_KEY = ADMIN_API_KEY;
 // los umbrales por tabla, log + email (con cooldown para no spamear cada 5 min).
 // Los umbrales viven en src/lib/pipeline/freshness.ts, uno por tabla.
 const ALERT_COOLDOWN_H = 6;
-const ROLLUP_ALERT_TO = "tlapidus@99media.com.ar";
+// E-19.3: la casilla se resuelve en un solo lugar y acepta varias.
+// Sin ALERTAS_EMAILS ni ADMIN_EMAIL seteadas, es exactamente la de antes.
 
 // Cooldown en memoria (módulo). No depende de ninguna tabla. En serverless,
 // Vercel reusa instancias calientes para crons frecuentes, así que en la
@@ -101,7 +103,7 @@ async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
   const crons = Array.from(new Set(stale.map((r) => r.refreshedBy)));
   try {
     await sendEmail({
-      to: ROLLUP_ALERT_TO,
+      to: destinatariosDeAlertas(),
       subject: `⚠️ NitroSales: ${stale.length} tabla(s) del pipeline sin refrescar`,
       html: `<p>Estas tablas dejaron de actualizarse:</p><ul>${lines}</ul>
 <p>Causa más probable: uno de estos crons dejó de dispararse en Vercel — ${crons
