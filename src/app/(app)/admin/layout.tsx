@@ -27,3 +27,17 @@ export default async function AdminEnAppLayout({ children }: { children: ReactNo
   if (!allowed) notFound();
   return <>{children}</>;
 }
+
+// ⚠️ OJO CON EL STATUS: esta ruta devuelve **200, no 404**, aunque el guard corte.
+// Verificado en el preview el 2026-09-06: el body es la pantalla 404 de Next y la
+// respuesta trae `{"digest":"NEXT_NOT_FOUND"}`, o sea que el render se aborta y no
+// sale un solo dato. El status queda en 200 porque el layout de `(app)` es grande
+// y ya empezó a streamear cuando este layout anidado tira `notFound()`; ahí Next
+// ya no puede cambiar el código de estado.
+//
+// `/admin` y `/admin/clientes` sí dan 404 porque su guard (`src/app/admin/layout.tsx`)
+// está más arriba en el árbol, antes de que se comprometa el status.
+//
+// No lo leas como "el guard no anda". Si algún día hace falta el 404 de verdad,
+// hay que envolver la página en un server component que chequee antes de renderizar
+// (hoy es `"use client"`), o moverla bajo `src/app/admin/`.
