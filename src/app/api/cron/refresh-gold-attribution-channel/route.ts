@@ -24,7 +24,10 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { buildGoldAttributionChannelUpsert } from "@/data/gold/gold-attribution-channel-transform";
+import {
+  buildGoldAttributionChannelUpsert,
+  buildGoldAttributionChannelDeleteOrphans,
+} from "@/data/gold/gold-attribution-channel-transform";
 import { buildTouchpointChannelCase } from "@/lib/pixel/touchpoint-channel-sql";
 import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
 
@@ -52,6 +55,12 @@ export async function GET(req: NextRequest) {
   const start = Math.max(0, parseInt(url.searchParams.get("orgCursor") || "0", 10) || 0);
 
   try {
+    // ⚠️ El reloj de la BASE, no `new Date()`. `gold_updated_at` lo escribe
+    // Postgres; con desfasaje de reloj el DELETE borraría lo recién insertado.
+    const [{ now: runStartedAt }] = await prisma.$queryRawUnsafe<Array<{ now: Date }>>(
+      `SELECT now() AS now`,
+    );
+
     // Orgs con órdenes atribuidas en la ventana (o todas, si backfill).
     const orgsRes: any = await prisma.$queryRawUnsafe(
       `SELECT DISTINCT "organizationId" org FROM pixel_attributions
@@ -60,7 +69,7 @@ export async function GET(req: NextRequest) {
     );
     const orgs: string[] = orgsRes.map((o: any) => o.org);
 
-    const done: Array<{ org: string; rows: number }> = [];
+    const done: Array<{ org: string; rows: number; huerfanasBorradas: number }> = [];
     let i = start;
     for (; i < orgs.length; i++) {
       if (Date.now() - startedAt > BUDGET_MS) break;
@@ -73,8 +82,19 @@ export async function GET(req: NextRequest) {
       } catch {
         channelCase = buildTouchpointChannelCase([], "tp"); // channel_rule ausente → passthrough
       }
-      const n = await prisma.$executeRawUnsafe(buildGoldAttributionChannelUpsert(channelCase), org, since);
-      done.push({ org, rows: Number(n) });
+      // Upsert + borrado de huérfanas EN LA MISMA TRANSACCIÓN, por org.
+      // Separarlos deja una ventana donde conviven la fila del canal viejo y la
+      // del nuevo — o sea revenue DUPLICADO si alguien lee el panel justo ahí.
+      const [n, huerfanas] = await prisma.$transaction([
+        prisma.$executeRawUnsafe(buildGoldAttributionChannelUpsert(channelCase), org, since),
+        prisma.$executeRawUnsafe(
+          buildGoldAttributionChannelDeleteOrphans(),
+          org,
+          since,
+          runStartedAt,
+        ),
+      ]);
+      done.push({ org, rows: Number(n), huerfanasBorradas: Number(huerfanas) });
     }
     const remaining = i < orgs.length;
     return NextResponse.json({

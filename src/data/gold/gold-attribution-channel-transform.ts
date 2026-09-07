@@ -19,6 +19,13 @@ import { ordersValidWebSql } from "@/domains/orders";
 const AR_TZ = "America/Argentina/Buenos_Aires";
 
 /**
+ * Inicio del día AR que contiene `$2`, como timestamptz.
+ * Alinea la ventana incremental al día del rollup — ver el comentario extenso en
+ * `buildGoldAttributionChannelUpsert`.
+ */
+const DESDE_INICIO_DEL_DIA_AR = `(date_trunc('day', $2::timestamptz AT TIME ZONE '${AR_TZ}') AT TIME ZONE '${AR_TZ}')`;
+
+/**
  * @param channelCaseSql  CASE de canal sobre el touchpoint `tp`
  *   (buildTouchpointChannelCase(rules, "tp")). Son literales escapados de
  *   channel_rule → seguro de interpolar.
@@ -101,14 +108,61 @@ ON CONFLICT (organization_id, day, channel) DO UPDATE SET
 }
 
 /**
- * Incremental: recomputa las órdenes de la org ($1) con orderDate >= $2.
- * `channelCaseSql` = buildTouchpointChannelCase(rules_de_la_org, "tp").
+ * Incremental: recomputa las órdenes de la org ($1) desde el inicio del DÍA AR
+ * que contiene $2. `channelCaseSql` = buildTouchpointChannelCase(rules, "tp").
+ *
+ * ⚠️ POR QUÉ `date_trunc` Y NO `$2` A SECAS (bug encontrado el 2026-09-06):
+ *   El cron pasa `since = ahora − 4 días`, o sea un instante CON HORA. Pero el
+ *   rollup agrupa por `day` en zona AR. Con `orderDate >= $2` a secas, el día
+ *   del borde se recomputa PARCIALMENTE: sólo entran las órdenes posteriores a
+ *   esa hora, y el bucket queda con menos plata de la real.
+ *
+ *   Eso ya era un bug con el upsert solo. Y volvía IMPOSIBLE agregar el borrado
+ *   de huérfanas: un canal cuyas órdenes de ese día fueran todas anteriores a la
+ *   hora de corte no se re-emite, y el DELETE lo habría borrado — perdiendo
+ *   revenue REAL. Truncando al inicio del día AR, todos los días de la ventana
+ *   se recomputan COMPLETOS, y recién ahí "no re-emitido" significa "ya no
+ *   existe".
  */
 export function buildGoldAttributionChannelUpsert(channelCaseSql: string): string {
   return buildRollup(
     channelCaseSql,
-    `\n    AND o."orderDate" >= $2::timestamptz\n    AND pa."createdAt" >= $2::timestamptz`,
+    `\n    AND o."orderDate" >= ${DESDE_INICIO_DEL_DIA_AR}\n    AND pa."createdAt" >= ${DESDE_INICIO_DEL_DIA_AR}`,
   );
+}
+
+/**
+ * Borra las filas que el upsert ya NO emite, acotado a la ventana recomputada.
+ *
+ * ⚠️ SIN ESTO EL REVENUE SÓLO SE CORRIGE HACIA ARRIBA. Dos casos reales:
+ *   · Una venta se CANCELA. Si era la única de su bucket (día, canal), el upsert
+ *     no emite esa fila y la vieja sobrevive con la plata vieja, para siempre.
+ *   · Se EDITA una regla en `/pixel/canales`. El bucket pasa de "TikTok Ads" a
+ *     "TikTok Paid": el upsert crea la fila nueva y la vieja QUEDA. El revenue de
+ *     esos días se DUPLICA y la serie histórica se parte en dos canales que son
+ *     el mismo.
+ *
+ * Cómo se detecta una huérfana: el upsert escribe `gold_updated_at = now()` en
+ * toda fila que toca. Cualquier fila de la ventana cuyo `gold_updated_at` sea
+ * ANTERIOR al inicio de la corrida es un bucket que ya no existe.
+ *
+ * Params: `$1` = org · `$2` = since · `$3` = runStartedAt
+ *
+ * ⚠️ `$3` DEBE salir del reloj de la BASE (`SELECT now()`), no de `new Date()` de
+ * la app: `gold_updated_at` lo escribe Postgres, y con desfasaje de reloj en la
+ * dirección equivocada este DELETE borraría lo recién insertado. Correr DESPUÉS
+ * del upsert y EN LA MISMA TRANSACCIÓN.
+ *
+ * Es el mismo contrato que `buildDeleteOrphans` de `affected-days.ts`, que usan
+ * los otros cuatro rollups Gold. Acá no se puede reusar tal cual porque aquel se
+ * define sobre `silver_orders` y este rollup se alimenta de `pixel_attributions`.
+ */
+export function buildGoldAttributionChannelDeleteOrphans(): string {
+  return `
+DELETE FROM gold_attribution_channel g
+WHERE g.organization_id = $1
+  AND g.day >= date_trunc('day', $2::timestamptz AT TIME ZONE '${AR_TZ}')::date
+  AND g.gold_updated_at < $3::timestamptz;`.trim();
 }
 
 /** Backfill inicial de una org ($1): toda la historia. Correr una vez en Neon. */

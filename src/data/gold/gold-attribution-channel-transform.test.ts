@@ -128,7 +128,13 @@ describe("gold_attribution_channel — transform estructura", () => {
   });
   it("scopea por org ($1); incremental filtra por fecha ($2); backfill solo org", () => {
     expect(upsert).toContain('pa."organizationId" = $1');
-    expect(upsert).toContain('o."orderDate" >= $2::timestamptz');
+    // CAMBIADO 2026-09-06: la ventana se alinea al inicio del DÍA AR en vez de
+    // usar `$2` a secas. Con la hora cruda, el día del borde se recomputaba
+    // parcialmente (sólo las órdenes posteriores a esa hora), dejando el bucket
+    // subvaluado — y volviendo imposible borrar huérfanas sin perder revenue real.
+    expect(upsert).toContain(
+      `o."orderDate" >= (date_trunc('day', $2::timestamptz AT TIME ZONE 'America/Argentina/Buenos_Aires') AT TIME ZONE 'America/Argentina/Buenos_Aires')`
+    );
     expect(backfill).toContain('pa."organizationId" = $1');
     expect(backfill).not.toContain("$2");
   });

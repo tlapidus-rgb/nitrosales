@@ -61,8 +61,13 @@ describe("gold_attribution_source — transform drift-proof", () => {
   });
 
   it("incremental filtra por orderDate + createdAt ($1); backfill sin parámetros", () => {
-    expect(upsert).toContain('o."orderDate" >= $1::timestamptz');
-    expect(upsert).toContain('pa."createdAt" >= $1::timestamptz');
+    // CAMBIADO 2026-09-06: la ventana se alinea al inicio del DÍA AR en vez de
+    // usar `$1` a secas. Con la hora cruda el día del borde se recomputaba
+    // parcialmente, dejando el bucket subvaluado — y volviendo imposible borrar
+    // huérfanas sin perder revenue real. Ver gold-attribution-huerfanas.test.ts.
+    const DIA_AR = `(date_trunc('day', $1::timestamptz AT TIME ZONE 'America/Argentina/Buenos_Aires') AT TIME ZONE 'America/Argentina/Buenos_Aires')`;
+    expect(upsert).toContain(`o."orderDate" >= ${DIA_AR}`);
+    expect(upsert).toContain(`pa."createdAt" >= ${DIA_AR}`);
     expect(backfill).not.toContain("$1");
   });
 });
