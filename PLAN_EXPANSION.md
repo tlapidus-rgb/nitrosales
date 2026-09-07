@@ -7,8 +7,8 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 casi cerrada — **7 de 31 tareas hechas** (E-01…E-06 y E-08) **+ E-07
-> a medias**, todo verificado en un deployment real (§ 13).
+> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos — **8 de 31 tareas hechas**
+> (E-01…E-06, E-08, E-12) **+ E-07 y E-11 a medias**.
 >
 > **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
 > mergea nada a `main` hasta terminarlo, probarlo y revisarlo completo.** Se acabaron las branches
@@ -18,7 +18,7 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-06, branch consolidada):** `tsc` exit 0 · `vitest` exit 0, **564 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **622 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -325,14 +325,40 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 - **No arrancar esto antes de tener el gate cerrado.** Es el cambio más grande del plan.
 
 ### E-11 · Cursor persistido en los 8 crons que no pueden reanudar
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
+- **Estado:** 🟡 **PARCIAL (2026-09-07)** — commits `dc8af35a` y `e4b2a80e`.
+- **Lo hecho:** `src/lib/cron/cursor-store.ts`, un key-value donde cada cron deja por dónde iba, más
+  la migración `POST /api/admin/migrate-cron-cursors`. Cableado en
+  **`refresh-gold-attribution-channel`** (que devolvía `resume: "?orgCursor=N"` para nadie) y
+  **`refresh-silver-orders`** (al que además le faltaba el `ORDER BY`: un cursor por índice no
+  significa nada si el orden puede cambiar).
+- **⚠️ ACCIÓN PENDIENTE AL MERGEAR:** correr `POST /api/admin/migrate-cron-cursors` para crear la
+  tabla. Hasta que se corra, el store degrada solo y el comportamiento es **idéntico al actual** —
+  por eso el código se puede mergear antes, como manda el orden de migraciones de `CLAUDE.md`.
+- **CORRECCIÓN AL ESTUDIO:** de los 8 que la tabla del § 2 lista como no-resumibles, **dos no hay
+  que tocar**: `refresh-product-dimensions` y `refresh-pixel-name-dict` ya saltean las
+  organizaciones refrescadas hace poco, así que arrancar de cero **ya es correcto y
+  autocorrectivo**. Meterles un cursor de índice los **empeora**: puede saltear orgs que sí
+  necesitan trabajo. Lo empecé a hacer y lo reverti al darme cuenta.
+- **Quedan:** `attribution-reconcile`, `alerts-scheduler`, `control-alerts`, `vtex-sync-recent`.
+  Los tres últimos además **no tienen presupuesto de tiempo**, así que antes del cursor les falta
+  el corte por reloj — es media tarea distinta. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
 - **Qué:** de los 14 crons que iteran todas las organizaciones, **8 no tienen forma de continuar
   donde quedaron** (o no tienen cursor, o lo calculan y nadie lo llama). El modo de falla al crecer
   no es "más lento": es **"a algunos clientes no les corre nunca"**, en silencio.
 - La lista completa está en `docs/expansion-2026-09/expansion-escalabilidad.md` § 2.
 
 ### E-12 · `warm-cache` por rotación
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-4 h
+- **Estado:** ✅ **HECHO (2026-09-06)** — commit `21aad18a`. Con 4 clientes, **dos no se calentaban
+  nunca**: 8 fetches por org con presupuesto para ~11 y sin `ORDER BY`, así que siempre quedaban
+  afuera las mismas. Ahora manda el rango (primero "hoy" para todas) y la org rota entre corridas.
+  Lógica pura y testeable en `src/lib/cache/warm-plan.ts`.
+- **⚠️ NO incluye la otra mitad de R-C19 (la cache key desalineada), y es a propósito:** las **dos**
+  opciones que propone esa ficha rompen algo. Sacar `model` del warm rompe `/pixel`, que tiene
+  selector de modelo y siempre lo manda; agregarlo en `/pixel/analytics` revierte un fix anterior
+  que existe para que el modelo configurado tenga efecto ahí. Y `cache-key.ts` documenta a propósito
+  por qué el `model` va crudo. El arreglo correcto es hacer la key **canónica** (resolver el modelo
+  antes de armarla), lo que cuesta un round-trip en el camino rápido. **Necesita decisión.**
+- **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-4 h
 - **Qué está mal:** recorre organización → rango → endpoint, o sea **8 fetches por org**, con
   presupuesto para ~11. **Con 4 clientes ya está truncado**; con 20 se calentaría el 7% de los
   clientes. Y sin `ORDER BY` no rota: los mismos primeros se llevan todo.
