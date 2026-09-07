@@ -19,7 +19,7 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **639 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **706 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -642,6 +642,60 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-07] 🔍 Ronda de verificación con cinco revisores independientes
+
+Axel pidió verificar todo lo hecho hasta acá. Se lanzaron cinco revisores sin contexto previo
+(regresiones, seguridad, flujo de punta a punta, evaluación de decisiones de diseño, calidad de
+tests). **Tres terminaron; dos murieron por el límite de uso de la cuenta**, no por el código.
+
+#### 🔴 Lo más grave, y no es de esta branch
+
+**`NEXTAUTH_SECRET` es exactamente el literal publicado en `vercel.json`.** Verificado contra
+producción con una llamada de sólo lectura: una key incorrecta da 401, ese literal da 200 en un
+endpoint que valida específicamente contra `process.env.NEXTAUTH_SECRET`.
+
+Consecuencia: con ese valor se puede **forjar un JWT** con `isStaff: true`. Todo el gate staff-only
+que construyó esta branch lo saltea un token forjado. No está en el bundle del navegador
+(verificado), así que hace falta acceso al repo — pero está en `vercel.json`, en `CLAUDE_STATE.md`,
+en `TODOS.md`, en `BACKLOG_PENDIENTES.md` y en tres archivos más, y viaja en la URL de los 28 crons.
+
+**Esto es el techo de todo lo demás.** Mientras siga así, cada gate que se agregue es decorativo.
+La rotación sigue congelada por decisión de Axel; ahora al menos el impacto está mapeado.
+
+#### Lo que se arregló en esta ronda
+
+| Qué | Commit | De quién era |
+|---|---|---|
+| Tres aserciones que no podían fallar nunca (los heredocs se comen los backslashes) | `0046d1a9` | **mío** |
+| Un job roto bloqueaba el alta de TODOS los clientes | `93362908` | **mío** (regresión de E-08) |
+| El cursor por índice salteaba orgs cuando la lista cambiaba | `7b7d800e` | **mío** (diseño de E-11) |
+| Inyección SQL por `?orgId=` en `/api/metrics/orders` | `2fd9fe3f` | preexistente |
+| `/products` y `/rentabilidad` con el gate escrito pero fuera del `matcher` | `7e7803be` | preexistente |
+| `/api/admin/migrate-aura-dedup-indexes` sin ninguna autenticación | `7e7803be` | preexistente |
+| Los dos estados donde el alta espera no estaban vigilados | `08c4696a` | preexistente |
+| Una alerta que no dispara tapaba la cola para siempre | `08c4696a` | preexistente |
+
+**Tres de los ocho eran míos**, y dos de ellos empeoraban lo que venían a arreglar: el límite de
+concurrencia convertía un job roto en una caída total del onboarding, y el cursor por índice
+reintroducía el mismo salteo de organizaciones que venía a eliminar. Vale como recordatorio de que
+un freno sin observabilidad es peor que no tener freno.
+
+#### Lo que queda abierto y por qué
+
+- **El IDOR de `/api/metrics/*`** (`?orgId=<cualquiera>&key=`) sigue vivo. **No se puede cerrar sin
+  rotar**: el cron `warm-cache` usa ese mismo camino para calentar la caché de cada organización, y
+  cerrarlo la deja fría para todos. Y dado que esa clave ya abre las 155 rutas admin, el riesgo
+  marginal de este bypass es ~cero *si la clave está comprometida* — que es exactamente el problema
+  a resolver. Muere con la rotación, no antes.
+- **`post-backfill-finalize` se dispara sin `waitUntil`** desde el runner: la lambda se congela
+  antes de que corra. Consecuencia: `costPrice` no se puebla y el cliente nuevo entra con
+  rentabilidad y P&L en cero, con pinta de estar bien. Nada lo reintenta.
+- **`approve-backfill` marca `BACKFILLING` aunque no haya creado ningún job** (cliente sin VTEX ni
+  ML, o con `historyVtexMonths = 0`). El cliente recibe el mail "ya arrancamos" y ve "0%" para
+  siempre. Ahora al menos `checkStuckOnboardings` lo reporta a las 12 h.
+
+---
 
 ### [2026-09-06] 🔀 Todo el plan pasa a UNA sola branch
 - **Decisión de Axel:** "quiero que todo el plan esté en una branch antes de mergear a prod, así lo
