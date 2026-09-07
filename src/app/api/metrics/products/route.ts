@@ -8,6 +8,7 @@ import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
+import { orgIdDeLaQuery } from "@/lib/org-id-seguro";
 
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: hasta 60s para queries pesadas en producción
@@ -116,7 +117,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     // Warm-cache cron bypass: ?orgId=X&key=KEY (mismo patrón que /metrics/pixel, BP-PERF-DASHBOARD).
     // Permite al cron /api/cron/warm-cache precalentar el SWR de cada org sin sesión.
-    const queryOrgId = searchParams.get("orgId");
+    // Validado en el borde: mismo motivo que en metrics/orders.
+    const queryOrgId = orgIdDeLaQuery(searchParams.get("orgId"));
     const queryKey = searchParams.get("key");
     const ORG_ID = queryOrgId && queryKey === ADMIN_API_KEY
       ? queryOrgId

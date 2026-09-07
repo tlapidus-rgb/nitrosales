@@ -58,6 +58,7 @@ import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
+import { orgIdDeLaQuery } from "@/lib/org-id-seguro";
 import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
 import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
@@ -204,7 +205,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
 
     // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
     // Caso normal: getOrganizationId() lee de la sesion NextAuth.
-    const queryOrgId = searchParams.get("orgId");
+    // Validado en el borde: mismo motivo que en metrics/orders. Aca las queries
+    // usan tagged templates (parametrizadas), pero un orgId con basura igual no
+    // tiene por que llegar a la base.
+    const queryOrgId = orgIdDeLaQuery(searchParams.get("orgId"));
     const queryKey = searchParams.get("key");
     let orgId: string;
     if (queryOrgId && queryKey === WARM_CACHE_KEY) {

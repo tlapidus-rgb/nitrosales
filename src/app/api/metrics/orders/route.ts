@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
+import { orgIdDeLaQuery, esOrgIdValido } from "@/lib/org-id-seguro";
 // enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
@@ -98,13 +99,23 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
   try {
     // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
     const _url = new URL(request.url);
-    const queryOrgId = _url.searchParams.get("orgId");
+    // ⚠️ INYECCION SQL (revision de seguridad, 2026-09-07): este `orgId` entraba
+    // CRUDO y se interpola entre comillas simples en 53 `$queryRawUnsafe` de
+    // este archivo (`WHERE "organizationId" = '${ORG_ID}'`). Un valor que
+    // cerrara la comilla alcanzaba la base ENTERA, de todos los clientes.
+    // Se valida el formato en el borde: ver src/lib/org-id-seguro.ts para por
+    // que se arregla aca y no parametrizando las 53.
+    const queryOrgId = orgIdDeLaQuery(_url.searchParams.get("orgId"));
     const queryKey = _url.searchParams.get("key");
     let ORG_ID: string;
     if (queryOrgId && queryKey === WARM_CACHE_KEY) {
       ORG_ID = queryOrgId;
     } else {
       ORG_ID = await getOrganizationId();
+    }
+    // Cinturon y tiradores: si algo cambia arriba, esto corta antes de tocar SQL.
+    if (!esOrgIdValido(ORG_ID)) {
+      return NextResponse.json({ error: "organizationId invalido" }, { status: 400 });
     }
     if (!migrated) {
       // Await to avoid competing for connections with the query batches below.
