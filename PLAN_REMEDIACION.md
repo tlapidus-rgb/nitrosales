@@ -10,7 +10,7 @@
 > **Estado global:** 🟨 FASE 0 en curso — verificación estática ✅ hecha (20 hallazgos confirmados,
 > 1 ampliado, 1 ascendido de "sin confirmar" a confirmado) · el acceso a Vercel/Neon que bloqueaba
 > 5 verificaciones **ya está resuelto**: R-V01 y R-V02 contestadas (2026-09-06) · **1 de 31 tareas
-> críticas cerradas** (R-C25) + R-C05 y R-C06 parciales — todo en branches, sin mergear
+> críticas cerradas** — R-C25 **ya está en producción**; R-C05 y R-C06 parciales, en branch sin mergear
 > **Línea base de validación (2026-09-02):** `tsc --noEmit` → 0 errores · `vitest run` → 396 pasan,
 > 7 skipped, 22s. **Cualquier cambio tiene que mantener esto en verde.**
 
@@ -957,9 +957,11 @@ encoding roto en cadena — 45 líneas que ocupan 94 KB de basura. Otra razón p
      backdatear para caer dentro de la ventana de atribución de un creador.
 
 ### R-C25 · Gold de atribución: agregar el borrado de huérfanas
-- **Estado:** ✅ **HECHO (2026-09-06)** — branch `hotfix/gold-attribution-huerfanas`, commits
-  `aaf41b81` (fix + tests) y `8b8063db` (verificación). **Sin mergear**: el merge espera al plan entero.
-  Verificación completa en `docs/VERIFICACION-R-C25.md` (en esa branch).
+- **Estado:** ✅ **CERRADA — EN PRODUCCIÓN (2026-09-06)**. Axel autorizó sacarla del "no mergear
+  hasta terminar el plan" porque prod estaba mostrando revenue inflado. Mergeada a `main` con
+  fast-forward (`9ad4616d` → `d3a2b8b5`) y limpieza ejecutada: **700 filas fantasma borradas**
+  (673 de `gold_attribution_source`, 27 de `gold_attribution_channel`). Verificación completa en
+  `docs/VERIFICACION-R-C25.md`, ahora en `main`.
 - **Riesgo:** 🟡 medio · **Depende de:** R-V02 (contestado: los 3 flags en `true`) · **Frente:** Datos
 - **Evidencia:** `review-datos.md` → C-2
 - **Archivos:** `src/data/gold/gold-attribution-channel-transform.ts:28-101` ·
@@ -1386,7 +1388,16 @@ sin salt (paso 3, migrar a bcrypt: invalida contraseñas de creadores reales, co
   usuarios legítimos.
 
 ### [2026-09-06] ✅ R-C25 — borrado de huérfanas en los dos rollups Gold de atribución
-- **Estado final:** ✅ hecho y verificado en preview · **sin mergear** (el merge espera al plan entero).
+- **Estado final:** ✅ **cerrada y corriendo en producción.** Mergeada a `main` (fast-forward
+  `9ad4616d` → `d3a2b8b5`) con autorización explícita de Axel, como excepción al "no mergear hasta
+  terminar el plan": prod estaba mostrando plata que no existe.
+- **Lo que salió de producción:** **700 filas fantasma** — 673 de `gold_attribution_source` sobre
+  12.507, y 27 de `gold_attribution_channel` (26 TeVe Compras, 1 Arredo). La 2ª pasada de `?full=1`
+  da 0 en las dos tablas y el incremental también: la limpieza fue de una sola vez.
+- **Consecuencia visible:** los totales de atribución del panel **bajaron** para las tres orgs con
+  datos. No es regresión, es la plata que sobraba. **Hay que avisarle a Tomy.**
+- **Nota de proceso:** la primera consulta después del push todavía servía el build viejo. Confirmar
+  el deploy con un discriminador real (que la respuesta traiga `huerfanasBorradas`), no asumir.
 - **Dónde:** branch `hotfix/gold-attribution-huerfanas` (sale de `origin/main` 9ad4616d).
   `aaf41b81` fix + tests · `8b8063db` doc de verificación.
 - **Qué se cambió:** `gold-attribution-source-transform.ts` y `gold-attribution-channel-transform.ts`
@@ -1495,4 +1506,4 @@ romper", y las preguntas que no se pueden responder leyendo código.
 
 ---
 
-_Última actualización de este archivo: 2026-09-06 — R-C25 ✅ (verificada en preview: 698 huérfanas reales en prod). R-C05 y R-C06 🟡 parciales: lo que falta de cada una depende de R-C09 o de coordinar con Tomy. Hallazgo nuevo: /admin/onboardings se colaba por el grupo de rutas (app). Todo en branches, sin mergear. Punto de retorno: la Bitácora._
+_Última actualización de este archivo: 2026-09-06 — R-C25 ✅ **cerrada y en producción**: 700 filas fantasma borradas. R-C05 y R-C06 🟡 parciales en `fix/expansion-gate-e0`, sin mergear. R-C07/08/09 (rotación de secretos) **congeladas por decisión de Axel** hasta entender el impacto. Punto de retorno: la Bitácora._
