@@ -13,6 +13,25 @@
 //
 // Cuando un job completa, chequea si ya terminaron todos los de su
 // onboardingRequestId → marca ACTIVE y manda email.
+//
+// CONTROL DE ADMISION (E-08, 2026-09-06): este cron corre CADA MINUTO con
+// maxDuration = 300, o sea que puede haber 5 invocaciones solapadas. Antes no
+// habia ningun freno: con varios jobs encolados (4 plataformas de un cliente, o
+// dos clientes la misma semana) cada invocacion tomaba uno distinto y los corria
+// EN PARALELO contra la misma base. El backfill de Arredo trajo 252.701 ordenes
+// y tumbo Neon repetidas veces (BACKLOG_PENDIENTES.md → BP-NEON-CAPACITY).
+//
+// Ahora, antes de tocar un solo chunk, se pregunta tres cosas (src/lib/backfill/
+// admision.ts):
+//   1. ¿estamos en la ventana horaria? (BACKFILL_VENTANA, ej "1-7"; sin setear
+//      = sin restriccion). Se puede saltear con ?ignorarVentana=1;
+//   2. ¿hay otro backfill corriendo? (BACKFILL_MAX_CONCURRENTES, default 1);
+//   3. ¿la base esta respondiendo bien? (BACKFILL_LATENCIA_MAX_MS, default 2000).
+//
+// Si alguna dice que no, devuelve 200 con admitido:false y el motivo. NO es un
+// error: los jobs quedan en QUEUED y el proximo tick reintenta. Ademas el freno
+// por latencia se re-evalua entre chunks, asi que si la base empieza a sufrir
+// mientras corremos, soltamos con el cursor guardado.
 // ══════════════════════════════════════════════════════════════
 
 import { ADMIN_API_KEY } from "@/lib/admin-key";
@@ -20,8 +39,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import {
-  pickNextJob,
-  markJobRunning,
+  reclamarProximoJob,
+  contarJobsActivos,
   updateJobProgress,
   completeJob,
   failJob,
@@ -32,6 +51,14 @@ import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
 import { dataReadyEmailActive } from "@/lib/onboarding/emails";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
+import {
+  decidirAdmision,
+  seguirEnElLoop,
+  parseVentana,
+  maxConcurrentes,
+  latenciaMaxMs,
+  COOLDOWN_JOB_MS,
+} from "@/lib/backfill/admision";
 // (onboardingActivationEmail ya no se usa aca — se manda en /activate)
 
 export const dynamic = "force-dynamic";
@@ -46,6 +73,17 @@ const LOOP_BUDGET_MS = 240_000;
 // Con 2000 ordenes/iter y 50 iter = 100k ordenes max por invocacion,
 // que es mas de lo que cualquier cliente razonable tiene en 3 anios.
 const MAX_ITERATIONS = 50;
+
+/**
+ * Mide cuánto tarda la base en contestar lo más barato que existe. Es el
+ * termómetro del freno por latencia (E-08): si un `SELECT 1` tarda, la base ya
+ * está sufriendo y no es momento de meterle un backfill encima.
+ */
+async function latenciaDeLaBase(): Promise<number> {
+  const t0 = Date.now();
+  await prisma.$queryRawUnsafe("SELECT 1");
+  return Date.now() - t0;
+}
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
@@ -71,7 +109,36 @@ export async function GET(req: NextRequest) {
     // hasta complete/error. La proteccion contra workers concurrentes sigue
     // intacta porque la reusa es DENTRO del mismo invoke (mismo worker que
     // ya tiene "lock" via lastChunkAt fresco).
+    // ── E-08: control de admisión ──────────────────────────────────────
+    // El momento de mayor riesgo para los clientes que ya están adentro es
+    // cuando entra uno nuevo. Antes de tocar un solo chunk: ¿estamos en la
+    // ventana horaria?, ¿hay otro backfill corriendo?, ¿la base está bien?
+    const ignorarVentana = url.searchParams.get("ignorarVentana") === "1";
+    const latenciaInicial = await latenciaDeLaBase();
+    const admision = decidirAdmision({
+      now: new Date(),
+      ventana: parseVentana(),
+      ignorarVentana,
+      jobsActivos: await contarJobsActivos(COOLDOWN_JOB_MS),
+      maxConcurrentes: maxConcurrentes(),
+      latenciaMs: latenciaInicial,
+      latenciaMaxMs: latenciaMaxMs(),
+    });
+    if (!admision.admitido) {
+      // No es un error: es el freno haciendo su trabajo. Los jobs quedan en
+      // QUEUED y el próximo tick (1 min) vuelve a intentar.
+      return NextResponse.json({
+        ok: true,
+        admitido: false,
+        motivo: admision.motivo,
+        ...admision.detalle,
+        latenciaMs: latenciaInicial,
+        elapsedMs: Date.now() - startTime,
+      });
+    }
+
     let currentJob: any = null;
+    let frenado: string | null = null;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const elapsed = Date.now() - startTime;
@@ -80,20 +147,33 @@ export async function GET(req: NextRequest) {
         break;
       }
 
-      // Pickear nuevo job solo si no tenemos uno activo
+      // Pickear nuevo job solo si no tenemos uno activo.
+      // E-08: el claim es atomico (UPDATE ... FOR UPDATE SKIP LOCKED). Antes
+      // eran un SELECT y un UPDATE separados, y dos invocaciones que arrancaban
+      // juntas podian salir las dos con el mismo job QUEUED.
       if (!currentJob) {
-        currentJob = await pickNextJob();
+        currentJob = await reclamarProximoJob(COOLDOWN_JOB_MS);
         if (!currentJob) {
           // No hay mas jobs en QUEUED/RUNNING activos
           break;
         }
-        await markJobRunning(currentJob.id);
       } else {
         // Refrescar el job desde DB para tener cursor/processedCount actualizados
         // (los acabamos de updatear nosotros mismos en la iter anterior).
         const fresh = await getJob(currentJob.id);
         if (!fresh) break; // safety — no deberia pasar
         currentJob = fresh;
+      }
+
+      // E-08: si la base empezo a sufrir MIENTRAS corriamos, soltar. El cursor
+      // ya esta guardado, asi que el proximo tick retoma donde quedo.
+      const seguir = seguirEnElLoop({
+        latenciaMs: await latenciaDeLaBase(),
+        latenciaMaxMs: latenciaMaxMs(),
+      });
+      if (!seguir.admitido) {
+        frenado = seguir.motivo;
+        break;
       }
 
       const result = await processChunk(currentJob);
@@ -162,6 +242,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      admitido: true,
+      frenado,
       iterations: iterations.length,
       totalProcessed,
       elapsedMs: Date.now() - startTime,
