@@ -30,7 +30,7 @@ export const maxDuration = 300; // 5 min — Vercel Pro
 
 const KEY = ADMIN_API_KEY;
 const DEFAULT_DAYS = 3;
-import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
+import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
 
 // E-11 — este cron gasta hasta 240s en UNA sola organizacion (40 ordenes x ~6s
 // de calculateAttribution), y el presupuesto total son 250s. O sea que en la
@@ -92,7 +92,8 @@ export async function GET(req: NextRequest) {
     let totalMarkedNoMatch = 0;
     let totalCreatorAttributed = 0;
     let budgetHit = false;
-    const arrancoEn = await indiceDeArranque(CRON, conns.length);
+    const idsConn = conns.map((c) => c.organizationId);
+    const arrancoEn = indiceDespuesDe(idsConn, await ultimoProcesado(CRON));
     let idx = arrancoEn;
     outer: for (; idx < conns.length; idx++) {
       const c = conns[idx];
@@ -175,7 +176,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    await guardarCorte(CRON, idx, conns.length);
+    await guardarCorte(CRON, idx, idsConn);
 
     return NextResponse.json({
       ok: true,

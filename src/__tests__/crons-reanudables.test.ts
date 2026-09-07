@@ -15,7 +15,7 @@ import { join } from "path";
 //
 // Estos casos son estructurales a propósito: lo que hay que impedir es que
 // alguien agregue un loop sobre organizaciones sin reloj, o que saque un
-// `ORDER BY` del que depende un cursor por índice.
+// `ORDER BY` del que depende el cursor.
 // ══════════════════════════════════════════════════════════════════════════
 
 function fuente(p: string): string {
@@ -38,7 +38,8 @@ const SOLO_RELOJ = ["src/app/api/cron/alerts-scheduler/route.ts"];
 describe("los crons que reparten trabajo guardan por dónde van", () => {
   it.each(CON_CURSOR)("%s usa el cursor persistido", (p) => {
     const src = fuente(p);
-    expect(src).toContain("indiceDeArranque");
+    expect(src).toContain("ultimoProcesado");
+    expect(src).toContain("indiceDespuesDe");
     expect(src).toContain("guardarCorte");
   });
 
@@ -49,11 +50,18 @@ describe("los crons que reparten trabajo guardan por dónde van", () => {
     expect(src).toMatch(/Date\.now\(\)\s*-\s*\w*[Ss]tart\w*\s*>/);
   });
 
-  it.each(CON_CURSOR)("%s ordena de forma estable (el cursor es un índice)", (p) => {
+  it.each(CON_CURSOR)("%s ordena de forma estable", (p) => {
     const src = fuente(p);
-    // Sin orden estable, reanudar en el índice 5 apunta a organizaciones
-    // distintas en cada corrida y el cursor deja de significar nada.
-    expect(src).toMatch(/ORDER BY|orderBy/);
+    // La versión anterior de este caso era /ORDER BY|orderBy/ sobre todo el
+    // archivo, y una revisión mostró que era vacua: en attribution-reconcile hay
+    // un `ORDER BY o."orderDate" DESC` de otra query, así que podías borrar el
+    // orden del que depende el cursor y el test seguía verde.
+    //
+    // Ahora se pide el orden POR ORGANIZACIÓN, que es el que importa. Y el
+    // comportamiento de verdad —que no se saltee a nadie cuando la lista cambia
+    // de composición— se verifica ejecutando la lógica en
+    // src/lib/cron/cursor-store.test.ts, no leyendo el fuente.
+    expect(src).toMatch(/ORDER BY (?:o\.)?id|ORDER BY 1|orderBy: \{ organizationId/);
   });
 });
 
@@ -65,12 +73,16 @@ describe("los crons sin cursor igual tienen reloj", () => {
   });
 
   it("alerts-scheduler NO lleva cursor, y es a propósito", () => {
+    // Ojo: la premisa de esto (que una regla que dispara sale de la cola) tiene
+    // un agujero conocido — evaluateRule devuelve null antes de actualizar
+    // nextFireAt cuando la regla NO dispara. Está anotado en PLAN_EXPANSION.md
+    // como decisión pendiente. Este caso sólo fija que acá no va cursor.
     // La cola ya se ordena por `nextFireAt ASC NULLS FIRST`: las que quedan sin
     // evaluar son las más atrasadas y entran primero en la próxima corrida. El
     // orden ES el cursor. Un cursor por índice encima de eso desordenaría la
     // prioridad por atraso.
     const src = fuente(SOLO_RELOJ[0]);
-    expect(src).not.toContain("indiceDeArranque");
+    expect(src).not.toContain("ultimoProcesado");
   });
 });
 
@@ -96,7 +108,7 @@ describe("control-alerts: el reporte se hace barato, no se reparte", () => {
     // A diferencia de los otros, esto no es trabajo incremental sino un reporte
     // que se manda por mail. Procesar la mitad omitiría clientes en silencio.
     const src = fuente(CHECKS);
-    expect(src).not.toContain("indiceDeArranque");
+    expect(src).not.toContain("ultimoProcesado");
   });
 
   it("el cron ya no tiene el maxDuration de 60 que lo mataba", () => {

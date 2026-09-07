@@ -30,7 +30,7 @@ import {
 } from "@/data/gold/gold-attribution-channel-transform";
 import { buildTouchpointChannelCase } from "@/lib/pixel/touchpoint-channel-sql";
 import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
-import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
+import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
         ? Math.max(0, parseInt(cursorExplicito, 10) || 0)
         : full
           ? 0
-          : await indiceDeArranque(CRON, orgs.length);
+          : indiceDespuesDe(orgs, await ultimoProcesado(CRON));
 
     const done: Array<{ org: string; rows: number; huerfanasBorradas: number }> = [];
     let i = start;
@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
     // proxima arranca de cero. Solo para el modo automatico: una corrida manual
     // con ?orgCursor= o ?full=1 no tiene por que mover el cursor del cron.
     if (cursorExplicito === null && !full) {
-      await guardarCorte(CRON, i, orgs.length);
+      await guardarCorte(CRON, i, orgs);
     }
     return NextResponse.json({
       ok: true,

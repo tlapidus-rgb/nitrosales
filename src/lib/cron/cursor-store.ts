@@ -86,34 +86,73 @@ export async function guardarCursor(cron: string, cursor: string | null): Promis
 }
 
 /**
- * El envoltorio que usan los crons: decide desde qué índice arrancar y deja
- * guardado dónde cortó.
+ * El último id procesado por `cron`, o `null` si nunca guardó nada.
  *
- * `total` es la cantidad de unidades de esta vuelta (típicamente
- * organizaciones). Si el cursor guardado quedó fuera de rango —porque se borró
- * una organización, o porque la lista se acortó— se arranca de cero en vez de
- * saltear todo, que es el modo de falla silencioso que esto viene a evitar.
+ * ⚠️ POR QUÉ UN ID Y NO UN ÍNDICE (corregido el 2026-09-07, tras revisión):
+ * la primera versión de esto guardaba una POSICIÓN. Eso sólo funciona si la
+ * lista es la misma entre corridas, y en tres de los cuatro crons que lo usan
+ * NO lo es:
+ *
+ *   · `refresh-gold-attribution-channel` lista las orgs con atribuciones en los
+ *     últimos 4 días — una ventana deslizante que se recalcula cada media hora;
+ *   · `attribution-reconcile` y `vtex-sync-recent` listan las conexiones VTEX
+ *     con `status = ACTIVE`, y una credencial vencida saca a esa org de la lista.
+ *
+ * Cuando una organización sale del conjunto, todos los índices posteriores se
+ * corren uno: guardaste "seguí en el 5", se cayó la del 2, y el 5 de ahora es
+ * la que antes era la 6. **Salteaste una organización que nunca se procesó**, en
+ * silencio — exactamente el bug que el cursor venía a arreglar, sólo que más
+ * difícil de ver porque es intermitente.
+ *
+ * Con el id no pasa: "seguí después de `cmod6ns…`" sigue significando lo mismo
+ * aunque la lista cambie de tamaño, de composición, o aunque esa organización
+ * ya no exista.
  */
-export async function indiceDeArranque(cron: string, total: number): Promise<number> {
-  const guardado = await leerCursor(cron);
-  if (guardado === null) return 0;
-  // Estricto a proposito: `parseInt` es indulgente y con "3.5.2" devuelve 3,
-  // asi que un cursor corrupto arrancaria en un indice inventado en vez de
-  // reiniciar la vuelta. Si el valor no es exactamente un entero, se descarta.
-  if (!/^[0-9]+$/.test(guardado)) return 0;
-  const n = Number(guardado);
-  if (!Number.isSafeInteger(n) || n >= total) return 0;
-  return n;
+export async function ultimoProcesado(cron: string): Promise<string | null> {
+  return leerCursor(cron);
+}
+
+/**
+ * Guarda el último id procesado. `null` = vuelta completa → la próxima corrida
+ * arranca del principio.
+ */
+export async function guardarUltimo(cron: string, id: string | null): Promise<void> {
+  return guardarCursor(cron, id);
+}
+
+/**
+ * Índice del primer elemento que todavía NO se procesó, dado el último id
+ * procesado. `0` si no hay cursor.
+ *
+ * `ids` tiene que venir ordenado ascendente y de forma estable (el `ORDER BY`
+ * de la query). Si el cursor apunta a algo que ya no está en la lista, se cae
+ * naturalmente en el primero que le sigue — que es la propiedad que hace que
+ * esto sea inmune a que el conjunto cambie.
+ */
+export function indiceDespuesDe(ids: readonly string[], cursor: string | null): number {
+  if (!cursor) return 0;
+  const i = ids.findIndex((id) => id > cursor);
+  // Ninguno es mayor: o la vuelta ya terminó, o la lista se acortó por detrás.
+  // En los dos casos corresponde empezar de nuevo, no quedarse trabado.
+  return i < 0 ? 0 : i;
 }
 
 /**
  * Guarda el corte al terminar la invocación.
- * `siguiente >= total` significa vuelta completa → se borra el cursor.
+ *
+ * `siguiente` es el índice del primer elemento NO procesado (o `ids.length` si
+ * se completó la vuelta). Si no se procesó ninguno, el cursor no se toca: pisarlo
+ * con algo inventado es peor que dejarlo donde estaba.
  */
 export async function guardarCorte(
   cron: string,
   siguiente: number,
-  total: number,
+  ids: readonly string[],
 ): Promise<void> {
-  await guardarCursor(cron, siguiente >= total ? null : String(siguiente));
+  if (siguiente >= ids.length) {
+    await guardarUltimo(cron, null); // vuelta completa
+    return;
+  }
+  if (siguiente <= 0) return; // no se procesó nada: dejar el cursor como estaba
+  await guardarUltimo(cron, ids[siguiente - 1]);
 }

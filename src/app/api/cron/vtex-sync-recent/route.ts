@@ -16,7 +16,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
-import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
+import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
@@ -65,7 +65,8 @@ export async function GET(req: NextRequest) {
     // Procesar todas las orgs en paralelo (max 5 a la vez)
     const concurrencyLimit = 5;
     const results: any[] = [];
-    const arrancoEn = await indiceDeArranque(CRON, conns.length);
+    const idsConn = conns.map((c) => c.organizationId);
+    const arrancoEn = indiceDespuesDe(idsConn, await ultimoProcesado(CRON));
     let budgetHit = false;
     let i = arrancoEn;
     for (; i < conns.length; i += concurrencyLimit) {
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
     const totalProcessed = results.reduce((s, r) => s + (r.processed || 0), 0);
     const totalFailed = results.reduce((s, r) => s + (r.failedToInsert || 0), 0);
 
-    await guardarCorte(CRON, i, conns.length);
+    await guardarCorte(CRON, i, idsConn);
 
     return NextResponse.json({
       ok: true,

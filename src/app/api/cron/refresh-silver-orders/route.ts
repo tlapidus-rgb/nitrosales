@@ -28,14 +28,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DAYS_BACK = 3; // ventana incremental (cubre huecos de hasta 3 días)
-import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
+import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
 
 const INVOCATION_BUDGET_MS = 250_000;
 
 // E-11 — sin cursor, cada corrida arrancaba de la primera org. Si el budget se
 // acaba antes de llegar al final, las ultimas de la lista NO SE PROCESAN NUNCA:
-// el orden es estable, asi que son siempre las mismas. Ahora el corte se
-// persiste y la proxima invocacion sigue ahi.
+// el orden es estable, asi que son siempre las mismas. Ahora se guarda el
+// ultimo id procesado y la proxima invocacion sigue en el que le sigue.
 const CRON = "refresh-silver-orders";
 //
 // Ojo: el cursor por INDICE solo sirve cuando el cron procesa a TODAS las orgs
@@ -71,15 +71,16 @@ export async function GET(req: NextRequest) {
 
   // Todas las orgs; el upsert filtra por org+fecha, las que no tienen datos = no-op.
   const orgs = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
-    // ORDER BY obligatorio: el cursor de E-11 es un INDICE, asi que si el orden
-    // que devuelve Postgres cambia entre corridas, reanudar en el indice 5
-    // saltea organizaciones distintas cada vez.
+    // ORDER BY obligatorio: el cursor de E-11 guarda el ULTIMO ID PROCESADO y
+    // se reanuda con "el primero mayor que ese". Eso exige orden estable y
+    // ascendente; sin ORDER BY, Postgres no lo garantiza.
     `SELECT id FROM organizations ORDER BY id`
   );
 
   const results: Array<{ org: string; ok: boolean; ms: number; error?: string }> = [];
   let budgetHit = false;
-  const arrancoEn = await indiceDeArranque(CRON, orgs.length);
+  const ids = orgs.map((o) => o.id);
+  const arrancoEn = indiceDespuesDe(ids, await ultimoProcesado(CRON));
   let i = arrancoEn;
   for (; i < orgs.length; i++) {
     const { id } = orgs[i];
@@ -104,7 +105,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  await guardarCorte(CRON, i, orgs.length);
+  await guardarCorte(CRON, i, ids);
 
   return NextResponse.json({
     ok: results.every((r) => r.ok),

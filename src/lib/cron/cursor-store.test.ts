@@ -5,18 +5,21 @@ import { PGlite } from "@electric-sql/pglite";
 // E-11 — el cursor que dice por dónde iba cada cron
 // ══════════════════════════════════════════════════════════════════════════
 // De los 14 crons que recorren todas las organizaciones dentro de una
-// invocación con presupuesto fijo, ocho no tienen forma de continuar donde
-// quedaron. Varios ni siquiera es que les falte el dato: lo calculan y lo
-// devuelven (`resume: "?orgCursor=7"`, `callAgain: true`) y no hay nadie del
-// otro lado que lo lea.
+// invocación con presupuesto fijo, ocho no tenían forma de continuar donde
+// quedaron. Varios ni siquiera es que les faltara el dato: lo calculaban y lo
+// devolvían (`resume: "?orgCursor=7"`, `callAgain: true`) y no había nadie del
+// otro lado que lo leyera.
 //
 // El modo de falla al crecer no es "va más lento": es "a algunos clientes no
 // les corre nunca", en silencio, y siempre a los mismos — los últimos de la
 // lista, que son los más nuevos.
 //
-// Se testea contra Postgres de verdad (PGlite) porque lo que hay que probar es
-// el upsert y la degradación cuando la tabla no existe, no que el SQL diga
-// ciertas palabras.
+// ⚠️ EL CURSOR ES UN ID, NO UNA POSICIÓN. La primera versión guardaba un índice
+// y eso sólo funciona si la lista es la misma entre corridas. En tres de los
+// cuatro crons NO lo es: uno lista una ventana deslizante de organizaciones con
+// atribuciones recientes, y dos listan conexiones filtradas por `status=ACTIVE`.
+// Cuando una organización sale del conjunto, los índices posteriores se corren
+// y se saltea un cliente. El bloque final de este archivo es ese caso.
 // ══════════════════════════════════════════════════════════════════════════
 
 let db: PGlite;
@@ -31,8 +34,15 @@ vi.mock("@/lib/db/client", () => ({
   },
 }));
 
-const { leerCursor, guardarCursor, indiceDeArranque, guardarCorte, TABLA_CURSORES } =
-  await import("./cursor-store");
+const {
+  leerCursor,
+  guardarCursor,
+  ultimoProcesado,
+  guardarUltimo,
+  indiceDespuesDe,
+  guardarCorte,
+  TABLA_CURSORES,
+} = await import("./cursor-store");
 
 const ESQUEMA = `CREATE TABLE "${TABLA_CURSORES}" (
   "name" TEXT PRIMARY KEY,
@@ -52,33 +62,33 @@ describe("guardar y leer", () => {
   beforeEach(conTabla);
 
   it("lo que se guarda se lee", async () => {
-    await guardarCursor("cron-a", "7");
-    expect(await leerCursor("cron-a")).toBe("7");
+    await guardarCursor("cron-a", "org7");
+    expect(await leerCursor("cron-a")).toBe("org7");
   });
 
   it("un cron que nunca guardó nada devuelve null", async () => {
-    expect(await leerCursor("cron-nuevo")).toBeNull();
+    expect(await ultimoProcesado("cron-nuevo")).toBeNull();
   });
 
   it("guardar dos veces pisa el valor, no acumula filas", async () => {
-    await guardarCursor("cron-a", "3");
-    await guardarCursor("cron-a", "9");
-    expect(await leerCursor("cron-a")).toBe("9");
+    await guardarUltimo("cron-a", "org3");
+    await guardarUltimo("cron-a", "org9");
+    expect(await ultimoProcesado("cron-a")).toBe("org9");
     const filas = await db.query<any>(`SELECT count(*)::int AS n FROM "${TABLA_CURSORES}"`);
     expect(filas.rows[0].n).toBe(1);
   });
 
   it("cada cron tiene el suyo y no se pisan", async () => {
-    await guardarCursor("cron-a", "1");
-    await guardarCursor("cron-b", "2");
-    expect(await leerCursor("cron-a")).toBe("1");
-    expect(await leerCursor("cron-b")).toBe("2");
+    await guardarUltimo("cron-a", "org1");
+    await guardarUltimo("cron-b", "org2");
+    expect(await ultimoProcesado("cron-a")).toBe("org1");
+    expect(await ultimoProcesado("cron-b")).toBe("org2");
   });
 
   it("guardar null borra el cursor", async () => {
-    await guardarCursor("cron-a", "5");
-    await guardarCursor("cron-a", null);
-    expect(await leerCursor("cron-a")).toBeNull();
+    await guardarUltimo("cron-a", "org5");
+    await guardarUltimo("cron-a", null);
+    expect(await ultimoProcesado("cron-a")).toBeNull();
   });
 });
 
@@ -89,107 +99,143 @@ describe("SIN la tabla: degrada, no rompe", () => {
   beforeEach(sinTabla);
 
   it("leer devuelve null en vez de tirar", async () => {
-    expect(await leerCursor("cron-a")).toBeNull();
+    expect(await ultimoProcesado("cron-a")).toBeNull();
   });
 
   it("guardar no tira", async () => {
-    await expect(guardarCursor("cron-a", "7")).resolves.toBeUndefined();
+    await expect(guardarUltimo("cron-a", "org7")).resolves.toBeUndefined();
   });
 
   it("borrar tampoco", async () => {
-    await expect(guardarCursor("cron-a", null)).resolves.toBeUndefined();
+    await expect(guardarUltimo("cron-a", null)).resolves.toBeUndefined();
   });
 
   it("el cron arranca de cero, que es exactamente lo que hace hoy", async () => {
-    expect(await indiceDeArranque("cron-a", 10)).toBe(0);
+    expect(indiceDespuesDe(["a", "b", "c"], await ultimoProcesado("cron-a"))).toBe(0);
   });
 });
 
-describe("indiceDeArranque", () => {
-  beforeEach(conTabla);
+describe("indiceDespuesDe", () => {
+  const ids = ["org1", "org3", "org5", "org7", "org9"];
 
-  it("sin cursor guardado arranca de cero", async () => {
-    expect(await indiceDeArranque("cron-a", 10)).toBe(0);
+  it("sin cursor arranca de cero", () => {
+    expect(indiceDespuesDe(ids, null)).toBe(0);
   });
 
-  it("con cursor guardado arranca ahí", async () => {
-    await guardarCursor("cron-a", "4");
-    expect(await indiceDeArranque("cron-a", 10)).toBe(4);
+  it("arranca en el siguiente al último procesado", () => {
+    expect(indiceDespuesDe(ids, "org1")).toBe(1);
+    expect(indiceDespuesDe(ids, "org5")).toBe(3);
   });
 
-  it("un cursor fuera de rango vuelve a cero, no saltea todo", async () => {
-    // Pasa cuando se borra una organización o se acorta la lista. Si esto
-    // devolviera el valor guardado, el cron no procesaría NADA y no habría
-    // ninguna señal: es justo el modo de falla silencioso que E-11 ataca.
-    await guardarCursor("cron-a", "99");
-    expect(await indiceDeArranque("cron-a", 10)).toBe(0);
+  it("si el último era el final, vuelve a empezar", () => {
+    expect(indiceDespuesDe(ids, "org9")).toBe(0);
   });
 
-  it("un cursor basura vuelve a cero", async () => {
-    for (const basura of ["", "abc", "-3", "3.5.2"]) {
-      await guardarCursor("cron-a", basura);
-      expect(await indiceDeArranque("cron-a", 10)).toBe(0);
-    }
+  it("un cursor que ya no está en la lista cae en el que le sigue", () => {
+    // ESTA es la propiedad que el cursor por índice no tenía. Se borró org3 (o
+    // salió de la ventana): el cursor apunta a algo inexistente y aun así
+    // seguimos exactamente donde corresponde.
+    expect(indiceDespuesDe(["org1", "org5", "org7"], "org3")).toBe(1);
   });
 
-  it("el cursor igual al total se trata como vuelta terminada", async () => {
-    await guardarCursor("cron-a", "10");
-    expect(await indiceDeArranque("cron-a", 10)).toBe(0);
+  it("un cursor basura no traba ni saltea", () => {
+    // Anterior al primero → arranca de cero. Posterior al último → vuelta nueva.
+    expect(indiceDespuesDe(ids, "aaa")).toBe(0);
+    expect(indiceDespuesDe(ids, "zzz")).toBe(0);
+  });
+
+  it("lista vacía no explota", () => {
+    expect(indiceDespuesDe([], "org3")).toBe(0);
   });
 });
 
-describe("guardarCorte — la vuelta completa borra el cursor", () => {
+describe("guardarCorte", () => {
   beforeEach(conTabla);
+  const ids = ["org1", "org3", "org5", "org7"];
 
-  it("corte a mitad de camino se guarda", async () => {
-    await guardarCorte("cron-a", 3, 10);
-    expect(await leerCursor("cron-a")).toBe("3");
+  it("corte a mitad de camino guarda el ÚLTIMO PROCESADO, no el siguiente", async () => {
+    // Se procesaron los índices 0 y 1; el 2 quedó sin hacer.
+    await guardarCorte("cron-a", 2, ids);
+    expect(await ultimoProcesado("cron-a")).toBe("org3");
   });
 
   it("llegar al final borra el cursor para empezar de nuevo", async () => {
-    await guardarCursor("cron-a", "3");
-    await guardarCorte("cron-a", 10, 10);
-    expect(await leerCursor("cron-a")).toBeNull();
+    await guardarUltimo("cron-a", "org3");
+    await guardarCorte("cron-a", ids.length, ids);
+    expect(await ultimoProcesado("cron-a")).toBeNull();
+  });
+
+  it("si no se procesó ninguno, el cursor NO se toca", async () => {
+    // Pasa cuando el presupuesto se agota antes del primer elemento. Pisarlo con
+    // algo inventado sería peor que dejarlo donde estaba.
+    await guardarUltimo("cron-a", "org5");
+    await guardarCorte("cron-a", 0, ids);
+    expect(await ultimoProcesado("cron-a")).toBe("org5");
   });
 });
 
 describe("el escenario completo: nadie queda sin procesar", () => {
   beforeEach(conTabla);
 
+  /** Una corrida del cron: procesa hasta `porCorrida` y deja el corte guardado. */
+  async function corrida(ids: string[], porCorrida: number): Promise<string[]> {
+    const desde = indiceDespuesDe(ids, await ultimoProcesado("cron-a"));
+    let i = desde;
+    const hechas: string[] = [];
+    for (; i < ids.length && i - desde < porCorrida; i++) hechas.push(ids[i]);
+    await guardarCorte("cron-a", i, ids);
+    return hechas;
+  }
+
   it("EL BUG: sin cursor, las últimas orgs no se procesan NUNCA", async () => {
-    // 10 organizaciones, presupuesto para 4 por corrida.
-    const TOTAL = 10;
-    const POR_CORRIDA = 4;
+    const ids = Array.from({ length: 10 }, (_, i) => `org${String(i).padStart(2, "0")}`);
 
     // Comportamiento viejo: cada corrida arranca en 0.
-    const viejas = new Set<number>();
-    for (let corrida = 0; corrida < 5; corrida++) {
-      for (let i = 0; i < POR_CORRIDA; i++) viejas.add(i);
-    }
+    const viejas = new Set<string>();
+    for (let c = 0; c < 5; c++) for (let i = 0; i < 4; i++) viejas.add(ids[i]);
     expect(viejas.size).toBe(4);
-    expect(viejas.has(9)).toBe(false); // la última org, jamás
+    expect(viejas.has(ids[9])).toBe(false); // la última, jamás
 
     // Con cursor: cada corrida sigue donde quedó la anterior.
-    const nuevas = new Set<number>();
-    for (let corrida = 0; corrida < 5; corrida++) {
-      const desde = await indiceDeArranque("cron-a", TOTAL);
-      let i = desde;
-      for (; i < TOTAL && i - desde < POR_CORRIDA; i++) nuevas.add(i);
-      await guardarCorte("cron-a", i, TOTAL);
-    }
-    expect(nuevas.size).toBe(TOTAL);
-    expect(nuevas.has(9)).toBe(true);
+    const nuevas = new Set<string>();
+    for (let c = 0; c < 5; c++) for (const x of await corrida(ids, 4)) nuevas.add(x);
+    expect(nuevas.size).toBe(10);
+    expect(nuevas.has(ids[9])).toBe(true);
+  });
+
+  it("EL BUG DEL ÍNDICE: si se cae una org entre corridas, no se saltea a nadie", async () => {
+    // Éste es el caso que el cursor por posición perdía. Tres de los cuatro
+    // crons listan conjuntos que se recalculan en cada corrida.
+    const ids = ["orgA", "orgB", "orgC", "orgD", "orgE"];
+
+    expect(await corrida(ids, 2)).toEqual(["orgA", "orgB"]);
+    expect(await ultimoProcesado("cron-a")).toBe("orgB");
+
+    // A orgB se le vencen las credenciales y sale de la lista.
+    const idsAhora = ["orgA", "orgC", "orgD", "orgE"];
+
+    // Con índice guardado (2) sobre la lista nueva habríamos arrancado en orgD,
+    // salteando orgC sin que nadie se entere. Con id, no.
+    expect(await corrida(idsAhora, 2)).toEqual(["orgC", "orgD"]);
+    expect(await corrida(idsAhora, 2)).toEqual(["orgE"]);
+    expect(await ultimoProcesado("cron-a")).toBeNull(); // vuelta completa
+  });
+
+  it("una org nueva que entra en el medio se atiende en la vuelta siguiente", async () => {
+    const ids = ["orgA", "orgC"];
+    expect(await corrida(ids, 1)).toEqual(["orgA"]);
+
+    // Entra orgB, que ordena entre las dos ya conocidas.
+    const conNueva = ["orgA", "orgB", "orgC"];
+    // Esta vuelta sigue después de orgA, así que orgB entra ya mismo.
+    expect(await corrida(conNueva, 5)).toEqual(["orgB", "orgC"]);
+    expect(await ultimoProcesado("cron-a")).toBeNull();
   });
 
   it("después de dar la vuelta completa, vuelve a empezar", async () => {
-    const TOTAL = 4;
-    for (let corrida = 0; corrida < 3; corrida++) {
-      const desde = await indiceDeArranque("cron-a", TOTAL);
-      let i = desde;
-      for (; i < TOTAL && i - desde < 3; i++) {}
-      await guardarCorte("cron-a", i, TOTAL);
-    }
-    // 0..2, después 3 (fin, borra), después 0..2 otra vez.
-    expect(await indiceDeArranque("cron-a", TOTAL)).toBe(3);
+    const ids = ["orgA", "orgB", "orgC"];
+    await corrida(ids, 3);
+    expect(await ultimoProcesado("cron-a")).toBeNull();
+    expect(await corrida(ids, 1)).toEqual(["orgA"]);
   });
 });
