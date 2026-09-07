@@ -81,7 +81,10 @@ const API_SECTION_PREFIXES: Array<{ prefix: string; section: Section }> = [
 // Esto NO afecta a los crons ni a los self-fetch server-to-server: no llevan
 // cookie de NextAuth, no tienen token, y el middleware sólo gatea `if (token)`.
 // Cada uno sigue autenticando con su `?key=`.
-const STAFF_ONLY_API_PREFIXES = ["/api/admin", "/api/backfill"];
+// `/api/fix-brands` entra aca por el mismo motivo que /api/backfill: es un GET
+// de 1.000 lineas que MUTA datos (UPDATE sobre products de la org que le pases)
+// y hasta el 2026-09-06 su unico control era una clave publicada en el bundle.
+const STAFF_ONLY_API_PREFIXES = ["/api/admin", "/api/backfill", "/api/fix-brands"];
 
 // Las dos rutas bajo `/api/admin` que el CLIENTE usa de verdad: el panel de
 // canales (`/pixel/canales`) es self-service desde el pivot v2, y viven bajo

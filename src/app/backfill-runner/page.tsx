@@ -8,7 +8,14 @@
 
 import React, { useState, useRef, useCallback } from "react";
 
-const BACKFILL_KEY = "nitrosales-backfill-2024";
+// R-C02 bis (2026-09-06): aca vivia la constante `BACKFILL_KEY`.
+// Esta pagina es un client component, asi que esa constante terminaba en el
+// bundle que se sirve a cualquiera que abriera /backfill-runner — o sea que la
+// clave que autenticaba /api/backfill/vtex y /api/fix-brands era publica.
+//
+// Ya no se manda: los dos endpoints ahora exigen sesion de staff, que es lo que
+// el navegador ya tiene cuando entra por aca (la pagina esta gateada por su
+// layout). Si el endpoint te devuelve 401, es que no estas logueado como staff.
 const API_BASE = "/api/backfill/vtex";
 
 interface BatchResult {
@@ -48,6 +55,10 @@ export default function BackfillRunnerPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  // R-C02 bis: el endpoint exige ?org= desde que es multi-tenant. Esta pagina
+  // nunca se lo mandaba, asi que venia devolviendo 400 siempre — o sea que su
+  // unico consumidor estaba roto y nadie lo noto.
+  const [orgId, setOrgId] = useState("");
   const abortRef = useRef(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +73,9 @@ export default function BackfillRunnerPage() {
   }, []);
 
   const runBatch = async (phase: string, batch: number): Promise<BatchResult | null> => {
-    const url = `${API_BASE}?phase=${phase}&batch=${batch}&key=${BACKFILL_KEY}`;
+    // Sin `key`: el endpoint autentica por sesion de staff. Y con `org`, que
+    // el endpoint exige desde que es multi-tenant — sin esto daba 400 siempre.
+    const url = `${API_BASE}?phase=${phase}&batch=${batch}&org=${encodeURIComponent(orgId)}`;
     try {
       const res = await fetch(url);
       if (!res.ok) {
@@ -191,6 +204,24 @@ export default function BackfillRunnerPage() {
       default: return "⏸️";
     }
   };
+
+  if (!orgId.trim()) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#05070d", color: "#fff", padding: 48, fontFamily: "system-ui, sans-serif" }}>
+        <h1 style={{ fontSize: 20, marginBottom: 8 }}>Backfill Runner</h1>
+        <p style={{ opacity: 0.6, fontSize: 13, maxWidth: 560, lineHeight: 1.6 }}>
+          Pegá el <strong>orgId</strong> del cliente sobre el que querés correr el backfill.
+          El endpoint es staff-only y autentica con tu sesión: no hace falta ninguna clave.
+        </p>
+        <input
+          value={orgId}
+          onChange={(e) => setOrgId(e.target.value)}
+          placeholder="cmohl80fx009j1sdusurp7fbj"
+          style={{ marginTop: 20, padding: "10px 14px", width: 380, borderRadius: 8, border: "1px solid #ffffff22", background: "#0b0f18", color: "#fff", fontFamily: "monospace", fontSize: 13 }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc", padding: "2rem", fontFamily: "system-ui, -apple-system, sans-serif" }}>

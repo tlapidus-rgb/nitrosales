@@ -44,14 +44,35 @@ function fuente(p = RUTA): string {
 describe("R-C02 — no queda una sola interpolacion en SQL crudo", () => {
   const src = fuente();
 
-  it("ningun $executeRawUnsafe/$queryRawUnsafe interpola una variable", () => {
-    // Se busca la forma peligrosa: un template con ${...} dentro de la llamada
-    // a la variante Unsafe. Los tagged templates ($executeRaw`...`) SI pueden
-    // usar ${} — ahi Prisma parametriza.
-    const llamadas = src.match(/\$(?:execute|query)RawUnsafe[\s\S]*?\)/g) ?? [];
-    expect(llamadas.length).toBeGreaterThan(0);
-    const conInterpolacion = llamadas.filter((c) => /`[^`]*\$\{/.test(c));
-    expect(conInterpolacion).toEqual([]);
+  it("ningun executeRawUnsafe/queryRawUnsafe interpola una variable", () => {
+    // Version anterior: matcheaba /RawUnsafe[sS]*?)/ y buscaba ${ adentro. Se
+    // la burlaba de dos formas triviales, las dos senaladas en la revision del
+    // 2026-09-06: el non-greedy cortaba en el PRIMER parentesis (un
+    // `SELECT COUNT(*) ... '${id}'` quedaba fuera del match), y solo miraba
+    // template literals, asi que RawUnsafe("DELETE ... " + orderId) pasaba limpio.
+    //
+    // Ahora se lee el PRIMER ARGUMENTO de cada llamada: tiene que ser un
+    // template literal sin ${}. Cualquier otra cosa se reporta.
+    const sospechosas: string[] = [];
+    let desde = 0;
+    let encontradas = 0;
+    for (;;) {
+      const i = src.indexOf("RawUnsafe(", desde);
+      if (i < 0) break;
+      encontradas++;
+      let j = i + "RawUnsafe(".length;
+      while (j < src.length && src[j].trim() === "") j++;
+      if (src[j] !== "`") {
+        sospechosas.push(`arg no es template literal: ${src.slice(i, i + 90)}`);
+      } else {
+        const fin = src.indexOf("`", j + 1);
+        const sql = src.slice(j + 1, fin < 0 ? src.length : fin);
+        if (sql.includes("${")) sospechosas.push(`interpola: ${sql.slice(0, 90)}`);
+      }
+      desde = i + 1;
+    }
+    expect(encontradas).toBeGreaterThan(0);
+    expect(sospechosas).toEqual([]);
   });
 
   it("EL BUG: ya no se arma el UPDATE de status pegando el valor", () => {
@@ -70,8 +91,9 @@ describe("R-C02 — las credenciales ya no viven en el modulo", () => {
   const src = fuente();
 
   it("no hay variables de modulo con la cuenta ni las claves VTEX", () => {
-    expect(src).not.toMatch(/^let VTEX_(ACCOUNT|KEY|TOKEN)/m);
-    expect(src).not.toMatch(/^let ORG_ID/m);
+    // Sin anclar a `^let`: var, doble espacio o const pasaban igual.
+    expect(src).not.toMatch(/(?:let|var|const)s+VTEX_(?:ACCOUNT|KEY|TOKEN)/);
+    expect(src).not.toMatch(/(?:let|var|const)s+ORG_ID/);
   });
 
   it("VTEX_BASE ya no es un const de modulo: la base se arma por request", () => {
@@ -94,27 +116,26 @@ describe("R-C02 — las credenciales ya no viven en el modulo", () => {
   });
 });
 
-describe("R-C02 — IDOR: el ?org= tiene que ser el tuyo", () => {
+describe("R-C02 — el endpoint es staff-only", () => {
   const src = fuente();
 
-  it("se compara el ?org= contra la org de la sesion antes de cargar credenciales", () => {
-    expect(src).toContain("orgParam !== orgDeLaSesion");
+  it("exige sesion de staff", () => {
     expect(src).toContain("isInternalUser");
-    // El chequeo va ANTES de getVtexConfig: si fuera despues, ya habriamos
-    // cargado las credenciales de otro tenant en memoria.
-    expect(src.indexOf("orgParam !== orgDeLaSesion")).toBeLessThan(
-      src.indexOf("await getVtexConfig(orgParam)"),
-    );
   });
 
-  it("el endpoint opera sobre UNA sola org, no mezcla sesion con ?org=", () => {
+  it("opera sobre UNA sola org, no mezcla la sesion con el ?org=", () => {
     // Antes el SQL se scopeaba por la org de la SESION mientras las
     // credenciales VTEX salian del ?org=. Para un staff con View-as-Org eso
     // consultaba la base de una organizacion con las credenciales de otra.
-    const enQueries = src.match(/^\s*ORG_ID,\s*$/gm) ?? [];
-    expect(enQueries).toEqual([]);
+    expect(src.match(/^s*ORG_ID,s*$/gm) ?? []).toEqual([]);
     expect(src).toContain("ctx.orgId");
   });
+
+  // El comportamiento real —401 sin sesion, 404 con org inexistente, 400 con
+  // fase invalida, y que en ninguno de esos casos se lleguen a desencriptar
+  // credenciales— se verifica EJECUTANDO el handler, en
+  // backfill-vtex-auth.test.ts. Comparar indices de strings, como hacia la
+  // version anterior de este bloque, no distingue un if real de uno muerto.
 });
 
 describe("R-C02 — allowlist de OrderStatus", () => {

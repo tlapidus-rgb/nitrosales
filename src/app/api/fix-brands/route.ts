@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { isInternalUser } from "@/lib/feature-flags";
 
 const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
@@ -337,6 +338,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // R-C02 bis (2026-09-06) — ACA NO HABIA NINGUN CHEQUEO DE SESION.
+  // El unico control era esta clave, que esta hardcodeada tambien en
+  // /backfill-runner/page.tsx (client component) y por lo tanto viaja en el
+  // bundle publico. Con eso, cualquiera podia pasar ?org=<orgId de otro
+  // cliente> y correr un UPDATE sobre el catalogo de ese tenant con SUS
+  // credenciales VTEX. Es el mismo IDOR que se cerro en /api/backfill/vtex,
+  // vivo en el endpoint de al lado que comparte la clave.
+  //
+  // Ahora manda la sesion de staff. La clave sigue pero ya no alcanza sola.
+  if (!(await isInternalUser())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (key !== BACKFILL_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
