@@ -185,40 +185,53 @@ export async function checkStuckOnboardings(): Promise<StuckOnboarding[]> {
 
 // ─── Check 3: clientes inactivos (sin login >14d) ───
 export async function checkInactiveClients(): Promise<InactiveClient[]> {
+  // E-11 (2026-09-07) — ANTES ESTO ERA UN N+1.
+  // Hacia dos queries SECUENCIALES por organizacion (ultimo login y ultima
+  // orden), dentro de un cron con maxDuration = 60. A ~2s por organizacion, a
+  // partir de ~30 clientes se pasaba del limite y Vercel mataba la funcion: sin
+  // mail, sin error visible, y sin que nadie se entere — un 5XX en un cron no
+  // dispara ninguna alerta de Vercel.
+  //
+  // No lleva cursor a proposito, y es la diferencia con los otros crons de
+  // E-11: esto no es trabajo incremental que se pueda repartir entre corridas,
+  // es un REPORTE que se manda por mail. Medio reporte es peor que uno lento —
+  // diria "todo bien" sobre clientes que ni miro. Asi que en vez de repartirlo,
+  // se hace barato: dos agregaciones para todas las organizaciones juntas, y la
+  // comparacion en memoria. El costo deja de escalar con la cantidad de
+  // clientes.
   const orgs = await prisma.organization.findMany({
     select: { id: true, name: true },
   });
+  if (orgs.length === 0) return [];
+
+  const [loginRows, orderRows] = await Promise.all([
+    prisma.$queryRawUnsafe<Array<{ organizationId: string; lastLogin: Date | null }>>(
+      `SELECT u."organizationId" AS "organizationId", MAX(le."createdAt") AS "lastLogin"
+         FROM "login_events" le
+         JOIN "users" u ON u.id = le."userId"
+        WHERE le."success" = true
+        GROUP BY u."organizationId"`
+    ),
+    prisma.$queryRawUnsafe<Array<{ organizationId: string; lastOrder: Date | null }>>(
+      `SELECT "organizationId", MAX("createdAt") AS "lastOrder"
+         FROM "orders"
+        GROUP BY "organizationId"`
+    ),
+  ]);
+
+  const loginPorOrg = new Map(loginRows.map((r) => [r.organizationId, r.lastLogin]));
+  const ordenPorOrg = new Map(orderRows.map((r) => [r.organizationId, r.lastOrder]));
 
   const inactives: InactiveClient[] = [];
-  const since = new Date(Date.now() - INACTIVE_CLIENT_DAYS * 24 * 3600 * 1000);
+  const ahora = Date.now();
+  const dias = (d: Date | null | undefined): number | null =>
+    d ? Math.floor((ahora - new Date(d).getTime()) / (24 * 3600 * 1000)) : null;
 
   for (const org of orgs) {
-    const lastLoginRow = await prisma.$queryRawUnsafe<Array<any>>(
-      `SELECT MAX(le."createdAt") as "lastLogin"
-       FROM "login_events" le
-       JOIN "users" u ON u.id = le."userId"
-       WHERE u."organizationId" = $1 AND le."success" = true`,
-      org.id
-    );
-    const lastLogin: Date | null = lastLoginRow[0]?.lastLogin
-      ? new Date(lastLoginRow[0].lastLogin)
-      : null;
+    const daysSinceLogin = dias(loginPorOrg.get(org.id));
+    const daysSinceOrder = dias(ordenPorOrg.get(org.id));
 
-    const lastOrderRow = await prisma.order.findFirst({
-      where: { organizationId: org.id },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    });
-    const lastOrder = lastOrderRow?.createdAt || null;
-
-    const daysSinceLogin = lastLogin
-      ? Math.floor((Date.now() - lastLogin.getTime()) / (24 * 3600 * 1000))
-      : null;
-    const daysSinceOrder = lastOrder
-      ? Math.floor((Date.now() - lastOrder.getTime()) / (24 * 3600 * 1000))
-      : null;
-
-    // Cliente inactivo: sin login >14d (o nunca) Y sin order reciente
+    // Cliente inactivo: sin login >14d (o nunca) Y sin order reciente.
     const inactiveByLogin = daysSinceLogin === null || daysSinceLogin > INACTIVE_CLIENT_DAYS;
     const inactiveByOrders = daysSinceOrder === null || daysSinceOrder > INACTIVE_CLIENT_DAYS;
 
@@ -234,6 +247,7 @@ export async function checkInactiveClients(): Promise<InactiveClient[]> {
 
   return inactives;
 }
+
 
 // ─── helper ───
 function formatMins(mins: number): string {

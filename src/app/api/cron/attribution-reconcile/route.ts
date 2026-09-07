@@ -30,6 +30,15 @@ export const maxDuration = 300; // 5 min — Vercel Pro
 
 const KEY = ADMIN_API_KEY;
 const DEFAULT_DAYS = 3;
+import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
+
+// E-11 — este cron gasta hasta 240s en UNA sola organizacion (40 ordenes x ~6s
+// de calculateAttribution), y el presupuesto total son 250s. O sea que en la
+// practica atiende una org por corrida. Sin cursor, cada corrida arrancaba de
+// la primera: las organizaciones 2..N NUNCA se reconciliaban. El skip de
+// `attribution_no_match` no ayuda porque es por ORDEN, no por organizacion.
+const CRON = "attribution-reconcile";
+
 const DEFAULT_LIMIT = 40; // tope por org/corrida. ~6s por calculateAttribution → 40×6≈240s < maxDuration.
 // En steady-state hay pocas candidatas (solo casos race que el real-time no atrapó); el backlog
 // histórico se drena con el replay retroactivo. El cron corre periódico y va limando lo que quede.
@@ -73,6 +82,9 @@ export async function GET(req: NextRequest) {
     const conns = await prisma.connection.findMany({
       where: { platform: "VTEX" as any, status: "ACTIVE" as any },
       select: { organizationId: true, organization: { select: { name: true } } },
+      // Orden estable: el cursor de E-11 es un INDICE, asi que sin esto
+      // reanudar en el 2 apuntaria a organizaciones distintas cada vez.
+      orderBy: { organizationId: "asc" },
     });
 
     const perOrg: any[] = [];
@@ -80,7 +92,10 @@ export async function GET(req: NextRequest) {
     let totalMarkedNoMatch = 0;
     let totalCreatorAttributed = 0;
     let budgetHit = false;
-    outer: for (const c of conns) {
+    const arrancoEn = await indiceDeArranque(CRON, conns.length);
+    let idx = arrancoEn;
+    outer: for (; idx < conns.length; idx++) {
+      const c = conns[idx];
       if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break; }
       const orgId = c.organizationId;
       // Órdenes web válidas sin atribución NITRO en la ventana, EXCLUYENDO las ya
@@ -160,11 +175,17 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    await guardarCorte(CRON, idx, conns.length);
+
     return NextResponse.json({
       ok: true,
       days,
       limit,
       orgs: conns.length,
+      // E-11: de donde arranco y donde corto. La proxima corrida sigue ahi en
+      // vez de volver a la primera organizacion.
+      arrancoEn,
+      cortoEn: idx >= conns.length ? 0 : idx,
       totalAttributed,
       totalMarkedNoMatch,
       totalCreatorAttributed,

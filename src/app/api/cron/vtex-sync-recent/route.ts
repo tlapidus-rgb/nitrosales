@@ -16,13 +16,23 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
+import { indiceDeArranque, guardarCorte } from "@/lib/cron/cursor-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
 
+// E-11 — este cron NO tenia presupuesto de tiempo. Procesa las organizaciones
+// en tandas de 5 en paralelo, cada una con un timeout de 50s: con 30 orgs son
+// 6 tandas x 50s = 300s, o sea exactamente el maxDuration. Al pasarse, Vercel
+// mata la funcion y no devuelve NADA: ni lo hecho, ni lo que falta, ni por
+// donde seguir. Ahora corta antes y deja el corte guardado.
+const TIME_BUDGET_MS = 250_000;
+const CRON = "vtex-sync-recent";
+
 const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now();
   try {
     // Auth — acepta key query param (cron) o NEXTAUTH_SECRET
     const url = new URL(req.url);
@@ -35,6 +45,9 @@ export async function GET(req: NextRequest) {
     const conns = await prisma.connection.findMany({
       where: { platform: "VTEX" as any, status: "ACTIVE" as any },
       select: { organizationId: true, organization: { select: { name: true } } },
+      // Orden estable: sin esto el cursor por indice apunta a organizaciones
+      // distintas en cada corrida.
+      orderBy: { organizationId: "asc" },
     });
 
     if (conns.length === 0) {
@@ -52,7 +65,14 @@ export async function GET(req: NextRequest) {
     // Procesar todas las orgs en paralelo (max 5 a la vez)
     const concurrencyLimit = 5;
     const results: any[] = [];
-    for (let i = 0; i < conns.length; i += concurrencyLimit) {
+    const arrancoEn = await indiceDeArranque(CRON, conns.length);
+    let budgetHit = false;
+    let i = arrancoEn;
+    for (; i < conns.length; i += concurrencyLimit) {
+      // El chequeo va ENTRE tandas: una tanda en vuelo no se puede cortar, y
+      // cada una tarda hasta 50s. Por eso el presupuesto (250s) deja margen
+      // sobre el maxDuration (300s) para que la ultima tanda termine.
+      if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break; }
       const chunk = conns.slice(i, i + concurrencyLimit);
       const chunkResults = await Promise.all(
         chunk.map(async (c) => {
@@ -96,9 +116,17 @@ export async function GET(req: NextRequest) {
     const totalProcessed = results.reduce((s, r) => s + (r.processed || 0), 0);
     const totalFailed = results.reduce((s, r) => s + (r.failedToInsert || 0), 0);
 
+    await guardarCorte(CRON, i, conns.length);
+
     return NextResponse.json({
       ok: true,
       orgs: conns.length,
+      // E-11: si budgetHit es true la proxima corrida sigue en cortoEn en vez
+      // de volver a empezar por la primera organizacion.
+      budgetHit,
+      arrancoEn,
+      cortoEn: i >= conns.length ? 0 : i,
+      durationMs: Date.now() - startedAt,
       from: fromDate,
       to: toDate,
       totalProcessed,

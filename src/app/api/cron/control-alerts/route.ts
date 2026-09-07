@@ -25,7 +25,11 @@ import { sendEmail } from "@/lib/email/send";
 import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// E-11: 300 y no 60. El limite viejo era el que mataba este cron cuando
+// checkInactiveClients hacia dos queries por organizacion (ya no las hace, ver
+// lib/control/checks.ts). Vercel cobra por tiempo ejecutado, no por el tope, asi
+// que subirlo es red de seguridad gratis.
+export const maxDuration = 300;
 
 const CRON_KEY = ADMIN_API_KEY;
 const ADMIN_EMAIL = "tlapidus@99media.com.ar";
