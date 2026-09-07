@@ -7,9 +7,9 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 FASE E0 cerrada salvo la rotación de secretos · E1 arrancada · **E2 casi
-> cerrada** — **14 de 31 tareas hechas** (E-01…E-06, E-08, E-11, E-12, E-15, E-16, E-17, E-18)
-> **+ E-07 y E-14 a medias** · **E-13 esperando una decisión de producto**.
+> **Estado global:** 🟨 E0 cerrada salvo la rotación de secretos · E1 arrancada · **E2 cerrada** ·
+> **E3 arrancada** — **16 de 31 tareas hechas** (E-01…E-06, E-08, E-11…E-13, E-15…E-19)
+> **+ E-07 y E-14 a medias**.
 >
 > **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
 > mergea nada a `main` hasta terminarlo, probarlo y revisarlo completo.** Se acabaron las branches
@@ -19,7 +19,7 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **740 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **774 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
 
 ---
 
@@ -501,7 +501,22 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 > Estimado: 1-2 semanas. Sin esto, cada cliente nuevo suma superficie que nadie mira.
 
 ### E-19 · Detección por cliente, y que empuje
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 6-10 h
+- **Estado:** ✅ **HECHO (2026-09-07)** — `cb376cdc` y `5d6d5e15`. Los tres cambios.
+- **1. Frescura por organización.** Era `SELECT MAX(columna) FROM tabla`, sin `WHERE` ni `GROUP BY`:
+  medía la tabla entera. Con veinte clientes, si diecinueve refrescan bien y uno queda congelado, el
+  `MAX` global sigue siendo de hace diez minutos y **el chequeo da verde**. La vigilancia se diluía
+  en proporción al crecimiento. Ahora se afila con cada cliente, el atraso reportado es el de la org
+  **peor** (con el `MAX` global era literalmente al revés), y el mail dice **qué cliente**. La
+  columna de organización se **detecta** —hay dos convenciones, `organizationId` en los rollups del
+  pixel y `organization_id` en Silver/Gold— porque una lista a mano se desincroniza en silencio y su
+  modo de falla sería volver al chequeo global sin que nadie lo note.
+- **2. Los cuatro checks ahora empujan.** `cron/alertas-clientes`, una vez por día. La lógica de
+  detección no se tocó. Sólo avisa por `critical` y `warning`: un `info` es "todavía no instaló el
+  pixel", que en un alta reciente es lo normal.
+- **3. Varios destinatarios.** `src/lib/alertas/destinatarios.ts`, con `ALERTAS_EMAILS`. Nunca
+  devuelve lista vacía: un typo en una variable no puede dejar al sistema sin avisarle a nadie.
+- **⚠️ ACCIÓN PENDIENTE AL MERGEAR:** poner `ALERTAS_EMAILS` en Vercel para que las alertas lleguen
+  a más de una persona. Sin eso todo sigue yendo a la misma casilla de siempre. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 6-10 h
 - **Tres cambios, ninguno arquitectónico:**
   1. **`checkPipelineFreshness` por organización.** Hoy es `SELECT MAX(columna) FROM tabla` **sin
      `WHERE`** (`src/lib/pipeline/freshness.ts:100-104`). Con 20 clientes, si 19 refrescan bien y
