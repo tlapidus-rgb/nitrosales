@@ -92,7 +92,7 @@ describe("ninguna ruta admin queda sin autenticación", () => {
     // habría cazado el POST anónimo que corría DDL.
     const sinAuth = RUTAS_ADMIN.filter((p) => {
       const src = readFileSync(join(process.cwd(), p), "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\*[\s\S]*?\*\//gm, "")
         .replace(/^\s*\/\/.*$/gm, "");
       return !SEÑALES_DE_AUTH.some((s) => src.includes(s));
     });

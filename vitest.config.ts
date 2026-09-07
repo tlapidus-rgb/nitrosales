@@ -22,6 +22,22 @@ export default defineConfig({
     // a ratos se termina ignorando, y ahí se pierde el harness entero.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // ⚠️ TOPE DE PARALELISMO (2026-09-07). Mismo motivo que el timeout de
+    // arriba, un escalón más grave: cada archivo con PGlite levanta un Postgres
+    // completo en WASM, y ya son más de veinte. Con el paralelismo por defecto
+    // (un worker por core) la suite agota la memoria del proceso y los workers
+    // se mueren.
+    //
+    // El síntoma NO se parece a un problema de memoria y ahí está la trampa:
+    // `Worker exited unexpectedly`, "Vitest caught 7 unhandled errors", y un
+    // conteo de tests que baja sin que ninguno aparezca en rojo. Da toda la
+    // impresión de un test roto. Lo que lo delata es un `VirtualAlloc failed`
+    // suelto entre el ruido.
+    //
+    // Con 2 workers la suite entera pasa en ~2 min. Si algún día hace falta más
+    // velocidad, la salida no es subir esto: es que los tests de PGlite
+    // compartan una instancia en vez de levantar una por archivo.
+    maxWorkers: 2,
   },
   resolve: {
     alias: {

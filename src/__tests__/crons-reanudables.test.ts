@@ -20,7 +20,7 @@ import { join } from "path";
 
 function fuente(p: string): string {
   return readFileSync(join(process.cwd(), p), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\*[\s\S]*?\*\//gm, "")
     .replace(/^\s*\/\/.*$/gm, "");
 }
 

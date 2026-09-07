@@ -37,7 +37,7 @@ const RUTA = "src/app/api/backfill/vtex/route.ts";
 /** El fuente sin comentarios: un comentario que menciona algo no cuenta. */
 function fuente(p = RUTA): string {
   return readFileSync(join(process.cwd(), p), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\*[\s\S]*?\*\//gm, "")
     .replace(/^\s*\/\/.*$/gm, "");
 }
 

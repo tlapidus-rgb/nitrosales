@@ -85,7 +85,7 @@ describe("R-C06 — ninguna ruta vuelve a escribir la copia en texto plano", () 
   /** El archivo sin comentarios: un comentario que menciona la columna no cuenta. */
   function sinComentarios(p: string): string {
     return readFileSync(join(process.cwd(), p), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\*[\s\S]*?\*\//gm, "")
       .replace(/^\s*\/\/.*$/gm, "");
   }
 

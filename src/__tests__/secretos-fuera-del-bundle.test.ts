@@ -60,7 +60,7 @@ describe("secretos en el bundle del cliente", () => {
     // que justificar, a otra clave viajando en el bundle sin que nadie mire.
     const sospechosos: string[] = [];
     for (const { rel, src } of clientes) {
-      const sinComentarios = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      const sinComentarios = src.replace(/^\s*\/\*[\s\S]*?\*\//gm, "").replace(/^\s*\/\/.*$/gm, "");
       const m = sinComentarios.match(
         /\b(?:const|let|var)\s+\w*(?:SECRET|TOKEN|APIKEY|API_KEY|PASSWORD|_KEY)\w*\s*=\s*["'][^"']{8,}["']/gi,
       );
