@@ -26,7 +26,17 @@
 > 2026-09-06 con autorización explícita porque producción estaba mostrando revenue inflado.
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
-> E-31). Era un error del texto, no trabajo faltante.
+> E-31). Era un error del texto, no trabajo faltante. **Desde el 2026-09-08 son 33**: se agregaron
+> E-32 y E-33 en una FASE E6 nueva.
+>
+> **⚠️ EL TECHO QUE ATA YA NO ES EL TÉCNICO (revisión de premisa, 2026-09-08).** E-01 movió el techo
+> técnico de ~8 a 50-77 organizaciones. El operativo sigue en **2-3 altas por mes**, y a ese ritmo
+> las 50 orgs no llegan hasta 2028. O sea que **E-10 son 1-2 semanas para levantar un techo que no
+> aprieta**, mientras el que sí aprieta —las horas de Axel, que el plan identifica desde el día 1 y
+> dice que "no baja comprando servidores"— sigue donde estaba. La FASE E2 existía para bajarlo de
+> ~12 h a 3-4 h, está marcada como cerrada, y **nadie midió a cuánto lo bajó.** De ahí salen E-32
+> (medir el próximo alta) y E-33 (convertir en producto los 6 pasos que hoy son fuera del producto,
+> empezando por el que cuesta un botón). Ver FASE E6 y § 10.
 > **Línea base de validación (2026-09-08):** `tsc` exit 0 · `vitest` exit 0, **869 pasan**, 7 skipped · `npm run build` exit 0 (incluye los guards de contrato y `depcruise`). **Cualquier cambio tiene que mantener esto en verde.**
 >
 > **Estado de la branch:** 63 commits por delante de `origin/main`, pusheada, sin mergear. El
@@ -869,6 +879,74 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 
 ---
 
+# FASE E6 — Lo que de verdad mueve el techo
+
+> **Agregada el 2026-09-08, después de una revisión de premisa.** Las dos tareas de acá salen de
+> mirar los números del propio plan y notar que **la restricción que ata dejó de ser la técnica.**
+>
+> | | Antes del plan | Hoy |
+> |---|---|---|
+> | Techo **técnico** (orgs que aguanta el pipeline) | ~~8-10~~ → 50-77 | resuelto por E-01 |
+> | Techo **operativo** (altas por mes) | 2-3 | **2-3, y no se remidió** |
+>
+> A 2-3 altas por mes, llegar a 50 organizaciones lleva **más de un año y medio**. O sea que
+> **E-10 son 1-2 semanas para levantar un techo que no aprieta hasta 2028**, mientras el que sí
+> aprieta sigue donde estaba.
+>
+> El plan lo dice desde el día 1 y en su propia voz: *"el costo real por cliente no es
+> infraestructura, son horas de Axel… y ese número no baja comprando servidores"*. La FASE E2
+> existía para bajarlo de ~12 h a 3-4 h, está marcada como cerrada, y **nadie midió a cuánto lo
+> bajó** — que es exactamente lo que la REGLA #0 de este plan exige.
+
+### E-32 · Medir el próximo alta, de punta a punta
+- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 ninguno · **Esfuerzo:** casi cero — se hace **durante**
+  un alta que igual va a pasar
+- **Qué:** cronometrar el próximo onboarding paso por paso y anotar dónde se van las horas. No es
+  telemetría de sistema (eso es E-20): es una planilla con los 19 pasos y cuánto tardó cada uno,
+  quién lo hizo, y cuáles necesitaron a Axel.
+- **Por qué va primero:** es la única forma de saber si la FASE E2 movió el techo operativo o no.
+  Hoy el plan afirma que E2 está cerrada y sigue reportando "8-18 h, 2-3 altas/mes" en § 5 — las dos
+  cosas no pueden ser ciertas a la vez. Y sin ese número, **E-33 se prioriza a ciegas**: no sabemos
+  cuál de los seis pasos fuera del producto pesa.
+- **Lo que la REGLA #0 pide y no se cumplió:** cada tarea que sube el techo tiene que decir a cuánto
+  lo subió. E-13, E-15 y E-18 se cerraron sin ese número.
+- **Criterio de terminado:** § 5 tiene números medidos, con fecha, y § 5 y el encabezado dejan de
+  contradecirse.
+
+### E-33 · Convertir en producto los pasos que hoy son fuera del producto
+- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio — toca el flujo de alta, que es lo que se rompió
+  dos veces en E-13 · **Depende de:** E-32 para priorizar
+- **Qué está mal:** de los **19 pasos** del alta, **6 se hacen fuera de NitroSales**. Son los que
+  exigen a Axel y los que hacen que el bus factor sea 1. E-18 los **documentó**; documentar un paso
+  manual no lo elimina.
+
+> **⚠️ NO ES UNA TAREA DE 1-2 SEMANAS: ES UNA LISTA, Y LA PRIMERA ES UN BOTÓN.**
+>
+> **El Orders Broadcaster de VTEX** (`POST /api/orders/hook/config`) es **API-only, no tiene UI**, y
+> es el paso que más se olvida. Sin él **no llega un solo webhook**: el cliente queda con las órdenes
+> históricas del backfill y nada nuevo, que es indistinguible de un alta exitosa hasta que alguien
+> mira los números. **Ya rompió a TeVe Compras entero** (0 de 8 órdenes atribuidas).
+>
+> Y ya está medio resuelto sin que nadie lo note: el semáforo de E-15 **detecta** que falta y dice
+> el comando exacto. O sea que el sistema sabe que está mal y le pide a un humano que abra una
+> terminal. **Falta el botón que corra ese POST desde el panel**, al lado del item en rojo. Es la
+> mejor relación esfuerzo/daño-evitado que queda en todo el plan.
+
+- **La lista, en orden de daño:**
+    1. **Orders Broadcaster de VTEX** — API-only. Un botón en el semáforo. Sin él no llega ninguna
+       orden nueva. **Es el que más duele y el más barato.**
+    2. **Afiliados de VTEX** — se configura en el admin de VTEX a mano. No se puede automatizar del
+       todo, pero sí verificar desde el semáforo si quedó bien.
+    3. **Carga de costos** (`Product.costPrice`) — sin esto el P&L y la rentabilidad salen en cero,
+       con toda la pinta de estar bien. Va junto con E-25.
+    4. **Las 4 acciones manuales post-merge** — hoy son una tabla en un doc. Un endpoint que las
+       corra y las verifique saca cuatro oportunidades de olvido.
+    5. **Ida y vuelta por credenciales** — E-13 la redujo para VTEX. Falta medir cuánto queda.
+    6. **Borrado de datos** — hoy es "verificar a mano que no queden filas en ocho tablas". Es E-28.
+- **Por qué esto y no E-10:** E-10 levanta un techo que no aprieta hasta 2028. Esto baja el número
+  que el propio plan identifica como la restricción real, y el primer ítem cuesta un botón.
+
+---
 # 9. Las decisiones que necesitan a Tomy
 
 | # | Decisión | Por qué no la puede tomar el equipo técnico |
@@ -896,10 +974,12 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 | **Ahora, y es barato** | E-29 (sacar Shopify/Tiendanube del wizard) | Sigue pendiente desde el día 1 y sigue siendo cierto: un cliente puede darse de alta hoy en una plataforma que no funciona. 1-2 h |
 | **Antes del próximo cliente** | E-14 (la mitad que falta) + E-20 | E-14 hoy sólo devuelve lo ignorado; falta la verificación real del pixel. E-20 es la telemetría que convierte "creo que anda" en "sé que anda" |
 | 🔺 **Antes del próximo cliente, SI puede ser chico** | **E-24 + E-25** (2-3 h cada una) | **Subieron el 2026-09-08: E-19 las volvió urgentes.** E-19 acaba de convertir cuatro checks en un mail diario. Al mismo tiempo, el detector de anomalías **sigue sin piso de volumen** (verificado: no existe `minOrders` ni equivalente) y el P&L sigue con `COALESCE(oi."costPrice", p."costPrice", 0)` (`metrics/pnl/route.ts:94`). O sea que **el primer cliente chico que entre recibe, desde la semana uno, alertas diarias falsas y un margen bruto del 100 %**. La § 14 dice que un cambio de observabilidad falla por ruido o por silencio; éstas dos son las que evitan que el ruido queme lo que E-19 acaba de construir |
-| **Cuando entre el próximo cliente, no antes** | E-10 (unidad de trabajo por org×tabla×día) | Es el techo real de los rollups. E-01 lo movió de ~8 a 50-77 orgs; E-10 lo saca del camino. Con 4 clientes no aprieta, y hacerlo antes es optimizar sin presión |
+| 🔺 **Durante el próximo alta, sin frenar nada** | **E-32 — medirla** | **Cambio del 2026-09-08.** Cuesta casi nada y contesta la pregunta que hoy nadie puede contestar: ¿E2 bajó las 12 h a 3-4, o no las movió? Sin ese número, todo lo de abajo se prioriza a ciegas |
+| 🔺 **Inmediatamente después** | **E-33, empezando por el botón del Orders Broadcaster** | El paso que más se olvida, sin UI, y que ya rompió a un cliente entero. El semáforo YA lo detecta y le pide a un humano que abra una terminal: falta el botón. **Mejor relación esfuerzo/daño-evitado que queda en el plan** |
+| **Cuando el techo técnico empiece a apretar de verdad** | E-10 (unidad de trabajo por org×tabla×día) | ⚠️ **Bajó de prioridad el 2026-09-08.** Es el techo real de los rollups y E-01 ya lo movió de ~8 a 50-77 orgs. **A 2-3 altas/mes eso no aprieta hasta 2028**, así que 1-2 semanas acá son 1-2 semanas que no van al techo que sí ata. Antes de hacerlo, re-derivar el disparador: el número que lo justificaba (25 clientes) viene del mismo estudio cuyo "8-10 clientes" ya se corrigió por un factor de seis |
 | **Cuando haya 2 clientes grandes a la vista** | E-09 (retención) | 121 GB/año por cliente tamaño Arredo, y no hay política de retención de ninguna clase. Es lo único del plan que destruye datos: necesita la decisión del § 9 punto 1 |
 | **Antes del primer contrato serio** | E-27, E-28 (ciclo de vida y cumplimiento) | No se puede firmar prometiendo borrado de datos que no existe |
-| **Cuando el segmento chico se venda** | E-22, E-24, E-25 | Las tres son baratas y las tres desbloquean vender a alguien que no sea Arredo |
+| **Cuando el segmento chico se venda** | E-22 | E-24 y E-25 subieron de fila (arriba). Queda E-22: decidir qué entra en el paquete acotado, que es la § 9 punto 3 |
 | **En paralelo, sin bloquear** | El resto de `PLAN_REMEDIACION.md` | Los medios y bajos, y toda la tanda de diseño |
 
 ---
@@ -908,6 +988,54 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-08] 🧭 Revisión del PLAN contra lo construido — un revisor sin contexto + revisión de premisa
+
+**Qué se hizo:** dos revisiones del plan en sí, no del código. Una con un agente sin contexto previo,
+que comparó ficha por ficha contra la branch. Otra de premisa, preguntando si el plan sigue
+resolviendo el problema que ata.
+
+**Lo que encontró el revisor sin contexto** (cinco cosas, tres cambian una decisión):
+
+1. **Tres crons seguían matando de hambre al último cliente.** `digest`, `anomalies` y
+   `ads-utm-audit`: `maxDuration = 60`, un `for` sobre todas las orgs, sin reloj, sin `orderBy` y
+   sin cursor. E-05 les puso el aislamiento, que era la mitad. **No estaban en la lista de 8 del
+   estudio**, así que E-11 no los cubrió — y son los tres que le escriben al cliente por mail.
+   Arreglados.
+2. **`BACKFILL_VENTANA` documentada con un formato que el parser rechaza.** El doc decía
+   `HH:MM-HH:MM`; sólo acepta horas enteras, y un valor que no parsea significa **sin restricción**.
+   Alguien siguiendo esa tabla al mergear habría dejado la ventana apagada sin ninguna señal.
+3. **El runbook de E-18 le mentía al operador.** Decía que el wizard no valida credenciales y que el
+   `.sql` por cliente vive en el disco de Axel — las dos cosas dejaron de ser ciertas el mismo día
+   que se escribió. **Es el único documento del plan que se usa sin un técnico al lado.**
+4. **E-29 apuntaba a algo ya resuelto.** Shopify y Tiendanube ya están gateadas con badge "En
+   desarrollo" y lista de espera. Lo que sigue roto es otra cosa: `globalCompletion` cuenta `skip`
+   como decidido, así que se puede saltear las cuatro plataformas y ver el alta al 100 %.
+5. **E-19 volvió urgentes a E-24 y E-25.** Convertir cuatro checks en un mail diario, con el
+   detector de anomalías sin piso de volumen y el P&L con `COALESCE(..., 0)`, significa que el
+   primer cliente chico recibe alertas falsas y margen bruto del 100 % desde la semana uno.
+
+**Lo que encontró la revisión de premisa,** y es lo que más cambia:
+
+> El plan prioriza por techo técnico, y **el techo técnico dejó de ser el que ata.** E-01 lo movió de
+> ~8 a 50-77 orgs; el operativo sigue en 2-3 altas/mes, o sea que 50 orgs no llegan hasta 2028.
+> **E-10 son 1-2 semanas para levantar un techo que no aprieta.** Mientras tanto la FASE E2, que
+> existía para bajar las 12 h por alta a 3-4, está marcada como cerrada y **nadie midió a cuánto las
+> bajó** — lo que la REGLA #0 de este plan exige explícitamente.
+
+De ahí salen **E-32** (medir el próximo alta) y **E-33** (convertir en producto los 6 pasos que hoy
+son fuera del producto). E-33 no es una tarea de 1-2 semanas: es una lista, y **la primera es un
+botón** — el Orders Broadcaster de VTEX es API-only, es el paso que más se olvida, ya rompió a TeVe
+Compras entero, y el semáforo de E-15 **ya lo detecta** y le pide a un humano que abra una terminal.
+
+**Qué cambió en el plan:** FASE E6 nueva (E-32, E-33) · § 10 reordenada, con E-10 bajando de
+prioridad y E-24/E-25 subiendo · E-29 reescrita · § 5 con tres números marcados como no remedidos ·
+E-04 corregida (la entrada de `vercel.json` volvió a propósito) · el conteo de crons de 28 a 29 ·
+N-05 verificado y corregido (era uno, no varios).
+
+**Restos anotados:** la fila "cargas de dashboard concurrentes ~8-15" es el único número del
+diagnóstico que dice "esto ya está roto hoy" y **no tiene tarea asignada en ninguna fase**; y el
+secreto viaja en la URL de los 29 crons, o sea que además está en los logs de Vercel.
 
 ### [2026-09-08] 🔁 Segunda y tercera ronda, y revisión del plan contra lo construido
 
