@@ -343,7 +343,18 @@ export async function GET(req: NextRequest) {
     let freshness: FreshnessRow[] = [];
     let staleTables: FreshnessRow[] = [];
     try {
-      freshness = await checkPipelineFreshness();
+      // El warm ya se comió hasta 220 s de los 300 de `maxDuration`. Lo que
+      // sobra tiene que alcanzar para la frescura, el mail y la purga — y el
+      // chequeo se volvió más caro (15 queries agrupadas por org + 4 de las
+      // fuentes, contra 15 `MAX()` simples de antes).
+      //
+      // Si esto se pasa, Vercel mata la función y warm-cache no devuelve nada.
+      // Y ahí abajo vive `maybeSelfHealRollups`: un chequeo de frescura
+      // demasiado caro tumbaría al cron que recupera los rollups atrasados.
+      const restanMs = 280_000 - (Date.now() - startedAt);
+      freshness = await checkPipelineFreshness(undefined, {
+        presupuestoMs: Math.max(5_000, restanMs - 20_000), // 20 s para el mail
+      });
       staleTables = freshness.filter((r) => r.stale);
       // Watchdog: recuperación PROACTIVA de rollups atrasados ANTES de que crucen
       // el umbral de alerta (8h) — desacopla la recuperación del schedule de Vercel.

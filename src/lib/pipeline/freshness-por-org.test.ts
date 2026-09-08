@@ -143,4 +143,52 @@ describe("degradación", () => {
     expect(r.stale).toBe(false);
     expect(r.hoursStale).toBeNull();
   });
+
+  it("un error que NO es 'la tabla no existe' se reporta, no se traga", async () => {
+    // Antes había un `catch {}` que marcaba todo como `missing: true`, o sea
+    // "no es una alerta". Un `statement_timeout` de la query agrupada —que es
+    // bastante más cara que el MAX de antes— salía por esa puerta: el módulo
+    // que existe para avisar que algo dejó de correr se rompía y decía que todo
+    // estaba bien.
+    await nuevaDb("organization_id");
+    // Una columna que no existe: error de Postgres, pero NO 42P01.
+    const [r] = await checkPipelineFreshness([
+      { table: "gold_daily_revenue", column: "columna_que_no_existe", maxHours: 6, refreshedBy: "cron-x" },
+    ]);
+    expect(r.missing).toBe(false);
+    expect(r.stale).toBe(true);
+    expect(r.error).toBeTruthy();
+  });
+});
+
+describe("el chequeo no puede matar al cron que lo hospeda", () => {
+  // Corre adentro de `warm-cache`, que ya se comió hasta 220 s de su
+  // `maxDuration` de 300 antes de llegar acá. Si esto se pasa, Vercel mata la
+  // función y warm-cache no devuelve nada — y ahí vive `maybeSelfHealRollups`,
+  // o sea que el monitoreo tumbaría al cron que recupera los rollups.
+  it("con el presupuesto agotado corta y devuelve lo que alcanzó a medir", async () => {
+    await nuevaDb("organization_id");
+    await fila("orgA", 40);
+    const muchos = Array.from({ length: 12 }, () => TARGET[0]);
+    // Presupuesto de 0 ms: no llega a medir ninguna.
+    const r = await checkPipelineFreshness(muchos, { presupuestoMs: 0 });
+    expect(r.length).toBeLessThan(muchos.length);
+  });
+
+  it("lo que no se llegó a medir NO se reporta como atrasado", async () => {
+    // Decir "el cron está caído" porque nos quedamos sin tiempo mandaría a
+    // buscar un problema que no existe.
+    await nuevaDb("organization_id");
+    await fila("orgA", 40);
+    const r = await checkPipelineFreshness([TARGET[0], TARGET[0]], { presupuestoMs: 0 });
+    expect(r.filter((x) => x.stale)).toEqual([]);
+  });
+
+  it("con presupuesto de sobra las mide todas", async () => {
+    await nuevaDb("organization_id");
+    await fila("orgA", 40);
+    const r = await checkPipelineFreshness([TARGET[0], TARGET[0]], { presupuestoMs: 30_000 });
+    expect(r).toHaveLength(2);
+    expect(r[0].stale).toBe(true);
+  });
 });

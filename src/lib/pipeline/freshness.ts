@@ -290,6 +290,7 @@ async function columnasDeOrg(tablas: readonly string[]): Promise<Map<string, str
  */
 async function marcasDeLasFuentes(
   targets: readonly FreshnessTarget[],
+  sinTiempo: () => boolean = () => false,
 ): Promise<Map<string, Map<string, Date> | null>> {
   const fuentes = new Map<string, { tabla: string; columna: string }>();
   for (const t of targets) {
@@ -300,7 +301,11 @@ async function marcasDeLasFuentes(
   const out = new Map<string, Map<string, Date> | null>();
   for (const [clave, f] of fuentes) {
     const orgCol = orgCols.get(f.tabla);
-    if (!orgCol) {
+    // Sin tiempo, esta fuente queda en `null` y las tablas que dependen de ella
+    // vuelven al criterio de solo-reloj. Es el camino ruidoso, no el ciego — y
+    // llegar aca ya significa que la base esta muy lenta, que es algo que
+    // conviene que se note.
+    if (!orgCol || sinTiempo()) {
       out.set(clave, null);
       continue;
     }
@@ -334,8 +339,22 @@ async function marcasDeLasFuentes(
  * igual se miden (un UNION fallaría entero).
  */
 export async function checkPipelineFreshness(
-  targets: readonly FreshnessTarget[] = PIPELINE_FRESHNESS_TARGETS
+  targets: readonly FreshnessTarget[] = PIPELINE_FRESHNESS_TARGETS,
+  opts: { presupuestoMs?: number } = {},
 ): Promise<FreshnessRow[]> {
+  // ⚠️ ESTO CORRE ADENTRO DE `warm-cache`, Y NO PUEDE MATARLO.
+  // El warm se corta a los 220 s de un `maxDuration` de 300, así que a partir
+  // de acá quedan ~80 s para la frescura, el mail y la purga. Este chequeo pasó
+  // de 15 `MAX()` simples a 15 agrupadas + 4 de las fuentes: si se pasa, Vercel
+  // mata la función y **warm-cache no devuelve nada**.
+  //
+  // Y eso no es sólo perder una corrida de warm: `maybeSelfHealRollups` vive
+  // ahí. O sea que un chequeo de frescura demasiado caro tumbaría al cron que
+  // recupera los rollups atrasados — el monitoreo rompiendo lo que vigila.
+  // Antes de que pase eso, se mide lo que se pueda y se corta.
+  const arrancoEn = Date.now();
+  const presupuesto = opts.presupuestoMs ?? 45_000;
+  const sinTiempo = () => Date.now() - arrancoEn > presupuesto;
   // E-19 — POR QUÉ ESTO AHORA AGRUPA POR ORGANIZACIÓN.
   //
   // Era `SELECT MAX(columna) FROM tabla`, SIN `WHERE` y sin `GROUP BY`. O sea
@@ -349,10 +368,19 @@ export async function checkPipelineFreshness(
   // Si no se encuentra la columna de organización se cae al modo global, que es
   // el comportamiento anterior — degradar es preferible a no medir nada.
   const orgCols = await columnasDeOrg(targets.map((t) => t.table));
-  const marcas = await marcasDeLasFuentes(targets);
+  const marcas = await marcasDeLasFuentes(targets, sinTiempo);
 
   const out: FreshnessRow[] = [];
   for (const t of targets) {
+    // Lo que no se llegó a medir NO se reporta como atrasado: decir "el cron
+    // está caído" porque nos quedamos sin tiempo mandaría a buscar un problema
+    // que no existe. Queda afuera del resultado y warm-cache lo loguea.
+    if (sinTiempo()) {
+      console.warn(
+        `[freshness] sin presupuesto: se midieron ${out.length}/${targets.length} tablas`,
+      );
+      break;
+    }
     const orgCol = orgCols.get(t.table);
     const fuentePorOrg = t.fuente
       ? (marcas.get(`${t.fuente.tabla}.${t.fuente.columna}`) ?? null)
