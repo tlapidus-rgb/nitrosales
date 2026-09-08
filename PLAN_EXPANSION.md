@@ -7,9 +7,17 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global:** 🟨 E0 cerrada salvo la rotación de secretos · E1 arrancada · **E2 cerrada** ·
-> **E3 arrancada** — **16 de 31 tareas hechas** (E-01…E-06, E-08, E-11…E-13, E-15…E-19)
-> **+ E-07 y E-14 a medias**.
+> **Estado global (revisado el 2026-09-08):** 🟨 **E0 cerrada salvo E-07, y E-07 es la que decide
+> si el gate está cerrado** (ver el recuadro rojo en E-07 y § 9 punto 6) · E1 arrancada ·
+> **E2 cerrada** · **E3 arrancada** — **17 de 31 hechas** (E-01…E-06, E-08, E-11…E-13, E-15…E-19)
+> **+ E-07 y E-14 a medias**. E-11 y E-13 figuraban como parciales o pendientes y ya estaban
+> cerradas; corregido.
+>
+> **⚠️ LO QUE APRENDIMOS, Y CAMBIA CÓMO SE EJECUTA LO QUE FALTA — § 14.** Tres rondas de revisión
+> sobre la branch encontraron **once defectos, casi todos en el código escrito para cerrar tareas de
+> este plan**. E-08 se dio por cerrada tres veces sin estarlo. El patrón es uno solo: **una variable
+> que servía para dos propósitos y se cambió pensando en uno solo.** Y lo que destapó los peores no
+> fue revisar más, sino cambiar la pregunta de "¿hay un bug acá?" a **"¿qué rompió este arreglo?"**.
 >
 > **⚠️ REGLA DE MERGE (Axel, 2026-09-06): el plan ENTERO vive en `fix/expansion-gate-e0` y NO se
 > mergea nada a `main` hasta terminarlo, probarlo y revisarlo completo.** Se acabaron las branches
@@ -19,7 +27,11 @@
 >
 > **Corrección de conteo (2026-09-06):** este encabezado decía "34 tareas". Son **31** (E-01 a
 > E-31). Era un error del texto, no trabajo faltante.
-> **Línea base de validación (2026-09-07):** `tsc` exit 0 · `vitest` exit 0, **774 pasan**, 7 skipped · `next build` exit 0. **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-08):** `tsc` exit 0 · `vitest` exit 0, **869 pasan**, 7 skipped · `npm run build` exit 0 (incluye los guards de contrato y `depcruise`). **Cualquier cambio tiene que mantener esto en verde.**
+>
+> **Estado de la branch:** 63 commits por delante de `origin/main`, pusheada, sin mergear. El
+> resumen para leer antes de mergear —incluidas las **4 acciones manuales**— está en
+> `docs/ESTADO-BRANCH-INTEGRACION.md`.
 
 ---
 
@@ -115,7 +127,7 @@ decir a cuánto lo subió.** No alcanza con "hecho": la bitácora tiene que deci
 | Clientes que aguantaba el pipeline de rollups | ~~8-10~~ → **50-77** (ver corrección) · **resuelto por E-01** | `expansion-escalabilidad.md` § 1.1 + verificación del 2026-09-05 |
 | Crons que iteran todas las orgs con presupuesto fijo | **14** | ídem § 2 |
 | …de esos, que **no pueden continuar donde quedaron** | **8** (uno menos desde E-01) | ídem |
-| Cosas ya rotas **hoy, con 4 clientes** | **3** | `sync/chain` (1 org/corrida), `warm-cache` (1,4 orgs), `attribution-reconcile` (1 org) |
+| Cosas ya rotas **hoy, con 4 clientes** | ~~3~~ → **0** · resueltas (E-03, E-12, E-11) | `sync/chain` (1 org/corrida), `warm-cache` (1,4 orgs), `attribution-reconcile` (1 org) |
 | Cargas de dashboard concurrentes soportadas | **~8-15** | ídem § 5.3 — ya está por debajo de 4 clientes con 3 usuarios |
 | Crecimiento de disco por cliente tamaño Arredo | **121 GB/año** | ídem § 4.3 |
 | Política de retención de datos | **no existe, de ninguna clase** | ídem § 4.2 |
@@ -140,10 +152,10 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 | Horas por onboarding | **8-18** (mediana ~12), de las cuales **4-12 requieren a Axel** |
 | Techo de altas por mes con el equipo actual | **2-3** |
 | Pasos del onboarding | **19** — 7 automáticos, 8 manuales en UI, **6 fuera del producto** |
-| Pasos que pueden fallar en silencio | **13 de 14** |
+| Pasos que pueden fallar en silencio | ~~13 de 14~~ → **menos, sin recontar.** El alta tiene ahora semáforo (E-15), runbook (E-18) y tres alertas nuevas; pero **el número no se volvió a medir** y no conviene darlo por bajado sin hacerlo |
 | Tiempo real de detección en incidentes históricos | **5 días · 5 semanas · 22 horas · "meses"** |
 | Incidentes donde avisó el cliente o alguien de casualidad | **6 de 8** |
-| Destinatarios humanos de una alerta de sistema | **uno** (una casilla, literal hardcodeado en 7 archivos) |
+| Destinatarios humanos de una alerta de sistema | ~~uno~~ → **configurables** por `ALERTAS_EMAILS` (E-19.3) · **falta setear la variable** |
 | Operaciones frecuentes que requieren intervención técnica manual | **13** |
 
 ### Producto y plataforma
@@ -246,6 +258,35 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   y error de verdad en el dashboard, el backend arregla algo que nadie ve.
 
 ### E-07 · Cerrar las puertas antes de firmar contratos
+
+> ## 🔴 ESTA ES LA TAREA QUE DECIDE SI EL GATE ESTÁ ABIERTO O CERRADO
+>
+> **Revisado el 2026-09-08.** Todo lo demás de la FASE E0 está hecho y verificado. Ésta no, y no
+> alcanza con contarla como "parcial": **mientras siga congelada, el gate E0 no está cerrado, por
+> más que las otras siete tengan tilde.**
+>
+> El motivo es uno solo y está verificado contra producción: **`NEXTAUTH_SECRET` y `ADMIN_API_KEY`
+> son el mismo literal, y ese literal está escrito en `vercel.json`, que está versionado en el
+> repo.** Se comprobó el 2026-09-07 con una llamada de sólo lectura (`dryRun=1`): con una clave
+> inventada devuelve 401, con el literal publicado devuelve 200.
+>
+> La consecuencia no es "hay un secreto expuesto". Es que **cualquiera que lea el repositorio puede
+> firmarse una sesión de staff**, y con eso **todos los controles que se construyeron en esta branch
+> son evitables**: el gate por sección del middleware, el gate staff-only de `/control`, el
+> read-only durante impersonate, los barridos de rutas admin. Ninguno es una frontera de seguridad
+> hasta que se rote — son controles para el usuario logueado, que es el caso real y por eso valen,
+> pero no resisten a alguien que quiera pasarlos.
+>
+> **Por qué está congelado, y está bien que lo esté:** rotar tiene un orden estricto
+> (R-C07 → R-C08 → R-C09) y hacerlo antes de que el webhook de órdenes de VTEX tenga su propio
+> secreto **corta la ingesta de los cuatro clientes, en silencio**. El mapa de dependencias ya está
+> hecho: 53 rutas, 28 crons, el webhook de VTEX y todas las sesiones activas.
+>
+> **La decisión que hay que tomar** está en § 9, punto 6. No es "¿rotamos?" sino "¿se firma el
+> próximo cliente antes de rotar?". Las dos respuestas son defendibles —hoy los cuatro clientes son
+> conocidos y el repo es privado— pero tiene que ser una decisión tomada, no una que se toma sola
+> por seguir avanzando con lo que sí se puede hacer.
+
 - **Estado:** 🟡 parcial (2026-09-06) — R-C01/R-C03/R-C04 hechos; **R-C05 y R-C06 hechos en su
   parte de código** (`1e8b65c4`, `62ed2b5a`, más el hallazgo nuevo `83d13d1a`). Lo que falta ya no
   es acceso a Vercel: **R-C02** espera una decisión de producto (borrar `/api/backfill/vtex` o
@@ -264,8 +305,38 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   pasa de ser una filtración menor a ser una brecha reportable.
 
 ### E-08 · Convertir el backfill de alta en un evento controlado
-- **Estado:** ✅ **hecho (2026-09-06)** — commits `6e502614` y `0389d7fb`, consolidados en esta
-  branch. Runbook operativo en `docs/E-08-BACKFILL-ADMISION.md`.
+- **Estado:** ✅ hecho — pero **estuvo marcado como cerrado tres veces sin estarlo.** Ver el recuadro.
+  Commits `6e502614`, `0389d7fb`, `93362908`, `40832ec7`, `62efba36`. Runbook en
+  `docs/E-08-BACKFILL-ADMISION.md`.
+
+> **⚠️ LO QUE ESTA FICHA ENSEÑA (revisión del 2026-09-08).**
+>
+> E-08 se dio por cerrada el 2026-09-06. Después, en tres rondas sucesivas de revisión, aparecieron
+> **cuatro defectos que hacían que no lo estuviera** — y los cuatro estaban en el código que se
+> había escrito *para* cerrarla:
+>
+> 1. **El reaper de jobs zombie no podía dispararse nunca.** El claim escribía
+>    `lastChunkAt = NOW()`, el cron corre cada minuto y el cooldown es de 2: un job roto se
+>    re-reclamaba cada dos minutos y se refrescaba el latido solo, sin llegar jamás a los 30 minutos
+>    que el reaper exige. El commit que lo daba por cerrado no cerraba nada.
+> 2. **Un backfill fallado se daba por alta completa.** `areAllJobsComplete` contaba `FAILED` como
+>    terminado, así que una caída de VTEX de media hora terminaba con el cliente activado y la data
+>    a medias.
+> 3. **El arreglo de (1) rompió el límite de concurrencia.** Sacar `lastChunkAt` del claim dejó a
+>    `contarJobsActivos` sin su fuente: un job recién tomado figuraba en cero y el tick siguiente
+>    admitía otro. **Dos backfills en paralelo contra Neon** — exactamente lo que E-08 vino a
+>    impedir.
+> 4. **El check de jobs atascados no miraba los `FAILED`**, que desde (2) son justo los que retienen
+>    un alta.
+>
+> Los cuatro tienen la misma forma: **una variable que servía para dos propósitos y se cambió
+> pensando en uno solo.** `lastChunkAt` era el latido *y* el lock *y* el contador de concurrencia.
+> Está desarrollado en § 14.
+>
+> **Lo que hay que sacar de acá para el resto del plan:** que una tarea de este plan tenga tilde
+> significa "se escribió el código", no "el modo de falla está cerrado". Los ocho de la FASE E0
+> pasaron por una revisión que buscaba bugs; sólo E-08 pasó además por una que buscaba **qué rompió
+> el arreglo**. Ver § 14.
 - **Lo que se encontró de más:** además de la falta de límites, **el claim del job no era atómico**.
   `pickNextJob()` (SELECT) y `markJobRunning()` (UPDATE) eran dos queries; entre una y otra otra
   invocación salía con el **mismo job** y el chunk se procesaba dos veces en paralelo. El "lock" por
@@ -279,9 +350,21 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 - **⚠️ ACCIÓN PENDIENTE DE TOMY/AXEL:** para que la ventana de madrugada tenga efecto hay que
   poner `BACKFILL_VENTANA=1-7` en Vercel. Sin esa variable el backfill corre a cualquier hora
   (los otros dos frenos sí están activos solos).
+- **Lo que se sumó después (2026-09-07/08):** un reaper que saca de la cola los jobs sin progreso a
+  los 30 min; la separación explícita de los dos relojes (`updatedAt` = "está tomado" para el lock y
+  la concurrencia, `lastChunkAt` = "avanza" para el reaper); y **la alerta que faltaba** —
+  `checkJobsDeBackfillAtascados` ahora avisa a las 3 h, con el `lastError` al lado, e incluye los
+  `FAILED` que estén reteniendo un alta en curso.
 - **Lo que NO cubre:** el bootstrap de MercadoLibre lo dispara `approve-backfill` en paralelo y no
-  pasa por el control de admisión; la cola sigue FIFO global (eso es E-10); y no hay alerta si un
-  backfill queda frenado horas.
+  pasa por el control de admisión; y la cola sigue FIFO global (eso es E-10).
+- **El precio que se aceptó, explícito:** un job que falla en loop mantiene `updatedAt` fresco y
+  sigue ocupando el cupo de concurrencia hasta que el reaper lo mate. O sea que **puede tapar la cola
+  hasta 30 minutos**. Se eligió a propósito: entre bloquear media hora y correr dos backfills en
+  paralelo contra Neon, se bloquea. El segundo no tiene tope y le pega a todos los clientes a la vez.
+- **Y el otro precio:** desde que un `FAILED` no cuenta como alta completa, el cliente puede quedar
+  viendo "preparando tu data" **hasta 12 h** (que es cuando `checkStuckOnboardings` lo levanta), o
+  3 h si el job ya estaba fallado. Es peor experiencia y mejor resultado que activarlo con la data a
+  medias — pero es un caso que conviene mirar cuando se rediseñe el overlay del alta.
 - **Estado original:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Esfuerzo:** 4-6 h
 - **Archivos:** `src/lib/backfill/job-manager.ts:71-84` (cola FIFO **global**, sin noción de org) ·
   `admin/onboardings/[id]/approve-backfill/route.ts:181-188` (disparo inmediato al aprobar) ·
@@ -326,7 +409,23 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 - **No arrancar esto antes de tener el gate cerrado.** Es el cambio más grande del plan.
 
 ### E-11 · Cursor persistido en los 8 crons que no pueden reanudar
-- **Estado:** 🟡 **PARCIAL (2026-09-07)** — commits `dc8af35a` y `e4b2a80e`.
+- **Estado:** ✅ **CERRADA (2026-09-07)** — `dc8af35a`, `e4b2a80e`, `9215476c`, más el arreglo
+  del cursor y el de `?full=1` (abajo). El encabezado decía "parcial" cuando la Bitácora ya la daba
+  por cerrada; corregido el 2026-09-08.
+
+- **⚠️ DOS CORRECCIONES POSTERIORES, las dos sobre código de esta misma tarea:**
+    · **El cursor guardaba una POSICIÓN y tenía que guardar un ID.** Un índice sólo sirve si la
+      lista es la misma entre corridas, y en tres de los cuatro crons NO lo es: uno lista una
+      ventana deslizante de orgs con atribuciones recientes, y dos listan conexiones filtradas por
+      `status = ACTIVE`. Cuando una organización sale del conjunto, los índices posteriores se
+      corren uno y **se saltea un cliente que nunca se procesó** — el mismo bug que el cursor venía
+      a arreglar, pero intermitente y más difícil de ver. Lo detecté como "fragilidad de orden" y lo
+      "arreglé" con un `ORDER BY`, que no era el problema: el problema era el CONJUNTO, no el orden.
+    · **El cursor se aplicaba y se pisaba también en `?full=1`.** Un `?full=1` —el "rehacé toda la
+      historia", que se corre justamente cuando algo ya salió mal— arrancaba desde donde había
+      quedado el cron automático y se salteaba en silencio las orgs anteriores: devolvía `ok` sin
+      haber rehecho lo que se le pidió. La regla vive ahora en `arranqueDeLaVuelta`, compartida por
+      los dos crons que tienen modo manual.
 - **Lo hecho:** `src/lib/cron/cursor-store.ts`, un key-value donde cada cron deja por dónde iba, más
   la migración `POST /api/admin/migrate-cron-cursors`. Cableado en
   **`refresh-gold-attribution-channel`** (que devolvía `resume: "?orgCursor=N"` para nadie) y
@@ -367,8 +466,24 @@ Con varios clientes, un puñado de reglas que nunca disparan alcanza para que la
 evalúen nunca** — que es exactamente el modo de falla que E-11 ataca, por otro camino.
 
 **La decisión:** una regla diaria que no dispara a las 09:00, ¿se re-chequea a las 09:15 (lo que pasa
-hoy) o recién al día siguiente (lo que significa "schedule")? Arreglarlo baja el ruido y el costo,
-pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No se tocó.** · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
+hoy) o recién al día siguiente (lo que significa "schedule")?
+
+> ### ✅ RESUELTO (2026-09-07), y la decisión fue "ninguna de las dos"
+>
+> Saltar al próximo período habría cambiado el comportamiento visible: una regla diaria que no
+> dispara a las 09:00 dejaría de poder disparar hasta mañana. Y dejarlo como estaba mantenía la
+> inanición.
+>
+> La salida fue separar las dos cosas, que en realidad no eran la misma: **la regla se manda al
+> fondo de la cola con un reintento corto** (`REINTENTO_SIN_DISPARO_MS`, 15 min). Se sigue
+> chequeando casi igual de seguido —a las 09:15 puede disparar, como hoy— pero deja de tapar a las
+> demás. La semántica de producto no cambia; lo que cambia es que evaluar una regla ahora la saca de
+> la cabeza de la cola, que era la premisa que `alerts-scheduler` daba por cierta y no lo era.
+>
+> **Cubierto con tests el 2026-09-07** (`src/lib/alerts/engine-cola.test.ts`): dos reglas en una
+> cola de verdad contra Postgres, se evalúa la primera sin disparo y se verifica que la segunda
+> llegue a evaluarse. Antes la única cobertura eran tres `expect(fuente).toContain("nextFireAt")`,
+> que pasan igual con un `const _ = "nextFireAt"`.
 - **Qué:** de los 14 crons que iteran todas las organizaciones, **8 no tienen forma de continuar
   donde quedaron** (o no tienen cursor, o lo calculan y nadie lo llama). El modo de falla al crecer
   no es "más lento": es **"a algunos clientes no les corre nunca"**, en silencio.
@@ -400,7 +515,37 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 > De 12 horas a 3-4 por alta. Estimado: 2-3 semanas. Es lo que sube el techo de 2-3 clientes por mes.
 
 ### E-13 · Exponer el test de credenciales en el wizard
-- **Estado:** 🔒 **ESPERA DECISIÓN DE PRODUCTO (2026-09-07).** La ficha lo describe como "la pieza
+- **Estado:** ✅ **HECHO por el punto medio (2026-09-07)** — `01fe1182`, más los arreglos `40832ec7`.
+  Se implementó la tercera opción que la propia ficha proponía: **no hay botón de "probar" y no se
+  muestra nunca un error crudo**; se valida una vez, al enviar, y si algo no anda se corta con la
+  instrucción concreta para corregirlo. Lo que hace viable el punto medio es que los `hint` de
+  `credential-tests.ts` ya están escritos para un humano no técnico. La decisión de UX original
+  —"el cliente no debe ver fallas"— quería evitar el error crudo, no la ayuda.
+- **Lo inconcluso NO bloquea:** si un test se pasa del presupuesto o explota, se deja pasar. Un
+  cliente no puede quedar trabado en el alta porque nuestra verificación estuvo lenta.
+
+> **⚠️ ESTA TAREA ROMPIÓ EL ALTA DOS VECES ANTES DE ARREGLARLA.** Las dos las encontró la revisión
+> del 2026-09-07, y las dos tenían el mismo síntoma: **un 400 en cada intento, sin ninguna forma de
+> salir desde la interfaz.**
+>
+> · **Validaba las cuatro plataformas, y en tres de ellas las credenciales no viajan en el wizard.**
+>   En Meta Ads, Google Ads y MercadoLibre el `accessToken` y el `refreshToken` los pone el callback
+>   de OAuth del lado del servidor; el submit los recupera y los mergea **después** de este punto
+>   (`grep -c refreshToken OnboardingOverlay.tsx` → 0). Se validaban vacías y el tester devolvía una
+>   falla CONFIRMADA —"OAuth pendiente, falta autorizar Google Ads"— sobre un cliente que ya había
+>   hecho OAuth. **El alta quedaba imposible de completar para 3 de las 4 plataformas.** Ahora sólo
+>   se valida VTEX, que es la única que el cliente tipea.
+>
+> · **Un timeout se convertía en un "no".** `credential-tests.ts` tiene su propio tope de 10 s y
+>   devuelve `ok:false`, así que el "no sé" se volvía "no" **antes** de que el presupuesto de 20 s
+>   de acá se enterara. Una Graph API de Meta lenta bloqueaba a un cliente con las credenciales
+>   perfectas — o sea, exactamente lo que el punto medio decía evitar.
+>
+> **Lo que esto enseña para el resto de la FASE E2:** las tareas que tocan el alta se prueban contra
+> el flujo real, no contra la forma del código. Los dos bugs pasaban `tsc`, pasaban los 13 tests
+> nuevos de la tarea, y rompían el alta de todos los clientes que no fueran VTEX puro.
+
+- **Estado original:** 🔒 **ESPERABA DECISIÓN DE PRODUCTO.** La ficha lo describe como "la pieza
   más cara del self-serve ya está escrita y apagada", pero el endpoint
   (`/api/onboarding/test-credentials`) **no está apagado por olvido**: su propio comentario dice que
   se sacó del wizard *"por decisión de UX — el cliente no debe ver fallas, las valida el admin antes
@@ -517,6 +662,35 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
   devuelve lista vacía: un typo en una variable no puede dejar al sistema sin avisarle a nadie.
 - **⚠️ ACCIÓN PENDIENTE AL MERGEAR:** poner `ALERTAS_EMAILS` en Vercel para que las alertas lleguen
   a más de una persona. Sin eso todo sigue yendo a la misma casilla de siempre. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 6-10 h
+
+> **⚠️ EL CAMBIO (1) HABRÍA HECHO INSERVIBLE AL SISTEMA DE ALERTAS. Corregido el 2026-09-07/08.**
+>
+> Agrupar por organización era lo correcto, pero destapó algo que el `MAX` global tapaba, y el
+> resultado neto habría sido peor que no tener el chequeo:
+>
+> · **Cada cliente tranquilo generaba una alerta permanente.** Todos los upserts del pipeline
+>   filtran por ventana. Si un cliente no vendió en tres días, el upsert afecta cero filas y
+>   `silver_updated_at` no se mueve: el cron corrió, hizo exactamente lo que tenía que hacer, y el
+>   chequeo lo reportaba atrasado. **Todas las corridas, para siempre.** Con clientes chicos
+>   entrando, la casilla se llena de ruido el primer día y a la semana nadie mira más los mails — que
+>   es peor que no tener el chequeo, porque encima da sensación de cobertura. Ahora cada tabla
+>   derivada declara su fuente y el criterio es relativo: está atrasada si su fuente tiene algo **más
+>   nuevo** que ella.
+>
+> · **El chequeo se rompía y reportaba silencio.** Había un `catch {}` que marcaba todo como "la
+>   tabla no existe, no es una alerta". Cualquier `statement_timeout` de la query agrupada nueva
+>   —bastante más cara que el `MAX` de antes— salía por esa puerta. El módulo que existe para avisar
+>   que algo dejó de correr se rompía y decía que todo estaba bien.
+>
+> · **Y podía matar al cron que lo hospeda.** Corre dentro de `warm-cache`, que ya consumió hasta
+>   220 s de sus 300 antes de llegar ahí. Si se pasa, Vercel mata la función y warm-cache no
+>   devuelve nada — y ahí vive `maybeSelfHealRollups`, o sea que el monitoreo habría tumbado al cron
+>   que recupera los rollups atrasados. Ahora tiene presupuesto propio y lo que no llega a medir no
+>   se reporta como atrasado.
+>
+> **La lección, que aplica a E-20 y E-21:** un cambio de observabilidad tiene dos modos de falla
+> —ruido y silencio— y los dos la vuelven inútil. Ninguno se nota en una revisión de código: se
+> notan pensando en qué va a hacer el sistema con veinte clientes durante un mes.
 - **Tres cambios, ninguno arquitectónico:**
   1. **`checkPipelineFreshness` por organización.** Hoy es `SELECT MAX(columna) FROM tabla` **sin
      `WHERE`** (`src/lib/pipeline/freshness.ts:100-104`). Con 20 clientes, si 19 refrescan bien y
@@ -677,19 +851,27 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 | 3 | **¿Qué se le vende a un cliente chico?** (E-22) | El código ya soporta un paquete acotado; falta decidir qué entra |
 | 4 | **¿Cuál es el ticket mínimo?** | Un cliente grande cuesta USD 80-200/mes de infraestructura más 8-18 horas de alta. Si el ticket no lo supera holgadamente, cada cliente grande pierde plata |
 | 5 | **¿Las cuentas de ads facturan en pesos o en dólares?** (viene de `PLAN_REMEDIACION.md` R-V05, sigue sin respuesta) | Si alguna es en USD, el ROAS de ese canal está mal por un factor de ~1.000 |
+| **6** | 🔴 **¿Se firma el próximo cliente ANTES de rotar los secretos?** (E-07) | **Es la decisión que define si el gate está cerrado.** `NEXTAUTH_SECRET` y `ADMIN_API_KEY` son el mismo literal y está en `vercel.json`, versionado: cualquiera que lea el repo puede firmarse una sesión de staff, y con eso todos los gates de esta branch son evitables. Rotar tiene riesgo alto y orden estricto (rotar antes de que el webhook de VTEX tenga su propio secreto **corta la ingesta de los 4 clientes en silencio**). Las dos respuestas son defendibles; lo que no se puede es que la decisión se tome sola por seguir avanzando |
+| **7** | **¿El overlay del alta puede mostrar "algo salió mal, lo estamos viendo"?** | Desde que un backfill fallado no cuenta como alta completa (E-08), el cliente puede quedar hasta 12 h viendo "preparando tu data". Es la alternativa correcta a activarlo con la data a medias, pero la pantalla no lo dice. Es decisión de producto porque implica admitirle al cliente que algo falló |
 
 ---
 
 # 10. Secuencia recomendada
 
+> **Reescrita el 2026-09-08.** La original se cumplió casi entera y en menos tiempo del estimado:
+> E0 está hecha (salvo E-07), E-19 hecha, y la FASE E2 —que estaba planificada para las semanas 4 a
+> 6— está hecha salvo E-14 (parcial). Lo que sigue es la secuencia **desde acá**, no la original.
+
 | Momento | Qué | Por qué |
 |---|---|---|
-| **Ahora, antes de firmar a nadie** | E-29 (sacar Shopify/Tiendanube del wizard) | Un cliente puede darse de alta hoy en una plataforma que no funciona |
-| **Semana 1-2** | FASE E0 completa (E-01 a E-08) | Tres de esas arreglan cosas ya rotas con 4 clientes. E-01 sola multiplica el techo por diez |
-| **Semana 3-4** | E-19, E-20 (detección y telemetría) | Antes de sumar clientes hay que poder enterarse de que se rompen |
-| **Semana 4-6** | FASE E2 (onboarding) | Baja el costo por alta de ~12 h a 3-4 y sube el techo de 2-3 clientes/mes |
-| **Cuando haya 2 clientes grandes a la vista** | E-09 (retención) + E-10 (cola de trabajo) | Son los dos que habilitan el escenario de varios clientes grandes |
+| **Antes de mergear** | Las 4 acciones manuales de `docs/ESTADO-BRANCH-INTEGRACION.md` | La migración de cursores va **antes** que el código que la usa (orden de `CLAUDE.md`). Sin `ALERTAS_EMAILS` y `BACKFILL_VENTANA`, dos tareas quedan escritas pero inertes |
+| **La decisión, antes que cualquier código** | § 9 punto 6 — **¿se firma antes de rotar?** | Define si el gate E0 está cerrado. Todo lo demás de E0 ya está |
+| **Ahora, y es barato** | E-29 (sacar Shopify/Tiendanube del wizard) | Sigue pendiente desde el día 1 y sigue siendo cierto: un cliente puede darse de alta hoy en una plataforma que no funciona. 1-2 h |
+| **Antes del próximo cliente** | E-14 (la mitad que falta) + E-20 | E-14 hoy sólo devuelve lo ignorado; falta la verificación real del pixel. E-20 es la telemetría que convierte "creo que anda" en "sé que anda" |
+| **Cuando entre el próximo cliente, no antes** | E-10 (unidad de trabajo por org×tabla×día) | Es el techo real de los rollups. E-01 lo movió de ~8 a 50-77 orgs; E-10 lo saca del camino. Con 4 clientes no aprieta, y hacerlo antes es optimizar sin presión |
+| **Cuando haya 2 clientes grandes a la vista** | E-09 (retención) | 121 GB/año por cliente tamaño Arredo, y no hay política de retención de ninguna clase. Es lo único del plan que destruye datos: necesita la decisión del § 9 punto 1 |
 | **Antes del primer contrato serio** | E-27, E-28 (ciclo de vida y cumplimiento) | No se puede firmar prometiendo borrado de datos que no existe |
+| **Cuando el segmento chico se venda** | E-22, E-24, E-25 | Las tres son baratas y las tres desbloquean vender a alguien que no sea Arredo |
 | **En paralelo, sin bloquear** | El resto de `PLAN_REMEDIACION.md` | Los medios y bajos, y toda la tanda de diseño |
 
 ---
@@ -698,6 +880,56 @@ pero puede hacer que una alerta que hoy salta a las 09:15 deje de saltar. **No s
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-08] 🔁 Segunda y tercera ronda, y revisión del plan contra lo construido
+
+**Qué se hizo:** se cerraron los ocho hallazgos que la ronda anterior dejó abiertos, se corrió una
+auditoría por mutación sobre los tests nuevos, y después una pasada distinta: en vez de buscar bugs,
+revisar **qué rompió cada arreglo**. Esa última encontró lo peor.
+
+**Los tres que importan, todos introducidos por arreglos de este plan:**
+
+1. **El límite de concurrencia dejó de funcionar.** Sacar `lastChunkAt` del claim —el arreglo del
+   reaper— dejó a `contarJobsActivos` sin su fuente. Un job recién tomado, que todavía no completó
+   su primer chunk (y un chunk grande tarda minutos), figuraba en cero: el tick siguiente admitía
+   otro. Con `maxConcurrentes = 1`, **dos backfills en paralelo contra Neon** — exactamente lo que
+   E-08 vino a impedir y lo que tumbó la base la vez que motivó todo esto. Los tests no lo agarraron
+   porque el helper `activos()` era una copia a mano del SQL; ahora importa el de verdad.
+2. **El chequeo de frescura podía matar al cron que lo hospeda.** Corre dentro de `warm-cache`, que
+   ya consumió 220 s de sus 300 antes de llegar ahí, y E-19 lo hizo más caro (15 queries agrupadas
+   + 4 de fuentes). Si se pasa, Vercel mata la función y warm-cache no devuelve nada — y ahí vive
+   `maybeSelfHealRollups`. El monitoreo habría tumbado al cron que recupera los rollups.
+3. **El check de jobs atascados no veía los `FAILED`,** que desde el arreglo de `areAllJobsComplete`
+   son justo los que retienen un alta.
+
+**La auditoría de tests:** de los 373 casos nuevos, **248 atraparían un bug y 125 no**. Los tres
+peores arreglados (uno testeaba una réplica del algoritmo escrita en el propio archivo de test; otro
+pasaba en verde con el middleware apagado entero; el fix más caro de la branch no tenía un solo test
+que lo ejecutara).
+
+**Qué cambió en el plan:**
+
+- **E-07 pasa a ser la tarea que define el gate.** Todo lo demás de E0 está hecho. Mientras
+  `NEXTAUTH_SECRET` y `ADMIN_API_KEY` sean el mismo literal y ese literal esté en `vercel.json`
+  versionado, **todos los controles de esta branch son evitables**. Nueva decisión en § 9 punto 6:
+  no es "¿rotamos?" sino "¿se firma el próximo cliente antes de rotar?".
+- **E-11 y E-13** figuraban como parciales/pendientes y ya estaban cerradas. Corregido, con las dos
+  correcciones posteriores que sufrió cada una.
+- **E-08, E-13 y E-19** llevan ahora un recuadro con lo que se rompió después de darlas por hechas.
+- **§ 10 reescrita.** La secuencia original se cumplió casi entera y más rápido de lo estimado: la
+  FASE E2, planificada para las semanas 4-6, está hecha salvo E-14.
+- **§ 14 nueva:** el patrón de la variable con dos dueños, por qué "hecho" no es "cerrado", y cinco
+  riesgos abiertos que el plan no contemplaba (N-01 a N-05).
+
+**Corrección a un hallazgo previo:** la ronda anterior reportó que la cadencia de los rollups tenía
+"margen cero" contra su umbral de alerta. Verificado: en operación normal son 9 hits/hora sobre 8
+tablas, o sea un ciclo de ~53 min contra un umbral de 8 h. **El margen cero aplica sólo al escenario
+degradado** —GitHub deshabilita los workflows programados tras 60 días sin actividad— y ahí sí
+quedaba 1 hit/hora × 8 tablas = 8 h justas. Se le subió el respaldo de Vercel a 2 hits/hora.
+
+**Validación:** `tsc` 0 · `vitest` **869 pasan**, 0 fallan · `npm run build` exit 0.
+**Archivos tocados:** ver los commits `40832ec7`, `8a2313f1`, `c023121a`, `9a9dc8cb`, `b8c61028`,
+`62efba36`, `2af35ff5`. Resumen para el merge en `docs/ESTADO-BRANCH-INTEGRACION.md`.
 
 ### [2026-09-07] 🔍 Ronda de verificación con cinco revisores independientes
 
@@ -1136,3 +1368,67 @@ sensibles— entonces **R-C25 es un problema activo, no latente**: el revenue de
 capa Gold sólo se corrige hacia arriba y editar una regla en `/pixel/canales`
 duplica el de los últimos 4 días. Verificar esos dos valores es la próxima acción
 de mayor valor por minuto invertido.
+
+---
+
+# 14. Lo que enseñaron las tres rondas de revisión (2026-09-07/08)
+
+> Esta sección no existía en el plan original. Se agrega porque el trabajo hecho reveló un patrón
+> que **cambia cómo conviene ejecutar lo que falta**, y eso vale más que cualquiera de los bugs
+> sueltos.
+
+## 14.1 El patrón: una variable con dos dueños
+
+Once defectos encontrados en tres rondas. **Casi todos son la misma cosa**: un campo que servía para
+dos propósitos distintos, y alguien —yo, en la mayoría de los casos— lo cambió pensando en uno solo.
+
+| El campo | Servía para | Y también para | Qué se rompió |
+|---|---|---|---|
+| `lastChunkAt` | el latido que mira el reaper | el lock del claim **y** el conteo de concurrencia | primero el reaper no podía dispararse nunca; al arreglarlo, dos backfills en paralelo contra Neon |
+| `hoursStale` | el número del mail | el disparador del self-heal de rollups | un cliente dormido dejaba un escaneo de ~190 s corriendo cada 4 minutos, para siempre |
+| `missing` | "la tabla no existe todavía" | el cajón donde caía **cualquier** error | un `statement_timeout` se reportaba como "todo bien" |
+| el cursor de los crons | reanudar el incremental | también se aplicaba al `?full=1` manual | el "rehacé toda la historia" se salteaba orgs en silencio y devolvía `ok` |
+| `FAILED` | "este job terminó" | "este job salió bien" | el cliente quedaba activado con la data a medias |
+
+**Por qué importa para lo que falta:** E-10 (unidad de trabajo), E-22 (planes) y E-27 (ciclo de vida)
+son exactamente el tipo de tarea donde este patrón aparece — las tres redefinen el significado de
+campos que ya existen y que ya tienen consumidores. Antes de tocar un campo en esas tareas, la
+pregunta barata es **"¿quién más lee esto, y para qué?"**. Es un `grep`, y en este repo habría
+ahorrado la mitad de los once.
+
+## 14.2 "Hecho" no quiere decir "cerrado"
+
+E-08 se dio por cerrada tres veces sin estarlo, y las tres veces el defecto estaba **en el código
+escrito para cerrarla**. E-13 y E-19 pasaron por lo mismo. En los tres casos el código pasaba `tsc`,
+pasaba los tests nuevos de su propia tarea, y no hacía lo que la ficha decía.
+
+Lo que cambió el resultado no fue revisar más: fue **cambiar la pregunta**. Las primeras rondas
+buscaban "¿hay un bug acá?". La que encontró lo peor preguntaba **"¿qué rompió este arreglo?"** —
+y de ahí salieron los tres más caros, incluido el de los dos backfills en paralelo.
+
+**Propuesta concreta para el resto del plan:** que cada tarea cierre con esa segunda pasada, sobre
+los consumidores de lo que se tocó. Cuesta poco y es donde apareció todo lo grave.
+
+## 14.3 Un tercio de los tests no probaba nada
+
+Una auditoría por mutación sobre los 373 tests nuevos: **248 atraparían un bug de verdad, 125 no.**
+Los tres peores ya están arreglados —uno testeaba una *réplica* del algoritmo escrita en el propio
+archivo de test; otro pasaba en verde con el middleware apagado entero; el fix más caro de la branch
+no tenía un solo test que lo ejecutara.
+
+El resto de los 125 son guards estructurales legítimos y baratos (comparar dos listas, barrer el
+árbol de rutas admin buscando handlers sin auth). **El problema no era el `readFileSync`**: era que
+el nombre del archivo prometía conducta y entregaba un `grep`. Un test que lee el fuente está bien
+mientras diga que hace eso.
+
+## 14.4 Riesgos abiertos que el plan no contemplaba
+
+Ninguno bloquea el merge. Se anotan para no perderlos.
+
+| # | Qué | Por qué importa |
+|---|---|---|
+| N-01 | **Nadie vigila si el workflow de GitHub Actions sigue habilitado.** Es el disparador **principal** de los rollups (8 de los 9 hits por hora), y GitHub deshabilita los workflows programados tras 60 días sin actividad en el repo — justo el modo de falla que ese workflow vino a cubrir | El día que se apague, los rollups siguen andando con el respaldo de Vercel y nadie se entera hasta que se atrasan. Se le subió el margen al respaldo (de 1 a 2 hits/hora, ciclo de 4 h contra un umbral de 8), pero **la señal sigue sin existir** |
+| N-02 | **El bootstrap de MercadoLibre no pasa por el control de admisión** de E-08: `approve-backfill` lo dispara en paralelo | El límite de concurrencia protege del backfill de VTEX y no del de ML. Con dos altas la misma semana, es la vía por la que vuelve el problema que E-08 cerró |
+| N-03 | **`checkStuckOnboardings` mide 12 h desde `updatedAt`,** pero un backfill legítimamente grande (Arredo trajo 252.701 órdenes) puede tardar más | Falso positivo: alerta "atascado" sobre un alta que está funcionando. Es ruido de bajo costo, pero es el mismo mecanismo que E-19 vino a arreglar |
+| N-04 | **La cache key de `/pixel/analytics` sigue desalineada** (R-C19, la mitad que E-12 no tocó) | Tira a la basura el 100% del warm de ese endpoint. Las dos opciones que propone la ficha rompen algo; el arreglo correcto —hacer la key canónica— cuesta un round-trip. **Necesita decisión** |
+| N-05 | ~~Los checks de `control-alerts` tienen el mismo `catch { return [] }`~~ **Verificado: era uno solo, y se arregló el 2026-09-08.** Estaba en `checkJobsDeBackfillAtascados`, justo el check que acaba de volverse el único que ve un job reteniendo un alta | Devolver `[]` está bien —un check que no puede correr no puede inventar hallazgos— pero callarse no: para el cron, `[]` es indistinguible de "no hay problemas". Ahora loguea. **Se anota igual porque el patrón vale**: al escribir esta fila di por hecho que eran varios, y eran uno; conviene contarlos antes de afirmarlos |

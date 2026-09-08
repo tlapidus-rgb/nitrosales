@@ -284,7 +284,14 @@ export async function checkJobsDeBackfillAtascados(): Promise<JobDeBackfillAtasc
       horas: Math.floor((Date.now() - new Date(r.desde).getTime()) / 3600000),
       lastError: r.lastError ?? null,
     }));
-  } catch {
+  } catch (e) {
+    // Devolver `[]` es correcto —un check que no puede correr no puede inventar
+    // hallazgos— pero callarse no: para el cron, `[]` es indistinguible de "no
+    // hay problemas", y este check es el único que ve un job de backfill
+    // reteniendo un alta. Es el mismo agujero que tenía `checkPipelineFreshness`
+    // con su `catch {}`, donde un `statement_timeout` salía por la puerta de
+    // "todo bien".
+    console.error("[checks] checkJobsDeBackfillAtascados falló, se reporta vacío:", e);
     return [];
   }
 }
