@@ -233,16 +233,47 @@ export async function checkStuckOnboardings(): Promise<StuckOnboarding[]> {
  * Resiliente: si la tabla no existe, devuelve vacio en vez de romper el resto
  * del reporte.
  */
+/** El SQL, exportado para correrlo contra Postgres de verdad en los tests. */
+export const JOBS_ATASCADOS_SQL = `SELECT j."id", j."organizationId", j."platform", j."status", j."lastError",
+        COALESCE(j."lastChunkAt", j."startedAt", j."createdAt") AS "desde"
+   FROM "backfill_jobs" j
+  WHERE COALESCE(j."lastChunkAt", j."startedAt", j."createdAt") < $1
+    AND (
+      j."status" IN ('QUEUED','RUNNING')
+      OR (
+        j."status" = 'FAILED'
+        AND EXISTS (
+          SELECT 1 FROM "onboarding_requests" o
+           WHERE o."id" = j."onboardingRequestId"
+             AND o."status"::text = 'BACKFILLING'
+        )
+      )
+    )
+  ORDER BY "desde" ASC`;
+
 export async function checkJobsDeBackfillAtascados(): Promise<JobDeBackfillAtascado[]> {
   const corte = new Date(Date.now() - JOB_ENCOLADO_HORAS * 3600 * 1000);
   try {
     const rows = await prisma.$queryRawUnsafe<Array<any>>(
-      `SELECT "id", "organizationId", "platform", "status", "lastError",
-              COALESCE("lastChunkAt", "startedAt", "createdAt") AS "desde"
-         FROM "backfill_jobs"
-        WHERE "status" IN ('QUEUED','RUNNING')
-          AND COALESCE("lastChunkAt", "startedAt", "createdAt") < $1
-        ORDER BY "desde" ASC`,
+      // ⚠️ LOS FALLADOS TAMBIEN, PERO SOLO LOS QUE BLOQUEAN UN ALTA
+      // (agregado el 2026-09-08).
+      //
+      // Antes esto miraba solo QUEUED y RUNNING. Eso alcanzaba cuando un job
+      // FAILED no le importaba a nadie — pero desde que `esAltaCompleta` dejo
+      // de contar FAILED como terminado, **un job fallado es justo lo que
+      // retiene el onboarding en BACKFILLING**. O sea que el estado que mas
+      // urgente hay que mirar era el unico que este check no veia.
+      //
+      // El unico aviso quedaba en `checkStuckOnboardings`, a las 12 h, y sin
+      // decir cual job ni con que error. Aca sale a las 3 h con el `lastError`
+      // al lado, que es lo unico accionable: si son credenciales, se corrigen y
+      // se re-encola; si la data parcial alcanza, se fuerza con
+      // `force-complete-job`.
+      //
+      // El filtro por onboarding en curso es lo que evita que esto se vuelva
+      // ruido: un FAILED de hace tres meses, de un alta ya resuelta, no aparece.
+      // Y se apaga solo — en cuanto el admin resuelve el alta, deja de listarse.
+      JOBS_ATASCADOS_SQL,
       corte
     );
     return rows.map((r) => ({
