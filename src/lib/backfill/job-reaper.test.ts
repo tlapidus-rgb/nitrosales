@@ -3,6 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   RECLAMAR_PROXIMO_JOB_SQL,
   MATAR_JOBS_SIN_PROGRESO_SQL,
+  CONTAR_JOBS_ACTIVOS_SQL,
   esAltaCompleta,
 } from "./job-manager";
 
@@ -64,6 +65,12 @@ async function job(
     status?: string;
     empezoHaceMin?: number;
     ultimoChunkHaceMin?: number | null;
+    /**
+     * Hace cuánto lo tocó alguien (`updatedAt`). Por defecto acompaña al último
+     * chunk, que es lo que pasa en un job sano. Se separa en los casos donde la
+     * diferencia entre los dos relojes es justo lo que se prueba.
+     */
+    tocadoHaceMin?: number | null;
     onboarding?: string;
   } = {},
 ) {
@@ -73,11 +80,19 @@ async function job(
     o.ultimoChunkHaceMin === undefined || o.ultimoChunkHaceMin === null
       ? null
       : new Date(Date.now() - o.ultimoChunkHaceMin * MIN);
+  // `updatedAt` acompaña al último chunk salvo que el caso diga otra cosa: un
+  // job cuyo último chunk fue hace 3 h es un job que nadie tocó hace 3 h.
+  const tocado =
+    o.tocadoHaceMin !== undefined
+      ? o.tocadoHaceMin === null
+        ? null
+        : new Date(Date.now() - o.tocadoHaceMin * MIN)
+      : chunk;
   await db.query(
     `INSERT INTO "backfill_jobs"
-       ("id","organizationId","platform","status","monthsRequested","fromDate","toDate","startedAt","lastChunkAt","onboardingRequestId")
-     VALUES ($1,$2,'VTEX',$3,12,NOW(),NOW(),$4,$5,$6)`,
-    [id, o.org ?? "orgA", o.status ?? "QUEUED", empezo, chunk, o.onboarding ?? null],
+       ("id","organizationId","platform","status","monthsRequested","fromDate","toDate","startedAt","lastChunkAt","onboardingRequestId","updatedAt")
+     VALUES ($1,$2,'VTEX',$3,12,NOW(),NOW(),$4,$5,$6,$7)`,
+    [id, o.org ?? "orgA", o.status ?? "QUEUED", empezo, chunk, o.onboarding ?? null, tocado],
   );
 }
 
@@ -99,13 +114,16 @@ async function avanzarReloj(db: PGlite, minutos: number) {
   );
 }
 
-/** Lo que el límite de concurrencia cuenta como "corriendo ahora mismo". */
+/**
+ * Lo que el límite de concurrencia cuenta como "corriendo ahora mismo".
+ *
+ * Corre el SQL de verdad, importado. Antes era una copia escrita a mano acá, y
+ * por eso no se notó que sacar `lastChunkAt` del claim rompía este conteo.
+ */
 async function activos(db: PGlite): Promise<number> {
-  const r = await db.query<any>(
-    `SELECT COUNT(*)::int AS n FROM "backfill_jobs"
-      WHERE "status" = 'RUNNING' AND "lastChunkAt" IS NOT NULL AND "lastChunkAt" >= $1`,
-    [new Date(Date.now() - COOLDOWN_MS)],
-  );
+  const r = await db.query<any>(CONTAR_JOBS_ACTIVOS_SQL, [
+    new Date(Date.now() - COOLDOWN_MS),
+  ]);
   return Number(r.rows[0].n);
 }
 
@@ -140,8 +158,14 @@ describe("EL BUG: un job zombie bloqueaba el alta de todos los clientes", () => 
       ultimoChunkHaceMin: 180,
     });
 
-    // Antes del arreglo el runner refrescaba `lastChunkAt` aunque el chunk
-    // fallara, así que este job figuraba activo para siempre.
+    // Nadie lo tocó hace 3 horas: la lambda que lo tenía se murió. No ocupa
+    // cupo.
+    //
+    // Ojo con el otro escenario, que NO es éste: un job que falla en loop se
+    // re-reclama cada 2 minutos, así que mantiene `updatedAt` fresco y SÍ sigue
+    // ocupando cupo hasta que el reaper lo mate. Es el precio de contar la
+    // concurrencia por "está tomado" y no por "avanza" — a cambio de que dos
+    // backfills no corran en paralelo. Está explicado en `contarJobsActivos`.
     expect(await activos(db)).toBe(0);
 
     expect(await reaper(db)).toEqual(["arredo"]);
@@ -383,6 +407,77 @@ describe("el reaper y el claim, juntos", () => {
     }
 
     expect(muertos).toEqual([]);
+    await db.close();
+  });
+});
+
+describe("el límite de concurrencia cuenta bien", () => {
+  // ⚠️ ESTA ES LA MITAD QUE ME OLVIDÉ AL SEPARAR LOS RELOJES (2026-09-08).
+  //
+  // `lastChunkAt` en el claim servía para DOS cosas, no una. Yo lo saqué para
+  // que el reaper pudiera dispararse (era el bug A5) y arreglé el lock moviendo
+  // el claim a `updatedAt`. Pero `contarJobsActivos` también dependía de esa
+  // misma escritura, para algo distinto: contar cuántos jobs están consumiendo
+  // la base ahora mismo.
+  //
+  // El resultado era que un job recién tomado —que todavía no completó su
+  // primer chunk, y un chunk de un backfill grande tarda MINUTOS— figuraba en
+  // cero. El tick siguiente del cron (cada minuto) veía 0 activos, admitía, y
+  // reclamaba otro job. Con `maxConcurrentes = 1`: dos backfills en paralelo
+  // contra Neon, o sea exactamente lo que E-08 vino a impedir.
+  //
+  // Los tests de acá arriba no lo agarraban porque `activos()` era una copia a
+  // mano del SQL. Ahora importa el de verdad.
+
+  it("EL BUG: un job recién tomado YA cuenta como activo", async () => {
+    const db = await nuevaDb();
+    await job(db, "j1", { status: "QUEUED" });
+
+    const tomado = await reclamar(db);
+
+    expect(tomado?.id).toBe("j1");
+    expect(tomado.lastChunkAt).toBeNull(); // todavía no completó un chunk…
+    expect(await activos(db)).toBe(1); // …y aun así ocupa el cupo
+    await db.close();
+  });
+
+  it("EL DAÑO: el tick siguiente no admite un segundo backfill", async () => {
+    const db = await nuevaDb();
+    await job(db, "primero", { org: "arredo", status: "QUEUED" });
+    await job(db, "segundo", { org: "mundo", status: "QUEUED" });
+
+    await reclamar(db); // tick 1 admite y toma "primero"
+    await avanzarReloj(db, 1); // pasa un minuto, el chunk sigue corriendo
+
+    // tick 2: con maxConcurrentes = 1, esto tiene que frenar la admisión.
+    expect(await activos(db)).toBe(1);
+    await db.close();
+  });
+
+  it("un job abandonado deja de ocupar el cupo pasado el cooldown", async () => {
+    // La lambda se murió. A los 2 minutos el cupo se libera y otro entra.
+    const db = await nuevaDb();
+    await job(db, "j1", { status: "QUEUED" });
+    await reclamar(db);
+    await avanzarReloj(db, 3);
+    expect(await activos(db)).toBe(0);
+    await db.close();
+  });
+
+  it("un job que avanza sigue ocupando el cupo", async () => {
+    const db = await nuevaDb();
+    await job(db, "largo", { status: "RUNNING", empezoHaceMin: 120, ultimoChunkHaceMin: 0 });
+    await db.query(`UPDATE "backfill_jobs" SET "updatedAt" = NOW() WHERE id = 'largo'`);
+    expect(await activos(db)).toBe(1);
+    await db.close();
+  });
+
+  it("los terminados y los fallados no ocupan cupo", async () => {
+    const db = await nuevaDb();
+    await job(db, "c", { status: "COMPLETED" });
+    await job(db, "f", { status: "FAILED" });
+    await job(db, "q", { status: "QUEUED" });
+    expect(await activos(db)).toBe(0);
     await db.close();
   });
 });

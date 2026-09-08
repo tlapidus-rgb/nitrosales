@@ -67,32 +67,12 @@ export async function getJobsByOnboarding(onboardingRequestId: string): Promise<
   return rows;
 }
 
-// Siguiente job a procesar (el mas viejo QUEUED o RUNNING pero sin chunk en los ultimos 2 min)
-export async function pickNextJob(): Promise<any | null> {
-  const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
-  const rows = await prisma.$queryRawUnsafe<Array<any>>(
-    `SELECT * FROM "backfill_jobs"
-     WHERE "status" = 'QUEUED'
-        OR ("status" = 'RUNNING' AND ("lastChunkAt" IS NULL OR "lastChunkAt" < $1))
-     ORDER BY
-       CASE "status" WHEN 'RUNNING' THEN 0 ELSE 1 END,
-       "createdAt" ASC
-     LIMIT 1`,
-    twoMinAgo
-  );
-  return rows[0] || null;
-}
-
-export async function markJobRunning(id: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `UPDATE "backfill_jobs"
-     SET "status" = 'RUNNING',
-         "startedAt" = COALESCE("startedAt", NOW()),
-         "updatedAt" = NOW()
-     WHERE "id" = $1 AND "status" != 'COMPLETED'`,
-    id
-  );
-}
+// `pickNextJob` + `markJobRunning` VIVIAN ACA y se borraron el 2026-09-08.
+// Eran el par pre-E-08: un SELECT y un UPDATE separados, con la carrera que
+// `reclamarProximoJob` vino a cerrar. Hacia semanas que no los llamaba nadie
+// (solo quedaban nombrados en comentarios), y dejar a mano una version con la
+// carrera adentro es una invitacion a que vuelva. Si hace falta entender que
+// hacian, estan en el historial y explicados en `job-claim.test.ts`.
 
 export async function updateJobProgress(
   id: string,
@@ -102,12 +82,16 @@ export async function updateJobProgress(
     totalEstimate?: number;
     progressPct?: number;
   },
-  // `lastChunkAt` es el LATIDO del job: dice "esto todavia esta avanzando".
-  // Lo usan dos cosas: `contarJobsActivos` (para el limite de concurrencia) y
-  // `reclamarProximoJob` (para saber si un job quedo abandonado).
+  // `lastChunkAt` es el LATIDO del job: dice "esto todavia esta AVANZANDO", y
+  // su unico consumidor es el reaper (`matarJobsSinProgreso`).
   //
-  // Por eso un chunk que FALLA no tiene que tocarlo: si lo tocara, un job roto
-  // seguiria pareciendo vivo para siempre. Ver el reaper de abajo.
+  // Ojo con la otra mitad: "esto esta TOMADO" es `updatedAt`, y de eso dependen
+  // el claim y el limite de concurrencia. Son dos relojes distintos a proposito;
+  // confundirlos ya rompio las dos cosas, en las dos direcciones (ver los
+  // comentarios de `reclamarProximoJob` y de `contarJobsActivos`).
+  //
+  // Por eso un chunk que FALLA no toca `lastChunkAt`: si lo tocara, un job roto
+  // seguiria pareciendo que avanza y el reaper no lo mataria nunca.
   opts: { tocarLatido?: boolean } = {}
 ): Promise<void> {
   const tocarLatido = opts.tocarLatido !== false;
@@ -227,14 +211,34 @@ export async function areAllJobsComplete(onboardingRequestId: string): Promise<b
  * fresco. Un RUNNING con el chunk viejo está abandonado (la lambda se murió) y
  * no cuenta — si contara, un job huérfano bloquearía la cola para siempre.
  */
+/** El SQL, exportado para poder correrlo contra Postgres en los tests. */
+export const CONTAR_JOBS_ACTIVOS_SQL = `SELECT COUNT(*)::int AS n FROM "backfill_jobs"
+     WHERE "status" = 'RUNNING' AND "updatedAt" IS NOT NULL AND "updatedAt" >= $1`;
+
 export async function contarJobsActivos(cooldownMs: number): Promise<number> {
-  // Cuenta los que AVANZAN, no los que se reintentan. `lastChunkAt` solo se
-  // mueve cuando un chunk sale bien (ver `updateJobProgress`), asi que un job
-  // que falla en loop no cuenta como activo y deja de bloquear la cola.
+  // ⚠️ MIRA `updatedAt`, NO `lastChunkAt`. Los dos relojes otra vez, y acá la
+  // eleccion es al reves que en el reaper.
+  //
+  // La pregunta que este conteo tiene que responder es "cuantos jobs estan
+  // consumiendo la base AHORA MISMO", porque de eso depende el limite de
+  // concurrencia. Y un job reclamado hace 30 segundos la esta consumiendo,
+  // haya completado un chunk o no.
+  //
+  // Con `lastChunkAt` la cuenta daba mal justo en el peor momento: un chunk de
+  // un backfill grande tarda minutos, asi que entre el claim y el primer chunk
+  // el job figuraba en CERO. El tick siguiente del cron (que corre cada minuto)
+  // veia 0 activos, admitia, y reclamaba OTRO job. Con `maxConcurrentes = 1`
+  // eso son dos backfills en paralelo contra Neon — exactamente lo que E-08
+  // vino a impedir, y lo que tumbo la base la vez que motivo todo esto.
+  //
+  // El precio: un job que falla en loop mantiene `updatedAt` fresco y sigue
+  // contando como activo. O sea que puede tapar la cola hasta que el reaper lo
+  // mate. Pero eso ahora esta ACOTADO a `SIN_PROGRESO_MS` (30 min), mientras
+  // que dos backfills en paralelo no tienen tope y le pegan a todos los
+  // clientes a la vez. Entre bloquear 30 minutos y tumbar la base, se bloquea.
   const corte = new Date(Date.now() - cooldownMs);
   const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
-    `SELECT COUNT(*)::int AS n FROM "backfill_jobs"
-     WHERE "status" = 'RUNNING' AND "lastChunkAt" IS NOT NULL AND "lastChunkAt" >= $1`,
+    CONTAR_JOBS_ACTIVOS_SQL,
     corte
   );
   return Number(rows[0]?.n || 0);
