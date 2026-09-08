@@ -67,13 +67,34 @@ export type Ventana = { desde: number; hasta: number };
 export function parseVentana(env: NodeJS.ProcessEnv = process.env): Ventana | null {
   const raw = (env.BACKFILL_VENTANA || "").trim();
   if (!raw) return null;
+
+  // ⚠️ FALLA ABIERTO, PERO NO EN SILENCIO (agregado el 2026-09-08).
+  // Dejar pasar el backfill ante un valor mal escrito es lo correcto —congelarlo
+  // para siempre sería peor— pero no avisar no lo es: el que puso la variable
+  // cree que la ventana está activa y no lo está.
+  //
+  // No es hipotético: `docs/ESTADO-BRANCH-INTEGRACION.md` documentaba el formato
+  // como `HH:MM-HH:MM`, que este parser rechaza. Alguien siguiendo esa tabla al
+  // mergear habría puesto `01:00-07:00`, la ventana habría quedado apagada sin
+  // ninguna señal, y el backfill de un cliente nuevo podría arrancar a las 3 de
+  // la tarde contra Neon — el escenario exacto que E-08 vino a evitar.
+  const avisar = (motivo: string): null => {
+    console.error(
+      `[backfill/admision] BACKFILL_VENTANA="${raw}" ${motivo}. ` +
+        `Se ignora y el backfill corre A CUALQUIER HORA. El formato son horas ` +
+        `enteras 0-23, por ejemplo "1-7" (de la 1 a las 7 AM, hora argentina).`,
+    );
+    return null;
+  };
+
   const m = raw.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
-  if (!m) return null;
+  if (!m) return avisar("no tiene el formato esperado");
   const desde = parseInt(m[1], 10);
   const hasta = parseInt(m[2], 10);
-  if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return null;
-  if (desde < 0 || desde > 23 || hasta < 0 || hasta > 23) return null;
-  if (desde === hasta) return null; // sin restricción
+  if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return avisar("no son números");
+  if (desde < 0 || desde > 23 || hasta < 0 || hasta > 23)
+    return avisar("tiene horas fuera del rango 0-23");
+  if (desde === hasta) return avisar("tiene la misma hora de inicio y fin");
   return { desde, hasta };
 }
 

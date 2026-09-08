@@ -147,7 +147,7 @@ Estas **no** las hace el deploy. Sin ellas, parte de lo de arriba queda inerte.
 |---|---|---|---|
 | 1 | Migrar la tabla de cursores | `POST /api/admin/migrate-cron-cursors` — **antes** del merge del código que la usa, como manda `CLAUDE.md` | Los crons vuelven a arrancar de cero cada vez. Degrada sin romper: es el comportamiento de hoy |
 | 2 | `ALERTAS_EMAILS` | Vercel → Environment Variables. Separadas por coma | Las alertas siguen yendo a una sola casilla. Sin la variable, es exactamente el comportamiento de hoy |
-| 3 | `BACKFILL_VENTANA` | Vercel. Formato `HH:MM-HH:MM` | El backfill corre a cualquier hora, como hoy |
+| 3 | `BACKFILL_VENTANA` | Vercel. **Horas enteras, `1-7`** (de la 1 a las 7 AM, hora argentina). NO `01:00-07:00`: el parser lo rechaza y un valor que no parsea significa **sin restricción** | El backfill corre a cualquier hora, como hoy |
 | 4 | `?full=1` en los dos crons Gold | Una corrida manual después del deploy | Las tablas Gold arrancan con la ventana incremental y tardan en llenarse |
 
 ## Lo que sigue congelado

@@ -43,22 +43,40 @@ describe("E-05 — los crons que iteran organizaciones las aíslan", () => {
       const src = leerCron(cron);
 
       it("abre un `try` DENTRO del bucle de organizaciones", () => {
-        // Verificación estructural, no del comentario: se busca el `for (const org
-        // of orgs) {` y se exige que lo primero sustantivo que aparezca sea un
+        // Verificación estructural, no del comentario: se busca el bucle de
+        // organizaciones y se exige que lo primero sustantivo que aparezca sea un
         // `try {`. Si alguien saca el try o lo mueve afuera del bucle, esto falla
         // aunque el comentario siga estando.
-        const i = src.search(/for \(const org of orgs\) \{/);
+        //
+        // Acepta las dos formas del bucle. Tres de estos crons pasaron de
+        // `for (const org of orgs)` a un `for` indexado el 2026-09-08, para poder
+        // cortar por reloj y reanudar con cursor (les faltaba eso: E-05 les había
+        // puesto el aislamiento y nada más). El patrón viejo sólo reconocía la
+        // primera forma, así que este test se ponía en rojo sobre código que
+        // conservaba el aislamiento intacto.
+        const i = src.search(/for \((?:const org of orgs|;\s*i < orgs\.length)/);
         expect(i, "no se encontró el bucle de organizaciones").toBeGreaterThan(-1);
-        const cuerpo = src.slice(i, i + 1200);
+        const cuerpo = src.slice(i, i + 2000);
         // Puede haber declaraciones y un `continue` de guarda antes del try, pero
         // el try tiene que estar antes de cualquier `await`.
         const posTry = cuerpo.indexOf("try {");
         const posAwait = cuerpo.indexOf("await ");
         expect(posTry, "no hay try dentro del bucle").toBeGreaterThan(-1);
-        expect(
-          posTry,
-          "el try aparece DESPUÉS del primer await: el trabajo de la org no está protegido"
-        ).toBeLessThan(posAwait);
+        // ⚠️ `indexOf` devuelve -1, y -1 es menor que cualquier índice válido.
+        // Sin este chequeo, `posTry < posAwait` FALLA sobre código correcto
+        // cuando no hay ningún `await` en la ventana — que es lo que pasó al
+        // agregarle a estos crons el corte por reloj y el cursor: el primer
+        // `await` se corrió más allá del recorte.
+        //
+        // Es el mismo error que ya habíamos cometido en este repo, al revés: una
+        // comparación de orden no vale nada sin verificar antes que las dos cosas
+        // existan.
+        if (posAwait > -1) {
+          expect(
+            posTry,
+            "el try aparece DESPUÉS del primer await: el trabajo de la org no está protegido"
+          ).toBeLessThan(posAwait);
+        }
       });
 
       it("no devuelve `ok: true` cuando fallaron TODAS las organizaciones", () => {

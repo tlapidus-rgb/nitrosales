@@ -114,7 +114,7 @@ decir a cuánto lo subió.** No alcanza con "hecho": la bitácora tiene que deci
 **Dos cosas que hay que saber antes de tocar nada:**
 - **NO correr `prisma db push`** — ~30 tablas de producción no están en `schema.prisma`.
 - **NO rotar `NEXTAUTH_SECRET`** sin seguir el orden de `PLAN_REMEDIACION.md` § R-C07/R-C09 — tumba
-  los 28 crons y el webhook de órdenes de los 4 clientes, en silencio.
+  los 29 crons y el webhook de órdenes de los 4 clientes, en silencio.
 
 ---
 
@@ -126,9 +126,10 @@ decir a cuánto lo subió.** No alcanza con "hecho": la bitácora tiene que deci
 |---|---|---|
 | Clientes que aguantaba el pipeline de rollups | ~~8-10~~ → **50-77** (ver corrección) · **resuelto por E-01** | `expansion-escalabilidad.md` § 1.1 + verificación del 2026-09-05 |
 | Crons que iteran todas las orgs con presupuesto fijo | **14** | ídem § 2 |
-| …de esos, que **no pueden continuar donde quedaron** | **8** (uno menos desde E-01) | ídem |
+| …de esos, que **no pueden continuar donde quedaron** | ~~8~~ → **0 de los 8 originales** (E-11, cerrada) · **pero aparecieron 3 más** | ídem · los 3 nuevos (`digest`, `anomalies`, `ads-utm-audit`) los encontró el revisor del 2026-09-08 y ya están arreglados: no estaban en la lista del estudio |
 | Cosas ya rotas **hoy, con 4 clientes** | ~~3~~ → **0** · resueltas (E-03, E-12, E-11) | `sync/chain` (1 org/corrida), `warm-cache` (1,4 orgs), `attribution-reconcile` (1 org) |
 | Cargas de dashboard concurrentes soportadas | **~8-15** | ídem § 5.3 — ya está por debajo de 4 clientes con 3 usuarios |
+| ⚠️ **La fila de arriba NO TIENE TAREA ASIGNADA** en ninguna fase, E0 a E5 | — | **Detectado el 2026-09-08.** Es el único número del diagnóstico que dice "esto ya está roto hoy" y no tiene dueño. El techo lo pone el compute de Neon; Prisma no tiene `connection_limit` seteado **a propósito** (ponerlo ya causó un incidente, ver `CLAUDE_STATE.md`). E-04 y E-12 bajaron carga de fondo que el estudio descontaba, así que probablemente mejoró — **pero nadie lo remidió.** Si el objetivo es meter clientes, ésta es la fila que dice que no se puede |
 | Crecimiento de disco por cliente tamaño Arredo | **121 GB/año** | ídem § 4.3 |
 | Política de retención de datos | **no existe, de ninguna clase** | ídem § 4.2 |
 
@@ -149,8 +150,8 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 
 | Qué | Número |
 |---|---|
-| Horas por onboarding | **8-18** (mediana ~12), de las cuales **4-12 requieren a Axel** |
-| Techo de altas por mes con el equipo actual | **2-3** |
+| Horas por onboarding | **8-18** (mediana ~12), de las cuales **4-12 requieren a Axel** · ⚠️ **NO SE REMIDIÓ** |
+| Techo de altas por mes con el equipo actual | **2-3** · ⚠️ **NO SE REMIDIÓ.** El encabezado dice "E2 cerrada" y el propósito declarado de E2 era bajar las horas de ~12 a 3-4. Ninguna ficha de E2 dice a cuánto las bajó, que es lo que la REGLA #0 exige. **E2 está cerrada en código; el techo operativo no se volvió a medir**, y E-18 es un runbook: documenta pasos manuales, no los elimina |
 | Pasos del onboarding | **19** — 7 automáticos, 8 manuales en UI, **6 fuera del producto** |
 | Pasos que pueden fallar en silencio | ~~13 de 14~~ → **menos, sin recontar.** El alta tiene ahora semáforo (E-15), runbook (E-18) y tres alertas nuevas; pero **el número no se volvió a medir** y no conviene darlo por bajado sin hacerlo |
 | Tiempo real de detección en incidentes históricos | **5 días · 5 semanas · 22 horas · "meses"** |
@@ -230,6 +231,16 @@ no económico: el producto deja de funcionar antes de volverse caro.**
   tabla `api_cache` acumula ~10 GB/año de basura.
 - **Qué hacer:** borrar la entrada de `vercel.json`, bajar el bucle de 6 a 2, y agregar una línea
   llamando a la purga desde `warm-cache`.
+- **⚠️ CORRECCIÓN (2026-09-08): la entrada de `vercel.json` VOLVIÓ, y está bien que haya vuelto.**
+  Se sacó por la razón correcta —dos planificadores eligiendo "la tabla más atrasada" elegían la
+  MISMA y corrían el mismo escaneo HLL en paralelo— pero dejarla en cero convertía a GitHub Actions
+  en el único disparador, y **GitHub deshabilita los workflows programados tras 60 días sin
+  actividad en el repo**, que es justo el modo de falla que ese workflow vino a cubrir. Hoy son
+  `11,41 * * * *` (2 hits/hora, offset de los de GitHub para no colisionar) contra los 8 de GitHub:
+  el respaldo solo da un ciclo de 4 h contra un umbral de 8, en vez de 8 contra 8. **Sí hay dos
+  planificadores otra vez; la diferencia es la proporción** (8+2 en vez de 24+4). Pinneado en
+  `src/__tests__/rollups-cadencia.test.ts`, que ata los tres números que viven en tres archivos
+  distintos. Ver N-01: **sigue sin haber nada que avise si el workflow de GitHub se apaga.**
 - **Es `PLAN_REMEDIACION.md` R-C18 y R-C19.** Se ejecutan acá.
 
 ### E-05 · Que un cliente roto deje de romper a todos
@@ -280,7 +291,7 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 > **Por qué está congelado, y está bien que lo esté:** rotar tiene un orden estricto
 > (R-C07 → R-C08 → R-C09) y hacerlo antes de que el webhook de órdenes de VTEX tenga su propio
 > secreto **corta la ingesta de los cuatro clientes, en silencio**. El mapa de dependencias ya está
-> hecho: 53 rutas, 28 crons, el webhook de VTEX y todas las sesiones activas.
+> hecho: 53 rutas, 29 crons, el webhook de VTEX y todas las sesiones activas.
 >
 > **La decisión que hay que tomar** está en § 9, punto 6. No es "¿rotamos?" sino "¿se firma el
 > próximo cliente antes de rotar?". Las dos respuestas son defendibles —hoy los cuatro clientes son
@@ -803,13 +814,29 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 > Esto no es trabajo: es una decisión de Tomy, con el número al lado.
 
 ### E-29 · Arreglar la promesa falsa del wizard
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 h · **HACER YA**
-- **Qué está mal:** el wizard de onboarding **ya ofrece Shopify y Tiendanube**, y deja completar el
-  alta sin conectar nada (`submit-wizard:304` solo "captura interés"). Un cliente Shopify que entre
-  hoy tendría `/orders` y `/products` bloqueados, Bondly vacío, y un pixel que captura tráfico pero
-  **cero compras, cero carrito y cero identificación**.
-- **Qué hacer:** o se sacan del wizard, o se marcan explícitamente como "próximamente / lista de
-  espera". Es un problema comercial de una línea.
+- **Estado:** ⬜ pendiente, pero **REDEFINIDA el 2026-09-08: la ficha apuntaba a algo que ya está
+  hecho y dejaba pasar lo que sí está roto.**
+- **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 h · **Necesita una decisión chica de producto** (abajo)
+
+> **Lo que la ficha pedía YA ESTÁ:** Tiendanube, Shopify, WooCommerce y Magento están en
+> `ECOMMERCE_PROVIDERS` con `active: false` (`src/components/OnboardingOverlay.tsx:489-492`), se
+> renderizan con un candado y el badge **"En desarrollo"** contra el "Disponible" de VTEX
+> (`:1100-1115`), y el copy ya ofrece la lista de espera que la ficha pedía: *"Las que están 'en
+> desarrollo' podés marcarlas para que te prioricemos cuando las integremos"* (`:1038-1040`).
+
+- **Lo que SÍ sigue roto, y es otra cosa:** `globalCompletion` cuenta `skip` como decidido
+  (`OnboardingOverlay.tsx:620-629`). O sea que un prospecto puede **saltear las cuatro plataformas y
+  ver el alta al 100 %**, y `submit` (`:631-645`) no lo impide. El backend confirma que del otro lado
+  no pasa nada: *"Para providers no-vtex (tiendanube/shopify/etc), solo capturamos interes"*
+  (`submit-wizard/route.ts:378`).
+- **La decisión chica:** bloquear el submit **rompería la captura de leads**, que es deliberada — un
+  prospecto de Shopify que deja sus datos es un lead, no un error. Así que la pregunta es más
+  acotada: **¿qué le muestra el wizard a alguien que no conectó ninguna plataforma?** Hoy le dice
+  "100 %", que es la promesa falsa de verdad. Un "listo, te avisamos cuando esté" con la barra en
+  otro estado dice lo mismo sin mentir.
+- **Cómo se encontró:** el revisor sin contexto del 2026-09-08. La ficha original describía un
+  problema real que se arregló en algún momento sin actualizarla, y la descripción vieja habría hecho
+  que alguien "arreglara" algo que ya estaba bien y no mirara lo que faltaba.
 
 ### E-30 · Las 8 movidas baratas que compran opcionalidad
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 semanas en total
@@ -868,6 +895,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 | **La decisión, antes que cualquier código** | § 9 punto 6 — **¿se firma antes de rotar?** | Define si el gate E0 está cerrado. Todo lo demás de E0 ya está |
 | **Ahora, y es barato** | E-29 (sacar Shopify/Tiendanube del wizard) | Sigue pendiente desde el día 1 y sigue siendo cierto: un cliente puede darse de alta hoy en una plataforma que no funciona. 1-2 h |
 | **Antes del próximo cliente** | E-14 (la mitad que falta) + E-20 | E-14 hoy sólo devuelve lo ignorado; falta la verificación real del pixel. E-20 es la telemetría que convierte "creo que anda" en "sé que anda" |
+| 🔺 **Antes del próximo cliente, SI puede ser chico** | **E-24 + E-25** (2-3 h cada una) | **Subieron el 2026-09-08: E-19 las volvió urgentes.** E-19 acaba de convertir cuatro checks en un mail diario. Al mismo tiempo, el detector de anomalías **sigue sin piso de volumen** (verificado: no existe `minOrders` ni equivalente) y el P&L sigue con `COALESCE(oi."costPrice", p."costPrice", 0)` (`metrics/pnl/route.ts:94`). O sea que **el primer cliente chico que entre recibe, desde la semana uno, alertas diarias falsas y un margen bruto del 100 %**. La § 14 dice que un cambio de observabilidad falla por ruido o por silencio; éstas dos son las que evitan que el ruido queme lo que E-19 acaba de construir |
 | **Cuando entre el próximo cliente, no antes** | E-10 (unidad de trabajo por org×tabla×día) | Es el techo real de los rollups. E-01 lo movió de ~8 a 50-77 orgs; E-10 lo saca del camino. Con 4 clientes no aprieta, y hacerlo antes es optimizar sin presión |
 | **Cuando haya 2 clientes grandes a la vista** | E-09 (retención) | 121 GB/año por cliente tamaño Arredo, y no hay política de retención de ninguna clase. Es lo único del plan que destruye datos: necesita la decisión del § 9 punto 1 |
 | **Antes del primer contrato serio** | E-27, E-28 (ciclo de vida y cumplimiento) | No se puede firmar prometiendo borrado de datos que no existe |
@@ -946,7 +974,9 @@ endpoint que valida específicamente contra `process.env.NEXTAUTH_SECRET`.
 Consecuencia: con ese valor se puede **forjar un JWT** con `isStaff: true`. Todo el gate staff-only
 que construyó esta branch lo saltea un token forjado. No está en el bundle del navegador
 (verificado), así que hace falta acceso al repo — pero está en `vercel.json`, en `CLAUDE_STATE.md`,
-en `TODOS.md`, en `BACKLOG_PENDIENTES.md` y en tres archivos más, y viaja en la URL de los 28 crons.
+en `TODOS.md`, en `BACKLOG_PENDIENTES.md` y en tres archivos más, y viaja en la URL de los 29 crons
+— o sea que **también está en los logs de Vercel**, que es una superficie de exposición que este plan
+no mencionaba y que se suma al argumento de rotar (señalado por el revisor del 2026-09-08).
 
 **Esto es el techo de todo lo demás.** Mientras siga así, cada gate que se agregue es decorativo.
 La rotación sigue congelada por decisión de Axel; ahora al menos el impacto está mapeado.
@@ -1066,7 +1096,7 @@ un freno sin observabilidad es peor que no tener freno.
   `rollup-org-order.test.ts`: pasaba porque **el propio test hacía el `INSERT` que en producción no
   ocurre** — probaba una propiedad que el sistema no tiene.
 - **Validación ejecutada:** `tsc` exit 0 · `vitest` exit 0, **438 pasan** · `next build` exit 0 ·
-  `vercel.json` parsea, 28 crons, sólo claves `path`/`schedule`.
+  `vercel.json` parsea, 29 crons, sólo claves `path`/`schedule`.
 - **Qué NO quedó cubierto:** ningún test cruza el borde de una invocación de cron, que es
   exactamente donde estaba el bug principal. Eso pide un test de integración con la base, que hoy
   no existe para este camino.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 import { prisma } from "@/lib/db/client";
 import { ordersValidWhere } from "@/domains/orders";
 import { sendEmail } from "@/lib/email/send";
@@ -17,7 +18,22 @@ export const maxDuration = 60;
  * 3. Generates narrative with Claude
  * 4. Sends digest email to OWNER/ADMIN users
  */
+// E-02/E-11 (agregado el 2026-09-08). `maxDuration = 60` y un `for` sobre TODAS
+// las organizaciones, sin reloj, sin orden y sin cursor. E-05 le puso el
+// aislamiento por org, que era la mitad del problema; esta era la otra.
+//
+// Con 20 clientes el loop se come los 60 s a mitad de lista, Vercel mata la
+// funcion y **no devuelve nada**: los clientes de atras no reciben su digest
+// NUNCA, en silencio. Y quien queda afuera lo decide el orden fisico de las
+// filas en Postgres, porque el `findMany` no tenia `orderBy`.
+//
+// Es exactamente el modo de falla que E-02 describe, sobreviviendo en uno de los
+// tres crons que le escriben al cliente por mail.
+const PRESUPUESTO_MS = 45_000; // de 60 s de maxDuration
+const CRON = "digest";
+
 export async function GET(req: NextRequest) {
+  const arrancoEn = Date.now();
   const { searchParams } = req.nextUrl;
   const syncKey = searchParams.get("key") || req.headers.get("authorization")?.replace("Bearer ", "");
   if (syncKey !== process.env.SYNC_KEY) {
@@ -26,6 +42,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const orgs = await prisma.organization.findMany({
+      // Orden estable y ascendente: sin esto el cursor no significa nada, y
+      // ademas "quien queda afuera" lo elegia Postgres.
+      orderBy: { id: "asc" },
       select: {
         id: true,
         name: true,
@@ -36,7 +55,25 @@ export async function GET(req: NextRequest) {
     const results: { orgId: string; orgName: string; emailed: boolean }[] = [];
     const failures: { orgId: string; orgName: string; error: string }[] = [];
 
-    for (const org of orgs) {
+    // Donde quedo la corrida anterior. Un digest es semanal, asi que si el
+    // presupuesto corta, los de atras lo reciben en la proxima invocacion en vez
+    // de no recibirlo nunca.
+    const ids = orgs.map((o) => o.id);
+    const { desde } = arranqueDeLaVuelta({
+      ids,
+      cursorGuardado: await ultimoProcesado(CRON),
+      cursorExplicito: searchParams.get("orgCursor"),
+      full: false,
+    });
+    let i = desde;
+    let cortoPorReloj = false;
+
+    for (; i < orgs.length; i++) {
+      const org = orgs[i];
+      if (Date.now() - arrancoEn > PRESUPUESTO_MS) {
+        cortoPorReloj = true;
+        break;
+      }
       const ORG_ID = org.id;
       if (org.users.length === 0) continue;
 
@@ -231,12 +268,16 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
     // peor, porque nadie mira los 200. Con al menos una bien, ok:true y las que
     // fallaron en `failures`.
     const todasFallaron = results.length === 0 && failures.length > 0;
+    await guardarCorte(CRON, i, ids);
     return NextResponse.json({
       ok: !todasFallaron,
       timestamp: new Date().toISOString(),
       digests: results,
       // Con datos = esos clientes NO recibieron su digest, aunque ok sea true.
       failures,
+      arrancoEn: desde,
+      cortoEn: i >= orgs.length ? 0 : i,
+      cortoPorReloj,
     });
   } catch (error: any) {
     console.error("[cron/digest] Error:", error);

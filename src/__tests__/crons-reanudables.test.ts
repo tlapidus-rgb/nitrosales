@@ -30,6 +30,21 @@ const CON_CURSOR = [
   "src/app/api/cron/refresh-silver-orders/route.ts",
   "src/app/api/cron/attribution-reconcile/route.ts",
   "src/app/api/cron/vtex-sync-recent/route.ts",
+  // ⚠️ LOS TRES DE ABAJO NO ESTABAN EN LA LISTA DEL ESTUDIO, y tenían el mismo
+  // problema (agregados el 2026-09-08, los encontró una revisión del plan).
+  //
+  // E-05 les puso el aislamiento por organización, que era la mitad del
+  // problema; les faltaba la otra: `maxDuration = 60` y un `for` sobre TODAS las
+  // orgs sin reloj, sin `orderBy` y sin cursor. Con 20 clientes el loop se come
+  // los 60 s a mitad de lista, Vercel mata la función y **no devuelve nada**.
+  //
+  // Son, además, los tres crons que le escriben al cliente por mail: el digest
+  // semanal, las anomalías diarias y la auditoría de UTMs. O sea que el modo de
+  // falla que todo este plan ataca —"a algunos clientes no les corre nunca, en
+  // silencio"— sobrevivía justo ahí.
+  "src/app/api/cron/digest/route.ts",
+  "src/app/api/cron/anomalies/route.ts",
+  "src/app/api/cron/ads-utm-audit/route.ts",
 ];
 
 /** Crons con reloj pero sin cursor, cada uno por su motivo. */
@@ -73,7 +88,12 @@ describe("los crons que reparten trabajo guardan por dónde van", () => {
     const src = fuente(p);
     // Tiene que haber una comparación contra un presupuesto, no sólo el
     // maxDuration declarado (que es el muro, no el freno).
-    expect(src).toMatch(/Date\.now\(\)\s*-\s*\w*[Ss]tart\w*\s*>/);
+    // El nombre de la variable no importa: lo que tiene que existir es una
+    // comparacion de "cuanto llevo corriendo" contra un tope. Antes el regex
+    // exigia `*start*` y eso lo hacia fallar sobre codigo correcto que usaba
+    // `arrancoEn` — un test que le pide a la implementacion que se llame de
+    // cierta forma en vez de que haga cierta cosa.
+    expect(src).toMatch(/Date\.now\(\)\s*-\s*\w+\s*>/);
   });
 
   it.each(CON_CURSOR)("%s ordena de forma estable", (p) => {
@@ -87,7 +107,10 @@ describe("los crons que reparten trabajo guardan por dónde van", () => {
     // comportamiento de verdad —que no se saltee a nadie cuando la lista cambia
     // de composición— se verifica ejecutando la lógica en
     // src/lib/cron/cursor-store.test.ts, no leyendo el fuente.
-    expect(src).toMatch(/ORDER BY (?:o\.)?id|ORDER BY 1|orderBy: \{ organizationId/);
+    // Igual que arriba: acepta el `ORDER BY` crudo o el `orderBy` de Prisma,
+    // por `id` o por `organizationId`. Lo que se exige es orden estable sobre
+    // la lista de organizaciones, no una forma de escribirlo.
+    expect(src).toMatch(/ORDER BY (?:o\.)?id|ORDER BY 1|orderBy: \{ (?:organizationId|id)/);
   });
 });
 
@@ -99,10 +122,13 @@ describe("los crons sin cursor igual tienen reloj", () => {
   });
 
   it("alerts-scheduler NO lleva cursor, y es a propósito", () => {
-    // Ojo: la premisa de esto (que una regla que dispara sale de la cola) tiene
-    // un agujero conocido — evaluateRule devuelve null antes de actualizar
-    // nextFireAt cuando la regla NO dispara. Está anotado en PLAN_EXPANSION.md
-    // como decisión pendiente. Este caso sólo fija que acá no va cursor.
+    // La premisa de esto —que una regla evaluada sale de la cabeza de la cola—
+    // tenía un agujero: `evaluateRule` devolvía null ANTES de actualizar
+    // `nextFireAt` cuando la regla no disparaba, así que se quedaba primera para
+    // siempre y tapaba a las demás. **Resuelto el 2026-09-07**: ahora avanza
+    // `nextFireAt` con un reintento corto (15 min), que la manda al fondo sin
+    // cambiar la semántica visible. Cubierto ejecutando la cola contra Postgres
+    // en `src/lib/alerts/engine-cola.test.ts`.
     // La cola ya se ordena por `nextFireAt ASC NULLS FIRST`: las que quedan sin
     // evaluar son las más atrasadas y entran primero en la próxima corrida. El
     // orden ES el cursor. Un cursor por índice encima de eso desordenaría la

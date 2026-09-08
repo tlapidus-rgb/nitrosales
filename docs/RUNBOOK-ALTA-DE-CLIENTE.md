@@ -153,13 +153,16 @@ Al recibir un pedido, verificar a mano que no queden filas en: `orders`, `order_
 
 ## 5. Después de mergear la branch del plan
 
-Hay tres acciones manuales que, si no se hacen, dejan cosas apagadas **en silencio**:
+Hay **cuatro** acciones manuales que, si no se hacen, dejan cosas apagadas **en silencio**:
 
 | Acción | Si no se hace |
 |---|---|
-| `POST /api/admin/migrate-cron-cursors` | Los cursores de los crons no guardan nada: a algunos clientes no les corre nunca |
-| `BACKFILL_VENTANA=1-7` en Vercel *(opcional)* | El backfill corre a cualquier hora. Los otros dos frenos sí están activos solos |
+| `POST /api/admin/migrate-cron-cursors` — **antes** de mergear el código que la usa | Los cursores de los crons no guardan nada: a algunos clientes no les corre nunca |
+| `ALERTAS_EMAILS` en Vercel (separadas por coma) | Todas las alertas siguen yendo a una sola casilla. Si esa casilla manda a spam, el sistema pierde su único sentido de la vista |
+| `BACKFILL_VENTANA=1-7` en Vercel *(opcional)* | El backfill corre a cualquier hora. Los otros dos frenos sí están activos solos. **Horas enteras: `1-7`, NO `01:00-07:00`** — el parser rechaza el segundo y un valor que no parsea significa "sin restricción" |
 | `?full=1` en los dos crons de atribución Gold | Quedan las huérfanas históricas acumuladas |
+
+> La lista de referencia es `docs/ESTADO-BRANCH-INTEGRACION.md`. Si las dos difieren, gana aquella.
 
 ---
 
@@ -169,9 +172,18 @@ Hay tres acciones manuales que, si no se hacen, dejan cosas apagadas **en silenc
   Con ese valor se puede forjar una sesión de staff. La rotación está pendiente y tiene un orden
   estricto: rotarlo antes de que el webhook de VTEX tenga su propio secreto **corta la ingesta de
   órdenes de los cuatro clientes, en silencio**. Ver R-C07/08/09.
-- **El wizard no valida credenciales.** El endpoint existe (`/api/onboarding/test-credentials`) y
-  está desconectado del UI **por una decisión de UX documentada**: "el cliente no debe ver fallas,
-  las valida el admin". Mientras siga así, cada cliente cuesta una ida y vuelta.
-- **Un `.sql` de backfill por cliente** vive en el disco de Axel y no está versionado
-  (`backfill-1-cmod6ns.local.sql` y compañía). Es el mismo SQL con el `organizationId` cambiado.
-  Es E-17 y sigue pendiente: **es lo que hace que el bus factor sea 1.**
+- ~~**El wizard no valida credenciales.**~~ **Desactualizado, corregido el 2026-09-08.** Desde E-13
+  el submit **sí valida VTEX** (`src/lib/onboarding/validacion-wizard.ts`), sin botón de "probar" y
+  sin mostrar errores crudos, que era lo que la decisión de UX quería evitar. Las otras tres
+  plataformas no se validan **a propósito**: sus credenciales las pone el callback de OAuth del lado
+  del servidor y no viajan en el wizard.
+- ~~**Un `.sql` de backfill por cliente vive en el disco de Axel.**~~ **Desactualizado, corregido el
+  2026-09-08.** Es E-17 y **está hecha**: el SQL está parametrizado en
+  `src/lib/pixel/first-source-repair.ts` y se corre con
+  `POST /api/admin/pixel/repair-first-source?org=<id>`. El `CASE` de clasificación se importa de la
+  misma fuente que usa el cron, así que no puede divergir.
+
+> ⚠️ **Estas dos entradas estuvieron mal durante un día** y decían que el bus factor seguía siendo 1
+> cuando la tarea que lo arreglaba ya estaba hecha. El runbook se escribió el mismo día que los dos
+> commits que lo invalidaron. **Es el único documento de este plan que se usa sin un técnico al
+> lado**, así que conviene revisarlo cada vez que se cierra una tarea de la FASE E2.

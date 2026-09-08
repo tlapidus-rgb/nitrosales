@@ -18,10 +18,19 @@
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+// E-02/E-11 (agregado el 2026-09-08). Este era el peor de los tres: ademas de no
+// tener reloj ni orden ni cursor con `maxDuration = 60`, hace un `findMany` de 7
+// dias de `pixel_events` **por organizacion** sobre la tabla mas grande del
+// sistema. O sea que es el que antes se come el presupuesto, y el que mas caro
+// paga cada vuelta que arranca de cero.
+const PRESUPUESTO_MS = 45_000;
+const CRON = "ads-utm-audit";
 
 interface FamilyStats {
   family: string;
@@ -37,10 +46,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const arrancoEn = Date.now();
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   try {
-    const orgs = await prisma.organization.findMany({ select: { id: true, name: true } });
+    const orgs = await prisma.organization.findMany({
+      // Orden estable: sin esto el cursor no significa nada y "quien queda
+      // afuera" lo elige Postgres.
+      orderBy: { id: "asc" },
+      select: { id: true, name: true },
+    });
     const results: Array<{
       orgId: string;
       orgName: string;
@@ -50,7 +65,22 @@ export async function GET(req: NextRequest) {
     }> = [];
     const failures: { orgId: string; orgName: string; error: string }[] = [];
 
-    for (const org of orgs) {
+    const ids = orgs.map((o) => o.id);
+    const { desde } = arranqueDeLaVuelta({
+      ids,
+      cursorGuardado: await ultimoProcesado(CRON),
+      cursorExplicito: req.nextUrl.searchParams.get("orgCursor"),
+      full: false,
+    });
+    let i = desde;
+    let cortoPorReloj = false;
+
+    for (; i < orgs.length; i++) {
+      const org = orgs[i];
+      if (Date.now() - arrancoEn > PRESUPUESTO_MS) {
+        cortoPorReloj = true;
+        break;
+      }
       // E-05: aislamiento por organización. El `try` de arriba envuelve TODO el
       // loop: una org que explota cancelaba la auditoría de UTMs de todas las
       // siguientes, y el 500 resultante no lo mira nadie.
@@ -155,12 +185,16 @@ export async function GET(req: NextRequest) {
 
     // E-05: ver digest. Ninguna org procesada + fallos = no es un exito.
     const todasFallaron = results.length === 0 && failures.length > 0;
+    await guardarCorte(CRON, i, ids);
     return NextResponse.json({
       ok: !todasFallaron,
       since: since.toISOString(),
       results,
       // Con datos = a esos clientes NO se les auditaron las UTMs, aunque ok sea true.
       failures,
+      arrancoEn: desde,
+      cortoEn: i >= orgs.length ? 0 : i,
+      cortoPorReloj,
     });
   } catch (error) {
     console.error("[ads-utm-audit] error:", error);

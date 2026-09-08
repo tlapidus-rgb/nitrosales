@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 import { prisma } from "@/lib/db/client";
 import { ordersValidWhere } from "@/domains/orders";
 import { detectRuleBasedAnomalies, detectClaudeAnomalies, MetricSnapshot } from "@/lib/anomaly/detector";
@@ -20,7 +21,16 @@ export const maxDuration = 60;
  *
  * Auth: syncKey query param or Authorization header
  */
+// E-02/E-11 (agregado el 2026-09-08). Mismo caso que `digest`: `maxDuration = 60`
+// y un `for` sobre TODAS las orgs sin reloj, sin orden y sin cursor. E-05 le puso
+// el aislamiento, que era la mitad. Con 20 clientes, a los de atras **no se les
+// evaluan anomalias nunca** — y el sintoma es invisible, porque "0 anomalias" se
+// lee igual que "todo bien".
+const PRESUPUESTO_MS = 45_000; // de 60 s de maxDuration
+const CRON = "anomalies";
+
 export async function GET(req: NextRequest) {
+  const arrancoEn = Date.now();
   // Auth check
   const { searchParams } = req.nextUrl;
   const syncKey = searchParams.get("key") || req.headers.get("authorization")?.replace("Bearer ", "");
@@ -31,13 +41,31 @@ export async function GET(req: NextRequest) {
   try {
     // Get all active organizations
     const orgs = await prisma.organization.findMany({
+      // Orden estable: sin esto el cursor no significa nada y "quien queda
+      // afuera" lo elige Postgres.
+      orderBy: { id: "asc" },
       select: { id: true, name: true, users: { select: { email: true }, where: { role: { in: ["OWNER", "ADMIN"] } } } },
     });
 
     const results: { orgId: string; orgName: string; anomalies: number; emailed: boolean }[] = [];
     const failures: { orgId: string; orgName: string; error: string }[] = [];
 
-    for (const org of orgs) {
+    const ids = orgs.map((o) => o.id);
+    const { desde } = arranqueDeLaVuelta({
+      ids,
+      cursorGuardado: await ultimoProcesado(CRON),
+      cursorExplicito: searchParams.get("orgCursor"),
+      full: false,
+    });
+    let i = desde;
+    let cortoPorReloj = false;
+
+    for (; i < orgs.length; i++) {
+      const org = orgs[i];
+      if (Date.now() - arrancoEn > PRESUPUESTO_MS) {
+        cortoPorReloj = true;
+        break;
+      }
       const ORG_ID = org.id;
 
       // E-05: aislamiento por organización. El `try` de arriba envuelve TODO el
@@ -278,6 +306,7 @@ export async function GET(req: NextRequest) {
 
     // E-05: ver digest. Ninguna org procesada + fallos = no es un exito.
     const todasFallaron = results.length === 0 && failures.length > 0;
+    await guardarCorte(CRON, i, ids);
     return NextResponse.json({
       ok: !todasFallaron,
       timestamp: new Date().toISOString(),
@@ -285,6 +314,9 @@ export async function GET(req: NextRequest) {
       totalAnomalies: results.reduce((s, r) => s + r.anomalies, 0),
       // Con datos = a esos clientes NO se les evaluaron anomalías, aunque ok sea true.
       failures,
+      arrancoEn: desde,
+      cortoEn: i >= orgs.length ? 0 : i,
+      cortoPorReloj,
     });
   } catch (error: any) {
     console.error("[cron/anomalies] Error:", error);
