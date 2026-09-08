@@ -1,6 +1,6 @@
 # Estado de la branch de integración
 
-> **Última actualización: 2026-09-07.** Branch `fix/expansion-gate-e0`, 58 commits por delante de
+> **Última actualización: 2026-09-08.** Branch `fix/expansion-gate-e0`, 62 commits por delante de
 > `origin/main`. **Nada de esto está en producción.** La decisión fue explícita: todo el plan entra
 > en una sola branch, se prueba y se revisa entero, y recién ahí se mergea — antes de sumar clientes
 > nuevos.
@@ -10,8 +10,41 @@
 | | |
 |---|---|
 | `npx tsc --noEmit` | 0 errores |
-| `npx vitest run` | 848 passed, 7 skipped, **0 failed** |
-| Tests nuevos en la branch | 33 archivos |
+| `npx vitest run` | 869 passed, 7 skipped, **0 failed** |
+| `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
+| Tests nuevos en la branch | 35 archivos |
+
+## Los tres que encontró el repaso de segundo orden
+
+Después de arreglar los ocho de abajo, hice una pasada distinta: en vez de buscar bugs nuevos,
+revisar qué **rompió cada uno de mis arreglos**. Salieron tres, y el primero es el más peligroso de
+toda la branch.
+
+### El límite de concurrencia dejó de funcionar
+
+Sacar `lastChunkAt` del claim (el arreglo de A5) rompió `contarJobsActivos`, porque esa misma
+escritura servía para **dos** cosas: el lock del claim y el conteo de concurrencia.
+
+El resultado: un job recién tomado, que todavía no completó su primer chunk —y un chunk de un
+backfill grande tarda **minutos**— figuraba en cero. El tick siguiente del cron veía 0 activos,
+admitía, y reclamaba otro job. Con `maxConcurrentes = 1`: **dos backfills en paralelo contra Neon**,
+que es exactamente lo que E-08 vino a impedir y lo que tumbó la base la vez que motivó todo esto.
+
+Los tests no lo agarraron porque el helper `activos()` era una copia a mano del SQL. Ahora importa el
+de verdad.
+
+### El check de jobs atascados no veía los FALLADOS
+
+Desde A6, un job FAILED es lo que retiene el onboarding en `BACKFILLING`. Pero
+`checkJobsDeBackfillAtascados` miraba sólo `QUEUED` y `RUNNING`: el estado más urgente de mirar era
+el único que el check no veía. El aviso quedaba a las 12 h y sin decir qué job ni con qué error.
+
+### El chequeo de frescura podía matar al cron que lo hospeda
+
+`checkPipelineFreshness` corre dentro de `warm-cache`, que ya se comió hasta 220 s de sus 300 antes
+de llegar ahí — y yo lo hice más caro (15 queries agrupadas + 4 de las fuentes, contra 15 `MAX()`
+simples). Si se pasa, Vercel mata la función y **warm-cache no devuelve nada**. Y ahí vive
+`maybeSelfHealRollups`: el monitoreo habría tumbado al cron que recupera los rollups atrasados.
 
 ## Lo que se arregló después de la segunda revisión
 
