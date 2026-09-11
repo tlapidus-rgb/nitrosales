@@ -63,6 +63,86 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
+## Ultima actualizacion: 2026-09-08 (branch `fix/expansion-gate-e0` — tres rondas de revision + revision del plan. NADA MERGEADO)
+
+> **Si arrancas una sesion nueva: lo primero que hay que leer es `docs/ESTADO-BRANCH-INTEGRACION.md`.**
+> Este bloque es el resumen; ese doc es el detalle y lo que hay que mirar antes de mergear.
+
+**Estado:** `fix/expansion-gate-e0`, 67 commits por delante de `origin/main`, pusheada, **sin mergear
+y sin nada en produccion**. Decision explicita de Axel: el plan entero entra en una sola branch, se
+prueba y se revisa completo, y recien ahi se mergea — antes de sumar clientes nuevos.
+
+**Validacion:** `tsc` exit 0 · `vitest` **878 pasan**, 0 fallan, 7 skipped · `npm run build` exit 0
+(incluye los guards de contrato y `depcruise`).
+
+### Lo que paso, en una linea
+
+Se implementaron 17 de las 33 tareas del `PLAN_EXPANSION.md`, y despues **tres rondas de revision
+encontraron once defectos, casi todos en el codigo escrito para cerrar esas mismas tareas.** Los once
+estan arreglados y verificados por mutacion (revertir el arreglo y comprobar que el test se ponga en
+rojo).
+
+### Los tres mas graves, todos introducidos por arreglos
+
+1. **Dos backfills en paralelo contra Neon.** Sacar `lastChunkAt` del claim —para que el reaper
+   pudiera dispararse— dejo a `contarJobsActivos` sin su fuente. Un job recien tomado figuraba en
+   cero y el tick siguiente admitia otro. Es exactamente lo que E-08 vino a impedir y lo que tumbo la
+   base la vez que motivo todo esto.
+2. **El chequeo de frescura podia matar a `warm-cache`**, que es donde vive el self-heal de los
+   rollups. El monitoreo tumbando lo que vigila.
+3. **Tres crons que le escriben al cliente por mail** (`digest`, `anomalies`, `ads-utm-audit`) seguian
+   sin reloj, sin `orderBy` y sin cursor con `maxDuration = 60`: con 20 clientes, a los de atras no
+   les corre nunca, en silencio. No estaban en la lista del estudio, asi que E-11 no los cubrio.
+
+### El patron, que es lo que hay que llevarse
+
+**Una variable con dos duenos.** Casi todos los once son un campo que servia para dos propositos y se
+cambio mirando uno solo. Esta documentado en `ERRORES_CLAUDE_NO_REPETIR.md` →
+**#VARIABLE-CON-DOS-DUENOS**, con la tabla completa. La regla es barata: grepear quien mas lee un
+campo antes de cambiarle el significado. **Aplica directo a E-10, E-22 y E-27**, que son de las
+tareas que faltan y las tres redefinen campos que ya existen.
+
+Y lo que destapo los peores no fue revisar mas, sino **cambiar la pregunta** de "¿hay un bug aca?" a
+"¿que rompio este arreglo?".
+
+### Revision del plan (2026-09-08)
+
+Un revisor sin contexto comparo `PLAN_EXPANSION.md` ficha por ficha contra el codigo. Ademas de los
+tres crons, encontro que **E-29 apuntaba a algo ya resuelto**, que el runbook de E-18 le mentia al
+operador en dos puntos, y que **E-24/E-25 se volvieron urgentes** por culpa de E-19.
+
+Y una revision de premisa encontro lo que mas cambia: **el techo tecnico ya no es el que ata.** E-01
+lo movio de ~8 a 50-77 orgs; el operativo sigue en 2-3 altas/mes, o sea que 50 orgs no llegan hasta
+2028. **E-10 son 1-2 semanas para levantar un techo que no aprieta.** De ahi salieron E-32 (medir el
+proximo alta) y E-33 (los 6 pasos que hoy son fuera del producto — el primero es un boton).
+
+### Lo que NO se toco, a proposito
+
+**La rotacion de secretos (E-07 / R-C07→08→09).** Decision de Axel: no se tocan hasta entender el
+impacto. Importa saber por que: `NEXTAUTH_SECRET` y `ADMIN_API_KEY` son el mismo literal y ese
+literal esta en `vercel.json`, versionado. **Mientras siga asi, todos los gates que se construyeron en
+esta branch son evitables** — cualquiera que lea el repo puede firmarse una sesion de staff. No son
+una frontera de seguridad hasta que se rote. Y rotar antes de que el webhook de VTEX tenga su propio
+secreto **corta la ingesta de los 4 clientes en silencio**.
+
+### Antes de mergear
+
+Cuatro acciones manuales, en `docs/ESTADO-BRANCH-INTEGRACION.md`. La migracion de cursores va **antes**
+que el codigo que la usa (orden de `CLAUDE.md`). Sin `ALERTAS_EMAILS` y `BACKFILL_VENTANA`, dos tareas
+quedan escritas pero inertes — y `BACKFILL_VENTANA` son **horas enteras** (`1-7`), no `01:00-07:00`.
+
+### Donde esta cada cosa
+
+| Archivo | Que tiene |
+|---|---|
+| `docs/ESTADO-BRANCH-INTEGRACION.md` | **Leer primero.** Los once defectos, la auditoria de tests, las 4 acciones manuales |
+| `PLAN_EXPANSION.md` | El plan, con FASE E6 nueva y § 14 (lo que enseñaron las revisiones) |
+| `ERRORES_CLAUDE_NO_REPETIR.md` | Los seis errores nuevos (113 en total) |
+| `BACKLOG_PENDIENTES.md` | `BP-EXPANSION-ABIERTOS` — los cinco riesgos que quedaron abiertos |
+| `docs/RUNBOOK-ALTA-DE-CLIENTE.md` | El alta paso a paso. Es el unico doc que se usa sin un tecnico al lado |
+
+---
+
 ## Ultima actualizacion: 2026-07-03 (CIERRE Arredo — backfill de ordenes + perf + Neon 4CU + password-reset LIVE + cuentas)
 
 **Continuacion/cierre de la sesion 07-02. Todo en `main` (prod), deployado.**
