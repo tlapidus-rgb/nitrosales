@@ -99,7 +99,18 @@ export interface Sparkline12mData {
   revenuePrev12mTotal: number; // para delta YoY
   revenueDeltaPct: number | null;
   costosYTD: number;
-  grossMarginYTD: number; // porcentaje
+  /**
+   * Porcentaje. **`null` = no sabemos**, y es distinto de 0 y de 100.
+   *
+   * E-25: sin costos cargados el cálculo da 100 %, que es la respuesta correcta
+   * a la pregunta equivocada — el SQL cuenta como gratis lo que no sabe. Antes
+   * ese 100 % se mostraba tal cual. Ver `lib/finanzas/confianza-del-margen.ts`.
+   */
+  grossMarginYTD: number | null;
+  /** % de items vendidos con precio de costo cargado. */
+  cogsCoverage?: number;
+  /** Qué decirle al cliente sobre la cobertura, o `null` si no hay nada que aclarar. */
+  avisoDeCostos?: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────

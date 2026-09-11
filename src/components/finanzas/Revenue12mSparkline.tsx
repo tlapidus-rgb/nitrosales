@@ -306,6 +306,17 @@ function MarginCard({
   data: Sparkline12mData | null;
   loading: boolean;
 }) {
+  // ⚠️ `grossMarginYTD` puede ser `null`, y `null` NO es cero (E-25, 2026-09-08).
+  //
+  // Acá decía `data?.grossMarginYTD ?? 0`, que convertía el "no sabemos" en un
+  // **0 % pintado de rojo con la etiqueta "Crítico"**. Es la mentira en espejo
+  // de la que veníamos a arreglar: antes, sin costos cargados, el margen salía
+  // 100 %; con el `?? 0` habría salido 0 %. Las dos son inventadas.
+  //
+  // Cuando no hay datos suficientes la tarjeta no muestra número: muestra qué
+  // falta hacer. `tsc` no puede agarrar esto — `?? 0` es perfectamente válido
+  // de tipos, y el error es de significado.
+  const sinDatos = !data || data.grossMarginYTD === null;
   const pct = data?.grossMarginYTD ?? 0;
   const color =
     pct >= 40 ? "#065f46" : pct >= 25 ? "#9a3412" : pct >= 10 ? "#b45309" : "#991b1b";
@@ -350,7 +361,34 @@ function MarginCard({
 
       {loading && <ShimmerBlock height={120} className="mt-3" />}
 
-      {!loading && data && (
+      {/* Sin costos cargados no hay margen que mostrar. Se dice qué falta, que
+          es accionable, en vez de un número inventado. */}
+      {!loading && sinDatos && (
+        <div className="mt-3 flex flex-col gap-2">
+          <div
+            className="text-2xl font-semibold"
+            style={{ color: "rgba(28,27,24,0.32)", letterSpacing: "-0.02em" }}
+          >
+            Sin datos
+          </div>
+          <p
+            className="text-[11px] leading-relaxed"
+            style={{ color: "rgba(28,27,24,0.55)" }}
+          >
+            {data?.avisoDeCostos ??
+              "Falta cargar los precios de costo de tus productos. Hasta que estén, no mostramos el margen — preferimos no darte un número antes que darte uno equivocado."}
+          </p>
+          <a
+            href="/finanzas/costos"
+            className="text-[11px] font-semibold underline w-fit"
+            style={{ color: "#1C1B18" }}
+          >
+            Cargar costos
+          </a>
+        </div>
+      )}
+
+      {!loading && data && !sinDatos && (
         <div className="mt-3 flex items-center gap-4">
           <svg width="92" height="92" viewBox="0 0 92 92">
             <circle
@@ -409,6 +447,16 @@ function MarginCard({
               <br />
               Target: ≥ 40% para escalar ads.
             </span>
+            {/* Cobertura parcial: el número se muestra, pero es MEJOR que el
+                real, porque lo que no tiene costo cargado cuenta como gratis. */}
+            {data.avisoDeCostos && (
+              <span
+                className="mt-1 text-[11px] leading-relaxed"
+                style={{ color: "#b45309" }}
+              >
+                ⚠ {data.avisoDeCostos}
+              </span>
+            )}
           </div>
         </div>
       )}

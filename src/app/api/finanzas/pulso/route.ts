@@ -23,6 +23,7 @@
 // a las de /api/metrics/pnl pero recortadas a solo lo necesario.
 // ═══════════════════════════════════════════════════════════════════
 
+import { margenParaMostrar, avisoDeCobertura } from "@/lib/finanzas/confianza-del-margen";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
@@ -92,6 +93,8 @@ async function loadWindowTotals(params: {
 }): Promise<{
   revenue: number;
   cogs: number;
+  /** % de items vendidos que tienen precio de costo. Sin esto el margen miente. */
+  cogsCoverage: number;
   shipping: number;
   adSpend: number;
   manualCosts: number;
@@ -108,10 +111,12 @@ async function loadWindowTotals(params: {
         AND o."orderDate" >= ${fromDate}
         AND o."orderDate" <= ${toDate}
     `,
-    prisma.$queryRaw<{ cogs: string }[]>`
+    prisma.$queryRaw<{ cogs: string; items_with_cost: string; items_total: string }[]>`
       SELECT COALESCE(SUM(
         oi.quantity * COALESCE(oi."costPrice", p."costPrice", 0)
-      ), 0)::text as cogs
+      ), 0)::text as cogs,
+        COUNT(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL THEN 1 END)::text as items_with_cost,
+        COUNT(oi.id)::text as items_total
       FROM order_items oi
       INNER JOIN orders o ON oi."orderId" = o.id
       LEFT JOIN products p ON oi."productId" = p.id
@@ -148,9 +153,16 @@ async function loadWindowTotals(params: {
     `,
   ]);
 
+  // E-25: cuántos de los items vendidos tienen precio de costo cargado. Sin
+  // esto, `COALESCE(costPrice, 0)` cuenta como gratis lo que no sabe y el margen
+  // sale 100 % — que es lo que ve TODO cliente nuevo el día 1.
+  const itemsConCosto = toNumber(cogsRow[0]?.items_with_cost);
+  const itemsTotales = toNumber(cogsRow[0]?.items_total);
+
   return {
     revenue: toNumber(revRow[0]?.revenue),
     cogs: toNumber(cogsRow[0]?.cogs),
+    cogsCoverage: itemsTotales > 0 ? Math.round((itemsConCosto / itemsTotales) * 100) : 0,
     shipping: toNumber(shipRow[0]?.shipping),
     adSpend: toNumber(adRow[0]?.spend),
     manualCosts: toNumber(mcRow[0]?.total),
@@ -337,15 +349,22 @@ export async function GET() {
       ytdTotals.adSpend +
       ytdTotals.manualCosts;
     const grossProfitYTD = ytdTotals.revenue - ytdTotals.cogs;
-    const grossMarginYTD =
+    const margenCalculado =
       ytdTotals.revenue > 0
         ? Math.round((grossProfitYTD / ytdTotals.revenue) * 1000) / 10
         : 0;
+
+    // E-25: si no hay costos cargados, el margen es 100 % y eso es mentira.
+    // `null` significa "no sabemos", que es distinto de 0 y de 100. La pantalla
+    // muestra el aviso en vez del número.
+    const grossMarginYTD = margenParaMostrar(margenCalculado, ytdTotals.cogsCoverage);
 
     const sparkline12m: Sparkline12mData = {
       ...sparkline,
       costosYTD,
       grossMarginYTD,
+      cogsCoverage: ytdTotals.cogsCoverage,
+      avisoDeCostos: avisoDeCobertura(ytdTotals.cogsCoverage),
     };
 
     // Narrativa + alertas — 100% determinista, sin DB, sin LLM.

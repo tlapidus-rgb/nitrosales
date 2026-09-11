@@ -91,7 +91,12 @@ function fmtMonths(m: number): string {
 export function buildNarrative(input: NarrativeInput): NarrativeData {
   const { runway, sparkline } = input;
   const deltaYoY = sparkline?.revenueDeltaPct ?? null;
-  const margin = sparkline?.grossMarginYTD ?? 0;
+  // `null` = no hay costos cargados, que NO es lo mismo que margen cero.
+  // El `?? 0` de antes se salvaba por accidente, porque las reglas de abajo
+  // pedian `margin > 0`. Pero ese guard escondia otro bug: un cliente con
+  // margen exactamente 0 % —vendiendo al costo— no recibia la alerta de
+  // colapso, que es el caso mas alarmante que hay. Ver E-25.
+  const margin = sparkline?.grossMarginYTD ?? null;
   const months = runway.monthsRemaining;
   const seed = input.monthIso;
 
@@ -132,7 +137,7 @@ export function buildNarrative(input: NarrativeInput): NarrativeData {
   }
 
   // 3. margen apretado
-  if (margin > 0 && margin < 20) {
+  if (margin !== null && margin < 20) {
     const variants: { title: string; body: string }[] = [
       {
         title: `Margen bruto bajo · ${margin.toFixed(1)}%`,
@@ -164,7 +169,9 @@ export function buildNarrative(input: NarrativeInput): NarrativeData {
   }
 
   // 5. healthy scale (crecimiento + margen)
-  if (deltaYoY !== null && deltaYoY >= 30 && margin >= 25) {
+  // "Escala saludable" afirma que el margen esta bien. Sin costos cargados no
+  // sabemos si esta bien, asi que no se afirma.
+  if (deltaYoY !== null && deltaYoY >= 30 && margin !== null && margin >= 25) {
     const variants: { title: string; body: string }[] = [
       {
         title: `Escala saludable · ${fmtPct(deltaYoY)} YoY`,
@@ -218,7 +225,12 @@ export function buildAlerts(input: NarrativeInput): FinancialAlert[] {
   const nowIso = new Date().toISOString();
   const { runway, sparkline, revenueYTD, adSpendYTD, monthIso } = input;
 
-  const margin = sparkline?.grossMarginYTD ?? 0;
+  // `null` = no hay costos cargados, que NO es lo mismo que margen cero.
+  // El `?? 0` de antes se salvaba por accidente, porque las reglas de abajo
+  // pedian `margin > 0`. Pero ese guard escondia otro bug: un cliente con
+  // margen exactamente 0 % —vendiendo al costo— no recibia la alerta de
+  // colapso, que es el caso mas alarmante que hay. Ver E-25.
+  const margin = sparkline?.grossMarginYTD ?? null;
   const deltaYoY = sparkline?.revenueDeltaPct ?? null;
   const months = runway.monthsRemaining;
 
@@ -244,7 +256,7 @@ export function buildAlerts(input: NarrativeInput): FinancialAlert[] {
   }
 
   // 2. margen
-  if (margin > 0 && margin < 10) {
+  if (margin !== null && margin < 10) {
     alerts.push({
       id: `finanzas.pulso.margin_collapse.${monthIso}`,
       type: "margin",
@@ -253,7 +265,7 @@ export function buildAlerts(input: NarrativeInput): FinancialAlert[] {
       body: "Menos de 10% de margen deja al negocio sin colchón. Revisá precios y costo de adquisición por SKU.",
       createdAt: nowIso,
     });
-  } else if (margin >= 10 && margin < 25) {
+  } else if (margin !== null && margin >= 10 && margin < 25) {
     alerts.push({
       id: `finanzas.pulso.margin_low.${monthIso}`,
       type: "margin",
