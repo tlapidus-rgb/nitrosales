@@ -4,7 +4,142 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-06-19 — Sesión RBAC (2 bugs latentes del repo encontrados al implementar acceso por roles: middleware en la raíz NO corre con directorio `src/`; NextAuth con config inline divergente que ignora `authOptions`).**
+> **Última actualización: 2026-09-08 — branch fix/expansion-gate-e0. Seis errores nuevos, todos de la misma familia: arreglos que rompieron a su vecino. El principal es #VARIABLE-CON-DOS-DUENOS, que explica once defectos de una sola vez.**
+
+---
+
+## Error #VARIABLE-CON-DOS-DUENOS — cambiar un campo mirando a UN solo consumidor
+
+**Cuándo pasó:** 2026-09-07/08, branch `fix/expansion-gate-e0`. Es el patrón detrás de **once**
+defectos encontrados en tres rondas de revisión, casi todos introducidos por el código escrito para
+*arreglar* otra cosa.
+
+### Causa raíz
+
+Un campo servía para dos propósitos distintos y se lo cambió pensando en uno solo.
+
+| El campo | Servía para | Y también para | Qué se rompió |
+|---|---|---|---|
+| `backfill_jobs.lastChunkAt` | el latido que mira el reaper | el lock del claim **y** el conteo de concurrencia | primero el reaper no podía dispararse nunca; al arreglarlo, **dos backfills en paralelo contra Neon** |
+| `hoursStale` (freshness) | el número del mail | el disparador del self-heal de rollups | un cliente dormido dejaba un escaneo HLL de ~190 s corriendo cada 4 min, para siempre |
+| `missing` (freshness) | "la tabla no existe todavía" | el cajón donde caía **cualquier** error | un `statement_timeout` se reportaba como "todo bien" |
+| el cursor de los crons | reanudar el incremental | también se aplicaba al `?full=1` manual | el "rehacé toda la historia" se salteaba orgs en silencio y devolvía `ok` |
+| `status = FAILED` | "este job terminó" | "este job salió bien" | el cliente quedaba activado con la data a medias |
+
+### Regla que lo previene
+
+**Antes de cambiar el significado de un campo que ya existe, grepear quién más lo lee y para qué.**
+Es un `grep` y habría ahorrado la mitad de los once. Aplica con fuerza a las tareas que redefinen
+campos existentes (E-10, E-22 y E-27 del `PLAN_EXPANSION.md` son exactamente eso).
+
+---
+
+## Error #HECHO-NO-ES-CERRADO — dar una tarea por terminada sin revisar qué rompió el arreglo
+
+**Cuándo pasó:** 2026-09-06/08. E-08 se dio por cerrada **tres veces** sin estarlo, y las tres el
+defecto estaba en el código escrito para cerrarla. E-13 y E-19 pasaron por lo mismo.
+
+### Causa raíz
+
+En los tres casos el código pasaba `tsc`, pasaba los tests nuevos de su propia tarea, y no hacía lo
+que la ficha decía. Las revisiones preguntaban *"¿hay un bug acá?"* — y esa pregunta no encuentra un
+arreglo que rompe a su vecino.
+
+### Regla que lo previene
+
+**Cerrar cada tarea con una segunda pasada que pregunte "¿qué rompió este arreglo?", sobre los
+consumidores de lo que se tocó.** Cuesta poco y de ahí salieron los tres defectos más caros de la
+branch, incluido el de los dos backfills en paralelo.
+
+---
+
+## Error #TEST-QUE-VERIFICA-SU-PROPIA-COPIA — testear una réplica en vez del original
+
+**Cuándo pasó:** 2026-09-07, encontrado por una auditoría por mutación sobre los tests nuevos: de
+373 casos, **248 atrapaban un bug de verdad y 125 no**.
+
+### Causa raíz
+
+Tres formas del mismo problema:
+
+1. `metrics-pixel-degradacion.test.ts` definía una **réplica** del algoritmo dentro del propio
+   archivo de test y testeaba la réplica. Cambiar el original no ponía nada en rojo.
+2. `gates-conectados.test.ts` leía `middleware.ts` y regexeaba el `matcher`, sin ejecutarlo nunca:
+   con un `return NextResponse.next()` como primera línea —RBAC apagado, read-only de impersonate
+   apagado, gate staff-only apagado— los 21 casos seguían en verde.
+3. El fix de starvation de `alerts/engine.ts`, el más caro de la branch, tenía 20 líneas de
+   comentario y como única cobertura tres `expect(fuente).toContain("nextFireAt")`, que pasan igual
+   con un `const _ = "nextFireAt"`.
+
+El problema **no** es leer el fuente en un test. Un guard estructural que compara dos listas es
+legítimo y barato. El problema es que el nombre del archivo prometa conducta y entregue un `grep`.
+
+### Regla que lo previene
+
+- Si el helper es privado y por eso se lo clona, **la salida correcta es moverlo a un módulo**, no
+  copiarlo.
+- **Verificar por mutación** todo test que cubra un arreglo importante: revertir el arreglo y
+  comprobar que el test se ponga en rojo. Si no se pone, el test no sirve.
+- Un test que lee el fuente tiene que **decir en su nombre que hace eso**.
+
+---
+
+## Error #COMPARAR-INDICES-SIN-VERIFICAR-QUE-EXISTAN — `indexOf` devuelve -1, y -1 es menor que todo
+
+**Cuándo pasó:** dos veces en la misma branch, en direcciones opuestas (2026-09-06 y 2026-09-08).
+
+### Causa raíz
+
+Un test comparaba `posTry < posAwait` para verificar que el `try` estuviera antes del primer `await`.
+Cuando el `await` no estaba en la ventana recortada, `indexOf` devolvía `-1` y la comparación fallaba
+sobre código **correcto**. La primera vez fue al revés: el test pasaba con el código viejo porque
+`-1` era menor que cualquier índice válido.
+
+### Regla que lo previene
+
+**Una comparación de orden no vale nada sin verificar antes que las dos cosas existan.** Chequear
+`> -1` en los dos operandos antes de compararlos.
+
+---
+
+## Error #CATCH-QUE-TRAGA-CUALQUIER-ERROR — el monitoreo que se rompe y reporta silencio
+
+**Cuándo pasó:** 2026-09-07/08, en `checkPipelineFreshness` y en `checkJobsDeBackfillAtascados`.
+
+### Causa raíz
+
+Un `catch {}` marcaba **todo** como `missing: true` = "la tabla no existe todavía, no es una alerta".
+Cualquier `statement_timeout` salía por esa puerta. El módulo que existe para avisar que algo dejó de
+correr se rompía y lo que reportaba era silencio — el peor modo de falla posible para un monitoreo.
+
+### Regla que lo previene
+
+- **Distinguir "no hay problema" de "no pude medir".** En Postgres: `42P01` (la relación no existe)
+  es el caso benigno; cualquier otro error se reporta.
+- Devolver una lista vacía puede estar bien —un check que no corrió no puede inventar hallazgos—
+  pero **callarse no**: para el cron, `[]` es indistinguible de "todo bien". Loguear siempre.
+- Lo mismo para un valor de configuración que no parsea: `BACKFILL_VENTANA` fallaba **abierto** (sin
+  restricción) y en silencio, así que un formato mal documentado dejaba la ventana apagada sin
+  ninguna señal.
+
+---
+
+## Error #HEREDOC-SE-COME-LOS-BACKSLASHES — asserts que no podían fallar nunca
+
+**Cuándo pasó:** 2026-09-06, escribiendo tests desde el shell de esta máquina (git-bash en Windows).
+Volvió a pasar el 2026-09-08 escribiendo **este mismo archivo**.
+
+### Causa raíz
+
+Un heredoc con delimitador entrecomillado igual se come los backslashes: una clase de espacios quedó
+sin su backslash y un `\b` quedó convertido en un **backspace literal (0x08)**. Tres asserts de
+`backfill-vtex-hardening.test.ts` no podían fallar nunca, y el archivo pasaba en verde.
+
+### Regla que lo previene
+
+**Para escribir código con backslashes, `${}` o backticks, usar la tool Write/Edit, no un heredoc.**
+Si hay que hacerlo desde el shell, construir el backslash con `String.fromCharCode(92)` y
+**verificar el resultado por mutación** antes de confiar en el archivo.
 
 ---
 

@@ -1,6 +1,6 @@
 # Estado de la branch de integración
 
-> **Última actualización: 2026-09-08.** Branch `fix/expansion-gate-e0`, 62 commits por delante de
+> **Última actualización: 2026-09-08.** Branch `fix/expansion-gate-e0`, 66 commits por delante de
 > `origin/main`. **Nada de esto está en producción.** La decisión fue explícita: todo el plan entra
 > en una sola branch, se prueba y se revisa entero, y recién ahí se mergea — antes de sumar clientes
 > nuevos.
@@ -10,9 +10,36 @@
 | | |
 |---|---|
 | `npx tsc --noEmit` | 0 errores |
-| `npx vitest run` | 869 passed, 7 skipped, **0 failed** |
+| `npx vitest run` | 878 passed, 7 skipped, **0 failed** |
 | `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
-| Tests nuevos en la branch | 35 archivos |
+| Tests nuevos en la branch | 37 archivos |
+
+## Lo que encontró la revisión del PLAN (2026-09-08)
+
+Un revisor sin contexto comparó `PLAN_EXPANSION.md` ficha por ficha contra la branch. Lo peor que
+encontró es código, no documentación.
+
+### Tres crons que le escriben al cliente seguían matando de hambre al último
+
+`digest`, `anomalies` y `ads-utm-audit`: `maxDuration = 60` y un `for` sobre TODAS las
+organizaciones, **sin reloj, sin `orderBy` y sin cursor**. E-05 les puso el aislamiento por
+organización, que era la mitad del problema; ésta era la otra.
+
+Con 20 clientes el loop se come los 60 s a mitad de lista, Vercel mata la función y **no devuelve
+nada**: los de atrás no reciben su digest ni sus alertas, nunca, en silencio. Y quién queda afuera lo
+decidía el orden físico de las filas en Postgres. **No estaban en la lista de 8 del estudio**, así
+que E-11 no los cubrió — y son justo los tres que le hablan al cliente por mail.
+
+`ads-utm-audit` era el peor: además hace un `findMany` de 7 días de `pixel_events` **por
+organización** sobre la tabla más grande del sistema.
+
+### Y la tabla de acciones manuales de este mismo documento apagaba la ventana del backfill
+
+Decía que `BACKFILL_VENTANA` va en formato `HH:MM-HH:MM`. El parser sólo acepta horas enteras, y
+**un valor que no parsea significa "sin restricción"**. Alguien siguiendo esa tabla al mergear habría
+dejado la ventana apagada sin ninguna señal, y el backfill de un cliente nuevo podría arrancar a las
+3 de la tarde contra Neon — el escenario exacto que E-08 vino a evitar. Corregido acá y en el parser,
+que ahora avisa cuando descarta un valor en vez de fallar abierto en silencio.
 
 ## Los tres que encontró el repaso de segundo orden
 

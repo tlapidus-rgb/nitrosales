@@ -25,6 +25,29 @@
 
 ---
 
+## 🚧 BP-EXPANSION-ABIERTOS — Cinco riesgos que la revisión del plan dejó anotados (2026-09-08)
+
+Salieron de las tres rondas de revisión de `fix/expansion-gate-e0`. **Ninguno bloquea el merge** y
+ninguno está roto hoy con 4 clientes. Viven también en `PLAN_EXPANSION.md` § 14.4 (N-01 a N-05);
+acá están para que no se pierdan si el plan se archiva.
+
+| # | Qué | Por qué importa |
+|---|---|---|
+| **N-01** | **Nadie vigila si el workflow de GitHub Actions sigue habilitado.** Es el disparador *principal* de los rollups (8 de los 9 hits por hora), y **GitHub deshabilita los workflows programados tras 60 días sin actividad en el repo** — justo el modo de falla que ese workflow vino a cubrir | El día que se apague, los rollups siguen andando con el respaldo de Vercel y nadie se entera hasta que se atrasan. Se le subió el margen al respaldo (de 1 a 2 hits/hora: ciclo de 4 h contra un umbral de 8), pero **la señal sigue sin existir** |
+| **N-02** | **El bootstrap de MercadoLibre no pasa por el control de admisión** de E-08: `approve-backfill` lo dispara en paralelo | El límite de concurrencia protege del backfill de VTEX y no del de ML. Con dos altas la misma semana, es la vía por la que vuelve el problema que E-08 cerró |
+| **N-03** | **`checkStuckOnboardings` mide 12 h desde `updatedAt`**, pero un backfill legítimamente grande (Arredo trajo 252.701 órdenes) puede tardar más | Falso positivo: alerta "atascado" sobre un alta que funciona. Ruido de bajo costo, pero es el mismo mecanismo que E-19 vino a arreglar |
+| **N-04** | **La cache key de `/pixel/analytics` sigue desalineada** (R-C19, la mitad que E-12 no tocó) | Tira a la basura el 100 % del warm de ese endpoint. Las dos opciones que propone la ficha rompen algo; el arreglo correcto —hacer la key canónica— cuesta un round-trip. **Necesita decisión** |
+| **N-05** | ~~Varios checks con `catch { return [] }`~~ **Verificado: era uno, arreglado el 2026-09-08** | Se anota igual porque el patrón vale: al escribir la fila di por hecho que eran varios y era uno. Contar antes de afirmar |
+
+**Y uno que no tiene dueño en ninguna fase del plan:** la fila del diagnóstico que dice
+*"cargas de dashboard concurrentes soportadas ~8-15, ya está por debajo de 4 clientes con 3 usuarios"*.
+Es el único número que dice **"esto ya está roto hoy"** y no tiene tarea asignada, E0 a E6. El techo
+lo pone el compute de Neon; `connection_limit` de Prisma está sin setear **a propósito** (ponerlo ya
+causó un incidente). E-04 y E-12 bajaron carga de fondo, así que probablemente mejoró — **pero nadie
+lo remidió.** Si el objetivo es meter clientes, es la fila que dice que no se puede.
+
+---
+
 ## 🚧 BP-PIXEL-CHANNEL-ROLLUP — Backfill masivo del rollup de funnel-por-canal (2026-07-02)
 
 **Contexto:** se creó el rollup `pixel_daily_funnel_by_source` (deployado a main `9bd1eb14`) que hace el
