@@ -9,6 +9,11 @@
 // 2. CLAUDE-BASED: Contextual anomalies (seasonality, correlations)
 
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  esCambioCreible,
+  elCeroEsNoticia,
+  VOLUMEN_MINIMO,
+} from "./piso-de-volumen";
 
 export interface MetricSnapshot {
   revenue: number;
@@ -62,6 +67,18 @@ export function detectRuleBasedAnomalies(
 ): AnomalyResult[] {
   const anomalies: AnomalyResult[] = [];
 
+  // ⚠️ EL VOLUMEN QUE SOSTIENE TODOS LOS PORCENTAJES (E-24, 2026-09-08).
+  //
+  // Todas las reglas de abajo son porcentuales, y un porcentaje sobre una base
+  // chica es ruido: con `n` órdenes la variación esperada sólo por azar es
+  // `1/√n`, o sea que con 7 órdenes el umbral de -30 % dispara SOBRE NADA.
+  //
+  // Se toma el período con MÁS órdenes de los dos a propósito: lo que se está
+  // midiendo es si la muestra alcanza para que el porcentaje signifique algo, y
+  // una caída real a cero no puede silenciarse a sí misma por haber quedado sin
+  // volumen. Ver `piso-de-volumen.ts` para la cuenta completa.
+  const base = Math.max(current.orders, previous.orders);
+
   const revChange = pctChange(current.revenue, previous.revenue);
   const ordersChange = pctChange(current.orders, previous.orders);
   const adSpendChange = pctChange(current.adSpend, previous.adSpend);
@@ -70,7 +87,7 @@ export function detectRuleBasedAnomalies(
   const marginDiff = current.grossMargin - previous.grossMargin;
 
   // Revenue crash
-  if (revChange !== null && revChange <= THRESHOLDS.revenueDrop) {
+  if (esCambioCreible(revChange, THRESHOLDS.revenueDrop, base)) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -84,7 +101,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // Revenue spike (opportunity)
-  if (revChange !== null && revChange >= THRESHOLDS.revenueSpike) {
+  if (esCambioCreible(revChange, THRESHOLDS.revenueSpike, base)) {
     anomalies.push({
       type: "OPPORTUNITY",
       priority: "MEDIUM",
@@ -98,7 +115,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // Ad spend spike without revenue growth
-  if (adSpendChange !== null && adSpendChange >= THRESHOLDS.adSpendSpike && (revChange === null || revChange < 10)) {
+  if (esCambioCreible(adSpendChange, THRESHOLDS.adSpendSpike, base) && (revChange === null || revChange < 10)) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -112,7 +129,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // ROAS drop
-  if (roasChange !== null && roasChange <= THRESHOLDS.roasDrop) {
+  if (esCambioCreible(roasChange, THRESHOLDS.roasDrop, base)) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -127,7 +144,7 @@ export function detectRuleBasedAnomalies(
 
   // CPA spike
   const cpaChange = pctChange(current.cpa, previous.cpa);
-  if (cpaChange !== null && cpaChange >= THRESHOLDS.cpaSpikeHigh) {
+  if (esCambioCreible(cpaChange, THRESHOLDS.cpaSpikeHigh, base)) {
     anomalies.push({
       type: "ALERT",
       priority: "MEDIUM",
@@ -141,7 +158,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // AOV drop
-  if (aovChange !== null && aovChange <= THRESHOLDS.aovDrop) {
+  if (esCambioCreible(aovChange, THRESHOLDS.aovDrop, base)) {
     anomalies.push({
       type: "TREND",
       priority: "MEDIUM",
@@ -156,7 +173,7 @@ export function detectRuleBasedAnomalies(
 
   // Gross margin compression — solo si hay datos de costo cargados (>20% coverage)
   const hasCostData = (current.cogsCoverage ?? 0) > 20;
-  if (hasCostData && marginDiff <= THRESHOLDS.grossMarginDrop) {
+  if (hasCostData && base >= VOLUMEN_MINIMO && marginDiff <= THRESHOLDS.grossMarginDrop) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -170,7 +187,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // Zero orders day
-  if (current.orders === 0 && previous.orders > 0) {
+  if (current.orders === 0 && elCeroEsNoticia(previous.orders)) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
