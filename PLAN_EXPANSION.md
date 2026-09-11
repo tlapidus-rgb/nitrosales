@@ -7,7 +7,9 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global (revisado el 2026-09-08):** 🟨 **E0 cerrada salvo E-07, y E-07 es la que decide
+> **Estado global (revisado el 2026-09-11):** **19 de 33 hechas.** E-24 y E-25 cerradas el 11-09, que eran las que protegian lo que E-19 construyo.
+>
+> **Estado previo (2026-09-08):** 🟨 **E0 cerrada salvo E-07, y E-07 es la que decide
 > si el gate está cerrado** (ver el recuadro rojo en E-07 y § 9 punto 6) · E1 arrancada ·
 > **E2 cerrada** · **E3 arrancada** — **17 de 31 hechas** (E-01…E-06, E-08, E-11…E-13, E-15…E-19)
 > **+ E-07 y E-14 a medias**. E-11 y E-13 figuraban como parciales o pendientes y ya estaban
@@ -37,7 +39,7 @@
 > ~12 h a 3-4 h, está marcada como cerrada, y **nadie midió a cuánto lo bajó.** De ahí salen E-32
 > (medir el próximo alta) y E-33 (convertir en producto los 6 pasos que hoy son fuera del producto,
 > empezando por el que cuesta un botón). Ver FASE E6 y § 10.
-> **Línea base de validación (2026-09-08):** `tsc` exit 0 · `vitest` exit 0, **869 pasan**, 7 skipped · `npm run build` exit 0 (incluye los guards de contrato y `depcruise`). **Cualquier cambio tiene que mantener esto en verde.**
+> **Línea base de validación (2026-09-11):** `tsc` exit 0 · `vitest` exit 0, **915 pasan**, 7 skipped · `npm run build` exit 0 (incluye los guards de contrato y `depcruise`). **Cualquier cambio tiene que mantener esto en verde.**
 >
 > **Estado de la branch:** 63 commits por delante de `origin/main`, pusheada, sin mergear. El
 > resumen para leer antes de mergear —incluidas las **4 acciones manuales**— está en
@@ -771,13 +773,15 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   componente con costo variable sin techo.
 
 ### E-24 · Piso de volumen en el motor de anomalías
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-3 h · **Desbloquea el segmento chico**
+- **Estado:** ✅ **HECHO (2026-09-11)** — `8e1ed2ad`. El umbral ahora se ajusta al ruido de Poisson del volumen (`1/√n`, a 2 sigmas), así que **a un cliente grande no le cambia nada** y a uno chico le sube la vara hasta donde el dato deja de ser azar. No se eligió un piso fijo a propósito: elegir N es arbitrario y tiene los dos errores. El cero tiene criterio propio. 21 tests, verificado por mutación. Detalle en `src/lib/anomaly/piso-de-volumen.ts`.
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-3 h · **Desbloquea el segmento chico**
 - **Qué está mal:** el detector es 100% porcentual **sin piso de volumen**. A 7 órdenes por día,
   pasar a 4 dispara una alerta HIGH de "facturación cayó 43%". **Un cliente chico deja de leer las
   alertas en dos semanas** — y con eso pierde el único canal proactivo del producto.
 
 ### E-25 · Dejar de mostrar margen bruto del 100%
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-3 h
+- **Estado:** ✅ **HECHO (2026-09-11)** — `5d47cc4d`. `/finanzas/pulso` no calculaba la cobertura en absoluto; ahora sí. Y por debajo del 20 % el margen **ya no se muestra**: un cartel al lado de un "100 %" gigante sigue siendo una mentira en pantalla. El criterio vive en `src/lib/finanzas/confianza-del-margen.ts`, alineado con el umbral que ya usaba el detector de anomalías. Aparecieron dos bugs del mismo patrón: el componente hacía `?? 0` (habría mostrado 0 % "Crítico") y `narrative.ts` escondía que un margen legítimo de 0 % no alertaba. 16 tests, verificado por mutación.
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 2-3 h
 - **Qué está mal:** sin costos cargados, `COALESCE(costPrice, 0)` da **margen bruto 100%**
   (`api/metrics/pnl/route.ts:94`). Solo una de las dos pantallas de finanzas avisa; `/finanzas/pulso`
   no. **Con un cliente chico el producto no se rompe: miente.**
