@@ -966,8 +966,19 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
        orden nueva. **Es el que más duele y el más barato.**
     2. **Afiliados de VTEX** — se configura en el admin de VTEX a mano. No se puede automatizar del
        todo, pero sí verificar desde el semáforo si quedó bien.
-    3. **Carga de costos** (`Product.costPrice`) — sin esto el P&L y la rentabilidad salen en cero,
-       con toda la pinta de estar bien. Va junto con E-25.
+    3. ~~Carga de costos (`Product.costPrice`)~~ ✅ **HECHO (2026-09-12)** — y **otra vez no era lo
+       que decía la ficha**. La cadena ya estaba enchufada: `post-backfill-finalize` corre
+       `catalog-refresh`, que le pide los costos a la Pricing API de VTEX, y después
+       `backfill-orderitem-costs` los copia a las órdenes. Los dos pasos corren.
+       `catalog-refresh` incluso devuelve un `withCost` con cuántos trajeron costo — **y no lo lee
+       nadie**. El semáforo no tenía item de costos, así que cargaban o no cargaban y nada decía
+       cuál de las dos. Ahora lo mira, con cuatro estados y, sobre todo, con **la causa que no se
+       adivina**: la API key de VTEX necesita el rol de **Pricing**, que es aparte del de Catalog —
+       sin él el costo no viaja, el resto del catálogo sí, y parece que anduvo.
+       Va junto con E-25, que desde el 11-09 esconde el margen cuando no hay costos: el admin ve
+       "Sin datos" y esto le dice por qué.
+       **Hallazgo menor:** `/api/sync/cost-prices` es un endpoint redundante que no llama nadie ni
+       está en `vercel.json`; hace lo que `catalog-refresh` ya hace adentro. No se tocó.
     4. **Las 4 acciones manuales post-merge** — hoy son una tabla en un doc. Un endpoint que las
        corra y las verifique saca cuatro oportunidades de olvido.
     5. **Ida y vuelta por credenciales** — E-13 la redujo para VTEX. Falta medir cuánto queda.
