@@ -742,11 +742,30 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
      manda los mails a spam, **el sistema pierde su único sentido de la vista**.
 
 ### E-20 · Telemetría de verdad
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
-- **Es `PLAN_REMEDIACION.md` R-C16.** Un dato importante que agrega este estudio: **no es un olvido**
-  — se probó Sentry y se sacó porque agregaba 15-25 segundos al arranque en frío
-  (`CLAUDE_STATE.md:6455`). Es una decisión vieja que nunca se revisó. Hoy hay alternativas de bajo
-  overhead, y el costo de no tener nada ya se pagó varias veces (5 días, 5 semanas, "meses").
+- **Estado:** 🟡 **PARCIAL (2026-09-12)** — `05b827da`. Hecha la parte que no necesita decisión;
+  falta la que sí.
+- **Lo hecho — un latido por cron.** El modo de falla más caro de la historia del producto no es que
+  un cron explote (eso deja un 5XX) sino que **deje de correr**: `refresh-pixel-first-source` estuvo
+  cinco semanas fuera de `vercel.json` y nadie se enteró. `checkPipelineFreshness` lo detectaba **de
+  rebote** —mirando si las tablas que el cron escribe se quedaron viejas— y por eso dejaba afuera a
+  todos los crons cuyo trabajo no termina en una tabla vigilada: `digest`, `anomalies`,
+  `ads-utm-audit`, `control-alerts`, `alertas-clientes`, `warm-cache`, `alerts-scheduler`. Que son
+  justo los que le hablan al cliente.
+  · **La cadencia sale de `vercel.json`**, no de una lista a mano, por la misma razón que
+    `freshness.ts` detecta la columna de organización en vez de hardcodearla.
+  · **Sin migración nueva:** la tabla `cron_cursors` todavía no se corrió, así que las columnas del
+    latido entran en el mismo endpoint. Siguen siendo **cuatro** acciones manuales, no cinco.
+  · Conectado a `control-alerts`, con su sección en el mail.
+- 🔒 **LO QUE FALTA NECESITA UNA DECISIÓN TUYA: instalar Sentry o equivalente** (punto 1 de R-C16).
+  **No es un olvido:** se probó y se sacó porque agregaba 15-25 s al arranque en frío
+  (`CLAUDE_STATE.md:6455`). Es una decisión vieja que nunca se revisó, tiene costo mensual, y hoy hay
+  alternativas de menor overhead. El costo de no tener nada ya se pagó varias veces (5 días, 5
+  semanas, "meses"). **La pregunta concreta:** ¿se prueba uno de los livianos, o se da por
+  suficiente el latido + los checks que ya existen?
+- **Lo que ya no aplica de la ficha original de R-C16:** el punto 2 (destinatario hardcodeado) se
+  cerró en E-19.3. Y el punto 3 menciona "filas `processed=false` acumulándose", que **no existe en
+  este esquema** — no hay tal columna ni tabla de webhooks; esa parte describía otro sistema.
+- **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
 
 ### E-21 · Un panel de consumo y costo por cliente
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 8-12 h
@@ -1026,6 +1045,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 | 4 | **¿Cuál es el ticket mínimo?** | Un cliente grande cuesta USD 80-200/mes de infraestructura más 8-18 horas de alta. Si el ticket no lo supera holgadamente, cada cliente grande pierde plata |
 | 5 | **¿Las cuentas de ads facturan en pesos o en dólares?** (viene de `PLAN_REMEDIACION.md` R-V05, sigue sin respuesta) | Si alguna es en USD, el ROAS de ese canal está mal por un factor de ~1.000 |
 | **6** | 🔴 **¿Se firma el próximo cliente ANTES de rotar los secretos?** (E-07) | **Es la decisión que define si el gate está cerrado.** `NEXTAUTH_SECRET` y `ADMIN_API_KEY` son el mismo literal y está en `vercel.json`, versionado: cualquiera que lea el repo puede firmarse una sesión de staff, y con eso todos los gates de esta branch son evitables. Rotar tiene riesgo alto y orden estricto (rotar antes de que el webhook de VTEX tenga su propio secreto **corta la ingesta de los 4 clientes en silencio**). Las dos respuestas son defendibles; lo que no se puede es que la decisión se tome sola por seguir avanzando |
+| **8** | **¿Se instala Sentry o equivalente?** (E-20) | Se probó y se sacó porque agregaba 15-25 s al arranque en frío — es una decisión vieja que nunca se revisó, y tiene costo mensual. El latido de crons ya cubre "dejó de correr"; lo que falta es capturar excepciones con stack. **La pregunta:** ¿se prueba uno de los livianos, o alcanza con lo que hay? |
 | **7** | **¿El overlay del alta puede mostrar "algo salió mal, lo estamos viendo"?** | Desde que un backfill fallado no cuenta como alta completa (E-08), el cliente puede quedar hasta 12 h viendo "preparando tu data". Es la alternativa correcta a activarlo con la data a medias, pero la pantalla no lo dice. Es decisión de producto porque implica admitirle al cliente que algo falló |
 
 ---
