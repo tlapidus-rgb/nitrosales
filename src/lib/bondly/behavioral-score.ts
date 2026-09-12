@@ -19,7 +19,20 @@
 // Credibilidad (ver plan Trust Layer):
 //   - Basado en investigación de marketing digital sobre señales
 //     tempranas de intención de compra (McKinsey, HBR, Google Research).
-//   - Recalibración semanal contra conversiones reales.
+//
+// ⚠️ CORREGIDO (E-26, 2026-09-12) — acá decía "Recalibración semanal contra
+// conversiones reales". **No existe.** `WEIGHTS` es un objeto `as const`: los
+// pesos están hardcodeados y nunca se ajustaron contra nada. No hay cron, no
+// hay job, no hay tabla de calibración.
+//
+// Era la cuarta afirmación falsa de esta pantalla (las otras: BG/NBD,
+// Gamma-Gamma, "reentrenado diariamente"). Todas estaban escritas bajo
+// títulos que decían "Credibilidad" o "100% verdaderas y defendibles
+// legalmente" — el patrón es que se redactaron como ASPIRACIÓN, sobre lo que
+// el Trust Layer iba a hacer, y se leyeron después como descripción.
+//
+// Si algún día se implementa la recalibración, el lugar de la afirmación es
+// éste y el test que la cuida es `src/__tests__/promesas-del-producto.test.ts`.
 // ═══════════════════════════════════════════════════════════════════
 
 export type BehavioralTier = "alto" | "medio" | "bajo" | "frio";

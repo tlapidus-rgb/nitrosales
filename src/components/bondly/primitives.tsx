@@ -260,9 +260,13 @@ export function InfoTip({
 //
 // IMPORTANTE: leyendas 100% verdaderas y defendibles legalmente.
 //   - "Compatible con" = Bondly sincroniza datos a esas plataformas.
-//   - "Basado en investigación de" = los modelos BG/NBD + Gamma-Gamma
-//      son de Fader & Hardie (Wharton).
 // Nunca decir "endorsed by" / "validated by" / "powered by".
+//
+// ⚠️ ESTA REGLA YA FALLÓ UNA VEZ (E-26, 2026-09-12). El strip mostraba
+// "Basado en investigación de Wharton" apoyado en que el motor usara BG/NBD +
+// Gamma-Gamma. No los usa. Que la regla esté escrita arriba no alcanzó: hay
+// que VERIFICAR la leyenda contra el código cada vez que se agrega una, porque
+// el motor puede cambiar después y la leyenda se queda.
 //
 // Variantes:
 //   - predictive-post — tooltips adaptados a pLTV post-compra
@@ -281,9 +285,6 @@ export function BondlyTrustStrip({
     variant === "predictive-post"
       ? "Bondly sincroniza LTV predicho con Google Ads Customer Match y el pLTV Sandbox de Google Ads. Google usa modelos predictivos equivalentes en su propia plataforma."
       : "Bondly construye audiencias de alto score para Google Ads Customer Match. Google usa modelos predictivos equivalentes en su propia plataforma.";
-  const whartonTooltip =
-    "Fader & Hardie (2005, 2013) — modelos probabilísticos BG/NBD y Gamma-Gamma, el estándar académico para predicción de LTV.";
-
   return (
     <div
       className="pt-4 mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
@@ -305,16 +306,24 @@ export function BondlyTrustStrip({
           tooltip={googleTooltip}
         />
       </div>
-      <div className="flex items-center gap-5">
-        <span className="text-[10px] uppercase tracking-[0.2em] text-ink-40 font-medium">
-          Basado en investigación de
-        </span>
-        <TrustLogo
-          src="/trust/wharton.svg"
-          alt="Wharton School of Business"
-          tooltip={whartonTooltip}
-        />
-      </div>
+      {/* ── El sello "Basado en investigación de Wharton" se quitó (E-26,
+          2026-09-12) ──────────────────────────────────────────────────────
+          Se apoyaba en que el motor usara BG/NBD + Gamma-Gamma, los modelos de
+          Fader & Hardie. **No los usa, y nunca los usó**: no hay una sola línea
+          de BG/NBD ni Gamma-Gamma en el repo. `src/lib/ltv/prediction-engine.ts`
+          se describe a sí mismo como "Cohort-based frequency prediction" — RFM
+          contra la tasa de recompra del segmento.
+
+          Esto no es un detalle de copy: el bloque de arriba declara que estas
+          leyendas son "100% verdaderas y defendibles legalmente", y ésta no lo
+          era. Un sello académico falso en un panel que el cliente usa para
+          decidir gasto publicitario es el tipo de cosa que no se deja "para
+          después".
+
+          Para volver a ponerlo hay UN camino: implementar los modelos. Si en
+          cambio se quiere un sello de confianza para el motor que sí existe,
+          es una decisión comercial —de Tomy— y hay que redactarla sobre lo que
+          el motor hace de verdad. */}
     </div>
   );
 }

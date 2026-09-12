@@ -22,6 +22,7 @@ import {
   BondlyTrustStrip,
 } from "@/components/bondly/primitives";
 import { LivePulse } from "@/components/enterprise/ui";
+import { AvisoDeCobertura } from "@/components/bondly/AvisoDeCobertura";
 
 // ─────────────────────────────────────────────
 // Constants
@@ -440,11 +441,11 @@ export default function LtvPage() {
                         </p>
                         <p>
                           <span className="text-white font-semibold">Capa 2 · Predicho post-compra:</span>{" "}
-                          modelos probabilísticos validados por literatura académica (Fader & Hardie, Wharton School of Business, 2005-2013), entrenados con tu propia historia de compras.
+                          modelo RFM por cohortes: cada cliente se compara contra su segmento (canal de adquisición × rango de ticket), calculado con tu propia historia de compras.
                         </p>
                         <p>
                           <span className="text-white font-semibold">Capa 3 · Behavioral pre-compra:</span>{" "}
-                          score 0-100 aplicado a tu funnel NitroPixel, basado en investigación de marketing digital (McKinsey, HBR, Google Research) sobre señales tempranas de intención. Recalibración semanal.
+                          score 0-100 aplicado a tu funnel NitroPixel, a partir de señales tempranas de intención: sesiones, profundidad de navegación, carritos y variedad de productos vistos.
                         </p>
                         <p className="text-zinc-400 text-[11px] pt-1 border-t border-zinc-800">
                           Una estimación probabilística, no una garantía.
@@ -584,7 +585,7 @@ export default function LtvPage() {
                 Predicted Lifetime Value
               </h2>
               <p className="text-ink-60 text-xs lg:text-sm mt-2 max-w-2xl leading-relaxed">
-                Motor predictivo que combina BG/NBD (cuántas compras va a hacer) y Gamma-Gamma (cuánto va a gastar en cada una). Entrenado con tu propia historia de compras, reentrenado diariamente con data fresca.
+                Motor predictivo que estima cuántas compras va a hacer cada cliente y cuánto va a gastar en cada una, a partir de su recencia, frecuencia y ticket, comparados contra los de su segmento (canal de adquisición × rango de ticket). Calculado con tu propia historia de compras.
               </p>
               <div className="mt-3">
                 <BondlyInfoTip
@@ -593,12 +594,19 @@ export default function LtvPage() {
                   content={
                     <div className="space-y-2">
                       <p>
-                        Basado en modelos probabilísticos validados por literatura académica{" "}
-                        <span className="text-white font-semibold">(Fader &amp; Hardie, Wharton School of Business, 2005-2013)</span>,
-                        entrenados con tu propia historia de compras.
+                        Un modelo <span className="text-white font-semibold">RFM por cohortes</span>:
+                        cada cliente se compara contra su segmento —canal de adquisición × rango de
+                        ticket— y de ahí sale la frecuencia de recompra esperada.
                       </p>
                       <p>
-                        Los modelos estiman de forma independiente la probabilidad de recompra y el valor esperado por cliente, y se combinan para producir la predicción. Cada cliente tiene un intervalo de confianza P10-P50-P90.
+                        Para un cliente con una sola compra se usa la tasa de recompra de su
+                        segmento. Para uno recurrente, su propia frecuencia mezclada con la del
+                        segmento. La predicción se topea en 3× lo que ya gastó, para que un caso
+                        raro no arrastre el número.
+                      </p>
+                      <p>
+                        Se recalcula cuando apretás &laquo;Recalcular predicciones&raquo;, no
+                        automáticamente.
                       </p>
                       <p className="text-zinc-400 text-[11px] pt-1 border-t border-zinc-800">
                         El modelo es una estimación probabilística, no una garantía.
@@ -1155,6 +1163,8 @@ export default function LtvPage() {
                 </div>
               </div>
             )}
+            {/* E-26. "Total analizado" son los N más recientes, no todos. */}
+            <AvisoDeCobertura cobertura={behavioral?.cobertura} />
           </div>
 
           {/* Filtros */}
@@ -1952,6 +1962,10 @@ export default function LtvPage() {
                 </div>
               </div>
             )}
+            {/* E-26. "Analizados" son los N de mayor gasto, y los clientes de
+                una sola compra no entran nunca. Un panel vacío acá se lee como
+                "no tenés riesgo" y puede ser lo contrario. */}
+            <AvisoDeCobertura cobertura={churnRisk?.cobertura} />
           </div>
 
           <div className="rounded-xl bg-surface border border-hairline overflow-hidden">

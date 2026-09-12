@@ -832,7 +832,11 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   no. **Con un cliente chico el producto no se rompe: miente.**
 
 ### E-26 · Propagar la bandera de truncado a la UI
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-4 h · **Desbloquea el segmento grande**
+- **Estado:** ✅ **HECHO (2026-09-12)**. El truncado ahora viaja en `cobertura` y se ve en pantalla, con el dato que faltaba: **por qué criterio se recortó**. Saber que faltan filas sirve poco; saber que las que faltan son las menos recientes cambia cómo se lee el número. El criterio vive en `src/lib/analytics/cobertura.ts`; el aviso, en `AvisoDeCobertura.tsx`. 17 tests, verificado por mutación.
+  - **Apareció una exclusión que no era truncado y es peor:** churn tiene `HAVING COUNT(*) >= 2`, así que **un cliente que compró una sola vez y no volvió —EL caso de fuga— es estructuralmente invisible**, y no desaparece subiendo el techo. Una tienda de compradores primerizos ve "0 en riesgo" y concluye lo contrario de lo que pasa. Se reporta aparte, y el panel vacío ahora lo aclara.
+  - **El hallazgo colateral era cuatro, no uno.** La UI prometía: BG/NBD, Gamma-Gamma, "reentrenado diariamente" y "recalibración semanal". **Ninguna de las cuatro existe** — el motor es RFM por cohortes (`Cohort-based frequency prediction`), `WEIGHTS` es un `as const` que nunca se ajustó contra nada, y no hay cron: solo corre con el botón. Se quitó también el sello "Basado en investigación de Wharton", que se apoyaba en los modelos inexistentes. Cuidado por `src/__tests__/promesas-del-producto.test.ts`.
+  - **Lo que NO está verificado:** el render del aviso. El repo no tiene stack de testing de React, así que el componente está verificado por compilación (`next build`) pero **nadie lo vio en pantalla todavía**.
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-4 h · **Desbloquea el segmento grande**
 - **Qué está mal:** el LTV behavioral puntúa **solo 500 visitantes** y el churn risk **solo 200**,
   sin ninguna bandera en la respuesta ni en la pantalla. **Truncado silencioso en un producto de
   analytics.** El patrón correcto ya existe (`PRODUCT_UNIVERSE_CAP` avisa y devuelve

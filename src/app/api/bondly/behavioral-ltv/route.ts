@@ -21,6 +21,7 @@ export const maxDuration = 60; // guard anti-504 (queries de LTV/cohortes pesada
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { describirCobertura } from "@/lib/analytics/cobertura";
 import {
   computeBehavioralScore,
   type BehavioralScoreResult,
@@ -69,6 +70,10 @@ function daysBetween(from: Date, to: Date): number {
   const ms = to.getTime() - from.getTime();
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
+
+// E-26. Era un `LIMIT 500` pelado adentro del SQL. Ahora tiene nombre y se
+// reporta en la respuesta: el techo no es el problema, que no se vea sí.
+const TECHO_DE_VISITANTES = 500;
 
 export async function GET(req: NextRequest) {
   try {
@@ -122,7 +127,7 @@ export async function GET(req: NextRequest) {
         FROM pixel_visitors v
         WHERE v."organizationId" = ${organizationId}
         ORDER BY v."lastSeenAt" DESC
-        LIMIT 500
+        LIMIT ${TECHO_DE_VISITANTES}
       ),
       cart_adds AS (
         SELECT
@@ -273,6 +278,14 @@ export async function GET(req: NextRequest) {
       visitors: paginated,
       totalReturned: paginated.length,
       totalAnalyzed: scored.length,
+      // E-26. `totalAnalyzed` NO es "todos tus visitantes": es, como mucho,
+      // TECHO_DE_VISITANTES. Sin esto la pantalla lee el subconjunto como si
+      // fuera el total, y el sesgo (los más recientes) queda invisible.
+      cobertura: describirCobertura({
+        analizados: rows.length,
+        techo: TECHO_DE_VISITANTES,
+        criterio: "mas-recientes",
+      }),
       stats: {
         total: scored.length,
         highScore,

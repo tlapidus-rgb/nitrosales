@@ -3157,3 +3157,61 @@ motivo correcto**. Acá el test estaba rojo, pero por leer un comentario — o s
 `#EL-TEST-ESTABA-MAL-NO-EL-CODIGO` — tercera vez en esta branch (las otras dos:
 `crons-reanudables.test.ts` con regexes demasiado estrechas, y `cron-org-isolation.test.ts`
 comparando contra un `indexOf` de -1 sin guard).
+
+---
+
+## Error #S61-LA-PROMESA-ESCRITA-COMO-ASPIRACION-Y-LEIDA-COMO-HECHO
+
+**Fecha:** 2026-09-12 · **Severidad:** ALTA — es copy que el cliente usa para decidir gasto
+
+### Qué pasó
+
+La pantalla de LTV (`/bondly/ltv`) le decía al cliente **cuatro cosas falsas** sobre el motor:
+
+| Lo que decía la UI | Lo que hace el código |
+|---|---|
+| "combina BG/NBD y Gamma-Gamma" | No hay una línea de ninguno de los dos en todo el repo |
+| sello "Basado en investigación de Wharton (Fader & Hardie)" | Se apoyaba en esos modelos inexistentes |
+| "reentrenado diariamente con data fresca" | No hay cron. Solo corre si alguien aprieta un botón |
+| "Recalibración semanal contra conversiones reales" | `WEIGHTS` es un `as const` hardcodeado. No se ajustó nunca |
+
+El motor real se describe a sí mismo, en su propio header: `Cohort-based frequency prediction`.
+
+### Causa raíz
+
+**Las cuatro estaban escritas debajo de títulos que juraban lo contrario.** El componente del sello
+dice, en un comentario: *"IMPORTANTE: leyendas 100% verdaderas y defendibles legalmente"*. El motor
+del behavioral score tiene una sección titulada *"Credibilidad"*. La regla estaba escrita, visible,
+y aun así las leyendas eran falsas.
+
+El mecanismo no fue mentir: fue que **se redactaron como aspiración** —sobre lo que el "plan Trust
+Layer" iba a construir— y quedaron en el código leyéndose como descripción. Nadie las volvió a
+comparar contra el motor cuando el motor cambió, porque **una afirmación de copy no se rompe**: no
+tira error, no falla un test, no se pone roja. Envejece en silencio.
+
+Es la misma familia que `#FICHA-ESCRITA-LEYENDO-EL-RUNBOOK`: un texto que describe la intención y
+después se lee como si describiera la realidad.
+
+### Regla
+
+**Toda afirmación verificable que la UI le hace al cliente sobre cómo funciona el producto necesita
+un test que la compare contra el código.** "Verificable" es: nombres de modelos, frecuencias
+("diariamente", "semanal"), fuentes académicas, y cualquier cosa que empiece con "basado en".
+
+Está implementado en `src/__tests__/promesas-del-producto.test.ts`. Si mañana se implementa BG/NBD
+de verdad, ese test se pone rojo y ahí sí se puede volver a poner el sello — **es la única vía
+válida para revivirlo**.
+
+### Prevención
+
+Cuando escribas copy que describa el motor, preguntá: *¿esto es lo que hace hoy, o lo que va a
+hacer?* Si es lo segundo, no va en la UI — va en el plan. Y si igual va, va con un test que se
+rompa el día que deje de ser cierto.
+
+**Corolario de proceso:** un comentario que declara una regla (*"estas leyendas son verdaderas"*) no
+es un control. Es una intención. El control es el test.
+
+### Pattern relevante
+
+`#EL-TEXTO-NO-SE-ROMPE-SOLO` — a diferencia del código, una afirmación falsa no produce ningún
+síntoma. Hay que ir a buscarla.

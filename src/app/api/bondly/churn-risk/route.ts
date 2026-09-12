@@ -23,11 +23,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWhere } from "@/domains/orders";
+import { describirCobertura } from "@/lib/analytics/cobertura";
 import {
   computeChurnScore,
   CHURN_TIER_LABELS,
   type ChurnTier,
 } from "@/lib/bondly/churn-score";
+
+// E-26. Era un `LIMIT 200` pelado adentro del SQL. Ahora tiene nombre y viaja
+// en la respuesta. El techo no es el problema — mirar a los que más gastaron es
+// una priorización comercial razonable. El problema es que el sesgo sea
+// invisible: "0 clientes en riesgo" sobre los 200 más grandes dice algo muy
+// distinto de lo que el usuario entiende que dice.
+const TECHO_DE_CLIENTES = 200;
+
+// Y esto NO es truncado: es un filtro del query (`HAVING COUNT(*) >= 2`) que no
+// desaparece subiendo el techo. Se reporta aparte porque el caso es grave —
+// un cliente que compró una sola vez y no volvió es EL caso de fuga, y hoy es
+// estructuralmente invisible para este panel. Una tienda de compradores
+// primerizos ve "0 en riesgo" y concluye lo contrario de lo que pasa.
+const EXCLUSIONES = [
+  "Clientes con una sola compra: el modelo necesita al menos dos para estimar una cadencia, " +
+    "así que no aparecen acá aunque hayan dejado de comprar.",
+];
 
 interface CustomerAggRow {
   customer_id: string;
@@ -92,7 +110,8 @@ export async function GET(req: NextRequest) {
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 86400000);
 
     // ─── Batch 1: agregados por customer (sin JOIN a customers) ──
-    // Tomamos top 200 por totalSpent para acotar el scoring.
+    // Tomamos los TECHO_DE_CLIENTES de mayor totalSpent para acotar el scoring.
+    // El recorte viaja en `cobertura` — ver la constante arriba.
     const aggRows = await prisma.$queryRaw<CustomerAggRow[]>`
       WITH customer_agg AS (
         SELECT
@@ -138,7 +157,7 @@ export async function GET(req: NextRequest) {
       FROM customer_agg ca
       WHERE ca.total_ltv >= ${minLtv}
       ORDER BY ca.total_ltv DESC
-      LIMIT 200
+      LIMIT ${TECHO_DE_CLIENTES}
     `;
 
     if (aggRows.length === 0) {
@@ -151,6 +170,15 @@ export async function GET(req: NextRequest) {
           medio: 0,
           bajo: 0,
         },
+        // El panel vacío es el estado MÁS engañoso de todos: se lee como "no
+        // tenés clientes en riesgo" cuando puede ser "todos tus clientes
+        // compraron una sola vez y ninguno entra al modelo".
+        cobertura: describirCobertura({
+          analizados: 0,
+          techo: TECHO_DE_CLIENTES,
+          criterio: "mayor-gasto",
+          exclusiones: EXCLUSIONES,
+        }),
         generatedAt: new Date().toISOString(),
       });
     }
@@ -278,6 +306,12 @@ export async function GET(req: NextRequest) {
       clients,
       summary,
       analyzed: scored.length,
+      cobertura: describirCobertura({
+        analizados: aggRows.length,
+        techo: TECHO_DE_CLIENTES,
+        criterio: "mayor-gasto",
+        exclusiones: EXCLUSIONES,
+      }),
       limit,
       minLtv,
       generatedAt: new Date().toISOString(),
