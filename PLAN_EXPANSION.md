@@ -781,7 +781,13 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 - **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-8 h
 
 ### E-21 · Un panel de consumo y costo por cliente
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 8-12 h
+- **Estado:** ✅ **HECHO (2026-09-12)** — `GET /api/admin/consumo-por-cliente?dias=30`. Las seis dimensiones de Scale, por organización, más el costo de IA en dólares. 55 tests, verificado por mutación **y ejecutando el SQL contra Postgres real** (PGlite), que es como el repo verifica el SQL que importa.
+  - **La tabla de precios existe por primera vez** (`src/lib/costos/precios-de-modelos.ts`). Verificada contra la doc de Anthropic el 12-09: Opus 4.5 $5/$25, Sonnet 4.5 $3/$15, Haiku 4.5 $1/$5 por millón de tokens. Lleva la fecha de verificación adentro y la respuesta la muestra; a los 90 días el endpoint pide re-verificarla. Se puede corregir sin deployar con `PRECIOS_MODELOS_JSON`.
+  - **Un modelo que no está en la tabla vale `null`, nunca cero.** Un costo de cero es una mentira que además da tranquilidad: el total cierra, se ve bien, y está mal.
+  - **`null` ≠ 0 en las seis dimensiones.** Cada consulta va con su catch y lo que falla sale como `null`. Un cero real es un cliente que no usa el módulo (no se factura); un `null` es una consulta que falló (hay que mirar). Un reporte de facturación que las confunde factura mal, y en la dirección que el cliente no reclama.
+  - **Dos hallazgos de paso.** (1) `/api/admin/usage` trae las filas de Aurum con `take: 10000` — truncado silencioso esperando su turno; el endpoint nuevo agrega en SQL, así que el problema no se reporta mejor: deja de existir. (2) **Aurum no usa prompt caching en ninguna llamada** —no hay un solo `cache_control` en el repo— y manda system prompt + 12 tools en cada request. Es la palanca de costo más grande y más barata que hay; anotado como N-08.
+  - **Lo que este número NO es:** costo de inferencia, no costo de servir al cliente. Neon, Vercel y storage **no son atribuibles por organización** hoy. El endpoint lo aclara en `avisos`, siempre, porque es lo que más fácil se olvida al mirar un número que dice "USD".
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 8-12 h
 - **Qué:** hoy **no se puede costear un cliente**. `aurum_usage_logs` guarda tokens pero **no
   dólares** (no hay tabla de precios en ningún lado del repo), y no hay ninguna métrica de consumo
   por organización en ninguna unidad.
