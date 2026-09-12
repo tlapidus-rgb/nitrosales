@@ -299,11 +299,14 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const fetchConversion = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/metrics/conversion?from=${dateFrom}&to=${dateTo}`);
+        const res = await fetch(`/api/metrics/conversion?from=${dateFrom}&to=${dateTo}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
@@ -318,6 +321,7 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
         });
       } catch (err) {
         if (cancelled) return;
+        if (err instanceof Error && err.name === "AbortError") return;
         console.error("Error fetching conversion rates:", err);
         setError("No se pudieron cargar las tasas de conversión. Probá de nuevo.");
       } finally {
@@ -325,7 +329,10 @@ export default function ConversionRateTables({ dateFrom, dateTo }: { dateFrom: s
       }
     };
     fetchConversion();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [dateFrom, dateTo, retryTick]);
 
   return (

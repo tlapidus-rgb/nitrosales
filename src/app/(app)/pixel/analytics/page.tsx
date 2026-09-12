@@ -39,6 +39,8 @@ const localYMD = (d: Date): string => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && error.name === "AbortError";
 const fmt = (n: number) => n.toLocaleString("es-AR");
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -499,7 +501,15 @@ export default function AnalyticsPage() {
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
 
-  // ── Fetch all data in parallel ──
+  // Cada recurso tiene su propio controller: cambiar el rango cancela el
+  // trabajo de red que ya no puede pintar la pantalla actual. El guard de
+  // requestId sigue siendo necesario porque abortar una respuesta ya recibida
+  // no impide que una promesa pendiente termine en otro tick.
+  const pixelAbortRef = useRef<AbortController | null>(null);
+  const discrepancyAbortRef = useRef<AbortController | null>(null);
+  const funnelAbortRef = useRef<AbortController | null>(null);
+
+  // ── Fetch analytics resources independently ──
   // reqIdRef: guard anti-stale. Cada fetch incrementa el id; si al volver la
   // respuesta ya se disparó un fetch más nuevo (ej: cambiaste el rango rápido),
   // se descarta la vieja. Sin esto, una respuesta lenta (Arredo, más data)
@@ -507,39 +517,70 @@ export default function AnalyticsPage() {
   const reqIdRef = useRef(0);
   const fetchAll = useCallback(async (silent = false) => {
     const reqId = ++reqIdRef.current;
+    pixelAbortRef.current?.abort();
+    discrepancyAbortRef.current?.abort();
+    const pixelController = new AbortController();
+    const discrepancyController = new AbortController();
+    pixelAbortRef.current = pixelController;
+    discrepancyAbortRef.current = discrepancyController;
     if (!silent) setLoading(true);
     else setIsRefetching(true);
     setError(null);
 
-    try {
-      // Fix 2026-07 (#5 config audit): sin ?model= los endpoints usan el modelo
-      // configurado en /pixel/configuracion (antes NITRO hardcodeado acá → el
-      // selector de modelo de la config no tenía efecto en Analytics).
-      const [pixelRes, discRes] = await Promise.all([
-        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}`),
-        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}`),
-      ]);
+    const loadPixel = async () => {
+      try {
+        // Fix 2026-07 (#5 config audit): sin ?model= los endpoints usan el modelo
+        // configurado en /pixel/configuracion (antes NITRO hardcodeado acá → el
+        // selector de modelo de la config no tenía efecto en Analytics).
+        const pixelRes = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}`, {
+          signal: pixelController.signal,
+        });
+        if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
+        const pixelJson = await pixelRes.json();
 
-      if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
-
-      const [pixelJson, discJson] = await Promise.all([
-        pixelRes.json(),
-        discRes.ok ? discRes.json() : null,
-      ]);
-
-      if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
-      setPixelData(pixelJson);
-      setDiscrepancy(discJson);
-    } catch (e: any) {
-      if (reqId !== reqIdRef.current) return;
-      setError(e.message || "Error cargando datos");
-    } finally {
-      if (reqId === reqIdRef.current) {
+        if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
+        setPixelData(pixelJson);
+        // El contenido principal no espera a discrepancy para dejar de mostrar
+        // el skeleton. Los paneles secundarios se actualizan por separado.
         setLoading(false);
-        setIsRefetching(false);
+      } catch (e: unknown) {
+        if (isAbortError(e) || reqId !== reqIdRef.current) return;
+        setError(e instanceof Error ? e.message : "Error cargando datos");
+        setLoading(false);
       }
+    };
+
+    const loadDiscrepancy = async () => {
+      try {
+        const discRes = await fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}`, {
+          signal: discrepancyController.signal,
+        });
+        if (!discRes.ok) throw new Error(`Discrepancy: HTTP ${discRes.status}`);
+        const discJson = await discRes.json();
+        if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
+        setDiscrepancy(discJson);
+      } catch (e: unknown) {
+        if (isAbortError(e) || reqId !== reqIdRef.current) return;
+        // Discrepancy es un panel secundario: conservar la última respuesta
+        // válida y no bloquear los KPI si su consulta falla.
+        console.warn("Error cargando discrepancy:", e);
+      }
+    };
+
+    await Promise.allSettled([loadPixel(), loadDiscrepancy()]);
+    if (reqId === reqIdRef.current) {
+      setLoading(false);
+      setIsRefetching(false);
     }
   }, [dateFrom, dateTo]);
+
+  // No dejar requests vivos al abandonar Analytics.
+  useEffect(() => () => {
+    reqIdRef.current += 1;
+    pixelAbortRef.current?.abort();
+    discrepancyAbortRef.current?.abort();
+    funnelAbortRef.current?.abort();
+  }, []);
 
   // Primera carga → no-silent (muestra el skeleton). Cambios de rango → silent
   // (mantiene los datos viejos visibles con el indicador de refetch en vez de
@@ -554,20 +595,30 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (funnelChannel === "all") {
       // Sin filtro: usar el funnel del fetch principal, no override
+      funnelAbortRef.current?.abort();
+      funnelAbortRef.current = null;
       setFunnelOverride(null);
       return;
     }
     let cancelled = false;
+    funnelAbortRef.current?.abort();
+    const controller = new AbortController();
+    funnelAbortRef.current = controller;
     setFunnelLoading(true);
-    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}`)
+    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}`, {
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
         if (data.ok && data.funnel) setFunnelOverride(data.funnel);
       })
-      .catch(() => {})
+      .catch((e: unknown) => { if (!isAbortError(e)) console.warn("Error cargando funnel:", e); })
       .finally(() => { if (!cancelled) setFunnelLoading(false); });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [funnelChannel, dateFrom, dateTo]);
 
   // Reset funnel filter cuando cambia el rango de fechas (para evitar mostrar data stale)
