@@ -71,6 +71,18 @@ export type InsumosDeReadiness = {
    * y todo parece funcionar.
    */
   costos: { productos: number; conCosto: number } | null;
+  /**
+   * El OTRO mecanismo de webhook de VTEX. `null` = no verificado.
+   *
+   * E-33: son complementarios y hay que tener los dos. Está en la bitácora de
+   * la sesión 60: TeVe Compras tenía **sólo el afiliado**, le faltaba el Orders
+   * Broadcaster, y la cobertura de órdenes se cayó al 41 %. El afiliado se carga
+   * a mano en el admin de VTEX y no se puede automatizar — pero sí verificar,
+   * que es donde estaba el agujero.
+   */
+  afiliadoVtexRegistrado: boolean | null;
+  /** Qué pasa con el afiliado, cuando se verificó y algo anda mal. */
+  afiliadoVtexDetalle?: string;
 };
 
 export type Readiness = {
@@ -198,6 +210,50 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
       titulo: "Webhook de órdenes VTEX",
       estado: "ok",
       detalle: "Registrado.",
+    });
+  }
+
+  // ── Afiliado de VTEX ────────────────────────────────────────────────────
+  // El OTRO mecanismo de webhook. Son complementarios y hay que tener los dos:
+  // TeVe Compras tenía sólo el afiliado, le faltaba el Orders Broadcaster, y la
+  // cobertura de órdenes se cayó al 41 % (bitácora de la sesión 60).
+  //
+  // Éste no se puede automatizar —se carga a mano en el admin de VTEX— así que
+  // la única defensa es verificarlo. NO bloquea: el Orders Broadcaster es el que
+  // trae el grueso, y este suma cobertura.
+  if (!tieneVtex) {
+    items.push({
+      clave: "afiliado-vtex",
+      titulo: "Afiliado de VTEX",
+      estado: "no-aplica",
+      detalle: "El cliente no tiene VTEX.",
+    });
+  } else if (i.afiliadoVtexRegistrado === null) {
+    items.push({
+      clave: "afiliado-vtex",
+      titulo: "Afiliado de VTEX",
+      estado: "atencion",
+      detalle: i.afiliadoVtexDetalle ?? "Sin verificar.",
+      queHacer:
+        i.afiliadoVtexDetalle ??
+        "Pedí la verificación con ?verificarWebhook=1. Va junto con el Orders Broadcaster: son complementarios.",
+    });
+  } else if (!i.afiliadoVtexRegistrado) {
+    items.push({
+      clave: "afiliado-vtex",
+      titulo: "Afiliado de VTEX",
+      estado: "atencion",
+      detalle: i.afiliadoVtexDetalle ?? "No está configurado.",
+      queHacer:
+        i.afiliadoVtexDetalle ??
+        "Se carga A MANO en el admin de VTEX: Config tienda → Pedidos → Config → tab Afiliados. La URL tiene que llevar ?org=<orgId>.",
+    });
+  } else {
+    items.push({
+      clave: "afiliado-vtex",
+      titulo: "Afiliado de VTEX",
+      estado: "ok",
+      detalle: "Configurado y apuntando a esta organización.",
     });
   }
 

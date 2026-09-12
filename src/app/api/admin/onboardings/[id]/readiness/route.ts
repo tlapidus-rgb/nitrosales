@@ -24,7 +24,7 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { evaluarReadiness } from "@/lib/onboarding/readiness";
 import type { InsumosDeReadiness } from "@/lib/onboarding/readiness";
 import { testCredentialsByPlatform, testNitroPixel } from "@/lib/onboarding/credential-tests";
-import { verificarOrdersBroadcaster } from "@/lib/vtex/orders-broadcaster";
+import { verificarOrdersBroadcaster, verificarAfiliadoVtex } from "@/lib/vtex/hooks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -142,9 +142,14 @@ export async function GET(
 
   // E-33: la verificación del webhook, sólo si la piden. Nunca tira: si VTEX no
   // contesta, queda en "no sé", que es distinto de "está mal" y de "está bien".
-  const webhook = new URL(req.url).searchParams.get("verificarWebhook") === "1"
-    ? await verificarOrdersBroadcaster(orgId)
-    : { registrado: null as boolean | null, detalle: undefined as string | undefined };
+  // Los dos mecanismos se verifican juntos: son complementarios y tener uno solo
+  // ya pasó (TeVe Compras, cobertura al 41 %). Van en paralelo porque son dos
+  // llamadas independientes a la misma cuenta de VTEX.
+  const sinVerificar = { registrado: null as boolean | null, detalle: undefined as string | undefined };
+  const [webhook, afiliado] =
+    new URL(req.url).searchParams.get("verificarWebhook") === "1"
+      ? await Promise.all([verificarOrdersBroadcaster(orgId), verificarAfiliadoVtex(orgId)])
+      : [sinVerificar, sinVerificar];
 
   const insumos: InsumosDeReadiness = {
     estadoOnboarding: ob.status,
@@ -166,6 +171,8 @@ export async function GET(
     webhookVtexRegistrado: webhook.registrado,
     webhookVtexDetalle: webhook.detalle,
     costos,
+    afiliadoVtexRegistrado: afiliado.registrado,
+    afiliadoVtexDetalle: afiliado.detalle,
   };
 
   return NextResponse.json({

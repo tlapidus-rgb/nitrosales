@@ -1,5 +1,18 @@
 // ══════════════════════════════════════════════════════════════════════════
-// src/lib/vtex/orders-broadcaster.ts — ¿está bien enchufado el webhook?
+// src/lib/vtex/hooks.ts — ¿están bien enchufados los webhooks de VTEX?
+// ══════════════════════════════════════════════════════════════════════════
+// VTEX tiene DOS mecanismos de webhook y hay que configurar los dos, cada uno
+// con `?org=<orgId>` en la URL:
+//
+//   · **Orders Broadcaster** — estados de orden (creada, pagada, facturada,
+//     cancelada). Es el que trae el grueso. API-only, sin UI en VTEX.
+//   · **Afiliados** — se configura a mano en el admin de VTEX. No se puede
+//     automatizar, pero SÍ se puede verificar.
+//
+// Los dos se verifican con el MISMO criterio (`analizarHook`), porque el modo
+// de falla es idéntico: que exista no alcanza, tiene que llevar el `org`
+// correcto. Por eso este módulo se llamaba `orders-broadcaster.ts` y se
+// renombró: cubre los dos.
 // ══════════════════════════════════════════════════════════════════════════
 // E-33. El Orders Broadcaster de VTEX es el mecanismo que nos avisa cuando una
 // orden cambia de estado. **Sin él no llega una sola orden nueva**: el cliente
@@ -194,6 +207,99 @@ export async function verificarOrdersBroadcaster(
     return {
       registrado: null,
       detalle: `No se pudo consultar VTEX: ${String(e?.message || e).slice(0, 140)}`,
+    };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Afiliados — el otro mecanismo, el que SÍ es manual
+// ══════════════════════════════════════════════════════════════════════════
+// Éste no se puede automatizar: se carga a mano en el admin de VTEX
+// (Config tienda → Pedidos → Config → tab "Afiliados"). Lo que sí se puede es
+// **verificar que haya quedado bien**, que es donde estaba el agujero.
+//
+// Ya pasó, y está en la bitácora de la sesión 60: TeVe Compras tenía **sólo el
+// afiliado** configurado y le faltaba el Orders Broadcaster, y la cobertura de
+// órdenes se cayó al 41 %. Son complementarios; no alcanza con uno.
+//
+// Una cuenta de VTEX puede tener VARIOS afiliados —el cliente puede tener otras
+// integraciones— así que no se pide "el afiliado está bien": se busca **si
+// alguno apunta a nosotros** y se analiza ése. Un afiliado de otro proveedor
+// apuntando a otro lado es normal y no es problema nuestro.
+
+/** Un afiliado tal como lo devuelve VTEX. */
+type AfiliadoVtex = { id?: string; name?: string; hookUrl?: string };
+
+/**
+ * Elige, de todos los afiliados de la cuenta, el que nos corresponde analizar.
+ *
+ * Puro y exportado para poder probar la elección, que es la parte con criterio:
+ * qué se considera "nuestro" cuando hay varios.
+ */
+export function afiliadoNuestro(
+  afiliados: readonly AfiliadoVtex[] | null | undefined,
+): AfiliadoVtex | null {
+  if (!Array.isArray(afiliados) || afiliados.length === 0) return null;
+  // Primero uno que apunte a un dominio nuestro. Si hay más de uno, gana el
+  // primero: tener dos apuntándonos ya es una anomalía que se ve igual en el
+  // análisis del que elijamos.
+  const nuestro = afiliados.find(
+    (a) => typeof a?.hookUrl === "string" && DOMINIOS_PROPIOS.test(a.hookUrl),
+  );
+  return nuestro ?? null;
+}
+
+/**
+ * Verifica el afiliado de VTEX de una organización.
+ *
+ * Mismo contrato que `verificarOrdersBroadcaster`: **nunca tira**, y `null`
+ * significa "no se pudo verificar", que no es lo mismo que "está mal".
+ */
+export async function verificarAfiliadoVtex(
+  orgId: string,
+): Promise<{ registrado: boolean | null; detalle?: string }> {
+  try {
+    const { getVtexConfig } = await import("@/lib/vtex-credentials");
+    const cfg: any = await getVtexConfig(orgId);
+    const account = cfg?.creds?.accountName;
+    if (!account) {
+      return { registrado: null, detalle: "La organización no tiene credenciales de VTEX." };
+    }
+
+    const res = await fetch(
+      `https://${account}.vtexcommercestable.com.br/api/checkout/pvt/affiliates`,
+      { headers: cfg.headers, signal: AbortSignal.timeout(12_000) },
+    );
+    if (!res.ok) {
+      return {
+        registrado: null,
+        detalle: `VTEX respondió ${res.status} al listar los afiliados. No se pudo verificar.`,
+      };
+    }
+
+    const lista: any = await res.json().catch(() => null);
+    const nuestro = afiliadoNuestro(lista);
+
+    if (!nuestro) {
+      const cuantos = Array.isArray(lista) ? lista.length : 0;
+      return {
+        registrado: false,
+        detalle:
+          (cuantos > 0
+            ? `Hay ${cuantos} afiliado(s) en la cuenta pero ninguno apunta a nosotros. `
+            : "No hay ningún afiliado configurado. ") +
+          "Se carga A MANO en el admin de VTEX: Config tienda → Pedidos → Config → " +
+          "tab Afiliados. La URL del hook tiene que llevar ?org=<orgId>.",
+      };
+    }
+
+    // Mismo criterio que el Orders Broadcaster: que exista no alcanza.
+    const a = analizarHook(nuestro.hookUrl, orgId);
+    return { registrado: a.registrado, detalle: a.queHacer || undefined };
+  } catch (e: any) {
+    return {
+      registrado: null,
+      detalle: `No se pudo listar los afiliados: ${String(e?.message || e).slice(0, 140)}`,
     };
   }
 }

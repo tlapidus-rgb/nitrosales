@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analizarHook } from "./orders-broadcaster";
+import { analizarHook, afiliadoNuestro } from "./hooks";
 
 // ══════════════════════════════════════════════════════════════════════════
 // E-33 — que el hook exista NO alcanza
@@ -126,5 +126,45 @@ describe("detalles que muerden", () => {
 
   it("el fragmento no se come el org", () => {
     expect(analizarHook(`https://app.nitrosales.ai/h?org=${ORG}#algo`, ORG).registrado).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Afiliados — elegir cuál de todos es el nuestro
+// ══════════════════════════════════════════════════════════════════════════
+// Una cuenta de VTEX puede tener varios afiliados: el cliente puede tener otras
+// integraciones. Un afiliado de otro proveedor apuntando a otro lado es normal
+// y no es problema nuestro, asi que primero hay que elegir cuál mirar.
+
+describe("afiliadoNuestro", () => {
+  const NUESTRO = { id: "NIT", name: "NitroSales", hookUrl: `https://app.nitrosales.ai/h?org=${ORG}` };
+  const AJENO = { id: "ERP", name: "ERP del cliente", hookUrl: "https://erp.cliente.com/vtex" };
+
+  it("de una lista mezclada, elige el que apunta a nosotros", () => {
+    expect(afiliadoNuestro([AJENO, NUESTRO])?.id).toBe("NIT");
+  });
+
+  it("si ninguno apunta a nosotros, no elige ninguno", () => {
+    // Que el cliente tenga su ERP conectado es normal. Lo que falta es el
+    // nuestro.
+    expect(afiliadoNuestro([AJENO])).toBeNull();
+  });
+
+  it("lista vacía o ausente", () => {
+    expect(afiliadoNuestro([])).toBeNull();
+    expect(afiliadoNuestro(null)).toBeNull();
+    expect(afiliadoNuestro(undefined)).toBeNull();
+  });
+
+  it("no explota con afiliados sin hookUrl", () => {
+    expect(afiliadoNuestro([{ id: "X" }, NUESTRO])?.id).toBe("NIT");
+  });
+
+  it("y el elegido se analiza con el MISMO criterio que el broadcaster", () => {
+    // Es el punto de reusar `analizarHook`: el modo de falla es idéntico —
+    // que exista no alcanza, tiene que llevar el org correcto.
+    const conOrgAjena = { id: "NIT", hookUrl: `https://app.nitrosales.ai/h?org=${OTRA}` };
+    const elegido = afiliadoNuestro([conOrgAjena])!;
+    expect(analizarHook(elegido.hookUrl, ORG).veredicto).toBe("org-ajena");
   });
 });

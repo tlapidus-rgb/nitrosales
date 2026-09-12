@@ -23,6 +23,7 @@ const todoBien: InsumosDeReadiness = {
   jobs: { total: 2, completos: 2, fallados: 0, pendientes: 0 },
   webhookVtexRegistrado: true,
   costos: { productos: 1200, conCosto: 1150 },
+  afiliadoVtexRegistrado: true,
 };
 
 const item = (r: ReturnType<typeof evaluarReadiness>, clave: string) =>
@@ -177,6 +178,63 @@ describe("el webhook de VTEX — el paso que más se olvida", () => {
   });
 });
 
+describe("el afiliado de VTEX — el otro mecanismo", () => {
+  // Son complementarios y hay que tener los dos. Está en la bitácora de la
+  // sesión 60: TeVe Compras tenía SÓLO el afiliado, le faltaba el Orders
+  // Broadcaster, y la cobertura de órdenes se cayó al 41 %.
+
+  it("sin configurar avisa, y dice que se carga a mano en el admin de VTEX", () => {
+    // Éste no se puede automatizar. La única defensa es verificarlo.
+    const r = evaluarReadiness({ ...todoBien, afiliadoVtexRegistrado: false });
+    const a = item(r, "afiliado-vtex");
+    expect(a.estado).toBe("atencion");
+    expect(a.queHacer).toMatch(/a mano/i);
+    expect(a.queHacer).toContain("Afiliados");
+  });
+
+  it("NO bloquea: el Orders Broadcaster es el que trae el grueso", () => {
+    const r = evaluarReadiness({ ...todoBien, afiliadoVtexRegistrado: false });
+    expect(r.listo).toBe(true);
+  });
+
+  it("EL CASO TEVE COMPRAS: tener sólo uno de los dos no es estar listo", () => {
+    // Con el afiliado puesto y el broadcaster no, el semáforo tiene que
+    // mostrar el problema en el item que corresponde — no dar todo en verde
+    // porque "hay un webhook".
+    const r = evaluarReadiness({
+      ...todoBien,
+      afiliadoVtexRegistrado: true,
+      webhookVtexRegistrado: false,
+    });
+    expect(item(r, "afiliado-vtex").estado).toBe("ok");
+    expect(item(r, "webhook-vtex").estado).toBe("falta");
+  });
+
+  it("cuando se verificó, el detalle dice qué pasa", () => {
+    const r = evaluarReadiness({
+      ...todoBien,
+      afiliadoVtexRegistrado: false,
+      afiliadoVtexDetalle: "Hay 2 afiliado(s) en la cuenta pero ninguno apunta a nosotros.",
+    });
+    expect(item(r, "afiliado-vtex").detalle).toContain("ninguno apunta a nosotros");
+  });
+
+  it("no aplica si el cliente no tiene VTEX", () => {
+    const r = evaluarReadiness({
+      ...todoBien,
+      conexiones: [{ plataforma: "MERCADOLIBRE", credencialesOk: true }],
+      afiliadoVtexRegistrado: null,
+      webhookVtexRegistrado: null,
+    });
+    expect(item(r, "afiliado-vtex").estado).toBe("no-aplica");
+  });
+
+  it("sin verificar avisa, no inventa un verde", () => {
+    const r = evaluarReadiness({ ...todoBien, afiliadoVtexRegistrado: null });
+    expect(item(r, "afiliado-vtex").estado).toBe("atencion");
+  });
+});
+
 describe("los precios de costo — E-33", () => {
   // La cadena existe y está enchufada: post-backfill-finalize corre
   // catalog-refresh, que pide los costos a la Pricing API de VTEX, y después
@@ -240,10 +298,10 @@ describe("cuando no se pudo consultar algo, se dice", () => {
 });
 
 describe("el resultado es completo y estable", () => {
-  it("siempre devuelve los seis items", () => {
+  it("siempre devuelve los siete items", () => {
     const r = evaluarReadiness(todoBien);
     expect(r.items.map((i) => i.clave).sort()).toEqual(
-      ["backfill", "costos", "credenciales", "ordenes", "pixel", "webhook-vtex"].sort(),
+      ["afiliado-vtex", "backfill", "costos", "credenciales", "ordenes", "pixel", "webhook-vtex"].sort(),
     );
   });
 
