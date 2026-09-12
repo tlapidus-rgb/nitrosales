@@ -24,6 +24,7 @@ import { isValidAdminKey } from "@/lib/admin-key";
 import { evaluarReadiness } from "@/lib/onboarding/readiness";
 import type { InsumosDeReadiness } from "@/lib/onboarding/readiness";
 import { testCredentialsByPlatform, testNitroPixel } from "@/lib/onboarding/credential-tests";
+import { verificarOrdersBroadcaster } from "@/lib/vtex/orders-broadcaster";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -120,18 +121,31 @@ export async function GET(
       .catch(() => ({ total: 0, completos: 0, fallados: 0, pendientes: 0 })),
   ]);
 
+  // E-33: la verificación del webhook, sólo si la piden. Nunca tira: si VTEX no
+  // contesta, queda en "no sé", que es distinto de "está mal" y de "está bien".
+  const webhook = new URL(req.url).searchParams.get("verificarWebhook") === "1"
+    ? await verificarOrdersBroadcaster(orgId)
+    : { registrado: null as boolean | null, detalle: undefined as string | undefined };
+
   const insumos: InsumosDeReadiness = {
     estadoOnboarding: ob.status,
     conexiones,
     eventosDePixel,
     ordenes,
     jobs,
-    // ⚠️ Sin verificar a propósito: confirmar el Orders Broadcaster requiere
-    // llamar a la API de VTEX con las credenciales del cliente, y este endpoint
-    // es de lectura y tiene que ser rápido. Se reporta como "sin verificar" con
-    // la instrucción exacta al lado, que es mejor que no mencionarlo — es el
-    // paso que más se olvida y el que más duele.
-    webhookVtexRegistrado: null,
+    // ⚠️ SIN `?verificarWebhook=1` SIGUE SIENDO "no sé" (E-33, 2026-09-12).
+    //
+    // Confirmar el Orders Broadcaster obliga a llamar a la API de VTEX con las
+    // credenciales del cliente, y eso es lento y puede colgarse. Este endpoint
+    // es de lectura y lo abre un humano esperando una respuesta, así que la
+    // verificación es **opt-in**: quien está por habilitar a un cliente la pide,
+    // y quien sólo mira el estado no la paga.
+    //
+    // Lo que NO se hace es tratar "no verificado" como "está bien". Sin el
+    // parámetro el semáforo lo reporta en amarillo con la instrucción al lado,
+    // que es lo que ya hacía.
+    webhookVtexRegistrado: webhook.registrado,
+    webhookVtexDetalle: webhook.detalle,
   };
 
   return NextResponse.json({

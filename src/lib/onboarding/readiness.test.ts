@@ -139,6 +139,26 @@ describe("el webhook de VTEX — el paso que más se olvida", () => {
     expect(w.queHacer).toContain("org=");
   });
 
+  it("cuando se verificó, dice CUÁL de los cuatro problemas es", () => {
+    // E-33: `false` tiene cuatro causas que se arreglan distinto — no hay hook,
+    // le falta el `?org=`, lleva el org de OTRO cliente, o apunta a otro lado.
+    // Un "no está registrado" a secas manda a la persona a adivinar.
+    const r = evaluarReadiness({
+      ...todoBien,
+      webhookVtexRegistrado: false,
+      webhookVtexDetalle: "El hook está mandando las órdenes a la organización orgX, que NO es la suya.",
+    });
+    const w = item(r, "webhook-vtex");
+    expect(w.estado).toBe("falta");
+    expect(w.detalle).toContain("orgX");
+    expect(w.queHacer).toContain("orgX");
+  });
+
+  it("y sin detalle cae a la instrucción genérica de siempre", () => {
+    const r = evaluarReadiness({ ...todoBien, webhookVtexRegistrado: false });
+    expect(item(r, "webhook-vtex").queHacer).toContain("/api/orders/hook/config");
+  });
+
   it("no aplica si el cliente no tiene VTEX", () => {
     const r = evaluarReadiness({
       ...todoBien,

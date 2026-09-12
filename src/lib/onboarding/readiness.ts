@@ -47,6 +47,15 @@ export type InsumosDeReadiness = {
   jobs: { total: number; completos: number; fallados: number; pendientes: number };
   /** Si el webhook de órdenes de VTEX está registrado. `null` = no verificado. */
   webhookVtexRegistrado: boolean | null;
+  /**
+   * Qué pasa exactamente con el webhook, cuando se verificó y algo anda mal.
+   *
+   * E-33: `false` tiene cuatro causas muy distintas —no hay hook, le falta el
+   * `?org=`, lleva el org de OTRO cliente, o apunta a otro dominio— y cada una
+   * se arregla distinto. La del org ajeno además afecta a dos clientes a la vez.
+   * Un "no está registrado" a secas manda a la persona a adivinar.
+   */
+  webhookVtexDetalle?: string;
 };
 
 export type Readiness = {
@@ -149,17 +158,23 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
       clave: "webhook-vtex",
       titulo: "Webhook de órdenes VTEX",
       estado: "atencion",
-      detalle: "Sin verificar.",
+      detalle: i.webhookVtexDetalle ?? "Sin verificar.",
       queHacer:
-        "Confirmar el Orders Broadcaster con ?org=<orgId>. Sin esto no llega ninguna orden nueva.",
+        i.webhookVtexDetalle ??
+        "Pedí la verificación con ?verificarWebhook=1. Sin el Orders Broadcaster no llega ninguna orden nueva.",
     });
   } else if (!i.webhookVtexRegistrado) {
     items.push({
       clave: "webhook-vtex",
       titulo: "Webhook de órdenes VTEX",
       estado: "falta",
-      detalle: "No está registrado.",
+      detalle: i.webhookVtexDetalle ?? "No está registrado.",
+      // E-33: cuando se verificó, el detalle dice CUÁL de los cuatro problemas
+      // es y cómo se arregla ese. Un "no está registrado" a secas manda a
+      // adivinar entre no-hay-hook, falta-el-org, org-de-otro-cliente y
+      // apunta-a-otro-lado, que se resuelven distinto.
       queHacer:
+        i.webhookVtexDetalle ??
         "POST /api/orders/hook/config con ?org=<orgId> en la URL. Es API-only, no hay UI en VTEX.",
     });
   } else {
