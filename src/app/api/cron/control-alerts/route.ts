@@ -13,6 +13,7 @@
 // (útil para testear el template).
 // ══════════════════════════════════════════════════════════════
 
+import { registrarLatido } from "@/lib/cron/latido";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -20,6 +21,7 @@ import {
   checkStuckOnboardings,
   checkInactiveClients,
   checkJobsDeBackfillAtascados,
+  checkCronesCaidos,
 } from "@/lib/control/checks";
 import { buildAlertEmailHtml } from "@/lib/control/email-template";
 import { sendEmail } from "@/lib/email/send";
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Corre checks en paralelo
-    const [connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados] = await Promise.all([
+    const [connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados, cronesCaidos] = await Promise.all([
       checkConnectionIssues(),
       checkStuckOnboardings(),
       checkInactiveClients(),
@@ -60,13 +62,18 @@ export async function GET(req: NextRequest) {
       // frenando un alta. El runner devuelve HTTP 200 con admitido:false, asi
       // que sin esto nadie se entera nunca.
       checkJobsDeBackfillAtascados(),
+      // E-20: el modo de falla mas caro de la historia de este producto —
+      // `refresh-pixel-first-source` estuvo CINCO SEMANAS desagendado y nadie
+      // se entero. El chequeo de frescura lo detecta de rebote y deja afuera a
+      // los crons cuyo trabajo no termina en una tabla vigilada.
+      checkCronesCaidos(),
     ]);
 
     const errorCount = connectionIssues.filter((i) => i.level === "error").length;
     const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
     const totalIssues =
       errorCount + warnCount + stuckOnboardings.length + inactiveClients.length +
-      jobsAtascados.length;
+      jobsAtascados.length + cronesCaidos.length;
 
     const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const { subject, html } = buildAlertEmailHtml({
@@ -74,6 +81,7 @@ export async function GET(req: NextRequest) {
       stuckOnboardings,
       inactiveClients,
       jobsAtascados,
+      cronesCaidos,
       appUrl,
     });
 
@@ -102,6 +110,7 @@ export async function GET(req: NextRequest) {
       html,
     });
 
+    await registrarLatido("control-alerts", true);
     return NextResponse.json({
       ok: true,
       sent: result.ok,
@@ -116,6 +125,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
+    await registrarLatido("control-alerts", false, String((error as any)?.message ?? "error"));
     console.error("[cron/control-alerts] error:", error);
     return NextResponse.json(
       { error: error.message || "Error" },

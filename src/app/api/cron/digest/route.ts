@@ -1,3 +1,4 @@
+import { registrarLatido } from "@/lib/cron/latido";
 import { NextRequest, NextResponse } from "next/server";
 import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 import { prisma } from "@/lib/db/client";
@@ -269,6 +270,7 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
     // fallaron en `failures`.
     const todasFallaron = results.length === 0 && failures.length > 0;
     await guardarCorte(CRON, i, ids);
+    await registrarLatido("digest", true);
     return NextResponse.json({
       ok: !todasFallaron,
       timestamp: new Date().toISOString(),
@@ -280,6 +282,7 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
       cortoPorReloj,
     });
   } catch (error: any) {
+    await registrarLatido("digest", false, String((error as any)?.message ?? "error"));
     console.error("[cron/digest] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -1,3 +1,4 @@
+import { registrarLatido } from "@/lib/cron/latido";
 import { NextRequest, NextResponse } from "next/server";
 import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 import { prisma } from "@/lib/db/client";
@@ -307,6 +308,7 @@ export async function GET(req: NextRequest) {
     // E-05: ver digest. Ninguna org procesada + fallos = no es un exito.
     const todasFallaron = results.length === 0 && failures.length > 0;
     await guardarCorte(CRON, i, ids);
+    await registrarLatido("anomalies", true);
     return NextResponse.json({
       ok: !todasFallaron,
       timestamp: new Date().toISOString(),
@@ -319,6 +321,7 @@ export async function GET(req: NextRequest) {
       cortoPorReloj,
     });
   } catch (error: any) {
+    await registrarLatido("anomalies", false, String((error as any)?.message ?? "error"));
     console.error("[cron/anomalies] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

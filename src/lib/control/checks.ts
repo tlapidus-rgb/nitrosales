@@ -5,6 +5,10 @@
 // Usado por el endpoint de alertas (cron) y /api/control/clients-health.
 // ══════════════════════════════════════════════════════════════
 
+import { leerLatidos, cronesAtrasados } from "@/lib/cron/latido";
+import type { CronAtrasado } from "@/lib/cron/latido";
+export type { CronAtrasado };
+import { schedulesDeVercel } from "@/lib/cron/schedules";
 import { prisma } from "@/lib/db/client";
 
 export type HealthLevel = "ok" | "warn" | "error" | "pending";
@@ -368,4 +372,25 @@ function formatMins(mins: number): string {
   const h = Math.floor(mins / 60);
   if (h < 24) return `${h}h`;
   return `${Math.floor(h / 24)}d`;
+}
+
+// ─── Check: crons que dejaron de correr (E-20) ───
+// El modo de falla que más caro salió en la historia de este producto:
+// `refresh-pixel-first-source` estuvo CINCO SEMANAS fuera de `vercel.json` y
+// nadie se enteró. `checkPipelineFreshness` lo detecta de rebote (mira si las
+// tablas se quedaron viejas) y por eso deja afuera a todos los crons cuyo
+// trabajo no termina en una tabla vigilada — que son justo los que le hablan al
+// cliente: digest, anomalies, ads-utm-audit, control-alerts, alertas-clientes.
+export async function checkCronesCaidos(): Promise<CronAtrasado[]> {
+  try {
+    const [latidos, schedules] = [await leerLatidos(), schedulesDeVercel()];
+    // Hasta que la migración corra, `leerLatidos` devuelve vacío y todos salen
+    // como "nunca latió". Eso es ruido inútil, así que sin ningún latido
+    // registrado el check se calla: no sabe nada todavía.
+    if (latidos.length === 0) return [];
+    return cronesAtrasados(latidos, schedules);
+  } catch (e) {
+    console.error("[checks] checkCronesCaidos falló, se reporta vacío:", e);
+    return [];
+  }
 }

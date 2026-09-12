@@ -6,13 +6,15 @@ import type {
   ConnectionIssue,
   StuckOnboarding,
   InactiveClient,
-  JobDeBackfillAtascado,
+  CronAtrasado, JobDeBackfillAtascado,
 } from "./checks";
 
 interface BuildAlertEmailArgs {
   connectionIssues: ConnectionIssue[];
   stuckOnboardings: StuckOnboarding[];
   jobsAtascados: JobDeBackfillAtascado[];
+  /** E-20: crons que dejaron de correr. Opcional para no romper callers viejos. */
+  cronesCaidos?: CronAtrasado[];
   inactiveClients: InactiveClient[];
   appUrl: string;
 }
@@ -22,12 +24,14 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
   html: string;
 } {
   const { connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados, appUrl } = args;
+  const cronesCaidos = args.cronesCaidos ?? [];
 
   const errorCount = connectionIssues.filter((i) => i.level === "error").length;
   const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
   const stuckCount = stuckOnboardings.length;
   const inactiveCount = inactiveClients.length;
   const atascadosCount = jobsAtascados.length;
+  const cronesCount = cronesCaidos.length;
   const totalIssues = errorCount + warnCount + stuckCount + inactiveCount + atascadosCount;
 
   const headlineTone = errorCount > 0 ? "#EF4444" : warnCount > 0 ? "#F59E0B" : "#22C55E";
@@ -111,6 +115,12 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
       <div style="color:#A1A1AA; font-size:11px; margin-top:3px;">
         org ${escapeHtml(j.organizationId)}${j.lastError ? " — " + escapeHtml(j.lastError.slice(0, 120)) : ""}
       </div>
+    </td></tr>`).join("")) : ""}
+
+  ${cronesCount > 0 ? renderSection("⏱️ Crons que dejaron de correr", "#EF4444", cronesCaidos.map(c => `
+    <tr><td style="padding:12px 14px; border-bottom:1px solid #1F1F23;">
+      <div style="color:#fff; font-size:13px; font-weight:600;">${escapeHtml(c.cron)}</div>
+      <div style="color:#A1A1AA; font-size:11px; margin-top:3px;">${escapeHtml(c.detalle)}</div>
     </td></tr>`).join("")) : ""}
 
   ${inactiveCount > 0 ? renderSection("💤 Clientes inactivos (>14d)", "#71717A", inactiveClients.map(c => `

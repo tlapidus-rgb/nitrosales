@@ -17,6 +17,7 @@
 // Schedule (recommended): once per day.
 // ══════════════════════════════════════════════════════════════
 
+import { registrarLatido } from "@/lib/cron/latido";
 import { NextRequest, NextResponse } from "next/server";
 import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
 import { prisma } from "@/lib/db/client";
@@ -186,6 +187,7 @@ export async function GET(req: NextRequest) {
     // E-05: ver digest. Ninguna org procesada + fallos = no es un exito.
     const todasFallaron = results.length === 0 && failures.length > 0;
     await guardarCorte(CRON, i, ids);
+    await registrarLatido("ads-utm-audit", true);
     return NextResponse.json({
       ok: !todasFallaron,
       since: since.toISOString(),
@@ -197,6 +199,7 @@ export async function GET(req: NextRequest) {
       cortoPorReloj,
     });
   } catch (error) {
+    await registrarLatido("ads-utm-audit", false, String((error as any)?.message ?? "error"));
     console.error("[ads-utm-audit] error:", error);
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "unknown" },

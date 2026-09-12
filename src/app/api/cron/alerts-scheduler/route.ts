@@ -14,6 +14,7 @@
 // de Vercel. Mismo patrón que /api/sync, /api/cron/anomalies, etc.
 // ═══════════════════════════════════════════════════════════════════
 
+import { registrarLatido } from "@/lib/cron/latido";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { loadAllPendingSchedules, evaluateRule } from "@/lib/alerts/engine";
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    await registrarLatido("alerts-scheduler", true);
     return NextResponse.json({
       ok: true,
       durationMs: Date.now() - startedAt,
@@ -107,6 +109,7 @@ export async function GET(req: NextRequest) {
       results,
     });
   } catch (error: any) {
+    await registrarLatido("alerts-scheduler", false, String((error as any)?.message ?? "error"));
     console.error("[cron/alerts-scheduler] error:", error);
     return NextResponse.json(
       {

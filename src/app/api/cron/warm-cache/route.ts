@@ -25,6 +25,7 @@
 // la práctica ayuda. Solución multi-instancia completa = cache compartido (KV).
 // ══════════════════════════════════════════════════════════════
 
+import { registrarLatido } from "@/lib/cron/latido";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
@@ -397,6 +398,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    await registrarLatido("warm-cache", true);
     return NextResponse.json({
       ok: true,
       cachePurged,
@@ -421,6 +423,7 @@ export async function GET(req: NextRequest) {
       results,
     });
   } catch (err: any) {
+    await registrarLatido("warm-cache", false, String((error as any)?.message ?? "error"));
     console.error("[warm-cache] error:", err);
     return NextResponse.json(
       { error: err.message, stack: err.stack?.slice(0, 500) },

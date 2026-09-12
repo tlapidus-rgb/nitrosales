@@ -24,6 +24,7 @@
 // Si algún día hay que tocar los checks, ahí conviene extraerlos.
 // ══════════════════════════════════════════════════════════════
 
+import { registrarLatido } from "@/lib/cron/latido";
 import { isValidAdminKey, ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
@@ -121,6 +122,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    await registrarLatido("alertas-clientes", true);
     return NextResponse.json({
       ok: true,
       summary: json.summary,
@@ -130,6 +132,7 @@ export async function GET(req: NextRequest) {
       durationMs: Date.now() - startedAt,
     });
   } catch (e: any) {
+    await registrarLatido("alertas-clientes", false, String(e?.message ?? "error"));
     return NextResponse.json(
       { ok: false, error: String(e?.message).slice(0, 300), durationMs: Date.now() - startedAt },
       { status: 500 },
