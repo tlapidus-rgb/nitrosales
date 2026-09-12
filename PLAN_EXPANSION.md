@@ -936,8 +936,33 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 > terminal. **Falta el botón que corra ese POST desde el panel**, al lado del item en rojo. Es la
 > mejor relación esfuerzo/daño-evitado que queda en todo el plan.
 
+> ### ⚠️ LA FICHA SE EQUIVOCABA, Y VALE LA PENA ANOTAR EN QUÉ (2026-09-12)
+>
+> Decía *"falta el botón para configurarlo"*. **Configurar ya estaba resuelto**: existe
+> `/api/admin/vtex-configure-broadcaster` y `activate-client` lo dispara solo al activar un cliente.
+> La ficha se escribió leyendo el runbook —que describe el paso manual— y no el código.
+>
+> Lo que faltaba era **verificar**. El sistema disparaba el POST, **no miraba el resultado**
+> (`activate-client` no bloquea si falla, sólo deja un flag en un JSON) y después el semáforo
+> preguntaba. La única verificación real era un endpoint de *debug* con `orgSlug=teve` hardcodeado
+> como valor por defecto.
+>
+> **Y apareció un caso que nadie estaba mirando.** El endpoint de debug chequeaba que la URL tuviera
+> un `?org=` pero **no que fuera el correcto**. VTEX guarda un solo hook por cuenta: si lleva el
+> `org` de OTRO cliente, las órdenes de éste se cuentan como del otro. Es silencioso, afecta a **dos
+> clientes a la vez**, y se vuelve probable justo cuando empiezan a entrar — alcanza con copiar el
+> curl del alta anterior y olvidarse de cambiar el id.
+>
+> **Hecho el 2026-09-12** (`fcad7ff7`): `analizarHook` distingue los cuatro problemas (sin hook,
+> sin `org`, `org` ajena, dominio ajeno) y cada uno sale con su propio "qué hacer". El semáforo
+> verifica con `?verificarWebhook=1` — opt-in, porque llamar a VTEX es lento y lo abre un humano
+> esperando respuesta. 18 tests, verificado por mutación.
+>
+> **La lección para el resto de E-33:** los otros cinco pasos de la lista también salieron de leer
+> el runbook. Antes de construir cada uno, **mirar si ya existe y lo que falta es verificarlo.**
+
 - **La lista, en orden de daño:**
-    1. **Orders Broadcaster de VTEX** — API-only. Un botón en el semáforo. Sin él no llega ninguna
+    1. ~~Orders Broadcaster de VTEX~~ ✅ **HECHO (2026-09-12).** No era un botón: era verificar. Ver el recuadro. Sin él no llega ninguna
        orden nueva. **Es el que más duele y el más barato.**
     2. **Afiliados de VTEX** — se configura en el admin de VTEX a mano. No se puede automatizar del
        todo, pero sí verificar desde el semáforo si quedó bien.

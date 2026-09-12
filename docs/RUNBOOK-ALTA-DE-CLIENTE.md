@@ -9,16 +9,39 @@
 
 ## 0. Lo que más se olvida, primero
 
-**Registrar el Orders Broadcaster de VTEX es el paso que rompe todo si falta, y no hay UI para
-hacerlo.** Ya pasó: TeVe Compras entró con **0 de 8 órdenes atribuidas** porque nadie lo registró.
+**Registrar el Orders Broadcaster de VTEX es el paso que rompe todo si falta.** Ya pasó: TeVe
+Compras entró con **0 de 8 órdenes atribuidas** porque nadie lo registró.
+
+> ### ✅ Desde el 2026-09-12 no hace falta correrlo a mano, pero SÍ hay que verificarlo
+>
+> `activate-client` configura el Orders Broadcaster solo al activar un cliente. El problema es que
+> **si falla, no bloquea nada**: deja un flag en la respuesta y sigue. Por eso el paso que queda es
+> comprobar que haya quedado bien:
+>
+> ```
+> GET /api/admin/onboardings/<id>/readiness?verificarWebhook=1
+> ```
+>
+> El item `webhook-vtex` contesta una de cinco cosas, y cada una se arregla distinto:
+>
+> | Qué dice | Qué pasó | Qué hacer |
+> |---|---|---|
+> | **ok** | Está bien configurado y con el `org` correcto | Nada |
+> | **No hay hook** | No se configuró, o el POST falló | `POST /api/admin/vtex-configure-broadcaster?orgSlug=<slug>` |
+> | **Falta el `?org=`** | El caso TeVe Compras. Las órdenes llegan y no se pueden atribuir | Reconfigurar con el mismo POST |
+> | **Lleva el `org` de otro cliente** | ⚠️ **Las órdenes de este cliente se están contando como del otro.** Los dos tienen los números mal | Reconfigurar YA y revisar las órdenes ya ingresadas de **los dos** |
+> | **Apunta a otro dominio** | El cliente tiene otra integración conectada | **Hablar con el cliente antes de pisarlo**: VTEX guarda un solo hook por cuenta, así que configurarlo borra el que está |
+>
+> La verificación es opt-in porque llama a la API de VTEX y tarda. Sin el parámetro, el semáforo
+> dice "sin verificar" en amarillo — que no es lo mismo que "está bien".
 
 VTEX tiene **dos** mecanismos de webhook y hay que configurar los dos, cada uno con `?org=<orgId>`
-en la URL:
+en la URL. El de arriba cubre el segundo; **el de Afiliados sigue siendo manual**:
 
 | Mecanismo | Dónde | Qué manda |
 |---|---|---|
 | **Afiliados** | VTEX Admin → Config tienda → Pedidos → Config → tab "Afiliados" | Cambios de SKU e inventario |
-| **Orders Broadcaster** | `POST /api/orders/hook/config` — **API-only, NO hay UI** | Estados de orden: creada, pagada, facturada, cancelada |
+| **Orders Broadcaster** | Automático al activar; se verifica con el semáforo | Estados de orden: creada, pagada, facturada, cancelada |
 
 Ver qué hay configurado hoy:
 
