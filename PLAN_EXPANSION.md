@@ -7,7 +7,7 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global (revisado el 2026-09-12):** **19 de 33 hechas, y E-33 con 3 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
+> **Estado global (revisado el 2026-09-12):** **19 de 33 hechas, y E-33 con 4 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
 >
 > **Estado previo (2026-09-11):** **19 de 33 hechas.** E-24 y E-25 cerradas el 11-09, que eran las que protegian lo que E-19 construyo.
 >
@@ -988,8 +988,17 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
        "Sin datos" y esto le dice por qué.
        **Hallazgo menor:** `/api/sync/cost-prices` es un endpoint redundante que no llama nadie ni
        está en `vercel.json`; hace lo que `catalog-refresh` ya hace adentro. No se tocó.
-    4. **Las 4 acciones manuales post-merge** — hoy son una tabla en un doc. Un endpoint que las
-       corra y las verifique saca cuatro oportunidades de olvido.
+    4. ~~Las 4 acciones manuales post-merge~~ ✅ **HECHO (2026-09-12)** —
+       `GET /api/admin/checklist-merge`. **Verifica, no ejecuta, y la razón importa:** la ficha
+       pedía "un endpoint que las corra y las verifique", y correrlas no se puede — **dos de las
+       cuatro son variables de entorno de Vercel**, y el código que corre adentro de Vercel no
+       puede escribirlas. Las otras dos sí se podrían, y a propósito no se corren desde un botón:
+       `CLAUDE.md` tiene una regla entera sobre cambios en producción que pide dry-run, backup y
+       rollback preparado. Lo que sí resuelve el problema es que **no se puede olvidar lo que una
+       pantalla te dice**, y sigue contestando después del merge.
+       De paso salió `estadoDeLaVentana`: `parseVentana` devolvía `null` para "sin configurar" y
+       para "mal escrita", que para el backfill son lo mismo y para quien revisa el sistema son
+       opuestas.
     5. **Ida y vuelta por credenciales** — E-13 la redujo para VTEX. Falta medir cuánto queda.
     6. **Borrado de datos** — hoy es "verificar a mano que no queden filas en ocho tablas". Es E-28.
 - **Por qué esto y no E-10:** E-10 levanta un techo que no aprieta hasta 2028. Esto baja el número
