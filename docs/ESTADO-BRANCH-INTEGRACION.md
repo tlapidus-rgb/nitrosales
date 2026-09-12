@@ -1,6 +1,6 @@
 # Estado de la branch de integración
 
-> **Última actualización: 2026-09-12.** Branch `fix/expansion-gate-e0`, 79 commits por delante de
+> **Última actualización: 2026-09-12 (segunda).** Branch `fix/expansion-gate-e0`, 83 commits por delante de
 > `origin/main`. **Nada de esto está en producción.** La decisión fue explícita: todo el plan entra
 > en una sola branch, se prueba y se revisa entero, y recién ahí se mergea — antes de sumar clientes
 > nuevos.
@@ -10,9 +10,74 @@
 | | |
 |---|---|
 | `npx tsc --noEmit` | 0 errores |
-| `npx vitest run` | 975 passed, 7 skipped, **0 failed** |
+| `npx vitest run` | 1004 passed, 7 skipped, **0 failed** |
 | `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
-| Tests nuevos en la branch | 41 archivos |
+| Tests nuevos en la branch | 46 archivos |
+
+## Lo que se construyó del 11 al 12 de septiembre
+
+Seis tareas del plan, todas antes del próximo cliente. El hilo que las une: **casi ninguna era
+construir algo nuevo — era hacer visible algo que ya pasaba.**
+
+### E-24 · Piso de volumen en las anomalías
+
+El detector era 100 % porcentual. Con 7 órdenes por día, pasar a 4 disparaba una alerta HIGH de
+"facturación cayó 43 %". Con cuatro clientes grandes era teórico; desde E-19 los checks mandan **un
+mail por día**, así que el primer cliente chico recibiría alertas falsas desde la semana uno — y el
+modo de falla no es "molesta", es que **deja de leer los mails**.
+
+La cuenta: las órdenes son un conteo y tienen ruido de Poisson, así que con `n` órdenes la variación
+esperada **sólo por azar** es `1/√n`. Con 7, eso da 38 % — el umbral de −30 % disparaba sobre nada.
+El umbral ahora se ajusta al ruido (2 sigmas), así que **a un cliente grande no le cambia nada** y a
+uno chico le sube la vara hasta donde el dato deja de ser azar.
+
+### E-25 · Margen bruto del 100 %
+
+Sin costos cargados, `COALESCE(costPrice, 0)` da COGS = 0 y el margen sale 100 %. Le pasa a **todo
+cliente nuevo el día 1**, y miente en la dirección más peligrosa. `/finanzas/pulso` ni siquiera
+calculaba la cobertura. Ahora por debajo del 20 % el margen **no se muestra**: un cartel al lado de
+un "100 %" gigante sigue siendo una mentira en pantalla.
+
+Aparecieron dos bugs del mismo patrón: el componente hacía `?? 0` (habría mostrado 0 % "Crítico"), y
+`narrative.ts` escondía que un margen legítimo de 0 % —vendiendo al costo— no alertaba.
+
+### E-33 · Los pasos que hoy son fuera del producto (4 de 6)
+
+**Los tres primeros no eran lo que decía la ficha.** En los tres la cadena ya estaba construida y lo
+que faltaba era que alguien mirara el resultado. Está anotado como
+`#FICHA-ESCRITA-LEYENDO-EL-RUNBOOK`.
+
+- **Orders Broadcaster** — configurar ya estaba automatizado. Faltaba verificar, y apareció un caso
+  que nadie miraba: un hook con el `?org=` de **otro cliente** manda las órdenes de éste al otro.
+  Silencioso, rompe los números de **dos clientes a la vez**, y se vuelve probable cuando entran
+  clientes (copiar el curl del alta anterior).
+- **Precios de costo** — la cadena corre entera y `catalog-refresh` devuelve un `withCost` que no lee
+  nadie. La causa más probable de que venga en cero **no se adivina**: la API key de VTEX necesita el
+  rol de **Pricing**, aparte del de Catalog. Sin él el costo no viaja y el resto del catálogo sí.
+- **Afiliado de VTEX** — el único que de verdad no se puede automatizar. Se reusa el mismo criterio
+  del broadcaster.
+- **Las 4 acciones manuales del merge** — `GET /api/admin/checklist-merge`. **Verifica, no ejecuta**:
+  dos de las cuatro son variables de Vercel y el código no puede escribirlas.
+
+### E-14 · El checkbox del pixel
+
+"Ya pegué el snippet" no verificaba nada. Ahora hay un botón que pregunta de verdad y tilda el
+checkbox solo cuando llegan eventos. Lo que el mensaje **no** dice importa tanto como lo que dice:
+cero eventos no prueba que esté mal, porque una tienda recién abierta puede no tener una visita.
+
+El guard `check-serve-gold-first` atajó la primera versión y sirvió: el `COUNT` sobre `pixel_events`
+era innecesario. La excepción al allowlist está escrita con el motivo.
+
+### E-20 · Telemetría — un latido por cron
+
+El modo de falla más caro de la historia del producto: `refresh-pixel-first-source` estuvo **cinco
+semanas** fuera de `vercel.json` sin que nadie se enterara. `checkPipelineFreshness` lo detecta **de
+rebote** y por eso deja afuera a los crons cuyo trabajo no termina en una tabla vigilada — que son
+justo los que le hablan al cliente.
+
+La cadencia sale de `vercel.json`, no de una lista a mano. **Sin migración nueva:** las columnas del
+latido entran en la migración de cursores que todavía no se corrió, así que siguen siendo cuatro
+acciones manuales.
 
 ## Lo que encontró la revisión del PLAN (2026-09-08)
 

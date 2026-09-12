@@ -4,7 +4,94 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-09-08 — branch fix/expansion-gate-e0. Seis errores nuevos, todos de la misma familia: arreglos que rompieron a su vecino. El principal es #VARIABLE-CON-DOS-DUENOS, que explica once defectos de una sola vez.**
+> **Última actualización: 2026-09-12 — branch `fix/expansion-gate-e0`. Diez errores nuevos en total. Los dos que más valen: #VARIABLE-CON-DOS-DUENOS (explica once defectos de una vez) y #FICHA-ESCRITA-LEYENDO-EL-RUNBOOK (tres de tres: lo que la ficha pedía construir ya existía, y el hueco era de observabilidad).**
+
+---
+
+## Error #FICHA-ESCRITA-LEYENDO-EL-RUNBOOK — construir lo que ya existe
+
+**Cuándo pasó:** 2026-09-12, los tres primeros ítems de E-33. **Tres de tres.**
+
+### Causa raíz
+
+Las fichas decían "falta construir X":
+
+| La ficha decía | Lo que realmente pasaba |
+|---|---|
+| "falta el botón para configurar el Orders Broadcaster" | Ya existía el endpoint **y** `activate-client` lo disparaba solo. Faltaba **verificar** que hubiera quedado bien |
+| "falta la carga de costos" | La cadena estaba entera: `catalog-refresh` pide los costos a la Pricing API y `backfill-orderitem-costs` los copia. Incluso devuelve un `withCost` que **no lee nadie** |
+| "el afiliado de VTEX se configura a mano" | Cierto, pero el hueco no era ése: era que **nadie verificaba** |
+
+En los tres casos la cadena ya estaba construida y lo que faltaba era que alguien **mirara el
+resultado**. El origen del error es identificable: **las fichas se escribieron leyendo el runbook
+—que describe los pasos manuales— y no el código.**
+
+### Regla que lo previene
+
+**Antes de construir lo que una ficha pide, ir a ver si ya existe.** Y cuando exista a medias,
+presuponer que el hueco es de **observabilidad**, no de construcción: el patrón de este repo es
+disparar la acción y no mirar el resultado.
+
+---
+
+## Error #MEDIO-ARREGLO-QUE-CUENTA-PERO-NO-SE-VE — sumar al conteo sin sumar al mensaje
+
+**Cuándo pasó:** 2026-09-12, conectando el latido de crons a `control-alerts`.
+
+### Causa raíz
+
+Se sumó `cronesCaidos.length` a `totalIssues` —que es lo que decide si el mail sale— y **no** se
+agregó la sección al template. El resultado habría sido un mail que dice **"5 problemas"** y lista
+cuatro, con el quinto invisible. Peor que no alertar: hace dudar del resto del mail.
+
+Es la misma familia que el resto de los hallazgos de esta branch: un cambio hecho en el lugar donde
+se piensa (el conteo) y no en el lugar donde se ve (el template).
+
+### Regla que lo previene
+
+**Cuando un dato nuevo entra a un sistema de alertas, seguirlo hasta la pantalla.** El conteo, el
+asunto del mail, el cuerpo y el log son cuatro lugares distintos, y tocar uno solo deja una mentira.
+
+---
+
+## Error #SLASH-ASTERISCO-CIERRA-EL-JSDOC — una expresión cron adentro de un comentario
+
+**Cuándo pasó:** dos veces. La primera con `*/5` y `*/15` en un JSDoc; la segunda el 2026-09-12
+escribiendo `latido.ts`.
+
+### Causa raíz
+
+Un JSDoc que documenta expresiones cron contiene la barra y el asterisco, que es exactamente el
+cierre de un comentario de bloque. El comentario termina ahí, el resto del texto queda como código,
+y el error que tira TypeScript (`Module declaration names may only use quoted strings`) no se parece
+en nada a la causa.
+
+### Regla que lo previene
+
+**Nunca escribir la secuencia de cierre de comentario adentro de un comentario de bloque.** Para
+documentar una expresión cron, describirla en palabras ("el comodín", "el paso") o usar comentarios
+de línea.
+
+---
+
+## Error #BACKTICKS-EN-NODE-E — bash los ejecuta como sustitución de comandos
+
+**Cuándo pasó:** 2026-09-12, editando `PLAN_EXPANSION.md` desde un `node -e "..."`.
+
+### Causa raíz
+
+Un `node -e` entre **comillas dobles** con backticks adentro: bash los interpreta como sustitución de
+comandos ANTES de que node vea el script. Los nombres de archivo entre backticks se ejecutaron como
+comandos y el texto quedó con agujeros — `existe  y  lo dispara solo`. No hubo error: el archivo se
+escribió corrupto y pasó el commit.
+
+### Regla que lo previene
+
+- `node -e` siempre con **comillas simples**, nunca dobles, si el script contiene backticks.
+- Para texto largo con backticks, `${}` o backslashes: **escribirlo a un archivo con Write** y
+  empalmarlo desde node leyendo ese archivo. Es la misma regla que
+  #HEREDOC-SE-COME-LOS-BACKSLASHES.
+- Y **verificar el resultado** después de escribir, no asumir que salió bien.
 
 ---
 

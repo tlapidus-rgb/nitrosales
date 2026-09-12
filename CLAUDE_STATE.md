@@ -63,19 +63,35 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-09-08 (branch `fix/expansion-gate-e0` — tres rondas de revision + revision del plan. NADA MERGEADO)
+## Ultima actualizacion: 2026-09-12 (branch `fix/expansion-gate-e0` — 6 tareas mas + revision del plan. NADA MERGEADO)
 
 > **Si arrancas una sesion nueva: lo primero que hay que leer es `docs/ESTADO-BRANCH-INTEGRACION.md`.**
 > Este bloque es el resumen; ese doc es el detalle y lo que hay que mirar antes de mergear.
 
-**Estado:** `fix/expansion-gate-e0`, 67 commits por delante de `origin/main`, pusheada, **sin mergear
+**Estado:** `fix/expansion-gate-e0`, 83 commits por delante de `origin/main`, pusheada, **sin mergear
 y sin nada en produccion**. Decision explicita de Axel: el plan entero entra en una sola branch, se
 prueba y se revisa completo, y recien ahi se mergea — antes de sumar clientes nuevos.
 
-**Validacion:** `tsc` exit 0 · `vitest` **878 pasan**, 0 fallan, 7 skipped · `npm run build` exit 0
+**Validacion:** `tsc` exit 0 · `vitest` **1004 pasan**, 0 fallan, 7 skipped · `npm run build` exit 0
 (incluye los guards de contrato y `depcruise`).
 
-### Lo que paso, en una linea
+### Lo del 11 y 12 de septiembre
+
+Seis tareas mas, todas de las que van ANTES del proximo cliente: E-24 (piso de volumen en las
+anomalias), E-25 (margen bruto del 100%), cuatro items de E-33 (los pasos que hoy son fuera del
+producto), E-14 (el checkbox del pixel) y E-20 (telemetria: un latido por cron).
+
+**El hilo que las une: casi ninguna era construir algo nuevo, era hacer visible algo que ya**
+**pasaba.** Los tres primeros items de E-33 pedian construir cosas que YA EXISTIAN; lo que
+faltaba era que alguien mirara el resultado. Esta anotado en ERRORES_CLAUDE_NO_REPETIR como
+#FICHA-ESCRITA-LEYENDO-EL-RUNBOOK: las fichas se escribieron leyendo el runbook —que describe
+los pasos manuales— y no el codigo.
+
+El plan va **20 de 33**, y lo que sigue depende de decisiones tuyas: hay OCHO acumuladas en la
+§9 de PLAN_EXPANSION.md. La primera —si se firma el proximo cliente antes de rotar los
+secretos— es la que define si el gate esta cerrado.
+
+### Lo que paso antes, en una linea
 
 Se implementaron 17 de las 33 tareas del `PLAN_EXPANSION.md`, y despues **tres rondas de revision
 encontraron once defectos, casi todos en el codigo escrito para cerrar esas mismas tareas.** Los once
