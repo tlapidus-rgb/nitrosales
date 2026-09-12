@@ -40,6 +40,7 @@ import { VisualTutorial } from "./VisualTutorials";
 import OnboardingAurumChat from "./OnboardingAurumChat";
 import { AurumOrb } from "./aurum/AurumOrb";
 import VtexAffiliateInstructions, { type AffiliateInfo } from "./onboarding/VtexAffiliateInstructions";
+import { evaluarWizard, type DecisionDePlataforma } from "@/lib/onboarding/listo-para-enviar";
 
 const BRAND_ORANGE = "#FF5E1A";
 const BORDER = "rgba(255,255,255,0.08)";
@@ -617,43 +618,54 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
   // La plataforma que se muestra en centro + derecha
   const displayed = focusedPlatform || (usePlatforms[0]?.key ?? null);
 
-  const globalCompletion = useMemo(() => {
-    const total = ALL_PLATFORMS.length;
-    let decided = 0;
-    for (const p of ALL_PLATFORMS) {
-      const d = decisions[p.key] || "pending";
-      if (d === "skip") decided += 1;
-      else if (d === "use" && calcCompletion(p.key, creds[p.key]) === 100) decided += 1;
-    }
-    return Math.round((decided / total) * 100);
-  }, [decisions, creds]);
+  // E-29. Antes esto era UN número que hacía dos trabajos: medir cuántas
+  // decisiones estaban tomadas, y habilitar el botón de enviar. Son preguntas
+  // distintas — saltear las seis plataformas responde "sí" a la primera y "no"
+  // a la segunda — y confundirlas hacía que la pantalla mostrara 100 % en verde
+  // sobre un alta que el backend rechazaba con 400.
+  // La regla vive en @/lib/onboarding/listo-para-enviar y está testeada ahí;
+  // este componente sólo la dibuja.
+  const estado = useMemo(
+    () =>
+      evaluarWizard(
+        ALL_PLATFORMS.map((p) => ({
+          clave: p.key,
+          nombre: p.name,
+          decision: (decisions[p.key] || "pending") as DecisionDePlataforma,
+          completa: calcCompletion(p.key, creds[p.key]) === 100,
+        })),
+      ),
+    [decisions, creds],
+  );
+
+  const globalCompletion = estado.progreso;
 
   const submit = async () => {
-    for (const p of ALL_PLATFORMS) {
-      const d = decisions[p.key] || "pending";
-      if (d === "pending") {
-        setError(`Falta decidir sobre "${p.name}"`);
-        return;
-      }
-      if (d === "use") {
-        const completion = calcCompletion(p.key, creds[p.key]);
-        if (completion < 100) {
-          setError(`Completá todos los campos de "${p.name}"`);
-          setFocusedPlatform(p.key);
-          return;
-        }
-      }
+    // E-29. Una sola fuente de verdad para "¿se puede enviar?". Antes este
+    // bucle repetía a mano la mitad de las reglas de la barra de progreso, y
+    // le faltaba la que importaba: que alguna plataforma efectivamente viaje.
+    if (!estado.listo) {
+      setError(estado.motivo);
+      // Si lo que falta es una plataforma puntual, llevarlo hasta ella.
+      const culpable = ALL_PLATFORMS.find((p) => {
+        const d = decisions[p.key] || "pending";
+        return d === "pending" || (d === "use" && calcCompletion(p.key, creds[p.key]) < 100);
+      });
+      if (culpable) setFocusedPlatform(culpable.key);
+      return;
     }
 
     setSubmitting(true);
     setError(null);
     try {
-      const platformsArr = usePlatforms
-        .filter((p) => p.key !== "NITROPIXEL")
-        .map((p) => ({
-          platform: p.key,
-          credentials: creds[p.key] || {},
-        }));
+      // E-29. Sale de `estado.aEnviar` y no de un filtro propio. Antes había
+      // dos definiciones de "qué plataformas viajan" —ésta y la de la barra—
+      // y por eso la barra podía decir 100 % sobre una lista vacía. Con una
+      // sola fuente, si `estado.listo` es true esto NO puede estar vacío.
+      const platformsArr = estado.aEnviar.map((key) => ({
+        platform: key,
+        credentials: creds[key] || {},
+      }));
       const res = await fetch("/api/me/onboarding/submit-wizard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -709,17 +721,20 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
         {/* Progress global */}
         <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px dashed ${BORDER}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
-            Completitud general
+            {/* E-29. Decía "Completitud general", que es otra cosa: esta barra
+                mide cuántas decisiones tomaste, no si el alta está completa.
+                Saltear las seis plataformas llena la barra y no da de alta nada. */}
+            Decisiones tomadas
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ flex: 1, height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
               <div style={{
                 width: `${globalCompletion}%`, height: "100%",
-                background: globalCompletion === 100 ? ACCENT_GREEN : `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`,
+                background: estado.listo ? ACCENT_GREEN : `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`,
                 transition: "width 300ms ease",
               }} />
             </div>
-            <div style={{ fontSize: 11, color: globalCompletion === 100 ? ACCENT_GREEN : TEXT_SECONDARY, fontWeight: 700, minWidth: 30, textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: estado.listo ? ACCENT_GREEN : TEXT_SECONDARY, fontWeight: 700, minWidth: 30, textAlign: "right" }}>
               {globalCompletion}%
             </div>
           </div>
@@ -848,15 +863,15 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
           )}
           <button
             onClick={submit}
-            disabled={submitting || globalCompletion < 100}
+            disabled={submitting || !estado.listo}
             style={{
               width: "100%", padding: "11px 16px",
-              background: submitting || globalCompletion < 100 ? "#27272A" : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF8C4A)`,
+              background: submitting || !estado.listo ? "#27272A" : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF8C4A)`,
               color: "#fff", border: "none", borderRadius: 9,
               fontSize: 13, fontWeight: 600,
-              cursor: submitting ? "wait" : globalCompletion < 100 ? "not-allowed" : "pointer",
+              cursor: submitting ? "wait" : !estado.listo ? "not-allowed" : "pointer",
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-              opacity: globalCompletion < 100 ? 0.5 : 1,
+              opacity: !estado.listo ? 0.5 : 1,
             }}
           >
             {submitting ? (
@@ -865,9 +880,11 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
               <>Enviar para validación <ArrowRight size={13} /></>
             )}
           </button>
-          {globalCompletion < 100 && (
-            <div style={{ fontSize: 10, color: TEXT_MUTED, textAlign: "center", marginTop: 6 }}>
-              {100 - globalCompletion}% faltante
+          {/* E-29. Antes decía "0% faltante" justo cuando faltaba lo más
+              importante: alguna plataforma que conectar. Ahora dice qué falta. */}
+          {!estado.listo && estado.motivo && (
+            <div style={{ fontSize: 10, color: TEXT_MUTED, textAlign: "center", marginTop: 6, lineHeight: 1.5 }}>
+              {estado.motivo}
             </div>
           )}
         </div>

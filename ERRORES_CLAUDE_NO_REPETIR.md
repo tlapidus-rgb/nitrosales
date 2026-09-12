@@ -3215,3 +3215,63 @@ es un control. Es una intención. El control es el test.
 
 `#EL-TEXTO-NO-SE-ROMPE-SOLO` — a diferencia del código, una afirmación falsa no produce ningún
 síntoma. Hay que ir a buscarla.
+
+---
+
+## Error #S61-LA-FICHA-DESCRIBIA-UN-RIESGO-QUE-EL-BACKEND-YA-HABIA-DECIDIDO
+
+**Fecha:** 2026-09-12 · **Severidad:** media — costó una premisa equivocada en el plan
+
+### Qué pasó
+
+La ficha E-29 decía que el wizard tenía una "promesa falsa": mostraba 100 % aunque no conectaras
+ninguna plataforma, y **bloquear el submit rompería la captura de leads, que es deliberada**. Esa
+última parte definía la solución: no bloquear, sólo cambiar el copy.
+
+Al leer el backend antes de escribir nada, resultó que **`submit-wizard` ya bloqueaba**:
+
+```ts
+if (platforms.length === 0) {
+  return NextResponse.json({ error: "Tenés que conectar al menos una plataforma" }, { status: 400 });
+}
+```
+
+O sea que no era una promesa falsa que dejaba pasar leads. Era una **pared**: la pantalla decía
+100 % en verde, el botón estaba habilitado, el prospecto lo apretaba y recibía un 400 que
+contradecía todo. Y la captura de leads nunca estuvo en riesgo, porque un prospecto de Shopify
+viaja como `{platform:"VTEX", provider:"shopify"}` y cuenta como plataforma.
+
+La solución correcta era la **opuesta** a la que la ficha proponía: hacer que el frontend adopte la
+regla que el backend ya tenía, en vez de inventar un estado intermedio nuevo.
+
+### Causa raíz
+
+La ficha se escribió **mirando el componente**. Describía con precisión lo que hacía
+`OnboardingOverlay.tsx` y dedujo la consecuencia ("esto deja pasar leads incompletos") sin abrir el
+endpoint al que el componente le manda los datos. La deducción era razonable y era falsa.
+
+Es el gemelo de `#FICHA-ESCRITA-LEYENDO-EL-RUNBOOK`: allá se describió el proceso manual y se
+dedujo el estado del código; acá se describió el cliente y se dedujo el del servidor. **En los dos
+casos el error fue inferir el comportamiento de la otra mitad en vez de ir a leerla.**
+
+### Regla
+
+Antes de arreglar un formulario, **leer el endpoint que recibe el submit**. Las reglas de
+validación viven en los dos lados casi siempre, y cuál de los dos gana no se puede adivinar desde
+uno solo.
+
+Concretamente: si la ficha dice "esto deja pasar X", verificar que X efectivamente pase. Muchas
+veces del otro lado hay un guard que ya lo frena, y entonces el bug no es "pasa algo que no
+debería" sino "el usuario recibe dos respuestas contradictorias".
+
+### Prevención
+
+Un síntoma que delata este caso: la pantalla da una señal de éxito (verde, 100 %, botón habilitado)
+y **existe un camino donde el servidor responde error**. Si las dos cosas conviven, alguna de las
+dos está mal y hay que ir a ver cuál.
+
+### Pattern relevante
+
+`#VARIABLE-CON-DOS-DUENOS` — la causa raíz técnica fue exactamente ésa: dos definiciones de "qué
+plataformas viajan al backend", y sólo una sabía que NitroPixel se filtra. Por eso la barra podía
+decir 100 % sobre una lista vacía. El arreglo fue dejar una sola.

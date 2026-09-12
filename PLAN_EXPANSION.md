@@ -877,7 +877,38 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 > Esto no es trabajo: es una decisión de Tomy, con el número al lado.
 
 ### E-29 · Arreglar la promesa falsa del wizard
-- **Estado:** ⬜ pendiente, pero **REDEFINIDA el 2026-09-08: la ficha apuntaba a algo que ya está
+- **Estado:** ✅ **HECHO (2026-09-12)**, y la redefinición del 08-09 **también tenía una premisa equivocada.**
+
+> **No era una promesa falsa: era una pared.** La ficha decía que bloquear el submit "rompería la
+> captura de leads". El backend **ya lo bloqueaba**: `submit-wizard/route.ts:91` devuelve
+> `400 "Tenés que conectar al menos una plataforma"` con `platforms: []`. O sea que la pantalla
+> mostraba **100 % en verde con el botón habilitado**, el prospecto lo apretaba, y recibía un error
+> que contradecía todo lo que la pantalla acababa de decirle. No había forma de avanzar.
+>
+> **Y hay un segundo camino al mismo 400, que no es hipotético:** NitroPixel se filtra antes de
+> mandar (`p.key !== "NITROPIXEL"`), así que elegir **sólo el pixel** también llega con la lista
+> vacía. "Sólo el pixel" es el paquete acotado que ya se vendió a TeVeCompras.
+>
+> **La captura de leads nunca estuvo en riesgo:** un prospecto de Shopify que elige "la uso" viaja
+> como `{platform:"VTEX", credentials:{provider:"shopify"}}`, cuenta como plataforma y pasa igual.
+>
+> **Causa raíz, y es la de toda la branch:** había **dos definiciones** de "qué plataformas viajan"
+> —la de la barra de progreso y la del submit— y sólo una sabía del filtro de NitroPixel. El
+> `#VARIABLE-CON-DOS-DUENOS` otra vez. Ahora la regla vive en
+> `src/lib/onboarding/listo-para-enviar.ts`, y lo que se manda sale de `estado.aEnviar`, así que
+> las dos no pueden driftear. 19 tests, verificado por mutación.
+>
+> **Tres cambios de copy que eran parte del engaño:** el label decía "Completitud general" (medía
+> decisiones, no completitud del alta), la barra se ponía verde al 100 % de decisiones, y el pie
+> decía "0 % faltante" justo cuando faltaba lo único importante. Ahora dice qué falta, y distingue
+> "no elegiste nada" de "elegiste sólo el pixel" — porque decirle *"conectá al menos una
+> plataforma"* a alguien que acaba de elegir NitroPixel lo deja mirando la pantalla.
+>
+> **Decisión de producto que queda abierta:** hoy NitroPixel solo **no** alcanza para dar de alta.
+> Si el paquete "sólo pixel" se va a vender, el backend tiene que aceptarlo — es una decisión de
+> Tomy, no un bug. Anotado en `BACKLOG_PENDIENTES.md`.
+
+- **Estado original:** ⬜ pendiente, pero **REDEFINIDA el 2026-09-08: la ficha apuntaba a algo que ya está
   hecho y dejaba pasar lo que sí está roto.**
 - **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 h · **Necesita una decisión chica de producto** (abajo)
 
