@@ -7,14 +7,14 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global (revisado el 2026-09-12):** **19 de 33 hechas, y E-33 con 4 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
+> **Estado global (revisado el 2026-09-12):** **20 de 33 hechas, y E-33 con 4 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
 >
 > **Estado previo (2026-09-11):** **19 de 33 hechas.** E-24 y E-25 cerradas el 11-09, que eran las que protegian lo que E-19 construyo.
 >
 > **Estado previo (2026-09-08):** 🟨 **E0 cerrada salvo E-07, y E-07 es la que decide
 > si el gate está cerrado** (ver el recuadro rojo en E-07 y § 9 punto 6) · E1 arrancada ·
 > **E2 cerrada** · **E3 arrancada** — **17 de 31 hechas** (E-01…E-06, E-08, E-11…E-13, E-15…E-19)
-> **+ E-07 y E-14 a medias**. E-11 y E-13 figuraban como parciales o pendientes y ya estaban
+> **+ E-07 a medias**. E-11 y E-13 figuraban como parciales o pendientes y ya estaban
 > cerradas; corregido.
 >
 > **⚠️ LO QUE APRENDIMOS, Y CAMBIA CÓMO SE EJECUTA LO QUE FALTA — § 14.** Tres rondas de revisión
@@ -587,7 +587,18 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 - **La pieza más cara del self-serve ya está escrita y apagada.**
 
 ### E-14 · Verificación real del pixel, no un checkbox
-- **Estado:** 🟡 **PARCIAL (2026-09-07)** — `deca13a2`. Lo que el backend no reconoce ya no se
+- **Estado:** ✅ **HECHO (2026-09-12)** — `5e3f8490` cierra la mitad de UI que faltaba. Nuevo botón
+  **Verificar ahora** que pregunta si llegaron eventos y, cuando confirma, tilda el checkbox solo:
+  el tilde pasa a estar respaldado por un dato en vez de por una afirmación del cliente.
+  **Lo viable:** el usuario del wizard ya pertenece a una organización, así que el snippet que copia
+  es real y los eventos llegan mientras completa el alta.
+  **Lo que el mensaje NO dice:** cero eventos no prueba que esté mal — una tienda recién abierta
+  puede no tener una visita. Ofrece las dos explicaciones y no bloquea (lección de E-13).
+  **Y el guard del repo atajó la primera versión:** `check-serve-gold-first` marcó la ruta por tocar
+  `pixel_events`. Sirvió: el `COUNT` era innecesario y quedó en dos `findFirst` con `LIMIT 1`. La
+  excepción al allowlist está escrita — es el único caso donde Gold **no puede** contestar, porque
+  los rollups son diarios y la pregunta es de los últimos 30 minutos.
+- **Estado previo:** 🟡 **PARCIAL (2026-09-07)** — `deca13a2`. Lo que el backend no reconoce ya no se
   descarta en silencio (vuelve en `platformsIgnoradas`), y la verificación real —que hayan llegado
   eventos— la hace el semáforo de E-15 consultando `pixel_events`, en vez del checkbox.
   **Falta la mitad de UI:** el wizard sigue mostrando un checkbox que no verifica nada. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-6 h
