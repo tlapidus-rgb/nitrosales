@@ -39,12 +39,14 @@
 // **idéntico** al de antes. Lo único que cambia es que el sistema queda
 // preparado para tolerar una rotación.
 //
-// ⚠️ Y NO ALCANZA SOLO: el webhook de órdenes de VTEX compara contra
-// `NEXTAUTH_SECRET` con su propio `!==`, y ese archivo está marcado como CORE
-// PROTECTED en `docs/HANDOFF.md`. Darle el mismo trato necesita autorización
-// explícita — está anotado en el plan.
+// ⚠️ Y NO ALCANZA SOLO: el webhook de órdenes de VTEX se autentica con
+// `NEXTAUTH_SECRET`, que es **otro secreto**, con su propia ventana. Tiene su
+// módulo en `src/lib/webhook-key.ts` (agregado el 2026-09-12 con autorización
+// explícita de Axel para tocar el archivo CORE PROTECTED). Los dos comparten la
+// primitiva de comparación, no el secreto.
 // ──────────────────────────────────────────────────────────────
 import crypto from "crypto";
+import { coincideConAlguna } from "./comparacion-segura";
 
 export const ADMIN_API_KEY: string =
   process.env.ADMIN_API_KEY || crypto.randomBytes(32).toString("hex");
@@ -56,33 +58,17 @@ export const ADMIN_API_KEY: string =
 const CLAVE_ANTERIOR: string | null = process.env.ADMIN_API_KEY_ANTERIOR || null;
 
 /**
- * Comparación de tiempo constante.
- *
- * Se hashean los dos lados antes de comparar: `timingSafeEqual` exige buffers
- * del mismo largo, y compararlos crudos filtraría el largo del secreto. Con el
- * hash los dos son siempre de 32 bytes.
- *
- * El `===` que había antes cortaba en el primer byte distinto. Para un secreto
- * que se puede probar desde internet contra 29 endpoints, eso es una diferencia
- * medible.
- */
-function igualSeguro(a: string, b: string): boolean {
-  const ha = crypto.createHash("sha256").update(a).digest();
-  const hb = crypto.createHash("sha256").update(b).digest();
-  return crypto.timingSafeEqual(ha, hb);
-}
-
-/**
  * Validación fail-closed de la key de bypass admin/cron.
  *
  * True si `key` es no-vacía y coincide con la clave actual **o** con la anterior
  * mientras haya una ventana de rotación abierta.
+ *
+ * La comparación es de tiempo constante y vive en `comparacion-segura.ts`: es
+ * la misma que usa el webhook de VTEX, y una primitiva de seguridad duplicada
+ * es una que en algún momento va a estar arreglada en un lado y rota en el otro.
  */
 export function isValidAdminKey(key: string | null | undefined): boolean {
-  if (typeof key !== "string" || key.length === 0) return false;
-  if (igualSeguro(key, ADMIN_API_KEY)) return true;
-  if (CLAVE_ANTERIOR && igualSeguro(key, CLAVE_ANTERIOR)) return true;
-  return false;
+  return coincideConAlguna(key, ADMIN_API_KEY, CLAVE_ANTERIOR);
 }
 
 /**

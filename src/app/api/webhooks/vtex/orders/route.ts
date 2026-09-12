@@ -8,6 +8,22 @@
 // atribucion NO se deben modificar. VTEX envia multiples webhooks
 // por orden (cada cambio de estado) y el sistema solo procesa la primera.
 // ══════════════════════════════════════════════════════════════
+// ── EXCEPCION AUTORIZADA — 2026-09-12, Axel, en el chat ──────────────────
+// Se modifico UNA SOLA LINEA: la validacion de `?key=`, que pasaba de
+// `key !== process.env.NEXTAUTH_SECRET` a `esClaveDeWebhookValida(key)`.
+//
+// Por que: rotar `NEXTAUTH_SECRET` hoy es un corte de raiz. La URL con la
+// clave adentro vive del lado de VTEX, en la config del Orders Broadcaster de
+// cada cliente, y hay que actualizarla cuenta por cuenta. Mientras tanto este
+// endpoint devuelve 401 y **VTEX no reintenta**: las ordenes de esa ventana
+// dejan de entrar en tiempo real (las levanta el cron de las 3am, pero recien
+// al dia siguiente y sin que nadie se entere). Ver `src/lib/webhook-key.ts`.
+//
+// Que NO cambio: la deduplicacion, el bloque de atribucion, el handler de
+// validacion/ping, y el GET sin key que VTEX usa para validar el hook.
+//
+// Con solo `NEXTAUTH_SECRET` seteada el comportamiento es IDENTICO al anterior.
+// ══════════════════════════════════════════════════════════════
 // Endpoint: POST /api/webhooks/vtex/orders
 // VTEX Order Hook envía una notificación cada vez que una orden
 // cambia de estado. Este endpoint recibe la notificación y
@@ -24,6 +40,7 @@ import { normalizePhone } from "@/lib/pixel/identity";
 import { linkVisitorToCustomer } from "@/lib/pixel/link-visitor";
 import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 import { extractRealEmail } from "@/lib/connectors/vtex-email";
+import { esClaveDeWebhookValida } from "@/lib/webhook-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -76,7 +93,7 @@ export async function POST(req: NextRequest) {
 
     // ── Validate key ──
     const key = req.nextUrl.searchParams.get("key");
-    if (key !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeWebhookValida(key)) {
       // Log but still return 200 to not confuse VTEX
       console.warn(`[Webhook:Orders] Invalid key for order ${orderId}`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

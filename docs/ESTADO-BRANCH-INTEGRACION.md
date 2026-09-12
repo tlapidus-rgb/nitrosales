@@ -258,10 +258,32 @@ Estas **no** las hace el deploy. Sin ellas, parte de lo que se construyó queda 
 | 4 | `?full=1` en los dos crons Gold | Una corrida manual después del deploy | Las tablas Gold arrancan con la ventana incremental y tardan en llenarse. El checklist lo detecta mirando si tienen historia más allá de los 4 días |
 ## Lo que sigue congelado
 
-**Rotación de secretos (R-C07 / R-C08 / R-C09).** Decisión explícita: no se tocan hasta entender el
-impacto. El mapa de dependencias está hecho — 53 rutas, 28 crons, el webhook de VTEX y todas las
-sesiones activas — y el orden de rotación es estricto: hacerlo antes de que el webhook de órdenes de
-VTEX tenga su propio secreto **corta la ingesta de los cuatro clientes, en silencio**.
+**Rotación de secretos (R-C07 / R-C08 / R-C09).** Decisión explícita: no se rotan hasta entender el
+impacto. Sigue en pie. Lo que cambió es que **rotar dejó de ser un corte de raíz**.
+
+Hasta el 2026-09-12 el bloqueo era este: la clave viaja en la URL de los 29 crons y en la del webhook
+de órdenes de VTEX, así que cambiar el valor en Vercel dejaba a todo eso devolviendo 401/403 hasta
+actualizar cada URL — y en el caso de VTEX, que no reintenta, eso era ingesta perdida en silencio.
+
+Ahora los dos secretos toleran una **ventana de rotación**: `ADMIN_API_KEY_ANTERIOR` y
+`NEXTAUTH_SECRET_ANTERIOR`. Durante la ventana valen la clave vieja y la nueva a la vez, así que la
+rotación pasa a ser por etapas y cada una es reversible:
+
+1. Setear la `*_ANTERIOR` con el valor viejo y la principal con el nuevo. **Nada se corta.**
+2. Actualizar las URLs —`vercel.json` y el hook de cada cuenta VTEX— con calma, verificando una por
+   una con `/api/admin/verificar-webhook-vtex`.
+3. Borrar la `*_ANTERIOR`. Recién ahí la vieja deja de servir.
+
+El `/api/admin/checklist-merge` reporta las dos ventanas por separado, porque **una ventana que queda
+abierta para siempre es una rotación que no terminó** y no tiene ningún síntoma: todo funciona igual.
+
+⚠️ **Esto no rota nada.** Sin las `*_ANTERIOR` seteadas el comportamiento es idéntico al de antes.
+
+⚠️ **Y no cubre todo.** Quedan ~50 endpoints que comparan `NEXTAUTH_SECRET` con `!==` directo
+(`/api/sync/prices`, `/api/sync/catalog`, los `migrate-*`, el webhook de inventory). Esos **no**
+toleran la ventana: durante una rotación aceptarían sólo la clave nueva. Los crons principales sí
+sobreviven porque aceptan además `ADMIN_API_KEY`, que ya es rotable. Está anotado en
+`BACKLOG_PENDIENTES.md`.
 
 Mientras tanto, y esto conviene tenerlo presente: `ADMIN_API_KEY` y `NEXTAUTH_SECRET` son el mismo
 literal, y ese literal está en `vercel.json`, que está versionado. Con él se puede forjar una sesión

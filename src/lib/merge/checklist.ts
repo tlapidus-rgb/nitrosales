@@ -56,8 +56,13 @@ export type InsumosDelChecklist = {
    * Una ventana que queda abierta para siempre es una rotación que no
    * terminó: la clave vieja sigue sirviendo para entrar y **no hay ningún
    * síntoma** — todo funciona. Es el paso que más fácil se olvida.
+   *
+   * Son **dos secretos distintos**, con dos variables distintas en Vercel y dos
+   * consecuencias distintas si quedan abiertas, así que se preguntan por
+   * separado: `ADMIN_API_KEY_ANTERIOR` (crons y endpoints admin) y
+   * `NEXTAUTH_SECRET_ANTERIOR` (el webhook de órdenes de VTEX).
    */
-  ventanaDeRotacionAbierta: boolean;
+  ventanasDeRotacionAbiertas: { adminKey: boolean; webhook: boolean };
 };
 
 /** La ventana incremental de los crons Gold de atribución, en días. */
@@ -210,18 +215,37 @@ export function evaluarChecklist(i: InsumosDelChecklist): {
     });
   }
 
-  // ── 5. La ventana de rotación de clave ─────────────────────────────────
-  if (i.ventanaDeRotacionAbierta) {
+  // ── 5. Las ventanas de rotación de clave ───────────────────────────────
+  // Sólo se reportan cuando hay una abierta: un paso que siempre dice "ok"
+  // entrena a no mirarlo.
+  if (i.ventanasDeRotacionAbiertas.adminKey) {
     pasos.push({
       clave: "ventana-rotacion",
-      titulo: "Ventana de rotación de clave",
+      titulo: "Ventana de rotación de la clave admin/cron",
       estado: "mal",
       detalle:
         "`ADMIN_API_KEY_ANTERIOR` sigue seteada: la clave VIEJA todavía sirve para entrar.",
       queHacer:
-        "Si la rotación ya terminó —URLs de vercel.json y del webhook de VTEX actualizadas " +
-        "y verificadas— borrá esa variable en Vercel. Mientras siga, la rotación no cerró y " +
+        "Si la rotación ya terminó —las URLs de los crons de vercel.json actualizadas y " +
+        "verificadas— borrá esa variable en Vercel. Mientras siga, la rotación no cerró y " +
         "no hay ningún síntoma que lo delate: todo funciona igual.",
+      automatizable: false,
+    });
+  }
+
+  if (i.ventanasDeRotacionAbiertas.webhook) {
+    pasos.push({
+      clave: "ventana-rotacion-webhook",
+      titulo: "Ventana de rotación de la clave del webhook de VTEX",
+      estado: "mal",
+      detalle:
+        "`NEXTAUTH_SECRET_ANTERIOR` sigue seteada: la clave VIEJA todavía sirve para " +
+        "postear órdenes al webhook.",
+      queHacer:
+        "Cerrala recién cuando el hook de CADA cuenta VTEX esté apuntando a la clave nueva " +
+        "—verificalo con `/api/admin/verificar-webhook-vtex` org por org—. Si la cerrás " +
+        "antes, ese cliente empieza a devolver 401 y VTEX NO reintenta: sus órdenes dejan " +
+        "de entrar en tiempo real hasta el cron de las 3am.",
       automatizable: false,
     });
   }

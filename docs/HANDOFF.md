@@ -33,6 +33,14 @@ R-C09 en `PLAN_REMEDIACION.md`.
 
 - **La DB de prod NO se toca desde acá.** El usuario corre TODO el SQL en la **consola de Neon**. Claude **nunca** ejecuta contra la DB de prod ni maneja connection strings (una vez se filtró un `DATABASE_URL` y se rotó la password de `neondb_owner`).
 - **CORE PROTECTED — no tocar nunca:** `src/lib/pixel/attribution.ts`, `src/app/api/webhooks/vtex/orders/route.ts`.
+  - **Excepción autorizada (2026-09-12, Axel, en el chat):** en la branch `fix/expansion-gate-e0` se
+    modificaron **dos líneas** del webhook de órdenes —un import y la condición que valida `?key=`—
+    para que tolere una ventana de rotación (`NEXTAUTH_SECRET_ANTERIOR`). Motivo: sin eso, rotar el
+    secreto deja el webhook devolviendo 401 y **VTEX no reintenta**. No se tocaron `isNewOrder`, el
+    bloque de atribución ni el GET de validación; hay un test de regresión
+    (`src/__tests__/webhook-vtex-clave-rotable.test.ts`) que lo verifica. La excepción está anotada
+    en el header del propio archivo. **Esto no habilita tocar el resto:** cualquier otro cambio a
+    estos dos archivos sigue necesitando autorización explícita, una por una.
 - **Merge a main / go-live = requiere OK explícito del usuario** (Tomy es el que aprueba diseño/producto).
 - **Admin/cron key (prod):** `<VER-NOTA-DE-SECRETOS>` (= `ADMIN_API_KEY`).
 - **Repos van a `C:\Users\axelf\github\nitrosales`** (NO en `OneDrive\Documents`: Defender/CFA bloquea git/shell ahí). Al correr git/bash usar `cd /c/Users/axelf/github/nitrosales`.

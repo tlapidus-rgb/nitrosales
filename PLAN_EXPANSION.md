@@ -302,15 +302,28 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 > hasta que se rote — son controles para el usuario logueado, que es el caso real y por eso valen,
 > pero no resisten a alguien que quiera pasarlos.
 >
-> **Por qué está congelado, y está bien que lo esté:** rotar tiene un orden estricto
-> (R-C07 → R-C08 → R-C09) y hacerlo antes de que el webhook de órdenes de VTEX tenga su propio
-> secreto **corta la ingesta de los cuatro clientes, en silencio**. El mapa de dependencias ya está
-> hecho: 53 rutas, 29 crons, el webhook de VTEX y todas las sesiones activas.
+> **Por qué estaba congelado:** rotar era un **corte de raíz**. La clave viaja en la URL de los 29
+> crons y en la del webhook de órdenes de VTEX, así que cambiar el valor dejaba a todo eso
+> devolviendo 401/403 hasta actualizar cada URL — y VTEX **no reintenta**, así que eso era ingesta
+> perdida en silencio.
 >
-> **La decisión que hay que tomar** está en § 9, punto 6. No es "¿rotamos?" sino "¿se firma el
-> próximo cliente antes de rotar?". Las dos respuestas son defendibles —hoy los cuatro clientes son
-> conocidos y el repo es privado— pero tiene que ser una decisión tomada, no una que se toma sola
-> por seguir avanzando con lo que sí se puede hacer.
+> **Eso se resolvió el 2026-09-12.** Los dos secretos toleran ahora una ventana de rotación
+> (`ADMIN_API_KEY_ANTERIOR`, `NEXTAUTH_SECRET_ANTERIOR`): durante la ventana valen la vieja y la
+> nueva a la vez, la rotación pasa a ser por etapas y cada una es reversible. Para el webhook hubo
+> que tocar un archivo CORE PROTECTED, con autorización explícita de Axel; el cambio funcional son
+> dos líneas y la excepción está anotada en el header del archivo. **Nada está rotado**: sin las
+> `*_ANTERIOR` el comportamiento es idéntico al anterior.
+>
+> **Lo que sigue abierto:** ~50 endpoints comparan `NEXTAUTH_SECRET` con `!==` directo y no toleran
+> la ventana. Los crons principales sobreviven —aceptan además `ADMIN_API_KEY`, ya rotable— pero
+> `/api/sync/prices`, `/api/sync/catalog`, los `migrate-*` y el webhook de inventory no. Ver
+> `BACKLOG_PENDIENTES.md`.
+>
+> **La decisión que hay que tomar** está en § 9, punto 6. Ya no es "¿rotamos aunque corte la
+> ingesta?" —eso dejó de ser el riesgo— sino simplemente **"¿se firma el próximo cliente antes de
+> rotar?"**. Las dos respuestas son defendibles —hoy los cuatro clientes son conocidos y el repo es
+> privado— pero tiene que ser una decisión tomada, no una que se toma sola por seguir avanzando con
+> lo que sí se puede hacer. El costo de rotar bajó mucho; el de no rotar no cambió.
 
 - **Estado:** 🟡 parcial (2026-09-06) — R-C01/R-C03/R-C04 hechos; **R-C05 y R-C06 hechos en su
   parte de código** (`1e8b65c4`, `62ed2b5a`, más el hallazgo nuevo `83d13d1a`). Lo que falta ya no
@@ -1044,7 +1057,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 | 3 | **¿Qué se le vende a un cliente chico?** (E-22) | El código ya soporta un paquete acotado; falta decidir qué entra |
 | 4 | **¿Cuál es el ticket mínimo?** | Un cliente grande cuesta USD 80-200/mes de infraestructura más 8-18 horas de alta. Si el ticket no lo supera holgadamente, cada cliente grande pierde plata |
 | 5 | **¿Las cuentas de ads facturan en pesos o en dólares?** (R-V05) · 🔧 **YA NO HAY QUE ADIVINAR (2026-09-12):** correr `GET /api/admin/monedas-de-ads` y lo contesta solo. **Al ir a mirar apareció algo peor que la pregunta:** el sistema NUNCA PREGUNTÓ — `ad_metrics_daily` no tiene columna de moneda (el campo se llama `spend` y su comentario dice *"Gasto en USD/moneda"*), Google convierte `cost_micros` sin leer cuál, y Meta pide `spend` sin pedir `currency`. Las dos APIs la devuelven gratis. | Si alguna es en USD, el ROAS de ese canal está mal por un factor de ~1.000 — un ROAS real de 3x se muestra como 3.000x |
-| **6** | 🔴 **¿Se firma el próximo cliente ANTES de rotar los secretos?** (E-07) | **Es la decisión que define si el gate está cerrado.** `NEXTAUTH_SECRET` y `ADMIN_API_KEY` son el mismo literal y está en `vercel.json`, versionado: cualquiera que lea el repo puede firmarse una sesión de staff, y con eso todos los gates de esta branch son evitables. Rotar tiene riesgo alto y orden estricto (rotar antes de que el webhook de VTEX tenga su propio secreto **corta la ingesta de los 4 clientes en silencio**). Las dos respuestas son defendibles; lo que no se puede es que la decisión se tome sola por seguir avanzando |
+| **6** | 🔴 **¿Se firma el próximo cliente ANTES de rotar los secretos?** (E-07) | **Es la decisión que define si el gate está cerrado.** `NEXTAUTH_SECRET` y `ADMIN_API_KEY` son el mismo literal y está en `vercel.json`, versionado: cualquiera que lea el repo puede firmarse una sesión de staff, y con eso todos los gates de esta branch son evitables. **El costo de rotar bajó mucho el 2026-09-12**: los dos secretos toleran ahora una ventana de rotación (`ADMIN_API_KEY_ANTERIOR` / `NEXTAUTH_SECRET_ANTERIOR`), así que ya no es un corte de raíz sino tres pasos reversibles, y **dejó de cortar la ingesta de VTEX**. Lo que no cambió es el costo de NO rotar. Quedan ~50 endpoints con `!==` directo que no toleran la ventana (ver backlog). Las dos respuestas son defendibles; lo que no se puede es que la decisión se tome sola por seguir avanzando |
 | **8** | **¿Se instala Sentry o equivalente?** (E-20) | Se probó y se sacó porque agregaba 15-25 s al arranque en frío — es una decisión vieja que nunca se revisó, y tiene costo mensual. El latido de crons ya cubre "dejó de correr"; lo que falta es capturar excepciones con stack. **La pregunta:** ¿se prueba uno de los livianos, o alcanza con lo que hay? |
 | **7** | **¿El overlay del alta puede mostrar "algo salió mal, lo estamos viendo"?** | Desde que un backfill fallado no cuenta como alta completa (E-08), el cliente puede quedar hasta 12 h viendo "preparando tu data". Es la alternativa correcta a activarlo con la data a medias, pero la pantalla no lo dice. Es decisión de producto porque implica admitirle al cliente que algo falló |
 
@@ -1077,6 +1090,62 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 
 > Formato en `PLAN_REMEDIACION.md` § 1 (REGLA #0). Lo más nuevo primero.
 > **Si la Bitácora y el estado de una tarea se contradicen, gana la Bitácora.**
+
+### [2026-09-12] 🔑 Rotar deja de ser un corte de raíz — los dos secretos aceptan una ventana
+
+**Qué se hizo.** `ADMIN_API_KEY` y la clave del webhook de órdenes de VTEX aceptan ahora, además de
+su valor actual, un valor **anterior** mientras exista `ADMIN_API_KEY_ANTERIOR` /
+`NEXTAUTH_SECRET_ANTERIOR`. La comparación pasó de `!==` a tiempo constante.
+
+**Por qué importaba.** El bloqueo de R-C07/08/09 nunca fue "no sabemos rotar": era que rotar
+**cortaba todo de una**. La clave viaja en la URL de los 29 crons de `vercel.json` y en la del hook
+de cada cuenta VTEX —que vive del lado de VTEX, es API-only y se actualiza cuenta por cuenta—, así
+que cambiar el valor en Vercel dejaba a todo eso devolviendo 401/403 hasta terminar de actualizar
+cada URL. Y el caso de VTEX era el peor: **VTEX no reintenta**, así que cada 401 era una orden que
+no entraba en tiempo real. El cron de las 3am las levantaba al otro día, así que no se perdía plata
+— se perdía el tiempo real, en silencio.
+
+Con la ventana la operación pasa a ser tres pasos, y cada uno es reversible:
+
+1. `*_ANTERIOR` = el valor viejo, la principal = el nuevo. **Las dos funcionan. Nada se corta.**
+2. Se actualizan las URLs con calma, verificando una por una.
+3. Se borra `*_ANTERIOR`. Recién ahí la vieja deja de servir.
+
+**El archivo CORE PROTECTED.** Para el webhook hubo que tocar
+`src/app/api/webhooks/vtex/orders/route.ts`, marcado como intocable en `docs/HANDOFF.md`. Axel lo
+autorizó explícitamente en el chat. El cambio funcional son **dos líneas** —un import y la condición
+de la clave— y la excepción quedó anotada en el header del archivo, con qué cambió y qué no. La
+deduplicación por `isNewOrder`, el bloque de atribución y el GET sin key que VTEX usa para validar
+el hook **no se tocaron**, y hay un test de regresión que lo verifica.
+
+**Lo que NO se hizo, a propósito:** no se rotó nada. Sin las `*_ANTERIOR` seteadas el comportamiento
+es idéntico al anterior. La decisión de rotar sigue siendo de Axel (§ 9 punto 6) — lo que cambió es
+que ahora el costo de decir que sí es mucho más bajo.
+
+**Un hallazgo de alcance.** `NEXTAUTH_SECRET` se compara con `!==` en **~50 endpoints más**, no sólo
+en el webhook: todo `/api/sync/*`, los `migrate-*`, el webhook de inventory, `/api/health`. Esos no
+toleran la ventana. Los crons principales sí sobreviven porque aceptan además `ADMIN_API_KEY`. Quedó
+anotado como **N-06** en `BACKLOG_PENDIENTES.md`: hay que cerrarlo **antes** de rotar de verdad, o
+esos endpoints se caen justo durante la ventana que existe para que nada se caiga.
+
+**Dos decisiones de diseño que vale la pena dejar escritas:**
+
+- **La primitiva de comparación vive en un solo lugar** (`src/lib/comparacion-segura.ts`), compartida
+  por los dos secretos. Una primitiva de seguridad duplicada es una que en algún momento va a estar
+  arreglada en un lado y rota en el otro. Hay un test que verifica que ninguno de los dos módulos
+  defina su propio `timingSafeEqual`.
+- **El checklist de merge reporta las dos ventanas por separado.** Son dos variables distintas con
+  dos consecuencias distintas: cerrar la de admin de más lo delata un cron que reintenta; cerrar la
+  del webhook de más se come órdenes sin reintento. El `queHacer` no puede ser el mismo. Y se
+  reportan **sólo cuando hay una abierta** — un paso que siempre dice "ok" entrena a no mirarlo.
+
+**Verificación.** `tsc` 0 · `vitest` **1059 pasan**, 0 fallan · `npm run build` exit 0.
+Verificado por mutación, que es lo que importa acá: revertir el route al `!==` pone el guard en rojo;
+borrarle el comentario al GET de validación también; ignorar la clave anterior rompe 4 tests; sacar
+el guard de fail-closed rompe 3. **Dos de los guards resultaron no ser observables** por ningún test
+(aceptar una `*_ANTERIOR` vacía, y aceptar una candidata vacía): con los otros guards puestos no son
+explotables. Se dejaron igual, anotados como defensa redundante para que nadie los borre creyéndolos
+código muerto.
 
 ### [2026-09-08] 🧭 Revisión del PLAN contra lo construido — un revisor sin contexto + revisión de premisa
 

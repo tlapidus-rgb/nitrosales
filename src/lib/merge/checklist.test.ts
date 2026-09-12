@@ -15,7 +15,7 @@ const todoHecho: InsumosDelChecklist = {
   alertas: { destinatarios: 3, esElFallback: false },
   ventana: { estado: "ok" },
   historiaGold: { source: 400, channel: 400 },
-  ventanaDeRotacionAbierta: false,
+  ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
 };
 
 const paso = (r: ReturnType<typeof evaluarChecklist>, clave: string) =>
@@ -35,7 +35,7 @@ describe("el caso feliz", () => {
       alertas: { destinatarios: 1, esElFallback: true },
       ventana: { estado: "sin-configurar" },
       historiaGold: { source: 2, channel: 1 },
-      ventanaDeRotacionAbierta: false,
+      ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
     });
     for (const p of r.pasos) {
       if (p.estado !== "ok" && p.estado !== "no-se-sabe") {
@@ -174,7 +174,7 @@ describe("el resultado es completo y estable", () => {
   it("EL PASO QUE NO TIENE SINTOMA: la ventana de rotación abierta", () => {
     // Una ventana abierta para siempre es una rotación que no terminó: la clave
     // vieja sigue sirviendo y TODO FUNCIONA IGUAL, así que nada la delata.
-    const r = evaluarChecklist({ ...todoHecho, ventanaDeRotacionAbierta: true });
+    const r = evaluarChecklist({ ...todoHecho, ventanasDeRotacionAbiertas: { adminKey: true, webhook: false } });
     const p = r.pasos.find((x) => x.clave === "ventana-rotacion")!;
     expect(p.estado).toBe("mal");
     expect(p.detalle).toContain("todavía sirve");
@@ -204,9 +204,48 @@ describe("el resultado es completo y estable", () => {
       alertas: { destinatarios: 1, esElFallback: true },
       ventana: { estado: "mal-escrita", valor: "x", motivo: "y" },
       historiaGold: { source: 400, channel: 400 },
-      ventanaDeRotacionAbierta: false,
+      ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
     });
     expect(r.pendientes).toBe(3);
     expect(r.listo).toBe(false);
+  });
+});
+
+describe("las DOS ventanas de rotación — son secretos distintos", () => {
+  const conVentanas = (adminKey: boolean, webhook: boolean) =>
+    evaluarChecklist({ ...todoHecho, ventanasDeRotacionAbiertas: { adminKey, webhook } });
+
+  it("la del webhook aparece sola, sin arrastrar la de admin", () => {
+    const claves = conVentanas(false, true).pasos.map((p) => p.clave);
+    expect(claves).toContain("ventana-rotacion-webhook");
+    expect(claves).not.toContain("ventana-rotacion");
+  });
+
+  it("y la de admin aparece sola, sin arrastrar la del webhook", () => {
+    const claves = conVentanas(true, false).pasos.map((p) => p.clave);
+    expect(claves).toContain("ventana-rotacion");
+    expect(claves).not.toContain("ventana-rotacion-webhook");
+  });
+
+  it("con las dos abiertas, cuentan como DOS pendientes", () => {
+    const r = conVentanas(true, true);
+    expect(r.pendientes).toBe(2);
+    expect(r.listo).toBe(false);
+  });
+
+  it("con las dos cerradas, ninguna aparece", () => {
+    const claves = conVentanas(false, false).pasos.map((p) => p.clave);
+    expect(claves).not.toContain("ventana-rotacion");
+    expect(claves).not.toContain("ventana-rotacion-webhook");
+  });
+
+  it("EL RIESGO PROPIO DEL WEBHOOK: avisa que cerrarla antes de tiempo cuesta órdenes", () => {
+    // La de admin se cierra y, si te apuraste, un cron devuelve 403 y reintenta.
+    // La del webhook se cierra y VTEX se come un 401 SIN reintentar: esa orden
+    // no entra en tiempo real. Por eso el "qué hacer" no puede ser el mismo.
+    const p = conVentanas(false, true).pasos.find((x) => x.clave === "ventana-rotacion-webhook")!;
+    expect(p.queHacer).toMatch(/no reintenta/i);
+    expect(p.queHacer).toContain("verificar-webhook-vtex");
+    expect(p.automatizable).toBe(false);
   });
 });

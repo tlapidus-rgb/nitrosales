@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { isValidAdminKey, hayVentanaDeRotacionAbierta } from "@/lib/admin-key";
+import { hayVentanaDeRotacionDeWebhookAbierta } from "@/lib/webhook-key";
 import { evaluarChecklist } from "@/lib/merge/checklist";
 import type { InsumosDelChecklist } from "@/lib/merge/checklist";
 import { estadoDeLaVentana } from "@/lib/backfill/admision";
@@ -84,7 +85,10 @@ export async function GET(req: NextRequest) {
         ? { estado: "mal-escrita", valor: v.valor, motivo: v.motivo }
         : { estado: v.estado },
     historiaGold: { source, channel },
-    ventanaDeRotacionAbierta: hayVentanaDeRotacionAbierta(),
+    ventanasDeRotacionAbiertas: {
+      adminKey: hayVentanaDeRotacionAbierta(),
+      webhook: hayVentanaDeRotacionDeWebhookAbierta(),
+    },
   };
 
   return NextResponse.json({

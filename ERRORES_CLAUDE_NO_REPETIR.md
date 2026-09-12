@@ -3096,3 +3096,64 @@ Conexion con #S52-VTEX-SYNC-FAIL-SILENTLY: ambos son "fallaba en silencio sin al
 ---
 
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._
+
+---
+
+## Error #S61-EL-TEST-DE-SOURCE-LEE-MIS-PROPIOS-COMENTARIOS
+
+**Fecha:** 2026-09-12 · **Severidad:** baja (ruido), pero cuesta tiempo y confunde
+
+### Qué pasó
+
+Escribí un test de regresión que lee el código fuente de
+`src/app/api/webhooks/vtex/orders/route.ts` y verifica que **no** exista un
+`!== process.env.NEXTAUTH_SECRET` (porque ese `!==` saltearía la ventana de rotación).
+
+Se puso rojo sobre código correcto. El motivo: en el mismo commit yo había escrito, en el header
+del archivo, un comentario que explicaba el cambio y **citaba textualmente la línea vieja**:
+
+```
+// Se modifico UNA SOLA LINEA: la validacion de `?key=`, que pasaba de
+// `key !== process.env.NEXTAUTH_SECRET` a `esClaveDeWebhookValida(key)`.
+```
+
+El test buscaba sobre el archivo entero, así que encontró su propia documentación.
+
+### Causa raíz
+
+Un test de source que busca un patrón **prohibido** tiene que mirar **código**, no el archivo.
+Y el lugar donde más probable es que aparezca el patrón prohibido en forma de texto es justamente
+el comentario que explica por qué está prohibido — o sea que este choque no es un accidente raro,
+es el caso esperable.
+
+Es la contracara del patrón ya documentado en `#REGEX-DE-TEST-DEMASIADO-ESTRECHA`: allá el test
+era demasiado específico, acá es demasiado amplio. En los dos casos **el test estaba mal y el
+código bien**, que es el escenario en el que más fácil se rompe algo que funcionaba.
+
+### Regla
+
+En un test que verifica la **ausencia** de un patrón en el código fuente, filtrar las líneas de
+comentario antes de buscar:
+
+```ts
+const codigo = fuente
+  .split("\n")
+  .filter((l) => !l.trim().startsWith("//"))
+  .join("\n");
+```
+
+Las aserciones **positivas** (que algo exista) pueden seguir mirando el archivo entero — ahí que
+matcheen un comentario es inofensivo, y a veces es justo lo que se quiere verificar (ej: que el
+header siga diciendo `CORE PROTEGIDO`).
+
+### Prevención
+
+Antes de dar por bueno un test de source: **mutar el código y confirmar que se pone rojo por el
+motivo correcto**. Acá el test estaba rojo, pero por leer un comentario — o sea que hubiera dado
+"rojo" igual con el código arreglado, que es exactamente un test que no sirve.
+
+### Pattern relevante
+
+`#EL-TEST-ESTABA-MAL-NO-EL-CODIGO` — tercera vez en esta branch (las otras dos:
+`crons-reanudables.test.ts` con regexes demasiado estrechas, y `cron-org-isolation.test.ts`
+comparando contra un `indexOf` de -1 sin guard).
