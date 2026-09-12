@@ -22,6 +22,7 @@ const todoBien: InsumosDeReadiness = {
   ordenes: 4_300,
   jobs: { total: 2, completos: 2, fallados: 0, pendientes: 0 },
   webhookVtexRegistrado: true,
+  costos: { productos: 1200, conCosto: 1150 },
 };
 
 const item = (r: ReturnType<typeof evaluarReadiness>, clave: string) =>
@@ -176,6 +177,59 @@ describe("el webhook de VTEX — el paso que más se olvida", () => {
   });
 });
 
+describe("los precios de costo — E-33", () => {
+  // La cadena existe y está enchufada: post-backfill-finalize corre
+  // catalog-refresh, que pide los costos a la Pricing API de VTEX, y después
+  // backfill-orderitem-costs los copia a las órdenes. Pero nadie miraba si
+  // trajo algo — `catalog-refresh` devuelve un `withCost` que no lee nadie.
+  //
+  // Desde E-25 el margen se esconde cuando no hay costos, así que el admin ve
+  // "Sin datos" y necesita saber por qué.
+
+  it("ningún producto con costo: sale marcado", () => {
+    const r = evaluarReadiness({ ...todoBien, costos: { productos: 800, conCosto: 0 } });
+    const c = item(r, "costos");
+    expect(c.estado).toBe("falta");
+    expect(c.detalle).toContain("800");
+  });
+
+  it("y nombra la causa que NO se adivina: el permiso de Pricing en VTEX", () => {
+    // Es un rol aparte del de Catalog. Sin él, el costo no viaja y el resto del
+    // catálogo sí — o sea que parece que anduvo.
+    const r = evaluarReadiness({ ...todoBien, costos: { productos: 800, conCosto: 0 } });
+    expect(item(r, "costos").queHacer).toMatch(/pricing/i);
+    expect(item(r, "costos").queHacer).toContain("catalog-refresh");
+  });
+
+  it("NO bloquea: un cliente puede cargar los costos después", () => {
+    const r = evaluarReadiness({ ...todoBien, costos: { productos: 800, conCosto: 0 } });
+    expect(r.listo).toBe(true);
+  });
+
+  it("cobertura parcial avisa que el margen es mejor que el real", () => {
+    const r = evaluarReadiness({ ...todoBien, costos: { productos: 1000, conCosto: 300 } });
+    const c = item(r, "costos");
+    expect(c.estado).toBe("atencion");
+    expect(c.detalle).toContain("30%");
+    expect(c.queHacer).toContain("mejor que el real");
+  });
+
+  it("sin productos no aplica: no hay nada que costear", () => {
+    const r = evaluarReadiness({ ...todoBien, costos: { productos: 0, conCosto: 0 } });
+    expect(item(r, "costos").estado).toBe("no-aplica");
+  });
+
+  it("no se pudo consultar no es un verde", () => {
+    const r = evaluarReadiness({ ...todoBien, costos: null });
+    expect(item(r, "costos").estado).toBe("atencion");
+  });
+
+  it("con la mayoría cargada está en verde", () => {
+    const r = evaluarReadiness({ ...todoBien, costos: { productos: 1000, conCosto: 900 } });
+    expect(item(r, "costos").estado).toBe("ok");
+  });
+});
+
 describe("cuando no se pudo consultar algo, se dice", () => {
   it("no se inventa un verde", () => {
     // Un semáforo que trata "no sé" como "está bien" es peor que no tenerlo.
@@ -186,10 +240,10 @@ describe("cuando no se pudo consultar algo, se dice", () => {
 });
 
 describe("el resultado es completo y estable", () => {
-  it("siempre devuelve los cinco items", () => {
+  it("siempre devuelve los seis items", () => {
     const r = evaluarReadiness(todoBien);
     expect(r.items.map((i) => i.clave).sort()).toEqual(
-      ["backfill", "credenciales", "ordenes", "pixel", "webhook-vtex"].sort(),
+      ["backfill", "costos", "credenciales", "ordenes", "pixel", "webhook-vtex"].sort(),
     );
   });
 

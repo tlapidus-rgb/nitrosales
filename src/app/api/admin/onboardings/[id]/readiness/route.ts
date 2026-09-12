@@ -121,6 +121,25 @@ export async function GET(
       .catch(() => ({ total: 0, completos: 0, fallados: 0, pendientes: 0 })),
   ]);
 
+  // E-33: cuántos productos tienen precio de costo. Es una sola query agregada
+  // sobre `products` filtrada por org, así que es barata — a diferencia de la
+  // del webhook, esta no sale a internet y va siempre.
+  //
+  // `null` si falla: un semáforo que trata "no sé" como "está bien" es peor que
+  // no tener semáforo.
+  const costos = await prisma
+    .$queryRawUnsafe<Array<any>>(
+      `SELECT COUNT(*)::int AS productos,
+              COUNT("costPrice")::int AS "conCosto"
+         FROM products WHERE "organizationId" = $1`,
+      orgId,
+    )
+    .then((r) => ({
+      productos: Number(r[0]?.productos || 0),
+      conCosto: Number(r[0]?.conCosto || 0),
+    }))
+    .catch(() => null);
+
   // E-33: la verificación del webhook, sólo si la piden. Nunca tira: si VTEX no
   // contesta, queda en "no sé", que es distinto de "está mal" y de "está bien".
   const webhook = new URL(req.url).searchParams.get("verificarWebhook") === "1"
@@ -146,6 +165,7 @@ export async function GET(
     // que es lo que ya hacía.
     webhookVtexRegistrado: webhook.registrado,
     webhookVtexDetalle: webhook.detalle,
+    costos,
   };
 
   return NextResponse.json({

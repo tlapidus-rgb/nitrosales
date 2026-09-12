@@ -56,6 +56,21 @@ export type InsumosDeReadiness = {
    * Un "no está registrado" a secas manda a la persona a adivinar.
    */
   webhookVtexDetalle?: string;
+  /**
+   * Productos de la organización y cuántos tienen precio de costo cargado.
+   * `null` = no se pudo consultar.
+   *
+   * E-33: la cadena existe y está enchufada —`post-backfill-finalize` corre
+   * `catalog-refresh`, que pide los costos a la Pricing API de VTEX, y después
+   * `backfill-orderitem-costs` los copia a las órdenes— pero **nadie mira si
+   * trajo algo**. `catalog-refresh` devuelve un `withCost` que no lee nadie.
+   *
+   * Y la causa más probable de que venga en cero no se adivina: la API key del
+   * cliente necesita permiso de **Pricing** en VTEX, que es un rol aparte del
+   * de Catalog. Sin eso el precio de costo no viaja, el resto del catálogo sí,
+   * y todo parece funcionar.
+   */
+  costos: { productos: number; conCosto: number } | null;
 };
 
 export type Readiness = {
@@ -217,6 +232,62 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
       titulo: "Backfill",
       estado: "ok",
       detalle: `${i.jobs.total} job(s) completos.`,
+    });
+  }
+
+  // ── Precios de costo ────────────────────────────────────────────────────
+  // NO bloquea: un cliente puede arrancar sin costos y cargarlos después. Pero
+  // tiene que estar a la vista, porque sin costos **el P&L y la rentabilidad
+  // salen en cero con toda la pinta de estar bien** — y desde E-25 el margen
+  // directamente se esconde, así que el admin ve "Sin datos" y necesita saber
+  // por qué.
+  //
+  // La causa más probable no se adivina y por eso va escrita en el item.
+  if (i.costos === null) {
+    items.push({
+      clave: "costos",
+      titulo: "Precios de costo",
+      estado: "atencion",
+      detalle: "No se pudo consultar.",
+    });
+  } else if (i.costos.productos === 0) {
+    // Sin catálogo no hay nada que costear. El problema, si lo hay, es otro.
+    items.push({
+      clave: "costos",
+      titulo: "Precios de costo",
+      estado: "no-aplica",
+      detalle: "El cliente todavía no tiene productos.",
+    });
+  } else if (i.costos.conCosto === 0) {
+    items.push({
+      clave: "costos",
+      titulo: "Precios de costo",
+      estado: "falta",
+      detalle: `Ninguno de los ${i.costos.productos.toLocaleString("es-AR")} productos tiene precio de costo.`,
+      queHacer:
+        "Casi siempre es permiso: la API key de VTEX necesita el rol de PRICING, " +
+        "que es aparte del de Catalog. Sin eso el costo no viaja y el resto del " +
+        "catálogo sí, así que parece que anduvo. Pedile al cliente que agregue " +
+        "'Pricing - Full access' en License Manager y volvé a correr " +
+        "/api/sync/vtex/catalog-refresh.",
+    });
+  } else if (i.costos.conCosto / i.costos.productos < 0.5) {
+    const pct = Math.round((i.costos.conCosto / i.costos.productos) * 100);
+    items.push({
+      clave: "costos",
+      titulo: "Precios de costo",
+      estado: "atencion",
+      detalle: `Sólo ${pct}% de los productos tiene precio de costo.`,
+      queHacer:
+        "El margen que ve el cliente es mejor que el real: lo que no tiene costo " +
+        "cuenta como gratis. Revisá si faltan cargar en VTEX o si el sync no los trajo.",
+    });
+  } else {
+    items.push({
+      clave: "costos",
+      titulo: "Precios de costo",
+      estado: "ok",
+      detalle: `${i.costos.conCosto.toLocaleString("es-AR")} de ${i.costos.productos.toLocaleString("es-AR")} productos con costo.`,
     });
   }
 
