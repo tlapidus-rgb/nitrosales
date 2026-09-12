@@ -15,6 +15,7 @@ const todoHecho: InsumosDelChecklist = {
   alertas: { destinatarios: 3, esElFallback: false },
   ventana: { estado: "ok" },
   historiaGold: { source: 400, channel: 400 },
+  ventanaDeRotacionAbierta: false,
 };
 
 const paso = (r: ReturnType<typeof evaluarChecklist>, clave: string) =>
@@ -34,6 +35,7 @@ describe("el caso feliz", () => {
       alertas: { destinatarios: 1, esElFallback: true },
       ventana: { estado: "sin-configurar" },
       historiaGold: { source: 2, channel: 1 },
+      ventanaDeRotacionAbierta: false,
     });
     for (const p of r.pasos) {
       if (p.estado !== "ok" && p.estado !== "no-se-sabe") {
@@ -163,6 +165,22 @@ describe("lo que no se pudo consultar no se inventa", () => {
 });
 
 describe("el resultado es completo y estable", () => {
+  it("con la rotación cerrada, la ventana no aparece como paso", () => {
+    // Sólo se reporta cuando hay algo que hacer: un paso que siempre dice "ok"
+    // entrena a no mirarlo.
+    expect(evaluarChecklist(todoHecho).pasos.map((p) => p.clave)).not.toContain("ventana-rotacion");
+  });
+
+  it("EL PASO QUE NO TIENE SINTOMA: la ventana de rotación abierta", () => {
+    // Una ventana abierta para siempre es una rotación que no terminó: la clave
+    // vieja sigue sirviendo y TODO FUNCIONA IGUAL, así que nada la delata.
+    const r = evaluarChecklist({ ...todoHecho, ventanaDeRotacionAbierta: true });
+    const p = r.pasos.find((x) => x.clave === "ventana-rotacion")!;
+    expect(p.estado).toBe("mal");
+    expect(p.detalle).toContain("todavía sirve");
+    expect(r.pendientes).toBe(1);
+  });
+
   it("siempre devuelve los cuatro pasos", () => {
     const r = evaluarChecklist(todoHecho);
     expect(r.pasos.map((p) => p.clave).sort()).toEqual(
@@ -186,6 +204,7 @@ describe("el resultado es completo y estable", () => {
       alertas: { destinatarios: 1, esElFallback: true },
       ventana: { estado: "mal-escrita", valor: "x", motivo: "y" },
       historiaGold: { source: 400, channel: 400 },
+      ventanaDeRotacionAbierta: false,
     });
     expect(r.pendientes).toBe(3);
     expect(r.listo).toBe(false);

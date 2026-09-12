@@ -49,6 +49,15 @@ export type InsumosDelChecklist = {
    * si la historia no pasa de ahí, el `?full=1` no se corrió.
    */
   historiaGold: { source: number | null; channel: number | null };
+  /**
+   * Si quedó abierta una ventana de rotación de clave
+   * (`ADMIN_API_KEY_ANTERIOR` seteada).
+   *
+   * Una ventana que queda abierta para siempre es una rotación que no
+   * terminó: la clave vieja sigue sirviendo para entrar y **no hay ningún
+   * síntoma** — todo funciona. Es el paso que más fácil se olvida.
+   */
+  ventanaDeRotacionAbierta: boolean;
 };
 
 /** La ventana incremental de los crons Gold de atribución, en días. */
@@ -198,6 +207,22 @@ export function evaluarChecklist(i: InsumosDelChecklist): {
       estado: "ok",
       detalle: `Las dos tienen historia más allá de la ventana incremental.`,
       automatizable: true,
+    });
+  }
+
+  // ── 5. La ventana de rotación de clave ─────────────────────────────────
+  if (i.ventanaDeRotacionAbierta) {
+    pasos.push({
+      clave: "ventana-rotacion",
+      titulo: "Ventana de rotación de clave",
+      estado: "mal",
+      detalle:
+        "`ADMIN_API_KEY_ANTERIOR` sigue seteada: la clave VIEJA todavía sirve para entrar.",
+      queHacer:
+        "Si la rotación ya terminó —URLs de vercel.json y del webhook de VTEX actualizadas " +
+        "y verificadas— borrá esa variable en Vercel. Mientras siga, la rotación no cerró y " +
+        "no hay ningún síntoma que lo delate: todo funciona igual.",
+      automatizable: false,
     });
   }
 
