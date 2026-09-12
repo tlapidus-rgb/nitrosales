@@ -1908,6 +1908,84 @@ function GscInputs({ creds, onChange }: any) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// E-14 — el botón que hace verdadero al checkbox
+// ═══════════════════════════════════════════════════════════════
+// El checkbox de abajo decía "ya pegué el snippet" y no verificaba nada: el
+// backend lo descarta. Esto pregunta de verdad si llegaron eventos, y cuando
+// llegan tilda el checkbox solo — o sea que el tilde pasa a estar respaldado por
+// un dato en vez de por una afirmación del cliente.
+//
+// NO bloquea el alta. Si no llegó nada puede ser que el sitio no haya tenido
+// una visita, y trabar a alguien por eso es exactamente lo que rompió el alta
+// dos veces en E-13. El chequeo que decide es el del semáforo, al habilitar.
+function VerificarPixel({ onConfirmado }: { onConfirmado: () => void }) {
+  const [estado, setEstado] = useState<"idle" | "verificando" | "listo">("idle");
+  const [res, setRes] = useState<{ estado: string; confirmado: boolean; titulo: string; detalle: string } | null>(null);
+
+  const verificar = async () => {
+    setEstado("verificando");
+    try {
+      const r = await fetch("/api/me/onboarding/verificar-pixel", { cache: "no-store" });
+      const j = await r.json();
+      setRes(j);
+      if (j?.confirmado) onConfirmado();
+    } catch {
+      setRes({
+        estado: "no-verificable",
+        confirmado: false,
+        titulo: "No pudimos verificar ahora",
+        detalle: "Probá de nuevo en un minuto. Podés seguir con el alta igual.",
+      });
+    } finally {
+      setEstado("listo");
+    }
+  };
+
+  const color = res?.confirmado ? ACCENT_GREEN : "#F59E0B";
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button
+        type="button"
+        onClick={verificar}
+        disabled={estado === "verificando"}
+        style={{
+          padding: "8px 14px",
+          borderRadius: 10,
+          border: `1px solid ${BORDER}`,
+          background: "rgba(255,255,255,0.04)",
+          color: "#fff",
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: estado === "verificando" ? "default" : "pointer",
+          opacity: estado === "verificando" ? 0.6 : 1,
+          transition: "background 180ms cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
+        {estado === "verificando" ? "Buscando datos…" : "Verificar ahora"}
+      </button>
+
+      {res && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: `1px solid ${color}40`,
+            background: `${color}12`,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, color }}>{res.titulo}</div>
+          <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 3, lineHeight: 1.5 }}>
+            {res.detalle}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NitroPixelInputs({ creds, onChange, orgId }: any) {
   const [copied, setCopied] = useState(false);
   const appUrl = typeof window !== "undefined" ? window.location.origin : "https://app.nitrosales.ai";
@@ -2006,10 +2084,15 @@ function NitroPixelInputs({ creds, onChange, orgId }: any) {
         <div style={{ flex: 1, fontSize: 13, color: "#fff", fontWeight: 500 }}>
           Ya pegué el snippet en mi sitio (head o GTM)
           <div style={{ fontSize: 11, color: TEXT_SECONDARY, fontWeight: 400, marginTop: 2 }}>
-            NitroSales validará que recibimos pings antes de aprobar tu cuenta.
+            {creds.confirmedInstalled
+              ? "Verificado: ya recibimos datos tuyos."
+              : "Podés verificarlo acá abajo y te lo confirmamos al instante."}
           </div>
         </div>
       </label>
+
+      {/* E-14: el botón que hace verdadero al tilde de arriba. */}
+      <VerificarPixel onConfirmado={() => onChange("confirmedInstalled", true)} />
     </>
   );
 }

@@ -45,7 +45,16 @@ const SERVE_DIRS = [
 //   · 2026-07-21: se absorbe el diferencial de ampliar la superficie (16 rutas).
 //     Ese lote es DEUDA MEDIDA, no deuda nueva: ya escaneaban crudo, solo que
 //     nadie las estaba mirando.
+//   · 2026-09-12: entra verificar-pixel, y NO es deuda: es el unico caso donde
+//     Gold no puede contestar la pregunta. El cliente acaba de pegar el snippet
+//     y quiere saber si funciono AHORA; los rollups son DIARIOS y los refresca
+//     un cron por rotacion (~53 min de ciclo completo), asi que estructuralmente
+//     no pueden responder "llego algo en los ultimos 30 minutos". Son dos
+//     findFirst con LIMIT 1 sobre el indice, no un scan de rango largo — que es
+//     lo que este guard existe para impedir.
 const ALLOWLIST = new Set([
+  // — onboarding: verificacion en vivo, no dashboard —
+  "src/app/api/me/onboarding/verificar-pixel/route.ts", // ver nota 2026-09-12
   // — api/metrics (lote original) —
   "src/app/api/metrics/pixel/funnel/route.ts", // híbrido: Gold-first + fallback crudo
   "src/app/api/metrics/pixel/route.ts", //         híbrido: Gold-first + fallback crudo
