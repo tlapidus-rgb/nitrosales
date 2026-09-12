@@ -7,7 +7,9 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global (revisado el 2026-09-11):** **19 de 33 hechas.** E-24 y E-25 cerradas el 11-09, que eran las que protegian lo que E-19 construyo.
+> **Estado global (revisado el 2026-09-12):** **19 de 33 hechas, y E-33 con 3 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
+>
+> **Estado previo (2026-09-11):** **19 de 33 hechas.** E-24 y E-25 cerradas el 11-09, que eran las que protegian lo que E-19 construyo.
 >
 > **Estado previo (2026-09-08):** 🟨 **E0 cerrada salvo E-07, y E-07 es la que decide
 > si el gate está cerrado** (ver el recuadro rojo en E-07 y § 9 punto 6) · E1 arrancada ·
@@ -964,8 +966,15 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 - **La lista, en orden de daño:**
     1. ~~Orders Broadcaster de VTEX~~ ✅ **HECHO (2026-09-12).** No era un botón: era verificar. Ver el recuadro. Sin él no llega ninguna
        orden nueva. **Es el que más duele y el más barato.**
-    2. **Afiliados de VTEX** — se configura en el admin de VTEX a mano. No se puede automatizar del
-       todo, pero sí verificar desde el semáforo si quedó bien.
+    2. ~~Afiliados de VTEX~~ ✅ **HECHO (2026-09-12)** — el único de los tres donde la ficha tenía
+       razón: **no se puede automatizar**, se carga a mano en el admin de VTEX y no hay API para
+       escribirlo. Lo que sí se podía es verificarlo, que es donde estaba el agujero — igual que en
+       los otros dos. **Por qué importa tener los dos:** son complementarios, y TeVe Compras tenía
+       sólo el afiliado con el Orders Broadcaster faltando, lo que dejó la cobertura de órdenes en
+       41 % (bitácora de la sesión 60). El criterio se **reusa**: el modo de falla es idéntico al
+       del broadcaster, así que los dos pasan por `analizarHook`. Lo único nuevo es elegir cuál
+       mirar, porque una cuenta puede tener varios afiliados y los de otros proveedores no son
+       problema nuestro.
     3. ~~Carga de costos (`Product.costPrice`)~~ ✅ **HECHO (2026-09-12)** — y **otra vez no era lo
        que decía la ficha**. La cadena ya estaba enchufada: `post-backfill-finalize` corre
        `catalog-refresh`, que le pide los costos a la Pricing API de VTEX, y después
