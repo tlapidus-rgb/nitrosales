@@ -57,45 +57,61 @@ export function latenciaMaxMs(env: NodeJS.ProcessEnv = process.env): number {
 export type Ventana = { desde: number; hasta: number };
 
 /**
- * Parsea `BACKFILL_VENTANA` con formato `"desde-hasta"` en horas 0-23, hora
- * argentina. `"1-7"` = de la 1 a las 7 de la mañana. `null` = sin restricción.
+ * En qué estado está `BACKFILL_VENTANA`.
  *
- * Se acepta que dé la vuelta al día (`"22-6"`). `"0-0"` y cualquier cosa que no
- * parsee se tratan como sin restricción: preferimos que un valor mal escrito
- * deje pasar el backfill y no que lo congele para siempre en silencio.
+ * Formato: `"desde-hasta"` en horas 0-23, hora argentina. `"1-7"` = de la 1 a
+ * las 7 de la mañana. Se acepta que dé la vuelta al día (`"22-6"`).
+ *
+ * ⚠️ EXISTE PORQUE `parseVentana` DEVUELVE `null` PARA DOS COSAS DISTINTAS:
+ * "no está configurada" (normal, es opt-in) y "está configurada pero mal
+ * escrita" (alguien cree que puso la ventana y no la puso). Para el backfill
+ * las dos son lo mismo —corre a cualquier hora— pero para quien revisa el
+ * sistema son opuestas.
+ *
+ * No es hipotético: el propio doc de acciones manuales documentaba el formato
+ * como `HH:MM-HH:MM`, que este parser rechaza.
+ *
+ * El criterio vive acá y `parseVentana` lo usa, para que no haya dos regex que
+ * se puedan desincronizar.
  */
-export function parseVentana(env: NodeJS.ProcessEnv = process.env): Ventana | null {
+export type EstadoDeLaVentana =
+  | { estado: "sin-configurar" }
+  | { estado: "ok"; ventana: Ventana }
+  | { estado: "mal-escrita"; valor: string; motivo: string };
+
+export function estadoDeLaVentana(env: NodeJS.ProcessEnv = process.env): EstadoDeLaVentana {
   const raw = (env.BACKFILL_VENTANA || "").trim();
-  if (!raw) return null;
+  if (!raw) return { estado: "sin-configurar" };
+
+  const mal = (motivo: string): EstadoDeLaVentana => ({ estado: "mal-escrita", valor: raw, motivo });
+
+  const m = raw.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+  if (!m) return mal("no tiene el formato esperado");
+  const desde = parseInt(m[1], 10);
+  const hasta = parseInt(m[2], 10);
+  if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return mal("no son números");
+  if (desde < 0 || desde > 23 || hasta < 0 || hasta > 23) return mal("tiene horas fuera del rango 0-23");
+  if (desde === hasta) return mal("tiene la misma hora de inicio y fin");
+  return { estado: "ok", ventana: { desde, hasta } };
+}
+
+export function parseVentana(env: NodeJS.ProcessEnv = process.env): Ventana | null {
+  const e = estadoDeLaVentana(env);
 
   // ⚠️ FALLA ABIERTO, PERO NO EN SILENCIO (agregado el 2026-09-08).
   // Dejar pasar el backfill ante un valor mal escrito es lo correcto —congelarlo
   // para siempre sería peor— pero no avisar no lo es: el que puso la variable
   // cree que la ventana está activa y no lo está.
-  //
-  // No es hipotético: `docs/ESTADO-BRANCH-INTEGRACION.md` documentaba el formato
-  // como `HH:MM-HH:MM`, que este parser rechaza. Alguien siguiendo esa tabla al
-  // mergear habría puesto `01:00-07:00`, la ventana habría quedado apagada sin
-  // ninguna señal, y el backfill de un cliente nuevo podría arrancar a las 3 de
-  // la tarde contra Neon — el escenario exacto que E-08 vino a evitar.
-  const avisar = (motivo: string): null => {
+  if (e.estado === "mal-escrita") {
     console.error(
-      `[backfill/admision] BACKFILL_VENTANA="${raw}" ${motivo}. ` +
+      `[backfill/admision] BACKFILL_VENTANA="${e.valor}" ${e.motivo}. ` +
         `Se ignora y el backfill corre A CUALQUIER HORA. El formato son horas ` +
         `enteras 0-23, por ejemplo "1-7" (de la 1 a las 7 AM, hora argentina).`,
     );
     return null;
-  };
+  }
 
-  const m = raw.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
-  if (!m) return avisar("no tiene el formato esperado");
-  const desde = parseInt(m[1], 10);
-  const hasta = parseInt(m[2], 10);
-  if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return avisar("no son números");
-  if (desde < 0 || desde > 23 || hasta < 0 || hasta > 23)
-    return avisar("tiene horas fuera del rango 0-23");
-  if (desde === hasta) return avisar("tiene la misma hora de inicio y fin");
-  return { desde, hasta };
+  return e.estado === "ok" ? e.ventana : null;
 }
 
 /** Hora (0-23) en zona argentina para un instante dado. */

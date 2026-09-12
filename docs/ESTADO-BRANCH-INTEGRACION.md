@@ -1,6 +1,6 @@
 # Estado de la branch de integración
 
-> **Última actualización: 2026-09-08.** Branch `fix/expansion-gate-e0`, 66 commits por delante de
+> **Última actualización: 2026-09-12.** Branch `fix/expansion-gate-e0`, 79 commits por delante de
 > `origin/main`. **Nada de esto está en producción.** La decisión fue explícita: todo el plan entra
 > en una sola branch, se prueba y se revisa entero, y recién ahí se mergea — antes de sumar clientes
 > nuevos.
@@ -10,9 +10,9 @@
 | | |
 |---|---|
 | `npx tsc --noEmit` | 0 errores |
-| `npx vitest run` | 878 passed, 7 skipped, **0 failed** |
+| `npx vitest run` | 975 passed, 7 skipped, **0 failed** |
 | `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
-| Tests nuevos en la branch | 37 archivos |
+| Tests nuevos en la branch | 41 archivos |
 
 ## Lo que encontró la revisión del PLAN (2026-09-08)
 
@@ -168,15 +168,29 @@ nombre del archivo prometía conducta y entregaba un `grep`.
 
 ## ⚠️ Acciones manuales al mergear
 
-Estas **no** las hace el deploy. Sin ellas, parte de lo de arriba queda inerte.
+> **Desde el 2026-09-12 no hay que confiar en esta tabla: hay un endpoint que las verifica.**
+>
+> ```
+> GET /api/admin/checklist-merge?key=<ADMIN_API_KEY>
+> ```
+>
+> Devuelve los cuatro pasos en verde o en rojo, con qué hacer en cada uno. Sirve **antes** del merge
+> y también **después**: si alguien se olvidó de algo, lo sigue diciendo. La tabla de abajo queda
+> como referencia de por qué importa cada una.
+>
+> **Verifica, no ejecuta**, y no por vagancia: dos de las cuatro son variables de entorno de Vercel
+> y el código que corre adentro de Vercel no puede escribirlas. Las otras dos sí se podrían correr
+> —una migración y dos backfills Gold— y a propósito no se corren desde un botón: `CLAUDE.md` tiene
+> una regla entera sobre cambios en producción que pide dry-run, backup y rollback preparado.
+
+Estas **no** las hace el deploy. Sin ellas, parte de lo que se construyó queda inerte.
 
 | # | Qué | Cómo | Si no se hace |
 |---|---|---|---|
 | 1 | Migrar la tabla de cursores | `POST /api/admin/migrate-cron-cursors` — **antes** del merge del código que la usa, como manda `CLAUDE.md` | Los crons vuelven a arrancar de cero cada vez. Degrada sin romper: es el comportamiento de hoy |
-| 2 | `ALERTAS_EMAILS` | Vercel → Environment Variables. Separadas por coma | Las alertas siguen yendo a una sola casilla. Sin la variable, es exactamente el comportamiento de hoy |
-| 3 | `BACKFILL_VENTANA` | Vercel. **Horas enteras, `1-7`** (de la 1 a las 7 AM, hora argentina). NO `01:00-07:00`: el parser lo rechaza y un valor que no parsea significa **sin restricción** | El backfill corre a cualquier hora, como hoy |
-| 4 | `?full=1` en los dos crons Gold | Una corrida manual después del deploy | Las tablas Gold arrancan con la ventana incremental y tardan en llenarse |
-
+| 2 | `ALERTAS_EMAILS` | Vercel → Environment Variables. Separadas por coma | Las alertas siguen yendo a una sola casilla. **Ojo: no falla nada** — el código cae a la casilla histórica, así que sin mirar el checklist no te enterás |
+| 3 | `BACKFILL_VENTANA` | Vercel. **Horas enteras, `1-7`** (de la 1 a las 7 AM, hora argentina). NO `01:00-07:00`: el parser lo rechaza y un valor que no parsea significa **sin restricción** | El backfill corre a cualquier hora. El checklist distingue "sin configurar" de "configurada y mal escrita", que para el backfill son lo mismo y para vos no |
+| 4 | `?full=1` en los dos crons Gold | Una corrida manual después del deploy | Las tablas Gold arrancan con la ventana incremental y tardan en llenarse. El checklist lo detecta mirando si tienen historia más allá de los 4 días |
 ## Lo que sigue congelado
 
 **Rotación de secretos (R-C07 / R-C08 / R-C09).** Decisión explícita: no se tocan hasta entender el

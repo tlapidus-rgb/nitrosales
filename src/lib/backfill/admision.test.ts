@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseVentana,
+  estadoDeLaVentana,
   dentroDeVentana,
   horaArgentina,
   decidirAdmision,
@@ -47,6 +48,44 @@ describe("parseVentana", () => {
 
   it("desde == hasta se trata como sin restricción, no como ventana vacía", () => {
     expect(parseVentana(env({ BACKFILL_VENTANA: "3-3" }))).toBeNull();
+  });
+});
+
+describe("estadoDeLaVentana — distinguir los dos nulls", () => {
+  // `parseVentana` devuelve null tanto si no esta configurada (normal, es
+  // opt-in) como si esta mal escrita (alguien cree que la puso y no la puso).
+  // Para el backfill son lo mismo; para quien revisa el sistema son opuestas.
+
+  it("sin configurar", () => {
+    expect(estadoDeLaVentana(env({})).estado).toBe("sin-configurar");
+  });
+
+  it("bien escrita devuelve la ventana", () => {
+    const e = estadoDeLaVentana(env({ BACKFILL_VENTANA: "1-7" }));
+    expect(e).toEqual({ estado: "ok", ventana: { desde: 1, hasta: 7 } });
+  });
+
+  it("EL CASO REAL: el formato que documentaba nuestro propio doc", () => {
+    // `HH:MM-HH:MM` lo rechaza el parser, y un valor que no parsea significa
+    // SIN RESTRICCION. Alguien siguiendo esa tabla dejaba la ventana apagada.
+    const e = estadoDeLaVentana(env({ BACKFILL_VENTANA: "01:00-07:00" }));
+    expect(e.estado).toBe("mal-escrita");
+    if (e.estado === "mal-escrita") expect(e.valor).toBe("01:00-07:00");
+  });
+
+  it("y dice el motivo, distinto para cada forma de estar mal", () => {
+    const fuera = estadoDeLaVentana(env({ BACKFILL_VENTANA: "1-99" }));
+    const iguales = estadoDeLaVentana(env({ BACKFILL_VENTANA: "3-3" }));
+    expect(fuera.estado).toBe("mal-escrita");
+    expect(iguales.estado).toBe("mal-escrita");
+    if (fuera.estado === "mal-escrita" && iguales.estado === "mal-escrita") {
+      expect(fuera.motivo).not.toBe(iguales.motivo);
+    }
+  });
+
+  it("parseVentana sigue dando null en los dos casos: no cambia el backfill", () => {
+    expect(parseVentana(env({}))).toBeNull();
+    expect(parseVentana(env({ BACKFILL_VENTANA: "01:00-07:00" }))).toBeNull();
   });
 });
 
