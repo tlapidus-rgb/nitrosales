@@ -1,3 +1,52 @@
+> ## 📍 2026-09-13 — DÓNDE ESTAMOS (leer esto primero)
+>
+> **Branch `fix/expansion-gate-e0`, 93 commits adelante de `main`. NADA MERGEADO, NADA EN PROD.**
+> Todo el trabajo del plan de expansión vive ahí y ahí se queda hasta que Axel diga lo contrario.
+>
+> **Plan de expansión: 22 de 33 hechas · 4 parciales · 6 pendientes · 1 esperando decisión.**
+> El detalle, tarea por tarea, está en `PLAN_EXPANSION.md` (el recuadro de arriba de todo).
+>
+> **Validación al día de hoy:** `tsc --noEmit` 0 errores · `vitest run` **1.245 tests en verde**
+> · `npm run build` exit 0 · los 3 guards de build (`order-contract`, `serve-gold-first`,
+> `ts-nocheck`) en verde. La línea base del 2026-09-02 eran 396 tests.
+>
+> ### Lo que cambió respecto de lo que dice el bloque de abajo
+>
+> - **Ya NO es cierto que haya "CERO cambios en src/".** Eso era del 2026-09-02.
+> - **Rotar `NEXTAUTH_SECRET` ya NO tumba los crons ni el webhook.** Los dos secretos toleran una
+>   ventana de rotación (`ADMIN_API_KEY_ANTERIOR`, `NEXTAUTH_SECRET_ANTERIOR`): durante la ventana
+>   valen la clave vieja y la nueva a la vez. **Nada está rotado todavía** — sin esas variables el
+>   comportamiento es idéntico al de siempre. Ojo: quedan ~50 endpoints que comparan
+>   `NEXTAUTH_SECRET` con `!==` y NO toleran la ventana (N-06 en el backlog); hay que cerrarlos
+>   ANTES de rotar de verdad.
+> - **Sigue vigente: NO correr `prisma db push`.** Las ~30 tablas fuera de `schema.prisma` siguen
+>   fuera, y Prisma seguiría ofreciendo borrarlas.
+> - **Sigue vigente: la DB de prod no se toca desde acá.** El SQL lo corre Axel en la consola de Neon.
+>
+> ### Dos archivos CORE PROTEGIDO se tocaron, con autorización explícita
+>
+> | Archivo | Qué se cambió | Red |
+> |---|---|---|
+> | `api/webhooks/vtex/orders/route.ts` | **2 líneas**: un import y la validación de `?key=`, para tolerar la ventana de rotación | `webhook-vtex-clave-rotable.test.ts` |
+> | `api/pixel/script/route.ts` | El template de 1.600 líneas partido en `nucleoGenerico` + `capasVtex` + `cierreDelNucleo`. **Corte textual: el JS emitido es idéntico byte a byte** | `pixel-script-byte-identico.test.ts` (congela 65.491 bytes) |
+>
+> `src/lib/pixel/attribution.ts` **no se tocó**. Las dos excepciones están anotadas en el header de
+> cada archivo y en `docs/HANDOFF.md`.
+>
+> ⚠️ **Ojo con el snapshot del pixel:** si `pixel-script-byte-identico.test.ts` se pone rojo, el JS
+> emitido cambió. Regenerar el snapshot para que pase destruye la única red que ese archivo tiene.
+>
+> ### Lo que falta y por qué
+>
+> Lo que queda del plan casi no lo puede hacer Claude solo: **E-09 y E-28 destruyen datos**, **E-22**
+> y **E-31** son decisiones de producto, **E-27** necesita columnas nuevas (SQL en Neon), y **E-32**
+> se hace *durante* el próximo alta real. La que sí se podría hacer —**E-10**— la desaconseja la
+> propia revisión de premisa del plan: levanta un techo que no aprieta hasta 2028.
+>
+> **El gate lo destraba una decisión, no código:** § 9 punto 6 de `PLAN_EXPANSION.md` — ¿se firma el
+> próximo cliente antes de rotar los secretos?
+
+---
 > ## 🚨 2026-09-02 — AUDITORIA DE PRODUCCION: leer `PLAN_REMEDIACION.md` ANTES de tocar codigo
 >
 > Se audito produccion (commit `9ad4616d`) con 6 agentes en paralelo: **197 hallazgos, 37 criticos**.

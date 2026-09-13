@@ -7,7 +7,20 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global (revisado el 2026-09-12):** **20 de 33 hechas, y E-33 con 4 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
+> **Estado global (revisado el 2026-09-13):** **22 de 33 hechas · 4 parciales · 6 pendientes · 1 esperando decisión de Tomy.**
+>
+> | | Tareas |
+> |---|---|
+> | ✅ Hechas (22) | E-01…E-06, E-08, E-11…E-19, E-21, E-23, E-24, E-25, E-26, E-29 |
+> | 🟡 Parciales (4) | **E-07** (preparada para rotar, sin rotar) · **E-20** · **E-30** (5 de 8) · **E-33** (4 de 6) |
+> | ⬜ Pendientes (6) | E-09, E-10, E-22, E-27, E-28, E-32 |
+> | 🔒 Decisión | E-31 |
+>
+> **Lo que bloquea el gate ya no es técnico.** E-07 está preparada: los dos secretos toleran una ventana de rotación y rotar dejó de cortar la ingesta. Lo que falta es **la decisión del § 9 punto 6** — ¿se firma el próximo cliente antes de rotar?
+>
+> **De las 6 pendientes, 4 no las puede hacer Claude solo:** E-09 y E-28 destruyen datos, E-22 necesita la decisión del § 9 punto 3, E-27 necesita columnas nuevas (SQL en Neon). Las que quedan son E-10 —que la revisión de premisa desaconseja, porque levanta un techo que no aprieta hasta 2028— y E-32, que se hace **durante** el próximo alta real.
+>
+> **Estado previo (2026-09-12):** **20 de 33 hechas, y E-33 con 4 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
 >
 > **Estado previo (2026-09-11):** **19 de 33 hechas.** E-24 y E-25 cerradas el 11-09, que eran las que protegian lo que E-19 construyo.
 >
@@ -945,7 +958,8 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   que alguien "arreglara" algo que ya estaba bien y no mirara lo que faltaba.
 
 ### E-30 · Las 8 movidas baratas que compran opcionalidad
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 semanas en total
+- **Estado:** 🟡 **5 de 8 hechas (2026-09-13)** — la del pixel (la más valiosa) y tres de los cuatro "bugs latentes"; el cuarto se reclasificó como N-09 porque necesita migrar datos. Quedan 3 movidas menores sin tocar.
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 semanas en total
 - **La más valiosa:** ✅ **HECHA (2026-09-13)** — partir el pixel en **núcleo genérico + `vtexLayers()`**, sin cambiar un byte
   del JavaScript que se emite hoy.
 

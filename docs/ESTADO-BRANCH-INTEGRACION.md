@@ -1,6 +1,6 @@
 # Estado de la branch de integración
 
-> **Última actualización: 2026-09-12 (segunda).** Branch `fix/expansion-gate-e0`, 83 commits por delante de
+> **Última actualización: 2026-09-13.** Branch `fix/expansion-gate-e0`, **93 commits** por delante de
 > `origin/main`. **Nada de esto está en producción.** La decisión fue explícita: todo el plan entra
 > en una sola branch, se prueba y se revisa entero, y recién ahí se mergea — antes de sumar clientes
 > nuevos.
@@ -10,9 +10,56 @@
 | | |
 |---|---|
 | `npx tsc --noEmit` | 0 errores |
-| `npx vitest run` | 1004 passed, 7 skipped, **0 failed** |
+| `npx vitest run` | **1.245 passed**, 7 skipped, **0 failed** |
 | `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
-| Tests nuevos en la branch | 46 archivos |
+| Tests nuevos en la branch | 55 archivos |
+| Guards de build | `order-contract`, `serve-gold-first`, `ts-nocheck` — los 3 en verde |
+
+## Lo que se construyó el 12 y 13 de septiembre
+
+| | Qué | Dónde |
+|---|---|---|
+| **E-07 (prep)** | Los dos secretos toleran una **ventana de rotación**. Rotar deja de ser un corte de raíz: durante la ventana valen la clave vieja y la nueva. **Nada está rotado.** | `lib/comparacion-segura.ts`, `lib/webhook-key.ts`, `lib/admin-key.ts` |
+| **E-26** | El truncado silencioso de los paneles predictivos ahora se ve, y dice **por qué criterio** se recortó. Se quitaron **cuatro afirmaciones falsas** de la UI sobre el motor de LTV | `lib/analytics/cobertura.ts`, `components/bondly/AvisoDeCobertura.tsx` |
+| **E-29** | El wizard mostraba 100 % en verde sobre un alta que el backend rechazaba con 400. Era una pared, no una promesa falsa | `lib/onboarding/listo-para-enviar.ts` |
+| **E-21** | Las **seis dimensiones** de facturación por organización, más el costo de IA en dólares. La tabla de precios de modelos **no existía en el repo** | `GET /api/admin/consumo-por-cliente`, `lib/costos/*` |
+| **E-23** | Tope de gasto y freno de loop en Aurum. **Degrada, no bloquea** | `lib/aurum/cuota.ts` |
+| **E-30** | El mapeo de estados de MELI estaba en **siete copias, en dos familias que no coincidían**. El pixel partido en núcleo + capas VTEX | `lib/meli-status.ts`, `api/pixel/script/route.ts` |
+
+### Lo más grave que apareció: el mapeo de MELI movía plata
+
+Siete copias del mapeo de estados, en dos familias:
+
+| estado MELI | Familia A (5 archivos, **incluye el webhook en vivo**) | Familia B (2) | ¿Cuenta como venta? |
+|---|---|---|---|
+| `confirmed` | `APPROVED` | `PENDING` | **A sí · B no** |
+| `partially_refunded` | `PENDING` | `APPROVED` | **A no · B sí** |
+
+En MELI `confirmed` es *"orden creada, esperando pago"*. La familia B tiene razón y era la
+minoría: **el webhook en tiempo real contaba plata que todavía no entró**, hasta que el cron de
+reconcile lo curaba unas horas después. Por eso nunca explotó, y por eso nadie lo vio.
+
+### Dos archivos CORE PROTEGIDO tocados, con autorización explícita de Axel
+
+| Archivo | Cambio | Red |
+|---|---|---|
+| `api/webhooks/vtex/orders/route.ts` | **2 líneas**: un import y la validación de `?key=` | `webhook-vtex-clave-rotable.test.ts` |
+| `api/pixel/script/route.ts` | Template de 1.600 líneas partido en tres funciones. **Corte textual: el JS emitido es idéntico byte a byte** | `pixel-script-byte-identico.test.ts` |
+
+`src/lib/pixel/attribution.ts` **no se tocó**. Las excepciones están anotadas en el header de cada
+archivo y en `docs/HANDOFF.md`.
+
+⚠️ **El snapshot del pixel congela 65.491 bytes.** Si ese test se pone rojo, el JS emitido cambió.
+Regenerarlo para que pase destruye la única red que ese archivo tiene.
+
+### Hallazgos que quedaron en el backlog, no resueltos
+
+| | Qué |
+|---|---|
+| **N-06** | ~50 endpoints comparan `NEXTAUTH_SECRET` con `!==` y **no toleran la ventana de rotación**. Hay que cerrarlos ANTES de rotar de verdad |
+| **N-07** | El paquete "sólo NitroPixel" no se puede dar de alta solo. Decisión de producto |
+| **N-08** | **Aurum no usa prompt caching en ninguna llamada.** Es la palanca de costo más grande y más barata que hay |
+| **N-09** | `Order`/`Product`/`Customer` tienen clave única sin la plataforma. Hoy no colisiona; arreglarlo necesita migrar datos |
 
 ## Lo que se construyó del 11 al 12 de septiembre
 
