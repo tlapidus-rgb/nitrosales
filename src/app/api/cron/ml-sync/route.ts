@@ -21,6 +21,8 @@ import { getSellerToken, fetchSellerReputation, fetchSellerOrders } from "@/lib/
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
 import { mapMeliStatus } from "@/lib/meli-status";
+import { isValidAdminKey } from "@/lib/admin-key";
+import { coincideConAlguna } from "@/lib/comparacion-segura";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel Pro plan — 5 min
@@ -281,26 +283,42 @@ async function syncOneOrg(
 export async function GET(req: NextRequest) {
   // ⚠️ FAIL-CLOSED (R-C04). Antes era `if (cronSecret && authHeader !== ...)`, o
   // sea: si la variable de entorno NO estaba seteada, el `if` no se evaluaba y
-  // **el endpoint quedaba público**. Y `CRON_SECRET` no figura ni en
-  // `.env.example` ni en `vercel.json`, así que lo más probable es que no esté.
+  // **el endpoint quedaba público**.
+  //
+  // ── POR QUÉ DOS PUERTAS Y NO UN 500 ──────────────────────────────────
+  // La primera versión de este arreglo devolvía 500 si `CRON_SECRET` no
+  // estaba seteada. Cambiaba un endpoint abierto por uno que no arranca, que
+  // es mejor, pero apostaba el cron entero a una variable que este repo NO
+  // usa en ningún lado: `CRON_SECRET` no figura en `.env.example`, y de los
+  // 26 crons éste era el único que dependía de ella. Los otros 25 se
+  // autentican con `ADMIN_API_KEY`, que es la que `vercel.json` manda.
+  //
+  // Así que ahora entra por cualquiera de las dos, y las dos son fail-closed
+  // por construcción: `isValidAdminKey` cae a una clave aleatoria por proceso
+  // si la env falta (nadie la puede matchear), y el Bearer exige que
+  // `CRON_SECRET` exista ANTES de comparar.
+  //
+  // Ese último detalle no es paranoia: sin el chequeo de largo, con la env
+  // sin setear el secreto esperado sería el string `"Bearer undefined"` —
+  // que cualquiera puede mandar.
   //
   // Qué se podía hacer con eso: cualquiera que descubriera la URL la disparaba en
   // loop. Cada llamada lanza un sync completo de MercadoLibre para todas las orgs
   // con ML activo — satura Neon (que ya se cayó bajo carga, BP-NEON-CAPACITY) y
   // consume la cuota de la app de ML, que ML puede desactivar por abuso.
   //
-  // Ahora: sin secreto configurado, el endpoint no corre. Es preferible un cron
-  // que no arranca (y se nota) a uno abierto (que no se nota).
+  // Ahora: sin NINGUNA de las dos claves configuradas, no entra nadie. Es
+  // preferible un cron que no arranca (y se nota) a uno abierto (que no se
+  // nota) — pero con dos puertas, que no arranque deja de depender de una
+  // sola variable que quizas nunca se seteo.
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    console.error("[cron/ml-sync] CRON_SECRET no está seteada — el cron no corre (fail-closed)");
-    return NextResponse.json(
-      { error: "CRON_SECRET no configurada en el entorno" },
-      { status: 500 }
-    );
-  }
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const porSecretoDeCron =
+    typeof cronSecret === "string" &&
+    cronSecret.length > 0 &&
+    coincideConAlguna(authHeader, `Bearer ${cronSecret}`, null);
+  const porClaveDeAdmin = isValidAdminKey(req.nextUrl.searchParams.get("key"));
+  if (!porSecretoDeCron && !porClaveDeAdmin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

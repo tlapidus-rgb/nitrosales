@@ -25,12 +25,22 @@
 // vuelve a perder el día que alguien crea una tabla nueva — y no lo va a
 // notar, porque borrar de menos **no falla**: devuelve ok.
 //
-// ── Y LO QUE NO SE CLASIFICA, SE REPORTA ─────────────────────────────────
-// Una tabla que aparece y no está ni en "borrar" ni en "conservar" no se
-// borra en silencio ni se conserva en silencio: sale listada como
-// `sinClasificar`. Las dos alternativas son malas de formas distintas —
-// borrarla puede destruir algo que no correspondía, conservarla deja datos de
-// un cliente que se fue— y la única salida honesta es que alguien decida.
+// ── EL DEFAULT ES BORRAR, Y HAY QUE DECIRLO ──────────────────────────────
+// Una tabla que aparece y no está en `SE_CONSERVAN` **se borra**. No hay una
+// tercera categoría: el default es borrar, no conservar, porque los datos de un
+// cliente que se fue no se quedan por omisión.
+//
+// ⚠️ Eso tiene un costo y hay que mirarlo de frente: si mañana alguien crea una
+// tabla `audit_log` o `retention_holds` con `organizationId`, este módulo la
+// descubre sola —que es la virtud del diseño— y el próximo borrado la vacía sin
+// que nadie lo haya decidido. **Por eso el simulacro muestra `plan.orden`
+// entero**: quien lo corra tiene que reconocer lo que hay ahí adentro.
+//
+// Una versión anterior de este archivo prometía en este mismo lugar un campo
+// `sinClasificar` que reportaría esas tablas. El campo existía y estaba
+// cableado a `[]`: nunca reportó nada. Lo encontró una revisión de seguridad.
+// Se sacó en vez de dejarlo, porque un campo vacío que promete vigilancia es
+// peor que no tener el campo.
 // ══════════════════════════════════════════════════════════════════════════
 
 /** Una tabla de la base que tiene columna `organizationId`. */
@@ -63,6 +73,8 @@ export type Dependencia = {
   hija: string;
   /** La tabla a la que apunta. */
   madre: string;
+  /** La columna de la hija que apunta a la madre. Para las tablas indirectas. */
+  columna?: string;
   /**
    * Qué hace Postgres cuando se borra la fila referenciada: `NO ACTION`,
    * `RESTRICT`, `CASCADE`, `SET NULL`, `SET DEFAULT`.
@@ -99,11 +111,6 @@ export type PlanDeBorrado = {
   orden: string[];
   /** Tablas que se conservan, con el motivo. */
   seConservan: Array<{ tabla: string; motivo: string }>;
-  /**
-   * Tablas con `organizationId` que nadie clasificó. **Ni se borran ni se
-   * conservan**: hay que decidir.
-   */
-  sinClasificar: string[];
   /**
    * Ciclos de foreign keys que impiden un orden total. Vacío en lo normal.
    * Si aparecen, el borrado de esas tablas necesita otra estrategia.
@@ -161,7 +168,6 @@ export function armarPlanDeBorrado(
     seConservan: conservadas.map((t) => ({ tabla: t, motivo: seConservan[t] })).sort((a, b) =>
       a.tabla.localeCompare(b.tabla),
     ),
-    sinClasificar: [],
     ciclos: [...pendientes].sort(),
   };
 }
@@ -223,4 +229,102 @@ export function loQueSePuedeAfirmar(a: Auditoria): string {
     `Quedan ${a.filasQueQuedan.toLocaleString("es-AR")} fila(s) de esta organización en ` +
     `${a.conDatos.length} tabla(s). **No se puede afirmar que se borró todo.**`
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LAS TABLAS QUE NO TIENEN `organizationId` (agregado el 2026-09-13)
+// ══════════════════════════════════════════════════════════════════════════
+// Encontrado revisando la branch entera antes de mergear, y es un bug propio:
+// preguntarle a `information_schema` por las tablas con columna
+// `organizationId` deja afuera a las que **cuelgan de otra tabla**. Son seis:
+//
+//   order_items                 → orderId       → orders
+//   bot_messages                → chatId        → bot_chats
+//   pixel_visitor_aliases       → visitorId     → pixel_visitors
+//   influencer_commission_tiers → influencerId  → influencers
+//   audience_sync_logs          → audienceId    → audiences
+//   login_events                → userId        → users
+//
+// Las consecuencias eran distintas y todas malas:
+//
+//   · **La auditoría podía decir "no queda ningún dato"** con seis tablas
+//     llenas. Ésa es exactamente la afirmación falsa que el módulo existe para
+//     evitar — el bug estaba adentro de la función que promete lo contrario.
+//   · **El borrado habría fallado.** `order_items.orderId` no tiene
+//     `ON DELETE CASCADE`, así que borrar `orders` choca contra la FK. Fallaba
+//     del lado seguro (la transacción revierte) pero el borrado no funcionaba.
+//   · **La exportación perdía los items de cada pedido**, que es la mitad del
+//     valor de exportar los pedidos.
+//
+// El `wipe-account` viejo —el que borra 9 tablas— SÍ borraba `order_items`, con
+// un `WHERE orderId IN (SELECT id FROM orders WHERE organizationId = ...)`.
+// O sea que en esto era más completo que mi reemplazo.
+// ══════════════════════════════════════════════════════════════════════════
+
+/** Una tabla que pertenece a la organización a través de otra. */
+export type TablaIndirecta = {
+  tabla: string;
+  /** La columna que apunta a la madre. */
+  columna: string;
+  /** La tabla madre, que sí tiene `organizationId`. */
+  madre: string;
+};
+
+/**
+ * Las tablas que son de la organización pero no lo dicen en una columna propia.
+ *
+ * Se buscan por sus foreign keys a tablas que **sí** tienen `organizationId`.
+ * Sale de la base y no de una lista escrita a mano por el mismo motivo que el
+ * resto de este archivo: una lista a mano se queda vieja y no avisa.
+ *
+ * Sólo un nivel de indirección, que es lo que hay hoy (las seis cuelgan
+ * directo de una tabla con `organizationId`). Si algún día aparece una que
+ * cuelgue de otra indirecta, va a quedar afuera — y por eso
+ * `tablasQueNadieReclama` la va a listar.
+ */
+export function tablasIndirectas(
+  conOrganizationId: string[],
+  dependencias: Dependencia[],
+): TablaIndirecta[] {
+  const directas = new Set(conOrganizationId);
+  const vistas = new Set<string>();
+  const salida: TablaIndirecta[] = [];
+
+  for (const d of dependencias) {
+    if (directas.has(d.hija)) continue; // ya se resuelve sola
+    if (!directas.has(d.madre)) continue; // la madre tampoco sabe de quién es
+    if (!d.columna) continue; // sin la columna no se puede armar el WHERE
+    if (vistas.has(d.hija)) continue; // con una vía alcanza
+    vistas.add(d.hija);
+    salida.push({ tabla: d.hija, columna: d.columna, madre: d.madre });
+  }
+
+  return salida.sort((a, b) => a.tabla.localeCompare(b.tabla));
+}
+
+/**
+ * El `WHERE` que acota una tabla indirecta a una organización.
+ *
+ * Los nombres salen de `information_schema`, no de la request, así que no hay
+ * nada que escapar. El `orgId` va como parámetro.
+ */
+export function whereIndirecto(t: TablaIndirecta): string {
+  return `"${t.columna}" IN (SELECT "id" FROM "${t.madre}" WHERE "organizationId" = $1)`;
+}
+
+/**
+ * Tablas que no son de nadie: ni tienen `organizationId` ni cuelgan de algo que
+ * lo tenga.
+ *
+ * Se reportan para que alguien mire. Pueden ser globales y legítimas
+ * (`email_templates`, diccionarios) o pueden ser un agujero nuevo — y la
+ * diferencia no se puede adivinar desde acá.
+ */
+export function tablasQueNadieReclama(
+  todasLasTablas: string[],
+  conOrganizationId: string[],
+  indirectas: TablaIndirecta[],
+): string[] {
+  const resueltas = new Set([...conOrganizationId, ...indirectas.map((t) => t.tabla)]);
+  return todasLasTablas.filter((t) => !resueltas.has(t)).sort();
 }

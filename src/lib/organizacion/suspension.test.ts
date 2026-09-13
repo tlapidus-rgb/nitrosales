@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { EL_GATE_ESTA_CONECTADO } from "./suspension";
 import {
   leerEstado,
   suspender,
@@ -122,5 +125,61 @@ describe("el mensaje al cliente", () => {
 
   it("dice que hacer", () => {
     expect(mensajeParaElCliente()).toMatch(/escribinos|contactanos/i);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// La suspensión se anota, pero todavía no se aplica
+// ══════════════════════════════════════════════════════════════════════════
+// El endpoint guarda el estado y contesta `ok: true`. Nadie lo lee: un cliente
+// suspendido entra igual.
+//
+// Este test no pide que se conecte el gate — pide que el código **no mienta**
+// mientras no esté conectado. `EL_GATE_ESTA_CONECTADO` es una constante escrita
+// a mano, y esto verifica que diga la verdad: si alguien conecta el gate y se
+// olvida de cambiarla (o la cambia sin conectar nada), esto se pone rojo.
+describe("el gate de suspensión dice la verdad sobre sí mismo", () => {
+  const RAIZ = process.cwd();
+
+  /** Archivos que podrían leer el estado para cortar el acceso. */
+  function todosLosFuentes(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) {
+        todosLosFuentes(p, out);
+      } else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) {
+        out.push(p);
+      }
+    }
+    return out;
+  }
+
+  it("nadie lee el estado todavía, y la constante lo refleja", () => {
+    const propios = [
+      join("src", "lib", "organizacion", "suspension.ts"),
+      join("src", "app", "api", "admin", "orgs", "[orgId]", "suspension", "route.ts"),
+    ];
+
+    const lectores = todosLosFuentes(join(RAIZ, "src"))
+      .filter((p) => !propios.some((q) => p.endsWith(q)))
+      .filter((p) => {
+        const src = readFileSync(p, "utf8")
+          .split(/\r?\n/)
+          .filter((l) => {
+            const t = l.trim();
+            return !(t.startsWith("//") || t.startsWith("/*") || t.startsWith("*"));
+          })
+          .join("\n");
+        return /\bleerEstado\s*\(/.test(src);
+      })
+      .map((p) => p.replace(RAIZ, ""));
+
+    // Si esto falla con lectores > 0, alguien conectó el gate: hay que poner
+    // `EL_GATE_ESTA_CONECTADO = true` y sacar la advertencia de la respuesta.
+    expect(
+      lectores,
+      `estos archivos ya leen el estado de suspensión:\n${lectores.join("\n")}`,
+    ).toEqual([]);
+    expect(EL_GATE_ESTA_CONECTADO).toBe(false);
   });
 });

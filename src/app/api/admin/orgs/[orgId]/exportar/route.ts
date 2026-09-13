@@ -21,25 +21,56 @@
 // dos no coinciden, el archivo está incompleto — y lo dice, aunque la descarga
 // haya terminado sin error.
 //
-// Auth: staff o ?key=. Lectura pura, no escribe nada.
+// ── AUTH: SÓLO SESIÓN DE STAFF ───────────────────────────────────────────
+// Antes aceptaba `?key=`. Una revisión de seguridad lo marcó como el hallazgo
+// más grave de la branch, y con razón: esa clave está en `vercel.json`
+// versionado, y lo que sale por acá es el padrón completo de compradores de un
+// cliente —emails, nombres, ciudad— más los pagos a creadores.
+//
+// Exfiltrar no se deshace. Es tan irreversible como borrar, sólo que en la otra
+// dirección, así que merece la misma puerta que el borrado.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
-import { isValidAdminKey } from "@/lib/admin-key";
-import { armarManifiesto, estaCompleta, SE_EXPORTA } from "@/lib/organizacion/exportacion";
+import {
+  armarManifiesto,
+  estaCompleta,
+  limpiarFila,
+  SE_EXPORTA,
+} from "@/lib/organizacion/exportacion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
+
+// `order_items` NO tiene columna `organizationId`: cuelga de `orders`. Sin
+// esta excepción su COUNT y su SELECT fallaban, y la exportación salía **sin
+// los items de ningún pedido** — la mitad del valor de exportar los pedidos.
+//
+// Es la única de las exportables en ese caso. El descubrimiento genérico de
+// tablas indirectas vive en `@/lib/organizacion/borrado` y lo usan los
+// endpoints de auditoría y de borrado.
+const FILTRO_POR_TABLA: Record<string, string> = {
+  order_items: `"orderId" IN (SELECT "id" FROM "orders" WHERE "organizationId" = $1)`,
+};
+
+const filtroDe = (tabla: string) => FILTRO_POR_TABLA[tabla] ?? `"organizationId" = $1`;
 
 /** Filas que se traen por vuelta. Acotado para no cargar una tabla entera. */
 const LOTE = 500;
 
 export async function GET(req: NextRequest, { params }: { params: { orgId: string } }) {
-  const url = new URL(req.url);
-  if (!isValidAdminKey(url.searchParams.get("key")) && !(await isInternalUser())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await isInternalUser())) {
+    return NextResponse.json(
+      {
+        error:
+          "La exportación sólo corre con sesión de staff. La clave de admin no alcanza: " +
+          "está en vercel.json, que está versionado, y esto entrega datos personales " +
+          "de los compradores del cliente.",
+      },
+      { status: 403 },
+    );
   }
 
   const { orgId } = params;
@@ -56,7 +87,7 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
   for (const { tabla } of SE_EXPORTA) {
     try {
       const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-        `SELECT COUNT(*)::float8 AS n FROM "${tabla}" WHERE "organizationId" = $1`,
+        `SELECT COUNT(*)::float8 AS n FROM "${tabla}" WHERE ${filtroDe(tabla)}`,
         orgId,
       );
       conteos.push({ tabla, filas: Number(r[0]?.n ?? 0) });
@@ -83,6 +114,9 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
 
       let escritas = 0;
       const problemas: Array<{ tabla: string; error: string }> = [];
+      // Qué columnas se quitaron. Va en el cierre: sacar datos en silencio es
+      // el mismo bug que exportarlos de más, sólo que al revés.
+      const columnasQuitadas = new Set<string>();
 
       for (const { tabla } of SE_EXPORTA) {
         let saltear = 0;
@@ -92,7 +126,7 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
             filas = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
               // El orden por `id` hace que la paginación sea estable: sin un
               // orden fijo, dos vueltas pueden traer la misma fila o saltearla.
-              `SELECT * FROM "${tabla}" WHERE "organizationId" = $1 ORDER BY id LIMIT ${LOTE} OFFSET ${saltear}`,
+              `SELECT * FROM "${tabla}" WHERE ${filtroDe(tabla)} ORDER BY id LIMIT ${LOTE} OFFSET ${saltear}`,
               orgId,
             );
           } catch (e: any) {
@@ -105,7 +139,11 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
 
           if (filas.length === 0) break;
           for (const fila of filas) {
-            linea({ tabla, fila });
+            // `SELECT *` traía `influencers.dashboardPasswordPlain` — la
+            // contraseña del creador SIN HASHEAR. Ver el módulo.
+            const { limpia, quitadas } = limpiarFila(fila);
+            for (const q of quitadas) columnasQuitadas.add(`${tabla}.${q}`);
+            linea({ tabla, fila: limpia });
             escritas++;
           }
           if (filas.length < LOTE) break;
@@ -121,6 +159,7 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
           filasEscritas: escritas,
           completa: estaCompleta(manifiesto.filasEsperadas, escritas) && problemas.length === 0,
           problemas,
+          columnasQuitadasPorSeguridad: [...columnasQuitadas].sort(),
           terminadoEn: new Date().toISOString(),
         },
       });

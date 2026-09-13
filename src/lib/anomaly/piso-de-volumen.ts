@@ -106,6 +106,45 @@ export function esCambioCreible(
   return umbralDeNegocio < 0 ? cambioPct <= -vara : cambioPct >= vara;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA PLATA NO TIENE RUIDO DE POISSON (agregado el 2026-09-13, tras una revisión)
+// ══════════════════════════════════════════════════════════════════════════
+// Todo lo de arriba vale para CONTEOS: las órdenes son eventos y por eso
+// tienen `√n` de ruido. El gasto publicitario no es un conteo — es un número
+// que el anunciante fija. Que sea chico no lo hace ruidoso.
+//
+// Atarlo al volumen de órdenes silenciaba justo el caso que la regla existe
+// para avisar: **"gasté 3× más y vendí 2 unidades"**. Con menos de
+// `VOLUMEN_MINIMO` órdenes la alerta no salía nunca, que es exactamente
+// cuando más urge.
+//
+// Así que para la plata alcanza el umbral de negocio, sin corrección
+// estadística. El único recaudo es el arranque desde cero.
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ¿Esta suba de gasto amerita una alerta?
+ *
+ * @param cambioPct       el cambio observado, en porcentaje
+ * @param umbralDeNegocio el umbral de `THRESHOLDS` (positivo = suba)
+ * @param gastoPrevio     cuánto se gastaba antes
+ *
+ * Se exige `gastoPrevio > 0` porque el cálculo de porcentaje devuelve `100`
+ * cuando el período anterior fue cero. Sin eso, el primer día de la primera
+ * campaña de un cliente —de $0 a lo que sea— entra como "el gasto subió 100 %
+ * sin que crezca la facturación", que es falso y es el peor momento para
+ * mandarlo: recién arranca.
+ */
+export function esSubaDeGastoCreible(
+  cambioPct: number | null,
+  umbralDeNegocio: number,
+  gastoPrevio: number,
+): cambioPct is number {
+  if (cambioPct === null || !Number.isFinite(cambioPct)) return false;
+  if (!Number.isFinite(gastoPrevio) || gastoPrevio <= 0) return false;
+  return cambioPct >= Math.abs(umbralDeNegocio);
+}
+
 /**
  * El caso de "cero" —cero órdenes, cero inversión— no es porcentual y necesita
  * su propio criterio.

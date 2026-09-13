@@ -28,9 +28,27 @@ function segmentosDeUrl(rel: string): string[] {
     .filter((s) => !(s.startsWith("(") && s.endsWith(")")));
 }
 
+/**
+ * El archivo sin comentarios.
+ *
+ * Sin esto, un layout que sólo MENCIONA `isInternalUser` —en un TODO, o en un
+ * comentario explicando que todavía falta ponerlo— contaba como gateado. Es el
+ * mismo error que ya apareció tres veces en esta branch: el test leyendo prosa
+ * en vez de código (#S61 en ERRORES_CLAUDE_NO_REPETIR.md).
+ */
+function sinComentarios(src: string): string {
+  return src
+    .split(/\r?\n/)
+    .filter((l) => {
+      const t = l.trim();
+      return !(t.startsWith("//") || t.startsWith("/*") || t.startsWith("*"));
+    })
+    .join("\n");
+}
+
 function tieneGuardDeStaff(archivo: string): boolean {
   if (!existsSync(archivo)) return false;
-  const src = readFileSync(archivo, "utf8");
+  const src = sinComentarios(readFileSync(archivo, "utf8"));
   return src.includes("isInternalUser") || src.includes("isStaffUser");
 }
 

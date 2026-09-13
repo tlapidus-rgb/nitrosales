@@ -48,12 +48,21 @@ import {
   auditar,
   armarPlanDeBorrado,
   loQueSePuedeAfirmar,
+  tablasIndirectas,
+  whereIndirecto,
+  type TablaIndirecta,
   type TablaConOrg,
   type Dependencia,
 } from "@/lib/organizacion/borrado";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
+
+const TODAS_LAS_TABLAS = `
+  SELECT table_name AS tabla FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+  ORDER BY table_name
+`;
 
 const TABLAS_CON_ORG = `
   SELECT table_name AS tabla
@@ -63,7 +72,7 @@ const TABLAS_CON_ORG = `
 `;
 
 const DEPENDENCIAS = `
-  SELECT tc.table_name AS hija, ccu.table_name AS madre, rc.delete_rule AS "reglaDeBorrado"
+  SELECT tc.table_name AS hija, ccu.table_name AS madre, rc.delete_rule AS "reglaDeBorrado", kcu.column_name AS columna
   FROM information_schema.table_constraints tc
   JOIN information_schema.key_column_usage kcu
     ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
@@ -86,6 +95,23 @@ async function contar(tablas: string[], orgId: string): Promise<TablaConOrg[]> {
     } catch {
       // `null` = no se pudo contar. NO es cero.
       out.push({ tabla, filas: null });
+    }
+  }
+  return out;
+}
+
+/** Cuenta las tablas que pertenecen a la organizacion a traves de otra. */
+async function contarIndirectas(ts: TablaIndirecta[], orgId: string): Promise<TablaConOrg[]> {
+  const out: TablaConOrg[] = [];
+  for (const t of ts) {
+    try {
+      const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
+        `SELECT COUNT(*)::float8 AS n FROM "${t.tabla}" WHERE ${whereIndirecto(t)}`,
+        orgId,
+      );
+      out.push({ tabla: t.tabla, filas: Number(r[0]?.n ?? 0) });
+    } catch {
+      out.push({ tabla: t.tabla, filas: null });
     }
   }
   return out;
@@ -126,8 +152,20 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
     .$queryRawUnsafe<Dependencia[]>(DEPENDENCIAS)
     .catch(() => [] as Dependencia[]);
 
+  // Las que NO tienen `organizationId` pero cuelgan de una que sí.
+  //
+  // Sin esto el borrado **fallaba**: `order_items.orderId` no tiene
+  // `ON DELETE CASCADE`, así que borrar `orders` choca contra la FK. Fallaba del
+  // lado seguro —la transacción revierte— pero no borraba nada. Y el
+  // `wipe-account` viejo, el que borra 9 tablas, sí las contemplaba: en esto era
+  // más completo que su reemplazo.
+  const indirectas = tablasIndirectas(tablas, dependencias);
+
   const plan = armarPlanDeBorrado(tablas, dependencias);
-  const antes = auditar(await contar(tablas, orgId));
+  const antes = auditar([
+    ...(await contar(tablas, orgId)),
+    ...(await contarIndirectas(indirectas, orgId)),
+  ]);
 
   // Un ciclo de foreign keys no tiene orden posible. Borrar "probando" sería
   // chocar contra una FK a mitad de camino.
@@ -188,6 +226,16 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   try {
     await prisma.$transaction(
       async (tx) => {
+        // Las indirectas PRIMERO: cuelgan de tablas que estan en `plan.orden`,
+        // y si se borrara la madre antes, el DELETE choca contra la FK.
+        for (const t of indirectas) {
+          const n = await tx.$executeRawUnsafe(
+            `DELETE FROM "${t.tabla}" WHERE ${whereIndirecto(t)}`,
+            orgId,
+          );
+          if (n > 0) borradas.push({ tabla: t.tabla, filas: n });
+        }
+
         for (const tabla of plan.orden) {
           const n = await tx.$executeRawUnsafe(
             `DELETE FROM "${tabla}" WHERE "organizationId" = $1`,
@@ -210,7 +258,10 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
     );
   }
 
-  const despues = auditar(await contar(tablas, orgId));
+  const despues = auditar([
+    ...(await contar(tablas, orgId)),
+    ...(await contarIndirectas(indirectas, orgId)),
+  ]);
 
   return NextResponse.json({
     ok: true,

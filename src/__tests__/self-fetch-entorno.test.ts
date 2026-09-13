@@ -120,19 +120,69 @@ describe("GUARD — ninguna ruta vuelve a hardcodear el dominio de producción",
         const p = join(dir, e);
         if (statSync(p).isDirectory()) recorrer(p);
         else if (e === "route.ts") {
-          const src = readFileSync(p, "utf8");
-          if (
-            src.includes(
-              'const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai"'
-            )
-          ) {
+          // Se leen SIN comentarios. Tercera vez en esta branch que un test
+          // termina leyendo mi propia prosa: `submit-wizard` menciona
+          // `fetch()` dentro de un JSDoc que explica otra cosa, y el guard lo
+          // marcaba como si se auto-invocara. Ver #S61 en
+          // ERRORES_CLAUDE_NO_REPETIR.md.
+          //
+          // El filtro es por LINEA y no un regex de bloque, porque ese se
+          // comeria tambien un /* que viva adentro de un string. Alcanza: los
+          // comentarios de bloque de este repo son JSDoc, con un asterisco
+          // por linea.
+          //
+          // Y el // se filtra solo al PRINCIPIO de la linea, nunca en el
+          // medio: cortar en el primer // partiria la URL de produccion justo
+          // a la mitad y el guard dejaria de ver el dominio que vino a buscar.
+          const src = readFileSync(p, "utf8")
+            .split(/\r?\n/)
+            .filter((l) => {
+              const t = l.trim();
+              return !(
+                t.startsWith("//") ||
+                t.startsWith("/*") ||
+                t.startsWith("*")
+              );
+            })
+            .join("\n");
+          // Antes esto buscaba la línea EXACTA, y `??` en vez de `||`, comillas
+          // simples o un salto de línea de Prettier la evadían — así se le
+          // escapó `api/insights/route.ts`, que tenía el bug partido en dos
+          // líneas.
+          //
+          // El criterio ahora es SEMÁNTICO, no de nombre de variable: se marca
+          // un archivo sólo si (a) menciona el dominio de producción, (b) lo
+          // combina con una variable de entorno —o sea, arma una URL base— y
+          // (c) hace un `fetch` con ella.
+          //
+          // Ese (c) es lo que distingue el bug de los casos legítimos:
+          // `settings/team/invitations` arma un link para un MAIL —y ahí
+          // apuntar a producción es lo correcto, a un cliente no le mandás un
+          // link a un preview efímero— y `alerts` deriva del `host` real del
+          // request. Ninguno de los dos se auto-invoca.
+          const nombraProd = /https:\/\/app\.nitrosales\.ai/.test(src);
+          const armaUrlBase = /(NEXTAUTH_URL|VERCEL_URL)\s*(\|\||\?\?)/.test(src);
+          // Cualquier `fetch`, sin mirar cómo se llama la variable. Los que se
+          // auto-invocan usan nombres distintos (`runnerUrl`, `bootUrl`,
+          // `baseUrl`), y atarse a uno fue lo que hizo que este guard fuera
+          // ciego durante toda la branch.
+          const hayFetch = /\bfetch(JSON)?\s*\(/.test(src);
+          if (nombraProd && armaUrlBase && hayFetch) {
             malos.push(p.replace(process.cwd(), ""));
           }
         }
       }
     };
-    recorrer(join(raiz, "cron"));
-    recorrer(join(raiz, "sync"));
+    // Se barre el árbol ENTERO, no una lista de directorios.
+    //
+    // Antes sólo miraba `cron` y `sync`. Una revisión encontró **cinco rutas en
+    // `admin/` con el bug vivo**, y dos de ellas disparan el `backfill-runner`
+    // — o sea que aprobar un backfill desde un preview corría el runner contra
+    // producción. Exactamente el incidente que este archivo narra arriba.
+    //
+    // La lección: un guard que escanea una lista escrita a mano protege la
+    // lista, no el problema.
+    recorrer(raiz);
     expect(malos, `estas rutas le pegarían a producción desde un preview:\n${malos.join("\n")}`).toEqual([]);
   });
 });

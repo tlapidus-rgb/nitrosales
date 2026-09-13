@@ -19,6 +19,10 @@ import { createBackfillJob } from "@/lib/backfill/job-manager";
 import { sendEmail } from "@/lib/email/send";
 import { backfillStartedEmailActive } from "@/lib/onboarding/emails";
 import { waitUntil } from "@vercel/functions";
+// El incidente del 2026-09-06: `NEXTAUTH_URL` está configurada en Vercel para
+// TODOS los entornos con el valor de producción, así que un preview que se
+// auto-invocaba salía a producción. `selfFetchBaseUrl` resuelve el origin real.
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -208,7 +212,7 @@ export async function POST(
     // o si la base esta lenta. No es una falla: los jobs quedan en QUEUED y el
     // cron de cada minuto los toma cuando se pueda. Si estas debugueando "aprobe
     // y no arranco", mira el campo `motivo` de la respuesta del runner.
-    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
     if (createdJobs.length > 0) {
       const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
       waitUntil(

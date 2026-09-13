@@ -11,6 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   esCambioCreible,
+  esSubaDeGastoCreible,
   elCeroEsNoticia,
   VOLUMEN_MINIMO,
 } from "./piso-de-volumen";
@@ -115,7 +116,16 @@ export function detectRuleBasedAnomalies(
   }
 
   // Ad spend spike without revenue growth
-  if (esCambioCreible(adSpendChange, THRESHOLDS.adSpendSpike, base) && (revChange === null || revChange < 10)) {
+  //
+  // Ésta es la ÚNICA regla que no pasa por `esCambioCreible`, y es a
+  // propósito: el gasto es plata, no un conteo, así que no tiene el ruido de
+  // Poisson que justifica subir la vara con poco volumen. Atarla a `base`
+  // —las órdenes— hacía que con menos de 5 órdenes no disparara nunca, y
+  // "gasté 3× más y vendí 2 unidades" es justamente el caso de bajo volumen.
+  if (
+    esSubaDeGastoCreible(adSpendChange, THRESHOLDS.adSpendSpike, previous.adSpend) &&
+    (revChange === null || revChange < 10)
+  ) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",

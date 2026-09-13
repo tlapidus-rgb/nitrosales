@@ -43,13 +43,15 @@ const {
   guardarCorte,
   arranqueDeLaVuelta,
   TABLA_CURSORES,
+  DDL_CURSORES,
 } = await import("./cursor-store");
 
-const ESQUEMA = `CREATE TABLE "${TABLA_CURSORES}" (
-  "name" TEXT PRIMARY KEY,
-  "cursor" TEXT NOT NULL,
-  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-)`;
+// La misma DDL que corre la migración, importada y no copiada.
+//
+// Antes acá había una copia con `cursor TEXT NOT NULL` y sin las columnas de
+// latido (`last_run_at`, `last_ok`, `last_error`) que E-20 agregó. O sea que
+// estos tests validaban contra una tabla que no existe en ningún lado.
+const ESQUEMA = DDL_CURSORES;
 
 async function conTabla() {
   db = new PGlite();
@@ -329,5 +331,56 @@ describe("arranqueDeLaVuelta", () => {
     expect(
       arranqueDeLaVuelta({ ids: [], cursorGuardado: "orgA", cursorExplicito: null, full: false }),
     ).toEqual({ desde: 0, persiste: true });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Cursor y latido comparten tabla (revisión del 2026-09-13)
+// ══════════════════════════════════════════════════════════════════════════
+// E-20 agregó el latido a esta misma tabla. Cerrar una vuelta completa hacía
+// `DELETE FROM cron_cursors WHERE name = $1`, o sea que se llevaba puesto el
+// latido del cron junto con el cursor.
+//
+// No se notaba de casualidad: en los tres crons que hacen las dos cosas el
+// orden es `guardarCorte()` y después `registrarLatido()`, que reinserta la
+// fila. Invertir esas dos líneas —o agregarle un corte a un cron que late—
+// mataba el latido en silencio, y `checkCronesCaidos` pasaba a reportar ese
+// cron como "nunca latió": exactamente el modo de falla que E-20 vino a
+// cerrar.
+//
+// Estos tests no podían existir antes: el fixture creaba la tabla sin las
+// columnas de latido.
+describe("el cursor y el latido conviven en la misma tabla", () => {
+  beforeEach(conTabla);
+
+  it("cerrar la vuelta NO borra el latido", async () => {
+    const { registrarLatido, leerLatidos } = await import("./latido");
+
+    await registrarLatido("cron-a", true);
+    await guardarCursor("cron-a", "org-7");
+
+    // La vuelta terminó.
+    await guardarCursor("cron-a", null);
+
+    expect(await leerCursor("cron-a")).toBeNull();
+    const latidos = await leerLatidos();
+    const suyo = latidos.find((l) => l.cron === "cron-a");
+    expect(suyo, "el latido sobrevive a cerrar la vuelta").toBeTruthy();
+    expect(suyo?.ultimaOk).toBe(true);
+  });
+
+  it("un cron que sólo late no necesita cursor", async () => {
+    // `cursor` es nullable justamente por esto. Con el esquema viejo del
+    // fixture (`TEXT NOT NULL`) este caso ni siquiera se podía escribir.
+    const { registrarLatido } = await import("./latido");
+    await registrarLatido("cron-sin-cursor", false, "se cayó");
+    expect(await leerCursor("cron-sin-cursor")).toBeNull();
+  });
+
+  it("el latido no pisa el cursor", async () => {
+    const { registrarLatido } = await import("./latido");
+    await guardarCursor("cron-a", "org-7");
+    await registrarLatido("cron-a", true);
+    expect(await leerCursor("cron-a")).toBe("org-7");
   });
 });

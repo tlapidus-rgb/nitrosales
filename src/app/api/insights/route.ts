@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { getOrganization } from "@/lib/auth-guard";
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -156,8 +157,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const section = searchParams.get("section") || "dashboard";
 
-    const baseUrl =
-      process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
 
     // Load org context dynamically (name + industry/country from onboarding)
     const org = await getOrganization();

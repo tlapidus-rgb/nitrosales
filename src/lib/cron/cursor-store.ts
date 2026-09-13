@@ -29,6 +29,29 @@ import { prisma } from "@/lib/db/client";
 
 export const TABLA_CURSORES = "cron_cursors";
 
+/**
+ * La forma de la tabla, en un solo lugar.
+ *
+ * Estaba escrita dos veces —en la migración y en el fixture de los tests— y
+ * **las dos habían quedado distintas**: el fixture creaba `cursor TEXT NOT
+ * NULL` y sin ninguna de las columnas de latido que E-20 agregó. O sea que
+ * toda la suite de este módulo corría contra una tabla que en producción no
+ * existe: el latido no se probaba, y la interacción entre cursor y latido
+ * —que es donde estaba el bug de borrar la fila entera— era invisible.
+ *
+ * `cursor` es NULLABLE a propósito: un cron que sólo late no tiene cursor que
+ * guardar, y cerrar una vuelta completa deja el cursor en NULL sin tocar el
+ * latido.
+ */
+export const DDL_CURSORES = `CREATE TABLE IF NOT EXISTS "${TABLA_CURSORES}" (
+  "name" TEXT PRIMARY KEY,
+  "cursor" TEXT,
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "last_run_at" TIMESTAMPTZ,
+  "last_ok" BOOLEAN,
+  "last_error" TEXT
+)`;
+
 /** `true` si el error es "la tabla no existe" (42P01 de Postgres). */
 function esTablaAusente(e: unknown): boolean {
   const msg = String((e as { message?: string })?.message || e);
@@ -68,7 +91,19 @@ export async function leerCursor(cron: string): Promise<string | null> {
 export async function guardarCursor(cron: string, cursor: string | null): Promise<void> {
   try {
     if (cursor === null) {
-      await prisma.$executeRawUnsafe(`DELETE FROM "${TABLA_CURSORES}" WHERE name = $1`, cron);
+      // UPDATE y no DELETE: en esta misma tabla vive el latido
+      // (`last_run_at`, `last_ok`) que escribe `registrarLatido`. Borrar la
+      // fila entera al cerrar una vuelta se llevaba tambien el latido.
+      //
+      // Hoy no se notaba de casualidad: en los tres crons que hacen las dos
+      // cosas el orden es guardarCorte() y despues registrarLatido(), que
+      // reinserta la fila. Invertir esas dos lineas —o agregar un corte a un
+      // cron que late— mataba el latido en silencio y `checkCronesCaidos`
+      // pasaba a reportar ese cron como "nunca latio".
+      await prisma.$executeRawUnsafe(
+        `UPDATE "${TABLA_CURSORES}" SET cursor = NULL, updated_at = NOW() WHERE name = $1`,
+        cron,
+      );
       return;
     }
     await prisma.$executeRawUnsafe(

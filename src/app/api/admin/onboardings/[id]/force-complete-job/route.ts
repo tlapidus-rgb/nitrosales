@@ -21,6 +21,10 @@ import {
   esAltaCompleta,
 } from "@/lib/backfill/job-manager";
 import { waitUntil } from "@vercel/functions";
+// El incidente del 2026-09-06: `NEXTAUTH_URL` está configurada en Vercel para
+// TODOS los entornos con el valor de producción, así que un preview que se
+// auto-invocaba salía a producción. `selfFetchBaseUrl` resuelve el origin real.
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +94,7 @@ export async function POST(
               : "El onboarding no tiene ningun job de backfill.";
       }
       if (allDone) {
-        const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+        const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
         const KEY = ADMIN_API_KEY;
         const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(job.organizationId)}&key=${KEY}`;
         waitUntil(

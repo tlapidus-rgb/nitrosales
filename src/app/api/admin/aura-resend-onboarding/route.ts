@@ -16,10 +16,34 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
+import { isInternalUser } from "@/lib/feature-flags";
 import { prisma } from "@/lib/db/client";
 import { sendOnboardingEmail } from "@/lib/aura/create-creator";
 
 export async function POST(req: NextRequest) {
+  // ⚠️ ESTE ENDPOINT NO AUTENTICABA (revisión del 2026-09-13).
+  //
+  // Un test barría `/api/admin/**` buscando alguna señal de auth y lo daba
+  // por cubierto porque menciona `getOrganization`. Pero `getOrganization`
+  // NO autentica: si no hay sesión, cae al fallback de org única
+  // (`auth-guard.ts:80`) y devuelve la organización igual.
+  //
+  // O sea que un POST anónimo con `{"dryRun": false}` le mandaba a TODOS los
+  // creadores de la org un mail con el link para definir su contraseña. Hoy
+  // en producción devuelve 500 de rebote, porque con 2+ orgs el fallback
+  // tira `AmbiguousOrgError` — pero eso es una casualidad del dato, no una
+  // puerta: en cualquier entorno con una sola org (un preview, un staging)
+  // los mails salen.
+  if (!(await isInternalUser())) {
+    return NextResponse.json(
+      {
+        error:
+          "Esta acción manda mails a los creadores del cliente. Requiere sesión de staff.",
+      },
+      { status: 403 },
+    );
+  }
+
   try {
     const org = await getOrganization(req);
     const body = await req.json().catch(() => ({}));

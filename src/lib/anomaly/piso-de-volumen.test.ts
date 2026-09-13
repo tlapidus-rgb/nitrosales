@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ruidoEsperadoPct,
+  esSubaDeGastoCreible,
   umbralCreible,
   esCambioCreible,
   elCeroEsNoticia,
@@ -169,5 +170,49 @@ describe("detectRuleBasedAnomalies con un cliente grande", () => {
 
     expect(detectRuleBasedAnomalies(sinCostos, anterior).some((a) => a.metric === "grossMargin")).toBe(false);
     expect(detectRuleBasedAnomalies(conCostos, anterior).some((a) => a.metric === "grossMargin")).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// La plata no es un conteo (revisión del 2026-09-13)
+// ══════════════════════════════════════════════════════════════════════════
+// La regla de "el gasto en ads subió y la facturación no acompañó" pasaba por
+// `esCambioCreible` con las ÓRDENES como base. O sea que se silenciaba sola
+// justo en el caso que existe para avisar: gastar de más vendiendo poquito.
+describe("suba de gasto publicitario", () => {
+  it("no pide volumen de órdenes: el gasto no tiene ruido de Poisson", () => {
+    // 2 órdenes. Con el criterio de conteo esto no disparaba NUNCA.
+    const anterior = snap({ orders: 3, revenue: 30_000, aov: 10_000, adSpend: 50_000, metaSpend: 50_000 });
+    const actual = snap({ orders: 2, revenue: 20_000, aov: 10_000, adSpend: 150_000, metaSpend: 150_000 });
+    const r = detectRuleBasedAnomalies(actual, anterior);
+    expect(r.some((a) => a.metric === "adSpend")).toBe(true);
+  });
+
+  it("el primer día de la primera campaña no es una anomalía", () => {
+    // De $0 a $80.000: el cálculo de porcentaje devuelve 100, pero no hay con
+    // qué comparar. Avisarle a alguien que recién arranca que "gastó 100 % más
+    // sin que crezca la facturación" es falso y es el peor momento.
+    const anterior = snap({ orders: 40, revenue: 400_000, aov: 10_000, adSpend: 0 });
+    const actual = snap({ orders: 40, revenue: 400_000, aov: 10_000, adSpend: 80_000, metaSpend: 80_000 });
+    expect(detectRuleBasedAnomalies(actual, anterior).some((a) => a.metric === "adSpend")).toBe(false);
+  });
+
+  it("si la facturación acompaña, no hay nada que avisar", () => {
+    const anterior = snap({ orders: 3, revenue: 30_000, aov: 10_000, adSpend: 50_000 });
+    const actual = snap({ orders: 6, revenue: 90_000, aov: 15_000, adSpend: 150_000 });
+    expect(detectRuleBasedAnomalies(actual, anterior).some((a) => a.metric === "adSpend")).toBe(false);
+  });
+
+  it("la función pura: sin gasto previo no hay porcentaje que valga", () => {
+    expect(esSubaDeGastoCreible(100, 40, 0)).toBe(false);
+    expect(esSubaDeGastoCreible(100, 40, -5)).toBe(false);
+    expect(esSubaDeGastoCreible(null, 40, 1000)).toBe(false);
+    expect(esSubaDeGastoCreible(Infinity, 40, 1000)).toBe(false);
+  });
+
+  it("la función pura: respeta el umbral de negocio y nada más", () => {
+    expect(esSubaDeGastoCreible(39, 40, 1000)).toBe(false);
+    expect(esSubaDeGastoCreible(40, 40, 1000)).toBe(true);
+    expect(esSubaDeGastoCreible(300, 40, 1)).toBe(true);
   });
 });

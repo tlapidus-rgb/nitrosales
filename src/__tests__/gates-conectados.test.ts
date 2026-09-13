@@ -80,14 +80,32 @@ function rutas(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Las formas de autenticar que existen hoy en el repo. */
+/**
+ * Las formas de autenticar que existen hoy en el repo.
+ *
+ * ── LO QUE NO VA EN ESTA LISTA, Y POR QUÉ ───────────────────────────────
+ * Estaban `getOrganizationId` y `getOrganization`. **No autentican.**
+ * Resuelven de qué organización es el request, y cuando no hay sesión caen a
+ * un fallback de org única (`auth-guard.ts:80` y `:118`) que devuelve la org
+ * igual, sin haber verificado a nadie.
+ *
+ * Contarlas como auth no era un detalle: `admin/aura-resend-onboarding` no
+ * tenía NINGÚN gate y este test lo daba por cubierto, sólo porque llamaba a
+ * `getOrganization`. Un POST anónimo le mandaba a todos los creadores del
+ * cliente el link para definir su contraseña.
+ *
+ * `getOrganizationIdStrict` sí va: tira si no hay sesión.
+ *
+ * La lección general: una lista de señales que incluye algo que **parece**
+ * auth convierte al test en un sello de goma. Es más seguro que la lista se
+ * quede corta —y falle de más, obligando a mirar— que que sea generosa.
+ */
 const SEÑALES_DE_AUTH = [
   "isValidAdminKey",
   "isInternalUser",
   "getServerSession",
   "requirePermission",
-  "getOrganizationId",
-  "getOrganization",
+  "getOrganizationIdStrict",
   "NEXTAUTH_SECRET",
   "ADMIN_API_KEY",
 ];

@@ -18,6 +18,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { waitUntil } from "@vercel/functions";
+// El incidente del 2026-09-06: `NEXTAUTH_URL` está configurada en Vercel para
+// TODOS los entornos con el valor de producción, así que un preview que se
+// auto-invocaba salía a producción. `selfFetchBaseUrl` resuelve el origin real.
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
     );
 
     // 3. Trigger runner immediately
-    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
     waitUntil(
       fetch(`${baseUrl}/api/cron/backfill-runner?key=${BACKFILL_RUNNER_KEY}`, { method: "GET" })
         .then((r) => console.log(`[fix-vtex-creds] runner triggered: ${r.status}`))

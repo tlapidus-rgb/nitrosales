@@ -78,6 +78,62 @@ export const NO_SE_EXPORTA: Array<{ que: string; porQue: string }> = [
   },
 ];
 
+// ══════════════════════════════════════════════════════════════════════════
+// COLUMNAS QUE NUNCA SALEN (agregado el 2026-09-13, tras una revisión)
+// ══════════════════════════════════════════════════════════════════════════
+// La exportación hace `SELECT *`. Eso parecía razonable —son datos del
+// cliente— hasta que una revisión de seguridad encontró que entre esas
+// columnas viaja **`influencers.dashboardPasswordPlain`: la contraseña del
+// dashboard del creador, guardada sin hashear**.
+//
+// O sea que la exportación **contradecía su propio manifiesto**, que promete
+// que las credenciales no se exportan NUNCA. Era cierto para las de VTEX y
+// MercadoLibre, y falso para éstas.
+//
+// Es el mismo patrón que veníamos arreglando toda la branch, esta vez en algo
+// que yo mismo escribí: una promesa en el código que el código incumple.
+//
+// Se filtra por NOMBRE de columna y no por lista de columnas permitidas
+// porque el esquema cambia: una columna nueva con datos sensibles es más
+// probable que una tabla nueva. El filtro es amplio a propósito — sacar de más
+// es recuperable (se pide aparte), sacar de menos no.
+// ══════════════════════════════════════════════════════════════════════════
+
+const PATRONES_SENSIBLES = [
+  /password/i,
+  /secret/i,
+  /token/i,
+  /apikey/i,
+  /api_key/i,
+  /credential/i,
+  /privatekey/i,
+  /\bhash\b/i,
+];
+
+/** `true` si esa columna no puede salir en una exportación. */
+export function esColumnaSensible(nombre: string): boolean {
+  return PATRONES_SENSIBLES.some((p) => p.test(nombre));
+}
+
+/**
+ * Saca las columnas sensibles de una fila y dice cuáles sacó.
+ *
+ * No las reemplaza por `null` ni por `"***"`: las **quita**. Un campo que dice
+ * `"***"` invita a alguien a preguntarse cuál era; uno que no está, no.
+ */
+export function limpiarFila(fila: Record<string, unknown>): {
+  limpia: Record<string, unknown>;
+  quitadas: string[];
+} {
+  const limpia: Record<string, unknown> = {};
+  const quitadas: string[] = [];
+  for (const [k, v] of Object.entries(fila)) {
+    if (esColumnaSensible(k)) quitadas.push(k);
+    else limpia[k] = v;
+  }
+  return { limpia, quitadas };
+}
+
 export type Manifiesto = {
   formato: "ndjson";
   generadoEn: string;

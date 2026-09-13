@@ -24,6 +24,26 @@
 //
 // Auth: **sólo staff**. Suspender le corta el acceso a un cliente que paga: no
 // puede quedar detrás de la clave que está en `vercel.json` versionado.
+//
+// ⚠️⚠️ ESTO TODAVÍA NO CORTA NADA ⚠️⚠️
+// ══════════════════════════════════════════════════════════════════════════
+// Suspender **deja anotado** el estado en `Organization.settings`, y nada
+// más. Hoy no hay un solo lugar que lo lea: ni el middleware, ni el login, ni
+// los endpoints de datos. Un cliente suspendido sigue entrando y usando el
+// producto exactamente igual que antes.
+//
+// Se deja así y no a medias a propósito: el gate que falta va en el camino de
+// auth de TODOS los requests, y eso se cambia solo, con su propia
+// verificación, no colgado del final de una branch grande. Lo que no se puede
+// dejar es que el endpoint conteste `ok: true` como si hubiera pasado algo
+// — por eso la respuesta trae `seAplica: false` y lo dice en castellano.
+//
+// Un `ok: true` que no hace nada es peor que un endpoint que no existe: quien
+// lo usa se queda tranquilo, y el cliente sigue adentro.
+//
+// Para que empiece a aplicar hacen falta dos cosas, y ninguna vive acá:
+//   1. que `middleware.ts` lea el estado y devuelva 403 / redirija;
+//   2. decidir qué pasa con las sesiones YA abiertas (el JWT no se entera).
 // ══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -36,6 +56,7 @@ import {
   reactivar,
   debeSeguirIngiriendo,
   mensajeParaElCliente,
+  EL_GATE_ESTA_CONECTADO,
 } from "@/lib/organizacion/suspension";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +67,10 @@ async function traerOrg(orgId: string) {
     .catch(() => null);
 }
 
+// `EL_GATE_ESTA_CONECTADO` vive en el módulo y no acá: Next.js sólo deja
+// exportar los handlers y su config desde un `route.ts`, y cualquier otro
+// export rompe el chequeo de tipos del build (no el de `tsc`, que no mira
+// los tipos generados — otra vez la misma diferencia).
 function respuesta(org: { name: string; settings: unknown }) {
   const estado = leerEstado(org.settings);
   return {
@@ -55,6 +80,14 @@ function respuesta(org: { name: string; settings: unknown }) {
     seSigueIngiriendo: debeSeguirIngiriendo(estado),
     // El texto que ve el cliente. Nunca incluye el motivo interno.
     mensajeQueVeElCliente: estado.activa ? null : mensajeParaElCliente(),
+
+    // Lo que realmente pasa. Ver el encabezado.
+    seAplica: EL_GATE_ESTA_CONECTADO,
+    advertencia: EL_GATE_ESTA_CONECTADO
+      ? null
+      : "La suspensión queda ANOTADA pero todavía no se aplica: nadie lee este " +
+        "estado, así que el cliente sigue entrando igual. Falta conectar el gate " +
+        "en middleware.ts.",
   };
 }
 
@@ -98,6 +131,8 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   await prisma.organization.update({ where: { id: org.id }, data: { settings: nuevos as object } });
 
   return NextResponse.json({
+    // `ok` describe que se GUARDÓ, no que se haya cortado el acceso. La
+    // diferencia está en `seAplica`.
     ok: true,
     ...respuesta({ name: org.name, settings: nuevos }),
     // Que quede dicho en la respuesta, no sólo en la documentación.

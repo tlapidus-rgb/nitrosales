@@ -423,7 +423,13 @@ export async function GET(req: NextRequest) {
       results,
     });
   } catch (err: any) {
-    await registrarLatido("warm-cache", false, String((error as any)?.message ?? "error"));
+    // Decia `error`, que no existe en ningun scope de este archivo. El
+    // `catch` lo tiene como `err`. Tirando un ReferenceError aca se comia
+    // TODO lo que sigue: el console.error con el mensaje real y el 500. Y
+    // encima no quedaba latido, asi que `checkCronesCaidos` iba a reportar
+    // "nunca latio" en vez de "fallo". `@ts-nocheck` en la linea 1 es lo
+    // que hizo que tsc no lo viera.
+    await registrarLatido("warm-cache", false, String(err?.message ?? "error"));
     console.error("[warm-cache] error:", err);
     return NextResponse.json(
       { error: err.message, stack: err.stack?.slice(0, 500) },

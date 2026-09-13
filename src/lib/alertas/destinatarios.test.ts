@@ -19,20 +19,44 @@ import { destinatariosDeAlertas } from "./destinatarios";
 
 const env = (v: Record<string, string>) => v as unknown as NodeJS.ProcessEnv;
 
+/**
+ * La casilla de fallback, escrita acá a mano y a propósito.
+ *
+ * No se importa del módulo: si el test leyera la constante, pasaría con
+ * cualquier valor y no estaría probando nada. Escrita, cambiar la dirección
+ * obliga a tocar este archivo, que es exactamente el punto — quién recibe las
+ * alertas operativas no debería poder cambiar de callado.
+ *
+ * Antes estos casos afirmaban `expect(r[0]).toContain("@")`. Con eso, el
+ * fallback podía pasar a ser cualquier string con arroba —el mail de alguien
+ * que ya no está, una casilla que rebota— y la suite seguía verde.
+ *
+ * Va partida en pedazos por el mismo motivo que abajo: hay un test que barre
+ * los crons buscando el literal, y si estuviera entero acá se encontraría a
+ * sí mismo.
+ */
+const CASILLA_ESPERADA = ["tlapidus", "@", "99media.com.ar"].join("");
+
 describe("nunca se queda sin destinatario", () => {
   it("sin nada configurado, la casilla de siempre", () => {
-    const r = destinatariosDeAlertas(env({}));
-    expect(r).toHaveLength(1);
-    expect(r[0]).toContain("@");
+    expect(destinatariosDeAlertas(env({}))).toEqual([CASILLA_ESPERADA]);
   });
 
   it("una variable con basura NO deja el sistema mudo", () => {
     // Es el caso peligroso: preferimos mandar a la casilla vieja antes que a
     // ninguna. Un typo en una env var no puede apagar las alertas.
     for (const basura of ["", "   ", "no-es-un-mail", ",,,", "@", "a@b"]) {
-      const r = destinatariosDeAlertas(env({ ALERTAS_EMAILS: basura }));
-      expect(r.length).toBeGreaterThan(0);
-      expect(r[0]).toContain("@");
+      expect(
+        destinatariosDeAlertas(env({ ALERTAS_EMAILS: basura })),
+        `con ALERTAS_EMAILS=${JSON.stringify(basura)}`,
+      ).toEqual([CASILLA_ESPERADA]);
+    }
+
+    // Y lo mismo si la basura viene por la otra variable.
+    for (const basura of ["", "   ", "no-es-un-mail"]) {
+      expect(destinatariosDeAlertas(env({ ADMIN_EMAIL: basura }))).toEqual([
+        CASILLA_ESPERADA,
+      ]);
     }
   });
 });
@@ -74,7 +98,7 @@ describe("varios destinatarios", () => {
 });
 
 describe("ya no queda la casilla escrita a mano en los crons", () => {
-  const CASILLA = ["tlapidus", "@", "99media.com.ar"].join("");
+  const CASILLA = CASILLA_ESPERADA;
   const RUTAS = [
     "src/app/api/cron/control-alerts/route.ts",
     "src/app/api/cron/refresh-pixel-rollups/route.ts",

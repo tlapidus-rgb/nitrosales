@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { armarPlanDeBorrado, auditar, loQueSePuedeAfirmar, SE_CONSERVAN } from "./borrado";
+import {
+  armarPlanDeBorrado,
+  auditar,
+  loQueSePuedeAfirmar,
+  tablasIndirectas,
+  whereIndirecto,
+  tablasQueNadieReclama,
+  SE_CONSERVAN,
+  type Dependencia,
+} from "./borrado";
 
 // ══════════════════════════════════════════════════════════════════════════
 // E-28 — poder decir "borramos todo" con evidencia, no de memoria
@@ -233,5 +242,74 @@ describe("no toda foreign key obliga a un orden", () => {
       {},
     );
     expect(plan.ciclos).toEqual([]);
+  });
+});
+
+describe("LAS TABLAS QUE NO TIENEN organizationId — el bug que encontro la revision", () => {
+  // Preguntarle a information_schema por la columna `organizationId` deja
+  // afuera a las que cuelgan de otra tabla. Son seis en este repo, y la peor
+  // consecuencia era que la AUDITORIA podia decir "no queda ningun dato" con
+  // seis tablas llenas — la afirmacion falsa que el modulo existe para evitar.
+  const conOrg = ["orders", "bot_chats", "pixel_visitors", "influencers", "audiences", "users"];
+  const deps: Dependencia[] = [
+    { hija: "order_items", madre: "orders", columna: "orderId" },
+    { hija: "bot_messages", madre: "bot_chats", columna: "chatId" },
+    { hija: "pixel_visitor_aliases", madre: "pixel_visitors", columna: "visitorId" },
+    { hija: "influencer_commission_tiers", madre: "influencers", columna: "influencerId" },
+    { hija: "audience_sync_logs", madre: "audiences", columna: "audienceId" },
+    { hija: "login_events", madre: "users", columna: "userId" },
+    // Una entre dos tablas que YA tienen organizationId: no es indirecta.
+    { hija: "orders", madre: "users", columna: "userId" },
+  ];
+
+  it("encuentra las seis", () => {
+    const i = tablasIndirectas(conOrg, deps);
+    expect(i.map((x) => x.tabla)).toEqual([
+      "audience_sync_logs",
+      "bot_messages",
+      "influencer_commission_tiers",
+      "login_events",
+      "order_items",
+      "pixel_visitor_aliases",
+    ]);
+  });
+
+  it("NO cuenta como indirecta una tabla que ya tiene organizationId", () => {
+    // `orders` tiene la columna propia: resolverla por la FK seria redundante
+    // y podria acotarla mal.
+    expect(tablasIndirectas(conOrg, deps).map((x) => x.tabla)).not.toContain("orders");
+  });
+
+  it("arma el WHERE con la columna y la madre correctas", () => {
+    const oi = tablasIndirectas(conOrg, deps).find((x) => x.tabla === "order_items")!;
+    expect(whereIndirecto(oi)).toBe(
+      `"orderId" IN (SELECT "id" FROM "orders" WHERE "organizationId" = $1)`,
+    );
+  });
+
+  it("sin el nombre de la columna NO la incluye: no se puede armar el WHERE", () => {
+    // Incluirla sin poder acotarla seria peor que dejarla afuera: el DELETE
+    // borraria filas de TODAS las organizaciones.
+    const sinColumna = tablasIndirectas(conOrg, [{ hija: "x", madre: "orders" }]);
+    expect(sinColumna).toEqual([]);
+  });
+
+  it("una tabla con dos vias a la misma madre aparece una sola vez", () => {
+    const i = tablasIndirectas(conOrg, [
+      { hija: "order_items", madre: "orders", columna: "orderId" },
+      { hija: "order_items", madre: "orders", columna: "otroId" },
+    ]);
+    expect(i).toHaveLength(1);
+  });
+
+  it("las que no son de nadie se reportan, no se asumen", () => {
+    // Pueden ser globales legitimas (email_templates, diccionarios) o un
+    // agujero nuevo. La diferencia no se puede adivinar desde el codigo.
+    const huerfanas = tablasQueNadieReclama(
+      ["orders", "order_items", "email_templates", "tabla_misteriosa"],
+      ["orders"],
+      [{ tabla: "order_items", columna: "orderId", madre: "orders" }],
+    );
+    expect(huerfanas).toEqual(["email_templates", "tabla_misteriosa"]);
   });
 });

@@ -21,7 +21,7 @@
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { TABLA_CURSORES } from "@/lib/cron/cursor-store";
+import { DDL_CURSORES, TABLA_CURSORES } from "@/lib/cron/cursor-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -41,16 +41,10 @@ async function migrar() {
   // porque renombrar arrastra `cursor-store.ts` y sus tests, y el costo de un
   // nombre estrecho es menor que el de una migración de rename; el comentario
   // de acá tiene que suplir la diferencia.
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "${TABLA_CURSORES}" (
-      "name" TEXT PRIMARY KEY,
-      "cursor" TEXT,
-      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      "last_run_at" TIMESTAMPTZ,
-      "last_ok" BOOLEAN,
-      "last_error" TEXT
-    )
-  `);
+  // La DDL vive en `cursor-store.ts` y la comparten esta migración y el
+  // fixture de los tests. Estaban escritas por separado y habían divergido:
+  // los tests probaban una tabla que acá no se crea.
+  await prisma.$executeRawUnsafe(DDL_CURSORES);
 
   // Idempotente y compatible hacia atrás: si la tabla ya existe con la forma
   // vieja (alguien corrió una versión anterior de este endpoint), se le agregan

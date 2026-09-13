@@ -95,9 +95,23 @@ describe("R-C04 — `cron/ml-sync` es fail-closed", () => {
   const src = leer("src", "app", "api", "cron", "ml-sync", "route.ts");
 
   it("sin CRON_SECRET no corre, en vez de quedar abierto", () => {
-    expect(src).toContain("if (!cronSecret) {");
-    // El patrón fail-open no debe volver (sin comentarios: la explicación lo cita).
-    expect(sinComentarios(src)).not.toMatch(/if \(cronSecret && authHeader !==/);
+    // Se afirma la PROPIEDAD, no una línea literal. La primera versión de
+    // este test exigía el texto `if (!cronSecret) {`, así que al cambiar la
+    // forma del gate —que siguió siendo fail-closed— el test se puso rojo
+    // por la forma y no por el fondo.
+    const codigo = sinComentarios(src);
+
+    // El patrón fail-open no vuelve. Va sin comentarios porque la
+    // explicación de arriba lo cita textualmente.
+    expect(codigo).not.toMatch(/if \(cronSecret && authHeader !==/);
+
+    // Comparar contra `Bearer ${cronSecret}` sin verificar antes que la env
+    // exista deja como secreto esperado el string `Bearer undefined`, que
+    // cualquiera puede mandar. Por eso el largo se chequea explícitamente.
+    expect(codigo).toMatch(/cronSecret\.length > 0/);
+
+    // Y la puerta se cierra pidiendo que fallen LAS DOS, no una.
+    expect(codigo).toMatch(/if \(!porSecretoDeCron && !porClaveDeAdmin\)/);
   });
 });
 

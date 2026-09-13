@@ -39,7 +39,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
-import { isValidAdminKey } from "@/lib/admin-key";
 import { backfillDay, ROLLUP_TABLES, type RollupTable } from "@/lib/pixel/rollup-backfill";
 import { calcularTecho, dispersion } from "@/lib/pixel/techo-de-orgs";
 import vercel from "../../../../../vercel.json";
@@ -74,10 +73,32 @@ function presupuestoReal() {
   };
 }
 
+/** Un día en formato ISO corto, que es lo único que `backfillDay` sabe leer. */
+const FORMA_DIA = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  if (!isValidAdminKey(url.searchParams.get("key")) && !(await isInternalUser())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // ── SÓLO SESIÓN DE STAFF ────────────────────────────────────────────
+  // Antes aceptaba `?key=`. No alcanza, y no por el dato que devuelve: este
+  // endpoint **ESCRIBE**. `backfillDay` recalcula los rollups de todas las
+  // organizaciones para un día, y la clave de admin viaja en `vercel.json`,
+  // que está versionado.
+  //
+  // O sea que cualquiera con el repo podía dispararlo en loop y poner a la
+  // base a recalcular rollups de todos los clientes — sobre Neon, que ya se
+  // cayó bajo carga (BP-NEON-CAPACITY). Es una herramienta de medición
+  // interna: la puerta correcta es la sesión.
+  if (!(await isInternalUser())) {
+    return NextResponse.json(
+      {
+        error:
+          "Esta medición sólo corre con sesión de staff: recalcula rollups de " +
+          "todas las organizaciones, así que la clave de admin (que está en " +
+          "vercel.json, versionado) no alcanza.",
+      },
+      { status: 403 },
+    );
   }
 
   const tablaPedida = url.searchParams.get("tabla");
@@ -89,7 +110,18 @@ export async function GET(req: NextRequest) {
   // Ayer, no hoy: un día cerrado tiene el volumen completo. Medir contra el día
   // en curso daría un costo artificialmente bajo según la hora.
   const ayer = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-  const dia = url.searchParams.get("dia") ?? ayer;
+  // `dia` entra a `backfillDay`, que lo castea a `timestamptz` en SQL. Va
+  // parametrizado, así que no es inyectable — pero cualquier cosa que no sea
+  // una fecha revienta el cast y devuelve un 500 sin explicación. Se valida
+  // acá para que el error diga qué pasó.
+  const diaPedido = url.searchParams.get("dia");
+  if (diaPedido !== null && !FORMA_DIA.test(diaPedido)) {
+    return NextResponse.json(
+      { error: "El parámetro `dia` tiene que ser una fecha AAAA-MM-DD." },
+      { status: 400 },
+    );
+  }
+  const dia = diaPedido ?? ayer;
 
   const orgs = await prisma.organization.findMany({ select: { id: true, name: true } });
   if (orgs.length === 0) {

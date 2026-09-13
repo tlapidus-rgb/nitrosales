@@ -15,7 +15,22 @@
 // GET  → cuántas filas quedan sin origen (no escribe nada).
 // POST → repara. Idempotente: sólo toca filas con `source_raw IS NULL`.
 //
-// Auth: staff (además el middleware gatea `/api/admin/*`).
+// ── AUTH: LO QUE REALMENTE PASA ──────────────────────────────────────────
+// Este encabezado decía "Auth: staff (además el middleware gatea
+// `/api/admin/*`)". Las dos mitades estaban mal.
+//
+//   · No es sólo staff: `puedeEntrar()` acepta `?key=<ADMIN_API_KEY>` **o**
+//     sesión de staff. Es el patrón de los ~20 endpoints admin del repo.
+//   · Y el middleware NO gatea esto para un request anónimo. El gate por
+//     sección corre dentro de un `if (token)`: sin token, `middleware.ts`
+//     devuelve `NextResponse.next()` a propósito y delega en la auth del
+//     endpoint. Lo que el middleware sí hace es frenar a un usuario LOGUEADO
+//     cuyo rol no incluye la sección.
+//
+// O sea que la única puerta frente a alguien sin sesión es el `?key=` de acá.
+// Se deja así —es idempotente y sólo completa filas con `source_raw IS NULL`,
+// no pisa datos— pero el encabezado tiene que decirlo, no taparlo con una
+// capa de seguridad que no existe.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";

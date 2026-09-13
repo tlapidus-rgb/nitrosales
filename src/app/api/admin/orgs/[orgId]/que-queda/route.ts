@@ -38,6 +38,9 @@ import {
   armarPlanDeBorrado,
   loQueSePuedeAfirmar,
   SE_CONSERVAN,
+  tablasIndirectas,
+  whereIndirecto,
+  tablasQueNadieReclama,
   type TablaConOrg,
   type Dependencia,
 } from "@/lib/organizacion/borrado";
@@ -46,6 +49,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /** Todas las tablas del esquema público que tienen una columna `organizationId`. */
+const TODAS_LAS_TABLAS = `
+  SELECT table_name AS tabla FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+  ORDER BY table_name
+`;
+
 const TABLAS_CON_ORG = `
   SELECT table_name AS tabla
   FROM information_schema.columns
@@ -65,7 +74,8 @@ const DEPENDENCIAS = `
   SELECT
     tc.table_name    AS hija,
     ccu.table_name   AS madre,
-    rc.delete_rule   AS "reglaDeBorrado"
+    rc.delete_rule   AS "reglaDeBorrado",
+    kcu.column_name  AS columna
   FROM information_schema.table_constraints tc
   JOIN information_schema.key_column_usage kcu
     ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
@@ -97,6 +107,19 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
     .$queryRawUnsafe<Dependencia[]>(DEPENDENCIAS)
     .catch(() => [] as Dependencia[]);
 
+  // Las que NO tienen `organizationId` pero cuelgan de una que sí.
+  //
+  // Sin esto la auditoría podía decir "no queda ningún dato" con seis tablas
+  // llenas (`order_items`, `bot_messages`, `pixel_visitor_aliases`,
+  // `influencer_commission_tiers`, `audience_sync_logs`, `login_events`) —
+  // justo la afirmación falsa que este endpoint existe para evitar.
+  const indirectas = tablasIndirectas(tablas, dependencias);
+
+  const todas = await prisma
+    .$queryRawUnsafe<Array<{ tabla: string }>>(TODAS_LAS_TABLAS)
+    .then((r) => r.map((x) => x.tabla))
+    .catch(() => [] as string[]);
+
   // Cada COUNT va con su propio catch: una tabla que no se puede consultar sale
   // como `null`, que NO es cero. La diferencia es la que decide si se puede
   // afirmar que está todo borrado.
@@ -110,6 +133,18 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
       conteos.push({ tabla, filas: Number(r[0]?.n ?? 0) });
     } catch {
       conteos.push({ tabla, filas: null });
+    }
+  }
+
+  for (const t of indirectas) {
+    try {
+      const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
+        `SELECT COUNT(*)::float8 AS n FROM "${t.tabla}" WHERE ${whereIndirecto(t)}`,
+        orgId,
+      );
+      conteos.push({ tabla: t.tabla, filas: Number(r[0]?.n ?? 0) });
+    } catch {
+      conteos.push({ tabla: t.tabla, filas: null });
     }
   }
 
@@ -166,6 +201,13 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
       // borrado de ésas necesita otra estrategia.
       ciclosDeForeignKeys: plan.ciclos,
     },
+
+    // Las que pertenecen a la organizacion a traves de otra tabla.
+    indirectas: indirectas.map((t) => ({ tabla: t.tabla, via: `${t.columna} → ${t.madre}` })),
+
+    // Ni tienen organizationId ni cuelgan de algo que lo tenga. Pueden ser
+    // globales legitimas o un agujero nuevo — la diferencia no se adivina.
+    tablasQueNadieReclama: tablasQueNadieReclama(todas, tablas, indirectas),
 
     detallePorTabla: auditoria.conDatos,
   });

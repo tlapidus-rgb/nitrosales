@@ -33,9 +33,26 @@ async function monedaDeMeta(creds: any, org: string): Promise<MonedaDeCuenta> {
     return evaluarMoneda("META_ADS", org, cuenta, null);
   }
   try {
+    // El token va en el HEADER, no en la query.
+    //
+    // De las 21 llamadas a Graph que hay en el repo, 14 lo mandan como
+    // `?access_token=`. No es inofensivo: una URL termina en los logs de
+    // Vercel, en el `console.error` de cualquier catch que imprima la request,
+    // y en el traceback de un timeout. Un header no.
+    //
+    // Migrar las 14 es un refactor aparte —toca sync de Meta, CAPI, audiencias
+    // y el refresh de tokens, cada una con su propia verificación—, pero este
+    // archivo es nuevo y no hay motivo para que nazca con el patrón viejo.
+    //
+    // `cuenta` va escapada porque se interpola en el PATH: viene de las
+    // credenciales guardadas del cliente, y un valor con `/` o `?` cambiaría a
+    // qué recurso de Graph se le pregunta.
     const r = await fetch(
-      `https://graph.facebook.com/v19.0/${cuenta}?fields=currency,name&access_token=${token}`,
-      { signal: AbortSignal.timeout(12_000) },
+      `https://graph.facebook.com/v19.0/${encodeURIComponent(cuenta)}?fields=currency,name`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(12_000),
+      },
     );
     const j: any = await r.json().catch(() => null);
     return evaluarMoneda("META_ADS", org, cuenta, j?.currency);

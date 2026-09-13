@@ -24,6 +24,10 @@ import { fetchVtexOrderDetail } from "@/lib/connectors/vtex-enrichment";
 import { extractRealEmail } from "@/lib/connectors/vtex-email";
 import { withConcurrency } from "@/lib/sync/concurrency";
 import { waitUntil } from "@vercel/functions";
+// El incidente del 2026-09-06: `NEXTAUTH_URL` está configurada en Vercel para
+// TODOS los entornos con el valor de producción, así que un preview que se
+// auto-invocaba salía a producción. `selfFetchBaseUrl` resuelve el origin real.
+import { selfFetchBaseUrl } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -171,7 +175,7 @@ export async function GET(req: NextRequest) {
     // Vercel mantiene la funcion alive con waitUntil hasta que el fetch
     // dispara y vuelve.
     if (hasMore && autoContinue && !dryRun) {
-      const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
+      const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
       const nextUrl =
         `${baseUrl}/api/admin/vtex-recover-customer-emails` +
         `?orgId=${encodeURIComponent(orgId)}&key=${encodeURIComponent(KEY)}&autoContinue=1`;

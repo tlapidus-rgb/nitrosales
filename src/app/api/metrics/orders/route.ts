@@ -115,8 +115,40 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       ORG_ID = await getOrganizationId();
     }
     // Cinturon y tiradores: si algo cambia arriba, esto corta antes de tocar SQL.
+    //
+    // Ojo con el alcance: esto corre tambien sobre el id que sale de la SESION,
+    // no solo sobre el `?orgId=` de la query. Es a proposito —el valor termina
+    // interpolado en 53 `$queryRawUnsafe` y el guard tiene que valer venga de
+    // donde venga— pero significa que una organizacion cuyo id no tenga forma
+    // de cuid pierde el dashboard de Pedidos ENTERO con un 400.
+    //
+    // Hoy eso no puede pasar: `Organization.id` es `@default(cuid())` y el unico
+    // lugar que crea organizaciones (`admin/onboardings/[id]/activate`) no pisa
+    // el id. Queda el caso de una org insertada a mano antes de eso. Se confirma
+    // con una linea en Neon:
+    //
+    //     SELECT id FROM organizations WHERE id !~ '^[a-z0-9]{20,40}$';
+    //
+    // Y si aparece alguna, se ve en los logs: sin este `console.error`, el modo
+    // de falla era un 400 mudo y un dashboard en blanco sin nada que mirar.
     if (!esOrgIdValido(ORG_ID)) {
-      return NextResponse.json({ error: "organizationId invalido" }, { status: 400 });
+      console.error(
+        "[metrics/orders] organizationId con forma inesperada; se corta antes de tocar SQL.",
+        {
+          desdeLaQuery: Boolean(queryOrgId && queryKey === WARM_CACHE_KEY),
+          // `ORG_ID` queda narrowed a `never` aca dentro (esOrgIdValido es un
+          // type predicate), asi que no se le puede pedir `.length` directo.
+          largo: String(ORG_ID).length,
+        },
+      );
+      return NextResponse.json(
+        {
+          error:
+            "organizationId invalido: no tiene forma de id de organizacion. " +
+            "Si esto pasa con una sesion valida, el id de esa organizacion no es un cuid.",
+        },
+        { status: 400 },
+      );
     }
     if (!migrated) {
       // Await to avoid competing for connections with the query batches below.

@@ -32,9 +32,20 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
   const inactiveCount = inactiveClients.length;
   const atascadosCount = jobsAtascados.length;
   const cronesCount = cronesCaidos.length;
-  const totalIssues = errorCount + warnCount + stuckCount + inactiveCount + atascadosCount;
+  // `cronesCount` VA en el total. Sin el, el mail llegaba con asunto
+  // "Todo OK" y la seccion de crones caidos renderizada justo debajo —
+  // que es exactamente el modo de falla que E-20 vino a cerrar. El route
+  // sumaba bien (por eso el mail se mandaba) y el template hacia su propia
+  // cuenta aparte, de la que salen el asunto y el titular.
+  const totalIssues =
+    errorCount + warnCount + stuckCount + inactiveCount + atascadosCount + cronesCount;
 
-  const headlineTone = errorCount > 0 ? "#EF4444" : warnCount > 0 ? "#F59E0B" : "#22C55E";
+  // Un cron que dejo de correr pinta ROJO, no amarillo: `refresh-pixel-
+  // first-source` estuvo cinco semanas desagendado sin que nadie se
+  // enterara. Se suma al tono, no a `errorCount`, para no ensuciar el
+  // numero que el asunto reporta como "alertas criticas".
+  const headlineTone =
+    errorCount > 0 || cronesCount > 0 ? "#EF4444" : warnCount > 0 ? "#F59E0B" : "#22C55E";
   const headlineLabel =
     errorCount > 0
       ? `${errorCount} problema${errorCount > 1 ? "s" : ""} crítico${errorCount > 1 ? "s" : ""}`
