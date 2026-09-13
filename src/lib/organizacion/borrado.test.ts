@@ -164,3 +164,74 @@ describe("lo que se puede afirmar", () => {
     expect(t).not.toMatch(/No queda ningún dato/i);
   });
 });
+
+describe("no toda foreign key obliga a un orden", () => {
+  // Encontrado corriendo el plan contra datos reales: reporto un "ciclo" entre
+  // `users` y `custom_roles` que no existia. Las dos FKs son ON DELETE SET NULL,
+  // asi que Postgres las resuelve solo y el DELETE no falla.
+  //
+  // El costo del error no era borrar mal: era NEGARSE a borrar algo que se
+  // puede borrar. Falla del lado seguro, pero falla.
+  it("SET NULL en las dos puntas NO es un ciclo", () => {
+    const plan = armarPlanDeBorrado(
+      ["users", "custom_roles"],
+      [
+        { hija: "users", madre: "custom_roles", reglaDeBorrado: "SET NULL" },
+        { hija: "custom_roles", madre: "users", reglaDeBorrado: "SET NULL" },
+      ],
+      {},
+    );
+    expect(plan.ciclos).toEqual([]);
+    expect(plan.orden.sort()).toEqual(["custom_roles", "users"]);
+  });
+
+  it("CASCADE tampoco obliga: la base lo resuelve", () => {
+    const plan = armarPlanDeBorrado(
+      ["a", "b"],
+      [
+        { hija: "a", madre: "b", reglaDeBorrado: "CASCADE" },
+        { hija: "b", madre: "a", reglaDeBorrado: "CASCADE" },
+      ],
+      {},
+    );
+    expect(plan.ciclos).toEqual([]);
+  });
+
+  it("pero NO ACTION y RESTRICT SI obligan", () => {
+    const conNoAction = armarPlanDeBorrado(
+      ["hija", "madre"],
+      [{ hija: "hija", madre: "madre", reglaDeBorrado: "NO ACTION" }],
+      {},
+    );
+    expect(conNoAction.orden).toEqual(["hija", "madre"]);
+
+    const conRestrict = armarPlanDeBorrado(
+      ["x", "y"],
+      [
+        { hija: "x", madre: "y", reglaDeBorrado: "RESTRICT" },
+        { hija: "y", madre: "x", reglaDeBorrado: "RESTRICT" },
+      ],
+      {},
+    );
+    expect(conRestrict.ciclos.sort()).toEqual(["x", "y"]);
+  });
+
+  it("sin el dato de la regla se asume lo mas restrictivo", () => {
+    // NO ACTION es el default de Postgres. Ante la duda, exigir orden: un orden
+    // de mas no rompe nada, uno de menos hace fallar el DELETE.
+    const plan = armarPlanDeBorrado(["hija", "madre"], [{ hija: "hija", madre: "madre" }], {});
+    expect(plan.orden).toEqual(["hija", "madre"]);
+  });
+
+  it("minusculas tambien se reconocen", () => {
+    const plan = armarPlanDeBorrado(
+      ["a", "b"],
+      [
+        { hija: "a", madre: "b", reglaDeBorrado: "set null" },
+        { hija: "b", madre: "a", reglaDeBorrado: "set null" },
+      ],
+      {},
+    );
+    expect(plan.ciclos).toEqual([]);
+  });
+});

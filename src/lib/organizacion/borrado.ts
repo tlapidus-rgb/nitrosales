@@ -63,7 +63,36 @@ export type Dependencia = {
   hija: string;
   /** La tabla a la que apunta. */
   madre: string;
+  /**
+   * Qué hace Postgres cuando se borra la fila referenciada: `NO ACTION`,
+   * `RESTRICT`, `CASCADE`, `SET NULL`, `SET DEFAULT`.
+   *
+   * **Sólo las dos primeras obligan a un orden de borrado.** Las otras tres las
+   * resuelve la base sola, así que exigir orden por ellas es inventar una
+   * restricción que no existe.
+   */
+  reglaDeBorrado?: string;
 };
+
+/**
+ * Las reglas que de verdad obligan a borrar la hija antes que la madre.
+ *
+ * Con `CASCADE`, `SET NULL` o `SET DEFAULT`, Postgres arregla la referencia
+ * solo y el DELETE no falla. Tratarlas como bloqueantes fue un error real de
+ * este módulo: el primer plan sobre datos de verdad reportó un "ciclo" entre
+ * `users` y `custom_roles` que no existía — las dos FKs son `SET NULL`.
+ *
+ * El costo de esa equivocación no era borrar mal: era **negarse a borrar** algo
+ * que se puede borrar. Falla del lado seguro, pero falla.
+ */
+const REGLAS_QUE_OBLIGAN_ORDEN = new Set(["NO ACTION", "RESTRICT"]);
+
+/** `true` si esa foreign key obliga a borrar la hija primero. */
+export function obligaOrden(d: Dependencia): boolean {
+  // Sin el dato, se asume lo más restrictivo: es el default de Postgres.
+  const regla = (d.reglaDeBorrado ?? "NO ACTION").toUpperCase();
+  return REGLAS_QUE_OBLIGAN_ORDEN.has(regla);
+}
 
 export type PlanDeBorrado = {
   /** En qué orden borrar: las hijas antes que las madres. */
@@ -99,9 +128,10 @@ export function armarPlanDeBorrado(
   const aBorrar = tablas.filter((t) => !(t in seConservan));
   const enJuego = new Set(aBorrar);
 
-  // Sólo importan las dependencias entre tablas que vamos a borrar.
+  // Sólo importan las dependencias que (a) están entre tablas que vamos a
+  // borrar, (b) no son autorreferencias, y (c) de verdad obligan a un orden.
   const relevantes = dependencias.filter(
-    (d) => enJuego.has(d.hija) && enJuego.has(d.madre) && d.hija !== d.madre,
+    (d) => enJuego.has(d.hija) && enJuego.has(d.madre) && d.hija !== d.madre && obligaOrden(d),
   );
 
   // Cuántas hijas tiene cada madre todavía sin borrar.
