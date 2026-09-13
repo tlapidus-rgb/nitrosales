@@ -953,6 +953,26 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 - **Cuatro de las ocho son bugs latentes que hay que arreglar igual:** el `COALESCE("source",'VTEX')`
   repetido 42 veces (una orden sin plataforma **es** una orden VTEX), las `VALID_SOURCES`, el mapper
   de estados de ML triplicado, y las claves únicas sin `source`.
+- **Estado de esos cuatro:** ✅ **tres hechos, uno reclasificado (2026-09-13)**. 45 tests, verificado por mutación.
+
+> **El mapper de ML no estaba triplicado: estaba en SIETE copias, y dos de ellas no coincidían con las otras cinco.** Ahí estaba el bug de verdad, y mueve plata:
+>
+> | estado MELI | Familia A (5 archivos, **incluye el webhook en vivo**) | Familia B (2: backfill y reconcile) | ¿Cuenta como venta? |
+> |---|---|---|---|
+> | `confirmed` | `APPROVED` | `PENDING` | **A sí · B no** |
+> | `partially_refunded` | `PENDING` (default) | `APPROVED` | **A no · B sí** |
+> | `invalid` | `PENDING` (default) | `CANCELLED` | — |
+> | tag `delivered` | ignorado | `DELIVERED` | — |
+>
+> En MELI `confirmed` es *"orden creada, esperando pago"*, y `partially_refunded` es un reembolso parcial que la propia UI de MELI cuenta como concretado. **La familia B tiene razón en las dos, y es la minoría.** O sea que el webhook en tiempo real contaba plata que todavía no entró y perdía ventas parcialmente reembolsadas, hasta que el cron de reconcile —que usa la familia B— lo curaba. Por eso nunca explotó: se corrige solo unas horas después, y nadie mira el intervalo.
+>
+> Ahora hay un mapper canónico (`src/lib/meli-status.ts`), espejo del de VTEX, que adopta la familia B. **VTEX tenía el cartel "NO duplicar esta lógica" desde hace meses y aun así MELI terminó con siete copias: un cartel no es un control.** El control es `meli-status-fuente-unica.test.ts`.
+>
+> **El `COALESCE` no estaba disperso:** 41 de las 42 veces están en un solo archivo. No era riesgo de inconsistencia sino de cambio — el día que entre una tercera plataforma hay que revisarlo en 42 lugares. Ahora sale de `fuenteDeLaOrdenSql()` / `meliPendienteSql()` en el dominio de órdenes, **byte a byte idéntico** a lo que reemplazó. Hay un test que lo compara carácter por carácter, y agarró una diferencia real: mi primera versión ponía el alias entre comillas.
+>
+> **Las claves únicas se reclasifican:** `Order`, `Product` y `Customer` sí usan `@@unique([organizationId, externalId])` sin plataforma, pero hoy **no colisionan**, porque cada plataforma usa una forma distinta de id (`ml-123` vs UUID de VTEX, `MLA123` vs numérico). Es deuda estructural real —y `Product`/`Customer` ni siquiera tienen columna `source`— pero arreglarlo necesita migración de datos, o sea SQL en Neon. Queda como **N-09**, no como bug latente.
+>
+> **Un hallazgo de paso:** la cache key de `/api/metrics/orders` usaba el `?source=` **crudo**, así que `?source=basura` abría una entrada de cache propia con exactamente los mismos datos que la consulta sin filtro. Ahora usa el valor validado. Misma familia que N-04.
 
 ### E-31 · Decisión: ¿se abre a otra plataforma?
 - **Estado:** 🔒 esperando decisión de Tomy

@@ -227,3 +227,79 @@ export function externalIdMatchesEvent(eventOrderId: string) {
      OR "externalId" = ${String(eventOrderId).replace(/-01$/, "")})
   `;
 }
+
+// ────────────────────────────────────────────────────────────────
+// La plataforma de una orden (E-30, 2026-09-13)
+// ────────────────────────────────────────────────────────────────
+// `COALESCE("source", 'VTEX')` estaba escrito **42 veces**, 41 de ellas en un
+// solo archivo (`api/metrics/orders/route.ts`). No era un riesgo de
+// inconsistencia —todas decían lo mismo— sino de CAMBIO: el día que entre una
+// tercera plataforma, "una orden sin plataforma es VTEX" hay que revisarlo en
+// 42 lugares en vez de en uno.
+//
+// El default vive además en el schema (`source String @default("VTEX")`), así
+// que la regla ya tenía dos dueños antes de repetirse 42 veces.
+//
+// ⚠️ PENDIENTE DE VERIFICAR EN LA BASE: si la columna real en Neon es NOT NULL
+// —como dice el schema— estos COALESCE no pueden dispararse nunca y se podrían
+// borrar del todo. No se borraron porque no se puede consultar prod desde acá,
+// y borrarlos sobre una columna que SÍ acepta NULL cambiaría los números en
+// silencio. Es una línea de SQL para Axel:
+//     SELECT is_nullable FROM information_schema.columns
+//      WHERE table_name='orders' AND column_name='source';
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * La plataforma de la orden, con el default aplicado.
+ *
+ * `aliasOrders` vacío para queries sin alias (`FROM orders`).
+ *
+ * ⚠️ **El alias va SIN comillas**, a diferencia de `ordersValidSql` y compañía,
+ * que lo escriben `"o".`. No es un descuido: estos helpers reemplazan 42
+ * expresiones que estaban escritas a mano como `COALESCE(o."source", 'VTEX')`,
+ * y la promesa de ese reemplazo es que **no cambia un solo número**. Para un
+ * alias en minúscula Postgres trata `o` y `"o"` igual, pero "probablemente
+ * equivalente" no es la vara cuando lo que está del otro lado son las métricas
+ * de ventas. Hay un test que compara carácter por carácter.
+ */
+export function fuenteDeLaOrdenSql(aliasOrders: string = ""): string {
+  const p = aliasOrders ? `${aliasOrders}.` : "";
+  return `COALESCE(${p}"source", 'VTEX')`;
+}
+
+/**
+ * `true` para una orden de MercadoLibre que todavía no se concretó.
+ *
+ * Se excluye de los conteos porque MELI crea la orden al iniciar el checkout,
+ * no al pagarlo: contarlas infla las ventas con carritos abandonados. Es el
+ * patrón que aparecía 18 veces repetido.
+ */
+export function meliPendienteSql(aliasOrders: string = ""): string {
+  // Mismo criterio que arriba: alias sin comillas, para quedar byte a byte
+  // igual a las 29 copias que este helper reemplaza.
+  const p = aliasOrders ? `${aliasOrders}.` : "";
+  return `${fuenteDeLaOrdenSql(aliasOrders)} = 'MELI' AND ${p}status = 'PENDING'`;
+}
+
+/**
+ * Las plataformas de las que puede venir una orden.
+ *
+ * Es whitelist de seguridad además de dominio: el parámetro `?source=` se
+ * interpola en SQL, así que lo que no está acá **no entra**. Estaba escrita
+ * inline en `metrics/orders` y `metrics/customers`, o sea que sumar una
+ * plataforma era editar dos endpoints y acordarse de los dos.
+ */
+export const FUENTES_DE_ORDEN = ["VTEX", "MELI"] as const;
+
+export type FuenteDeOrden = (typeof FUENTES_DE_ORDEN)[number];
+
+/**
+ * Normaliza y valida un `?source=` de la URL.
+ *
+ * Devuelve `null` si no es una fuente conocida — que es lo que los dos
+ * endpoints ya hacían: sin filtro, en vez de error.
+ */
+export function fuenteDeOrdenPedida(crudo: string | null | undefined): FuenteDeOrden | null {
+  const v = (crudo ?? "").toUpperCase();
+  return (FUENTES_DE_ORDEN as readonly string[]).includes(v) ? (v as FuenteDeOrden) : null;
+}

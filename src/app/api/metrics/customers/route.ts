@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidSql } from "@/domains/orders";
+import { ordersValidSql, fuenteDeOrdenPedida } from "@/domains/orders";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -18,9 +18,9 @@ export async function GET(request: NextRequest) {
     const fromParam = searchParams.get("from");
     const dateTo = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
     const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000-03:00") : new Date(now.getTime() - 365 * MS_PER_DAY);
-    const VALID_SOURCES = ["VTEX", "MELI"];
-    const sourceParam = searchParams.get("source")?.toUpperCase();
-    const sourceFilter = sourceParam && VALID_SOURCES.includes(sourceParam) ? sourceParam : null;
+    // E-30. La lista vivia inline aca Y en el otro endpoint de metrics:
+    // sumar una plataforma era editar dos archivos y acordarse de los dos.
+    const sourceFilter = fuenteDeOrdenPedida(searchParams.get("source"));
     const srcWhere = sourceFilter ? `AND o."source" = '${sourceFilter}'` : "";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const periodMs = dateTo.getTime() - dateFrom.getTime();

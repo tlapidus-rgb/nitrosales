@@ -12,6 +12,11 @@
 import { prisma } from "@/lib/db/client";
 import { getSellerToken } from "./mercadolibre-seller";
 import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
+// E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
+// dos familias que no coincidían: `confirmed` era APPROVED en cinco y
+// PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
+// llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { mapMeliStatus } from "@/lib/meli-status";
 
 const ML_API = "https://api.mercadolibre.com";
 
@@ -113,7 +118,7 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
   // resource = "/orders/1234567890"
   const order = await mlGet(resource, token);
 
-  const status = mapMLOrderStatus(order.status);
+  const status = mapMeliStatus(order.status);
   const totalValue = order.total_amount || 0;
   const mlItems = order.order_items || [];
   const itemCount = mlItems.reduce(
@@ -459,19 +464,6 @@ async function processShipment(token: string, orgId: string, resource: string): 
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function mapMLOrderStatus(mlStatus: string): "PENDING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "CANCELLED" {
-  switch (mlStatus) {
-    case "confirmed": return "APPROVED";
-    case "payment_required": return "PENDING";
-    case "payment_in_process": return "PENDING";
-    case "paid": return "APPROVED";
-    case "partially_paid": return "PENDING";
-    case "shipped": return "SHIPPED";
-    case "delivered": return "DELIVERED";
-    case "cancelled": return "CANCELLED";
-    default: return "PENDING";
-  }
-}
 
 function mapShipmentToOrderStatus(shipmentStatus: string): "SHIPPED" | "DELIVERED" | null {
   switch (shipmentStatus) {

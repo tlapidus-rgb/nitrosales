@@ -29,6 +29,11 @@ import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
 import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
 import { withConcurrency } from "@/lib/sync/concurrency";
 import { orgJitter, sleep } from "@/lib/sync/jitter";
+// E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
+// dos familias que no coincidían: `confirmed` era APPROVED en cinco y
+// PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
+// llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -70,28 +75,11 @@ async function mlGet(path: string, token: string): Promise<any> {
   );
 }
 
-function mapMlStatus(mlStatus: string, tags?: string[]): string {
-  // CRITICAL: cancelled/invalid SIEMPRE gana sobre el tag 'delivered'.
-  // MELI mantiene el tag historico tras cancelar un pack.
-  if (mlStatus === "cancelled" || mlStatus === "invalid") return "CANCELLED";
-  if (Array.isArray(tags) && tags.includes("delivered")) return "DELIVERED";
-  switch (mlStatus) {
-    case "paid": return "APPROVED";
-    case "shipped": return "SHIPPED";
-    case "delivered": return "DELIVERED";
-    case "partially_refunded": return "APPROVED"; // Venta valida en MELI UI
-    case "confirmed":
-    case "payment_required":
-    case "payment_in_process":
-    case "partially_paid": return "PENDING";
-    default: return "PENDING";
-  }
-}
 
 async function upsertOrderWithGuard(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
   const externalId = String(order.id);
   const packId = order.pack_id ? String(order.pack_id) : null;
-  const status = mapMlStatus(order.status, order.tags);
+  const status = mapMeliStatus(order.status, order.tags);
   const total = Number(order.total_amount) || 0;
   const currency = order.currency_id || "ARS";
   const itemCount = Array.isArray(order.order_items)

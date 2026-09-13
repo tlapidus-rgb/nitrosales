@@ -16,6 +16,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+// E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
+// dos familias que no coincidían: `confirmed` era APPROVED en cinco y
+// PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
+// llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { mapMeliStatus } from "@/lib/meli-status";
 import {
   getSellerToken,
   fetchSellerListings,
@@ -67,7 +72,7 @@ export async function GET(req: NextRequest) {
         let upserted = 0;
         let itemsCreated = 0;
         for (const order of filtered) {
-          const status = mapMLOrderStatus(order.status);
+          const status = mapMeliStatus(order.status);
           const totalValue = order.total_amount || 0;
           const mlItems = order.order_items || [];
           const itemCount = mlItems.reduce(
@@ -351,14 +356,3 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function mapMLOrderStatus(mlStatus: string): "PENDING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "CANCELLED" {
-  switch (mlStatus) {
-    case "confirmed": return "APPROVED";
-    case "payment_required": case "payment_in_process": case "partially_paid": return "PENDING";
-    case "paid": return "APPROVED";
-    case "shipped": return "SHIPPED";
-    case "delivered": return "DELIVERED";
-    case "cancelled": return "CANCELLED";
-    default: return "PENDING";
-  }
-}

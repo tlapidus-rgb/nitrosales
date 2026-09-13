@@ -16,23 +16,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerReputation, fetchSellerOrders } from "@/lib/connectors/mercadolibre-seller";
+// E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
+// dos familias que no coincidían: `confirmed` era APPROVED en cinco y
+// PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
+// llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel Pro plan — 5 min
 
-function mapMLOrderStatus(mlStatus: string): "PENDING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "CANCELLED" {
-  switch (mlStatus) {
-    case "confirmed": return "APPROVED";
-    case "payment_required": return "PENDING";
-    case "payment_in_process": return "PENDING";
-    case "paid": return "APPROVED";
-    case "partially_paid": return "PENDING";
-    case "shipped": return "SHIPPED";
-    case "delivered": return "DELIVERED";
-    case "cancelled": return "CANCELLED";
-    default: return "PENDING";
-  }
-}
 
 /**
  * Sincroniza UNA org con ML conectado. Captura errores internamente
@@ -59,7 +51,7 @@ async function syncOneOrg(
       let ordersCreated = 0;
       let ordersUpdated = 0;
       for (const order of mlOrders) {
-        const status = mapMLOrderStatus(order.status);
+        const status = mapMeliStatus(order.status);
         const totalValue = order.total_amount || 0;
         const mlItems = order.order_items || [];
         const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);

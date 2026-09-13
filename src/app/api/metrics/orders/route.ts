@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { orgIdDeLaQuery, esOrgIdValido } from "@/lib/org-id-seguro";
+import { fuenteDeLaOrdenSql, meliPendienteSql, fuenteDeOrdenPedida } from "@/domains/orders";
 // enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
@@ -157,9 +158,9 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     }
 
     // ── Source filter (validated whitelist to prevent SQL injection) ──
-    const VALID_SOURCES = ["VTEX", "MELI"];
-    const sourceParam = searchParams.get("source")?.toUpperCase();
-    const sourceFilter = sourceParam && VALID_SOURCES.includes(sourceParam) ? sourceParam : null;
+    // E-30. La lista vivia inline aca Y en el otro endpoint de metrics:
+    // sumar una plataforma era editar dos archivos y acordarse de los dos.
+    const sourceFilter = fuenteDeOrdenPedida(searchParams.get("source"));
 
     // ── Pagination ──
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -175,7 +176,11 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
 
     // S60 EXT-2 BIS+++++++++++++++ — REVERT del SWR + warm-cache cron.
     // Causaba saturacion de DB. Volver al cache simple fresh-only.
-    const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page, compMode, compOffset];
+    // E-30. Antes era `sourceParam` —el valor CRUDO de la URL—, así que
+    // `?source=basura` abría una entrada de cache propia con exactamente los
+    // mismos datos que la consulta sin filtro. Ahora la key usa el valor ya
+    // validado, que es el único que cambia el resultado de la query.
+    const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceFilter || "default", page, compMode, compOffset];
     const cached = await getSharedCachedSWR("orders", ...cacheKey);
     if (cached?.data && !cached.isStale) {
       return NextResponse.json(cached.data);
@@ -243,7 +248,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -263,7 +268,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -324,7 +329,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -370,7 +375,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       prisma.$queryRawUnsafe<Array<{ day: string; source: string; orders: string; revenue: string }>>(`
         SELECT
           TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
-          COALESCE("source", 'VTEX') AS source,
+          ${fuenteDeLaOrdenSql()} AS source,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
@@ -378,7 +383,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -386,7 +391,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
-        GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), COALESCE("source", 'VTEX')
+        GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), ${fuenteDeLaOrdenSql()}
         ORDER BY day ASC
       `, dateFrom, dateTo);
 
@@ -430,7 +435,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
             AND "orderDate" >= $1
             AND "orderDate" <= $2
             AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-            AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+            AND NOT (${meliPendienteSql()})
             AND COALESCE("packId", "externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
@@ -438,7 +443,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
                 AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
             ${srcWhereSimple}
           GROUP BY day, dow
         )
@@ -474,7 +479,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
             AND "orderDate" >= $1
             AND "orderDate" <= $2
             AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-            AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+            AND NOT (${meliPendienteSql()})
             AND COALESCE("packId", "externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
@@ -482,7 +487,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
                 AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
             ${srcWhereSimple}
           GROUP BY day, hr
         )
@@ -511,7 +516,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       }>>(`
         SELECT
           COALESCE("paymentMethod", 'Sin dato') AS payment_method,
-          COALESCE("source", 'VTEX') AS source,
+          ${fuenteDeLaOrdenSql()} AS source,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
@@ -519,7 +524,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -528,7 +533,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
-        GROUP BY "paymentMethod", COALESCE("source", 'VTEX')
+        GROUP BY "paymentMethod", ${fuenteDeLaOrdenSql()}
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
       `, dateFrom, dateTo);
@@ -654,7 +659,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (${meliPendienteSql("o")})
           AND COALESCE(o."packId", o."externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -724,7 +729,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (${meliPendienteSql("o")})
           AND COALESCE(o."packId", o."externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -766,10 +771,10 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           o."totalValue"::text AS total_value,
           o."itemCount"::text AS item_count,
           COALESCE(o."paymentMethod", '-') AS payment_method,
-          COALESCE(o."source", 'VTEX') AS source,
+          ${fuenteDeLaOrdenSql("o")} AS source,
           TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
           CASE
-            WHEN o."customerId" IS NULL AND COALESCE(o."source", 'VTEX') = 'MELI' THEN 'Cliente MercadoLibre'
+            WHEN o."customerId" IS NULL AND ${fuenteDeLaOrdenSql("o")} = 'MELI' THEN 'Cliente MercadoLibre'
             WHEN o."customerId" IS NULL THEN 'Cliente sin datos'
             WHEN TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) = '' THEN 'Cliente sin nombre'
             ELSE TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", '')))
@@ -877,7 +882,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -902,14 +907,14 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       }>>(`
         SELECT
           COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
-          COALESCE("source", 'VTEX') AS source,
+          ${fuenteDeLaOrdenSql()} AS source,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -918,7 +923,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
-        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo'), COALESCE("source", 'VTEX')
+        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo'), ${fuenteDeLaOrdenSql()}
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
       `, dateFrom, dateTo), [] as any[], "promotions"),
@@ -943,7 +948,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         source: string; cnt: string; revenue: string; shipping: string;
       }>>(`
         SELECT
-          COALESCE("source", 'VTEX') AS source,
+          ${fuenteDeLaOrdenSql()} AS source,
           COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS cnt,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping
@@ -951,7 +956,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -959,7 +964,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
-        GROUP BY COALESCE("source", 'VTEX')
+        GROUP BY ${fuenteDeLaOrdenSql()}
       `, dateFrom, dateTo),
     ]);
 
@@ -982,7 +987,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
             WITH customer_history AS (
               SELECT
                 o."customerId",
-                COALESCE(o."source", 'VTEX') AS src,
+                ${fuenteDeLaOrdenSql("o")} AS src,
                 COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::int AS period_orders,
                 SUM(o."totalValue") AS period_revenue,
                 MIN(f.first_order_date) AS first_order_date
@@ -992,7 +997,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
               WHERE o."organizationId" = '${ORG_ID}'
                 AND o."orderDate" >= $1 AND o."orderDate" <= $2
                 AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-                AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+                AND NOT (${meliPendienteSql("o")})
                 AND COALESCE(o."packId", o."externalId") NOT IN (
                   SELECT COALESCE("packId", "externalId") FROM orders
                   WHERE "organizationId" = '${ORG_ID}'
@@ -1027,7 +1032,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WITH customer_history AS (
           SELECT
             o."customerId",
-            COALESCE(o."source", 'VTEX') AS src,
+            ${fuenteDeLaOrdenSql("o")} AS src,
             COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::int AS period_orders,
             SUM(o."totalValue") AS period_revenue,
             MIN(first_order.first_date) AS first_order_date
@@ -1042,7 +1047,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+            AND NOT (${meliPendienteSql("o")})
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
@@ -1050,7 +1055,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
                 AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
-          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (${meliPendienteSql("o")})
             ${srcWhereSimple}
           GROUP BY o."customerId", o."source", first_order.first_date
         ),
@@ -1114,7 +1119,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+            AND NOT (${meliPendienteSql("o")})
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
@@ -1122,7 +1127,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
                 AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
-          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (${meliPendienteSql("o")})
             ${srcWhere}
         )
         SELECT
@@ -1149,7 +1154,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -1203,7 +1208,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -1246,7 +1251,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+            AND NOT (${meliPendienteSql("o")})
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
@@ -1254,7 +1259,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
                 AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
-          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (${meliPendienteSql("o")})
             ${srcWhere}
           ORDER BY o.id, pa."createdAt" DESC NULLS LAST
         )
@@ -1279,7 +1284,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -1340,7 +1345,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+            AND NOT (${meliPendienteSql("o")})
             AND COALESCE(o."packId", o."externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
@@ -1348,7 +1353,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
                 AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
-          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (${meliPendienteSql("o")})
             ${srcWhere}
           ORDER BY o.id, pa."createdAt" DESC NULLS LAST
         )
@@ -1374,7 +1379,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -1408,7 +1413,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
@@ -1435,7 +1440,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
-          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (${meliPendienteSql()})
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'

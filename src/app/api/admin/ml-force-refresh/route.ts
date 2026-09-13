@@ -16,6 +16,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
+// E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
+// dos familias que no coincidían: `confirmed` era APPROVED en cinco y
+// PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
+// llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -25,21 +30,6 @@ const WINDOW_DAYS = 7;
 const PAGE_SIZE = 50;
 const ML_OFFSET_MAX = 1000;
 
-function mapMlStatus(mlStatus: string, tags?: string[]): string {
-  if (mlStatus === "cancelled" || mlStatus === "invalid") return "CANCELLED";
-  if (Array.isArray(tags) && tags.includes("delivered")) return "DELIVERED";
-  switch (mlStatus) {
-    case "paid": return "APPROVED";
-    case "shipped": return "SHIPPED";
-    case "delivered": return "DELIVERED";
-    case "partially_refunded": return "APPROVED";
-    case "confirmed":
-    case "payment_required":
-    case "payment_in_process":
-    case "partially_paid": return "PENDING";
-    default: return "PENDING";
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -92,7 +82,7 @@ export async function POST(req: NextRequest) {
         for (const order of results) {
           try {
             const externalId = String(order.id);
-            const newStatus = mapMlStatus(order.status, order.tags);
+            const newStatus = mapMeliStatus(order.status, order.tags);
 
             // UPDATE sin guard — forzar la re-clasificacion.
             const result: any = await prisma.$executeRawUnsafe(

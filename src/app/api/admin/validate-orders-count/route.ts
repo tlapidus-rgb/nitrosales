@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { fuenteDeLaOrdenSql, meliPendienteSql } from "@/domains/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
        WHERE "organizationId" = $1
          AND "orderDate" >= $2 AND "orderDate" <= $3
          AND status NOT IN ('CANCELLED', 'RETURNED')
-         AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+         AND NOT (${meliPendienteSql()})
          AND COALESCE("packId", "externalId") NOT IN (
            SELECT COALESCE("packId", "externalId") FROM "orders"
            WHERE "organizationId" = $1
