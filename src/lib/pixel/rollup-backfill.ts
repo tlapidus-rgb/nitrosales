@@ -422,6 +422,23 @@ export interface BackfillDayOutcome {
   nextOrgId: string | null;
   /** Orgs que fallaron. El día sigue: una org rota no bloquea a las demás. */
   failures: Array<{ org: string; error: string }>;
+  /**
+   * Cuánto tardó CADA org, en milisegundos.
+   *
+   * Agregado el 2026-09-13 para poder responder con un número medido la única
+   * pregunta que importa del plan de expansión: **cuántos clientes aguanta
+   * esto**. Hasta ahora la respuesta salía de una estimación — el estudio de
+   * escalabilidad marca el costo de una org chica como `ESTIMADO` (asumió 1/20
+   * del volumen de Arredo) y de ese número cuelga toda su conclusión.
+   *
+   * Con esto el costo por org deja de estimarse: se lee. Y lo que se necesita
+   * saber no es sólo el total, sino **la forma**: si el costo es casi todo fijo
+   * por org, muchos clientes chicos salen caros; si escala con las filas, salen
+   * baratos. Son dos techos muy distintos.
+   *
+   * Cuesta un `Date.now()` por org. No cambia ningún comportamiento.
+   */
+  perOrgMs: Array<{ org: string; ms: number; touched: number; ok: boolean }>;
 }
 
 export async function backfillDay(
@@ -447,6 +464,7 @@ export async function backfillDay(
   const now = opts?.now ?? Date.now;
   let touched = 0;
   const failures: BackfillDayOutcome["failures"] = [];
+  const perOrgMs: BackfillDayOutcome["perOrgMs"] = [];
 
   const startIdx = opts?.startOrgId
     ? Math.max(0, orgs.indexOf(opts.startOrgId))
@@ -462,15 +480,23 @@ export async function backfillDay(
         orgsSeen: i - startIdx,
         nextOrgId: orgs[i],
         failures,
+        perOrgMs,
       };
     }
     const org = orgs[i];
+    // El cronómetro arranca ANTES del try y se lee en los dos caminos: una org
+    // que falla igual consumió presupuesto, y dejarla afuera de la medición
+    // haría parecer que el ciclo rinde más de lo que rinde.
+    const t0 = now();
     try {
-      touched += await runOrg(d, org, table);
+      const n = await runOrg(d, org, table);
+      touched += n;
+      perOrgMs.push({ org, ms: now() - t0, touched: n, ok: true });
     } catch (e: any) {
       // Aislamiento: la org que falla se anota y se sigue con la siguiente.
       // NO se traga el error — viaja en `failures` hasta el body de la respuesta.
       failures.push({ org, error: e?.message ?? String(e) });
+      perOrgMs.push({ org, ms: now() - t0, touched: 0, ok: false });
     }
   }
 
@@ -479,6 +505,7 @@ export async function backfillDay(
     orgsSeen: i - startIdx,
     nextOrgId: null,
     failures,
+    perOrgMs,
   };
 }
 
@@ -617,7 +644,12 @@ export async function runRollupBackfill(params: {
     }
   }
 
-  const days: Array<{ day: string; touched: number; ms: number }> = [];
+  const days: Array<{
+    day: string;
+    touched: number;
+    ms: number;
+    perOrgMs: BackfillDayOutcome["perOrgMs"];
+  }> = [];
   let lastDone: string | null = null;
   // Se calibra sola con el día más lento visto. Ver DAY_RESERVE_FLOOR_MS.
   let dayReserveMs = DAY_RESERVE_FLOOR_MS;
@@ -655,7 +687,11 @@ export async function runRollupBackfill(params: {
         ...outcome.failures.map((f) => ({ ...f, day: cursor }))
       );
 
-      days.push({ day: cursor, touched: outcome.touched, ms: dayMs });
+      // `perOrgMs` viaja hasta el body para poder contestar con un número medido
+      // cuántos clientes aguanta el pipeline. Hasta el 2026-09-13 ese número se
+      // estimaba — y el estudio del que salía marca el costo de una org chica
+      // como ESTIMADO. Ver src/lib/pixel/techo-de-orgs.ts.
+      days.push({ day: cursor, touched: outcome.touched, ms: dayMs, perOrgMs: outcome.perOrgMs });
       // El día más lento visto manda la reserva del próximo: los días de pico
       // (Hot Sale) tardan varias veces más que un día normal, y el promedio los
       // esconde justo cuando importan.
