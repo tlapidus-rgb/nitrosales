@@ -1284,46 +1284,78 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     //    products."externalId" guarda el skuId de la VARIANTE. Un ~24% colisiona
     //    por azar → mostrábamos el CR de otro producto. Ahora pasa por la
     //    dimensión vtex_sku_product; sin mapa no se atribuye nada.
-    const pixelViewedIds = (
-      productViewersResult as Array<{ productExternalId: string; viewers: number }>
-    ).map((v) => v.productExternalId);
-    const skuMap = await loadProductSkuMap(ORG_ID, pixelViewedIds);
-    const purchasableSkuIds = [...skuMap.productIdBySkuId.keys()];
+    // Run only the independent post-batch reads together (at most four).
+    // Product -> SKU -> purchases -> labels remains an ordered dependency chain.
+    const [productData, manualSpends, fRow, dailySpendResult] = await Promise.all([
+      (async () => {
+        const pixelViewedIds = (
+          productViewersResult as Array<{ productExternalId: string; viewers: number }>
+        ).map((v) => v.productExternalId);
+        const skuMap = await loadProductSkuMap(ORG_ID, pixelViewedIds);
+        const purchasableSkuIds = [...skuMap.productIdBySkuId.keys()];
 
-    const productPurchasesResult = purchasableSkuIds.length
-      ? ((await prisma.$queryRaw`
+        const productPurchasesResult = purchasableSkuIds.length
+          ? ((await prisma.$queryRaw`
+              SELECT
+                COALESCE(p."externalId", oi."productId") as "productExternalId",
+                COALESCE(p.name, 'Producto desconocido') as "productName",
+                COALESCE(p.category, 'Sin categoría') as category,
+                COALESCE(p.brand, 'Sin marca') as brand,
+                COUNT(DISTINCT oi."orderId")::int as orders,
+                SUM(oi.quantity)::int as units,
+                SUM(oi."totalPrice")::float as revenue
+              FROM order_items oi
+              JOIN orders o ON o.id = oi."orderId"
+              LEFT JOIN products p ON p.id = oi."productId"
+              WHERE o."organizationId" = ${ORG_ID}
+                AND o."orderDate" >= ${crDateFrom}
+                AND o."orderDate" <= ${dateTo}
+                AND ${ordersValidWhere("o")}
+                AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+                AND o.source IS DISTINCT FROM 'MELI'
+                AND o.channel IS DISTINCT FROM 'marketplace'
+                AND o."externalId" NOT LIKE 'FVG-%'
+                AND o."externalId" NOT LIKE 'BPR-%'
+                AND COALESCE(p."externalId", oi."productId") = ANY(${purchasableSkuIds})
+              GROUP BY 1, 2, 3, 4
+            `) as PurchaseRow[])
+          : [];
+
+        // Etiquetas legibles de categoría: products.category guarda IDs ("/1/11/"),
+        // no nombres. Se resuelve acá (async) para poder usarse sincrónicamente
+        // dentro del armado de la respuesta.
+        const categoryLabels = await loadCategoryLabels(
+          ORG_ID,
+          [...new Set(productPurchasesResult.map((p) => p.category))]
+        );
+        return { skuMap, productPurchasesResult, categoryLabels };
+      })(),
+      (async () => {
+        const manualSpends = await prisma.manualChannelSpend.findMany({
+          where: {
+            organizationId: ORG_ID,
+            fromDate: { lte: dateTo },
+            toDate: { gte: dateFrom },
+          },
+        });
+        return manualSpends;
+      })(),
+      getFunnelStages(ORG_ID, dateFrom, dateTo),
+      (async () => {
+        const dailySpendResult = await prisma.$queryRaw`
           SELECT
-            COALESCE(p."externalId", oi."productId") as "productExternalId",
-            COALESCE(p.name, 'Producto desconocido') as "productName",
-            COALESCE(p.category, 'Sin categoría') as category,
-            COALESCE(p.brand, 'Sin marca') as brand,
-            COUNT(DISTINCT oi."orderId")::int as orders,
-            SUM(oi.quantity)::int as units,
-            SUM(oi."totalPrice")::float as revenue
-          FROM order_items oi
-          JOIN orders o ON o.id = oi."orderId"
-          LEFT JOIN products p ON p.id = oi."productId"
-          WHERE o."organizationId" = ${ORG_ID}
-            AND o."orderDate" >= ${crDateFrom}
-            AND o."orderDate" <= ${dateTo}
-            AND ${ordersValidWhere("o")}
-            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-            AND o.source IS DISTINCT FROM 'MELI'
-            AND o.channel IS DISTINCT FROM 'marketplace'
-            AND o."externalId" NOT LIKE 'FVG-%'
-            AND o."externalId" NOT LIKE 'BPR-%'
-            AND COALESCE(p."externalId", oi."productId") = ANY(${purchasableSkuIds})
-          GROUP BY 1, 2, 3, 4
-        `) as PurchaseRow[])
-      : [];
-
-    // Etiquetas legibles de categoría: products.category guarda IDs ("/1/11/"),
-    // no nombres. Se resuelve acá (async) para poder usarse sincrónicamente
-    // dentro del armado de la respuesta.
-    const categoryLabels = await loadCategoryLabels(
-      ORG_ID,
-      [...new Set(productPurchasesResult.map((p) => p.category))]
-    );
+            TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
+            SUM(amd.spend)::float as spend
+          FROM ad_metrics_daily amd
+          WHERE amd."organizationId" = ${ORG_ID}
+            AND amd.date >= ${dateFrom}::date
+            AND amd.date <= ${dateTo}::date
+          GROUP BY 1
+        ` as Array<{ day: string; spend: number }>;
+        return dailySpendResult;
+      })(),
+    ]);
+    const { skuMap, productPurchasesResult, categoryLabels } = productData;
 
     // ══════════════════════════════════════════════════════════
     // PROCESS RESULTS
@@ -1450,13 +1482,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // Para canales sin integracion (TV, omnichannel, etc) el cliente puede
     // cargar inversion manual con un rango fromDate/toDate. Aca prorrateamos
     // el monto segun el overlap con el rango query del dashboard.
-    const manualSpends = await prisma.manualChannelSpend.findMany({
-      where: {
-        organizationId: ORG_ID,
-        fromDate: { lte: dateTo },
-        toDate: { gte: dateFrom },
-      },
-    });
     const manualSpendByChannel = new Map<string, number>();
     for (const ms of manualSpends) {
       const totalDur = ms.toDate.getTime() - ms.fromDate.getTime();
@@ -1512,7 +1537,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // endpoint dedicado /api/metrics/pixel/funnel ya usaba getFunnelStages (live-merge
     // rollup+crudo); este card (NitroPixel "Activo Vivo" + dashboard) había quedado
     // afuera. Ahora usa el MISMO helper → números coherentes entre ambas vistas.
-    const fRow = await getFunnelStages(ORG_ID, dateFrom, dateTo);
     const funnel = {
       pageView: fRow.pageView || 0,
       viewProduct: fRow.viewProduct || 0,
@@ -1522,16 +1546,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     };
 
     // ── NEW: Daily revenue merged with daily spend ──
-    const dailySpendResult = await prisma.$queryRaw`
-      SELECT
-        TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
-        SUM(amd.spend)::float as spend
-      FROM ad_metrics_daily amd
-      WHERE amd."organizationId" = ${ORG_ID}
-        AND amd.date >= ${dateFrom}::date
-        AND amd.date <= ${dateTo}::date
-      GROUP BY 1
-    ` as Array<{ day: string; spend: number }>;
     const spendByDay = new Map(dailySpendResult.map((d) => [d.day, d.spend]));
     const dailyRevenue = dailyRevenueResult.map((d) => {
       const daySpend = spendByDay.get(d.day) || 0;
