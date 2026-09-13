@@ -28,14 +28,22 @@
 // queda a medias. Lo que NO hay que hacer es partirlo en transacciones chicas
 // "para que entre": eso reintroduce el estado parcial.
 //
-// Auth: sólo staff. NO se acepta `?key=` — la clave está en `vercel.json`
-// versionado, y un borrado irreversible no puede quedar detrás de un secreto
-// que cualquiera que clone el repo puede leer.
+// ── AUTH: DISTINTA SEGÚN LO QUE HACE ─────────────────────────────────────
+// · **Simulacro** (el default): staff o `?key=`. No destruye nada — cuenta y
+//   muestra el plan. Misma puerta que `que-queda`.
+// · **Ejecución** (`?ejecutar=1`): **sólo sesión de staff**. La clave de admin
+//   está en `vercel.json`, que está versionado: un borrado irreversible no
+//   puede quedar detrás de un secreto que puede leer cualquiera que clone el
+//   repo.
+//
+// No es la misma puerta con dos nombres: son dos permisos distintos porque son
+// dos acciones distintas. Mirar qué hay y destruirlo no valen lo mismo.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { isValidAdminKey } from "@/lib/admin-key";
 import {
   auditar,
   armarPlanDeBorrado,
@@ -82,15 +90,27 @@ async function contar(tablas: string[], orgId: string): Promise<TablaConOrg[]> {
 }
 
 export async function POST(req: NextRequest, { params }: { params: { orgId: string } }) {
-  // Sólo sesión de staff. Ver la nota de auth arriba.
-  if (!(await isInternalUser())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const url = new URL(req.url);
+  const ejecutar = url.searchParams.get("ejecutar") === "1";
+
+  const esStaff = await isInternalUser();
+  const conClave = isValidAdminKey(url.searchParams.get("key"));
+
+  // Ver la nota de auth arriba: mirar y destruir no valen lo mismo.
+  if (!esStaff && !(conClave && !ejecutar)) {
+    return NextResponse.json(
+      {
+        error: ejecutar
+          ? "El borrado sólo se ejecuta con sesión de staff. La clave de admin no alcanza: " +
+            "está en vercel.json, que está versionado."
+          : "Forbidden",
+      },
+      { status: 403 },
+    );
   }
 
   const { orgId } = params;
   if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
-
-  const ejecutar = new URL(req.url).searchParams.get("ejecutar") === "1";
   const body = await req.json().catch(() => ({}) as Record<string, unknown>);
 
   const org = await prisma.organization
