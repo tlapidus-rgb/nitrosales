@@ -514,8 +514,12 @@ export default function AnalyticsPage() {
   // respuesta ya se disparó un fetch más nuevo (ej: cambiaste el rango rápido),
   // se descarta la vieja. Sin esto, una respuesta lenta (Arredo, más data)
   // pisaba a una más nueva → el gráfico quedaba mostrando datos parciales/viejos.
+  // Component-local only: switching accounts performs a full reload. Never persist
+  // business data in browser storage or share it between page instances.
+  const rangeCache = useRef(new Map<string, { at: number; pixel: PixelData; disc: DiscrepancyData }>());
+  const [displayedRange, setDisplayedRange] = useState("");
   const reqIdRef = useRef(0);
-  const fetchAll = useCallback(async (silent = false) => {
+  const fetchAll = useCallback(async (silent = false, force = false) => {
     const reqId = ++reqIdRef.current;
     pixelAbortRef.current?.abort();
     discrepancyAbortRef.current?.abort();
@@ -526,6 +530,20 @@ export default function AnalyticsPage() {
     if (!silent) setLoading(true);
     else setIsRefetching(true);
     setError(null);
+    const rangeKey = dateFrom + ":" + dateTo;
+    if (force) rangeCache.current.clear();
+    const saved = rangeCache.current.get(rangeKey);
+    if (saved && Date.now() - saved.at < 60_000) {
+      setPixelData(saved.pixel);
+      setDiscrepancy(saved.disc);
+      setDisplayedRange(rangeKey);
+      setLoading(false);
+      setIsRefetching(false);
+      return;
+    }
+    setDiscrepancy(null);
+    let validPixel: PixelData | undefined;
+    let validDisc: DiscrepancyData | undefined;
 
     const loadPixel = async () => {
       try {
@@ -537,9 +555,14 @@ export default function AnalyticsPage() {
         });
         if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
         const pixelJson = await pixelRes.json();
+        if (pixelJson._demoMode || pixelJson._timeoutMs || pixelJson._error) {
+          throw new Error("Los datos todavía no están disponibles. Reintentá en unos segundos.");
+        }
 
         if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
+        validPixel = pixelJson;
         setPixelData(pixelJson);
+        setDisplayedRange(rangeKey);
         // El contenido principal no espera a discrepancy para dejar de mostrar
         // el skeleton. Los paneles secundarios se actualizan por separado.
         setLoading(false);
@@ -558,7 +581,9 @@ export default function AnalyticsPage() {
         if (!discRes.ok) throw new Error(`Discrepancy: HTTP ${discRes.status}`);
         const discJson = await discRes.json();
         if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
-        setDiscrepancy(discJson);
+        if (discJson._demoMode || discJson._error || discJson._timeoutMs) return;
+        validDisc = discJson;
+        // Commit this panel only once Pixel for the same range succeeded.
       } catch (e: unknown) {
         if (isAbortError(e) || reqId !== reqIdRef.current) return;
         // Discrepancy es un panel secundario: conservar la última respuesta
@@ -569,6 +594,12 @@ export default function AnalyticsPage() {
 
     await Promise.allSettled([loadPixel(), loadDiscrepancy()]);
     if (reqId === reqIdRef.current) {
+      if (validPixel && validDisc) {
+        setDiscrepancy(validDisc);
+        rangeCache.current.delete(rangeKey);
+        rangeCache.current.set(rangeKey, { at: Date.now(), pixel: validPixel, disc: validDisc });
+        if (rangeCache.current.size > 8) rangeCache.current.delete(rangeCache.current.keys().next().value!);
+      }
       setLoading(false);
       setIsRefetching(false);
     }
@@ -598,6 +629,7 @@ export default function AnalyticsPage() {
       funnelAbortRef.current?.abort();
       funnelAbortRef.current = null;
       setFunnelOverride(null);
+      setFunnelLoading(false);
       return;
     }
     let cancelled = false;
@@ -809,6 +841,14 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* STICKY SECTION NAVIGATOR                                */}
         {/* ═══════════════════════════════════════════════════════ */}
+        {(error || (displayedRange && displayedRange !== dateFrom + ":" + dateTo)) && (
+          <div role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            {error || "Cargando el período seleccionado."}
+            {displayedRange && displayedRange !== dateFrom + ":" + dateTo &&
+              <span> Los indicadores visibles corresponden a {displayedRange.replace(":", " — ")}.</span>}
+            {error && <button className="ml-3 underline" onClick={() => fetchAll(true, true)}>Reintentar</button>}
+          </div>
+        )}
         <SectionNav />
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -2233,7 +2273,7 @@ export default function AnalyticsPage() {
             onClose={() => setManualSpendModal(null)}
             onSaved={() => {
               setManualSpendModal(null);
-              fetchAll(true);
+              fetchAll(true, true);
             }}
           />
         )}
