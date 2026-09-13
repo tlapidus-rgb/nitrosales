@@ -26,6 +26,80 @@ export type RequiredIntegration =
   | "GOOGLE_SEARCH_CONSOLE"
   | "NITROPIXEL";
 
+// ══════════════════════════════════════════════════════════════
+// CAPACIDADES (E-30, 2026-09-13)
+// ══════════════════════════════════════════════════════════════
+// `/orders` y `/products` pedían `[["VTEX","MERCADOLIBRE"]]` — la lista de
+// plataformas escrita a mano. El problema no es que esté mal hoy: es que el día
+// que entre Shopify o Tiendanube, esas secciones quedan **bloqueadas para ese
+// cliente** hasta que alguien se acuerde de editar este array.
+//
+// Y no falla ruidosamente: el cliente nuevo entra, ve un candado sobre
+// "Pedidos" y concluye que el producto no soporta su plataforma.
+//
+// La diferencia es qué se declara. `/orders` no necesita VTEX: necesita **que
+// haya pedidos de algún lado**. Eso es una capacidad, y la plataforma es un
+// detalle de quién la provee.
+//
+// Sumar una plataforma pasa a ser una línea en `CAPACIDADES_DE`, y todas las
+// secciones que pedían capacidades se desbloquean solas.
+// ══════════════════════════════════════════════════════════════
+
+/** Lo que una sección necesita PODER hacer, sin decir quién se lo da. */
+export type Capacidad =
+  /** Hay pedidos entrando de algún lado. */
+  | "PEDIDOS"
+  /** Hay un catálogo de productos. */
+  | "CATALOGO"
+  /** Hay inversión publicitaria medible. */
+  | "PUBLICIDAD"
+  /** Hay tráfico web propio trackeado. */
+  | "TRAFICO_WEB";
+
+const TODAS_LAS_CAPACIDADES: readonly Capacidad[] = [
+  "PEDIDOS",
+  "CATALOGO",
+  "PUBLICIDAD",
+  "TRAFICO_WEB",
+];
+
+/**
+ * Qué aporta cada integración.
+ *
+ * **Éste es el único lugar que hay que tocar para sumar una plataforma.**
+ */
+export const CAPACIDADES_DE: Record<RequiredIntegration, Capacidad[]> = {
+  VTEX: ["PEDIDOS", "CATALOGO"],
+  MERCADOLIBRE: ["PEDIDOS", "CATALOGO"],
+  META_ADS: ["PUBLICIDAD"],
+  GOOGLE_ADS: ["PUBLICIDAD"],
+  // Search Console trae búsqueda orgánica, no tráfico propio trackeado: no
+  // reemplaza al pixel para lo que `/analytics` necesita.
+  GOOGLE_SEARCH_CONSOLE: [],
+  NITROPIXEL: ["TRAFICO_WEB"],
+};
+
+/** `true` si el string es una capacidad y no el nombre de una integración. */
+export function esCapacidad(v: string): v is Capacidad {
+  return (TODAS_LAS_CAPACIDADES as readonly string[]).includes(v);
+}
+
+/**
+ * ¿Las integraciones conectadas satisfacen este requisito?
+ *
+ * Un requisito puede ser el nombre de una integración —y ahí se pide esa y no
+ * otra, como `/campaigns/meta`, que de verdad necesita Meta— o una capacidad,
+ * y ahí sirve cualquier integración que la provea.
+ */
+export function satisface(requisito: string, conectadas: Set<string>): boolean {
+  if (!esCapacidad(requisito)) return conectadas.has(requisito);
+  for (const conectada of conectadas) {
+    const capacidades = CAPACIDADES_DE[conectada as RequiredIntegration];
+    if (capacidades?.includes(requisito)) return true;
+  }
+  return false;
+}
+
 export interface SectionConfig {
   /** Clave única (la usa el panel admin + DB overrides) */
   key: string;
@@ -40,7 +114,7 @@ export interface SectionConfig {
    * Ej: ["META_ADS"] → necesita Meta sí o sí.
    * undefined o [] → no requiere ninguna.
    */
-  requires?: RequiredIntegration[] | RequiredIntegration[][];
+  requires?: Array<RequiredIntegration | Capacidad> | Array<Array<RequiredIntegration | Capacidad>>;
 }
 
 export const SECTIONS: SectionConfig[] = [
@@ -50,8 +124,10 @@ export const SECTIONS: SectionConfig[] = [
 
   // Tier 2 — Control de gestión
   { key: "dashboard", path: "/dashboard", label: "Centro de Control" }, // siempre activa
-  { key: "orders", path: "/orders", label: "Pedidos", requires: [["VTEX", "MERCADOLIBRE"]] },
-  { key: "products", path: "/products", label: "Productos", requires: [["VTEX", "MERCADOLIBRE"]] },
+  // Pide la CAPACIDAD, no la lista de plataformas: una plataforma nueva la
+  // desbloquea sola en cuanto figure en CAPACIDADES_DE.
+  { key: "orders", path: "/orders", label: "Pedidos", requires: ["PEDIDOS"] },
+  { key: "products", path: "/products", label: "Productos", requires: ["CATALOGO"] },
   { key: "mercadolibre", path: "/mercadolibre", label: "MercadoLibre", requires: ["MERCADOLIBRE"] },
 
   // Tier 3 — Marketing & ads
@@ -112,15 +188,17 @@ export function computeSectionStatus(
   // Detectar shape: array plano (AND) o array de arrays (OR).
   const isOrShape = Array.isArray(config.requires[0]);
 
+  // `satisface` resuelve las dos formas de requisito: el nombre de una
+  // integración puntual, o una capacidad que puede aportar cualquiera.
   if (isOrShape) {
     // Cualquier grupo OR satisface.
-    const groups = config.requires as RequiredIntegration[][];
-    const someGroupOk = groups.some((group) => group.some((p) => connectedPlatforms.has(p)));
+    const groups = config.requires as string[][];
+    const someGroupOk = groups.some((group) => group.some((r) => satisface(r, connectedPlatforms)));
     return someGroupOk ? "ACTIVE" : "LOCKED_INTEGRATION";
   } else {
     // AND: todas requeridas.
-    const all = config.requires as RequiredIntegration[];
-    const allOk = all.every((p) => connectedPlatforms.has(p));
+    const all = config.requires as string[];
+    const allOk = all.every((r) => satisface(r, connectedPlatforms));
     return allOk ? "ACTIVE" : "LOCKED_INTEGRATION";
   }
 }
@@ -134,15 +212,31 @@ export function getMissingIntegrations(
   connectedPlatforms: Set<string>,
 ): RequiredIntegration[] {
   if (!config.requires || config.requires.length === 0) return [];
+
+  // Un requisito que es una capacidad se traduce a las integraciones que la
+  // proveen. Sin esto, la UI de un `/orders` bloqueado diría "te falta PEDIDOS",
+  // que no le dice nada a nadie: el usuario no puede conectar una capacidad,
+  // conecta una plataforma.
+  const aIntegraciones = (requisito: string): RequiredIntegration[] => {
+    if (!esCapacidad(requisito)) return [requisito as RequiredIntegration];
+    return (Object.keys(CAPACIDADES_DE) as RequiredIntegration[]).filter((i) =>
+      CAPACIDADES_DE[i].includes(requisito),
+    );
+  };
+
+  const sinRepetir = (xs: RequiredIntegration[]) => [...new Set(xs)];
+
   const isOrShape = Array.isArray(config.requires[0]);
   if (isOrShape) {
-    const groups = config.requires as RequiredIntegration[][];
+    const groups = config.requires as string[][];
     // Si algún grupo está completo, no falta nada.
-    if (groups.some((g) => g.some((p) => connectedPlatforms.has(p)))) return [];
+    if (groups.some((g) => g.some((r) => satisface(r, connectedPlatforms)))) return [];
     // Sino: devolvemos las del primer grupo (la opción más simple).
-    return groups[0];
+    return sinRepetir(groups[0].flatMap(aIntegraciones));
   } else {
-    const all = config.requires as RequiredIntegration[];
-    return all.filter((p) => !connectedPlatforms.has(p));
+    const all = config.requires as string[];
+    return sinRepetir(
+      all.filter((r) => !satisface(r, connectedPlatforms)).flatMap(aIntegraciones),
+    );
   }
 }

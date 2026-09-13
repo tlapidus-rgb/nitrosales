@@ -969,7 +969,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   que alguien "arreglara" algo que ya estaba bien y no mirara lo que faltaba.
 
 ### E-30 · Las 8 movidas baratas que compran opcionalidad
-- **Estado:** 🟡 **6 de 8 hechas (2026-09-13)**. Quedan dos, las dos de costo bajo: extraer un `ingestOrder()` compartido —que de paso arreglaría que **las órdenes de MELI nunca pasan por el motor de atribución**— y parametrizar `sections/config.ts` por capacidad en vez de por nombre de plataforma. Los dos ítems restantes de la lista original (el spike de Shopify y la pregunta comercial) no son código.
+- **Estado:** 🟡 **7 de 8 hechas (2026-09-13)**. Queda una: extraer un `ingestOrder()` compartido — que de paso arreglaría que **las órdenes de MELI nunca pasan por el motor de atribución**. No se hizo porque toca los 8 escritores de órdenes, que es el camino por donde entra toda la facturación, y no se puede verificar sin correr la app. Los dos ítems restantes de la lista original (el spike de Shopify y la pregunta comercial) no son código.
 - **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 semanas en total
 - **La más valiosa:** ✅ **HECHA (2026-09-13)** — partir el pixel en **núcleo genérico + `vtexLayers()`**, sin cambiar un byte
   del JavaScript que se emite hoy.
