@@ -36,6 +36,22 @@
 > ⚠️ **Ojo con el snapshot del pixel:** si `pixel-script-byte-identico.test.ts` se pone rojo, el JS
 > emitido cambió. Regenerar el snapshot para que pase destruye la única red que ese archivo tiene.
 >
+> ### El techo de organizaciones: 44, medido
+>
+> Medido el 2026-09-13 con `GET /api/admin/techo-de-orgs`. **44 organizaciones tamaño
+> Arredo** (146 con la mezcla actual de clientes; hoy se usa el **2,7 %** del presupuesto
+> diario). El número a citar es 44: la dispersión entre clientes es de **326×**, así que el
+> promedio no describe a ninguno.
+>
+> Los tres números que circulaban antes —8-10, 50-77, "2 grandes"— **ninguno estaba medido**:
+> salían de comentarios en el código. El costo de Arredo estaba sobreestimado 1,9× y el de El
+> Mundo del Juguete subestimado 2,2×, porque el estudio lo trataba como "org chica" y no lo es.
+>
+> ⚠️ Se midió sobre una **branch de Neon**, no sobre producción: compute propio y cache fría.
+> Y mide **sólo el pipeline de rollups** — el techo de la cache de Neon aprieta antes (E-09).
+> El cron ahora reporta `perOrgMs`, así que en cuanto esto esté en `main` el sistema se mide
+> solo contra la cache caliente y el número bueno aparece sin pedirlo.
+
 > ### Lo que falta y por qué
 >
 > Lo que queda del plan casi no lo puede hacer Claude solo: **E-09 y E-28 destruyen datos**, **E-22**

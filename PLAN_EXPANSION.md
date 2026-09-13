@@ -151,7 +151,7 @@ decir a cuánto lo subió.** No alcanza con "hecho": la bitácora tiene que deci
 
 | Qué | Número | Fuente |
 |---|---|---|
-| Clientes que aguantaba el pipeline de rollups | ~~8-10~~ → **50-77** (ver corrección) · **resuelto por E-01** | `expansion-escalabilidad.md` § 1.1 + verificación del 2026-09-05 |
+| Clientes que aguantaba el pipeline de rollups | ~~8-10~~ ~~50-77~~ → **44 tamaño Arredo, MEDIDO el 2026-09-13** (146 con la mezcla actual; ocupación de hoy: 2,7 %) · **resuelto por E-01** | `GET /api/admin/techo-de-orgs` — los dos números anteriores salían de comentarios del código, no de mediciones |
 | Crons que iteran todas las orgs con presupuesto fijo | **14** | ídem § 2 |
 | …de esos, que **no pueden continuar donde quedaron** | ~~8~~ → **0 de los 8 originales** (E-11, cerrada) · **pero aparecieron 3 más** | ídem · los 3 nuevos (`digest`, `anomalies`, `ads-utm-audit`) los encontró el revisor del 2026-09-08 y ya están arreglados: no estaban en la lista del estudio |
 | Cosas ya rotas **hoy, con 4 clientes** | ~~3~~ → **0** · resueltas (E-03, E-12, E-11) | `sync/chain` (1 org/corrida), `warm-cache` (1,4 orgs), `attribution-reconcile` (1 org) |
@@ -1239,6 +1239,80 @@ el guard de fail-closed rompe 3. **Dos de los guards resultaron no ser observabl
 (aceptar una `*_ANTERIOR` vacía, y aceptar una candidata vacía): con los otros guards puestos no son
 explotables. Se dejaron igual, anotados como defensa redundante para que nadie los borre creyéndolos
 código muerto.
+
+### [2026-09-13] 📏 El techo de organizaciones, MEDIDO
+
+**Se midió por primera vez.** Hasta hoy circulaban tres números y ninguno salía de una medición:
+
+| Número | De dónde salía |
+|---|---|
+| **8-10** | Estudio de escalabilidad. **Mal calculado**: tomó el auto-límite de 250s como pared dura cuando `maxDuration` es 800s. Corregido el mismo día |
+| **50-77** | La corrección. Aritmética sobre comentarios del código, no medición |
+| **~10 chicas / 2 grandes** | La tabla del mismo estudio. Venía de que la unidad de trabajo era indivisible — que es lo que E-01 arregló |
+
+Y los dos insumos de la cuenta salían de **comentarios**: el 190s de Arredo de
+`route.ts:132-140` y `rollup-backfill.ts:443-445`; el 8s de una org chica estaba marcado
+`ESTIMADO` explícitamente.
+
+#### La medición
+
+`GET /api/admin/techo-de-orgs` · tabla `funnel` (la más cara de las ocho) · día 2026-09-12:
+
+| Organización | Medido | Lo que decía el estudio |
+|---|---|---|
+| **Arredo** | **101,1 s** | 190 s → **sobreestimado ~1,9×** |
+| **El Mundo del Juguete** | **17,7 s** | 8 s ("org chica") → **subestimado ~2,2×** |
+| **TeVe Compras** | **4,0 s** | 8 s ("org chica") → sobreestimado |
+| **Prueb** | **0,3 s** | 8 s ("org chica") → sobreestimado |
+
+**El modelo del estudio —"1 Arredo + 3 chicas"— era el error de fondo.** El Mundo del
+Juguete no es una org chica: tiene 19.156 órdenes y 34.903 SKUs, y cuesta 4× lo que
+TeVe Compras. Son **dos grandes y dos chicas**, no una y tres.
+
+#### El número
+
+| | |
+|---|---|
+| Presupuesto diario | **10 horas** (144 invocaciones × 250 s) |
+| Demanda de hoy | **16,4 minutos** (8 tablas × 123 s) |
+| **Ocupación actual** | **2,7 %** |
+| Techo con la mezcla de hoy | 146 organizaciones |
+| **Techo si todas fueran tamaño Arredo** | **44 organizaciones** |
+| Dispersión | **326×** — Arredo cuesta 326 veces lo que Prueb |
+
+**El número a usar es 44, no 146.** Con una dispersión de 326× el promedio no describe a
+ninguna organización real, y el techo optimista sólo se cumple si los clientes que entran
+son chicos — que es justo lo contrario de lo que se busca vendiendo.
+
+#### Lo que este número NO dice
+
+- **Se midió sobre una branch de Neon, no sobre producción.** La branch corre con su propio
+  compute y la cache fría, así que el número de producción puede diferir. Probablemente sea
+  conservador —la cache caliente de prod debería ir más rápido— pero eso no está probado.
+- **Sólo mide el pipeline de rollups.** El techo de la cache de Neon aprieta antes: working
+  set medido de ~28 GB contra 16 GB, y con 5 orgs grandes >100 GB. Eso lo baja E-09.
+- **Asume que el workflow de GitHub sigue habilitado** (N-01). Si GitHub lo deshabilita por
+  inactividad, el presupuesto cae a un tercio y el techo baja a ~15.
+
+#### Cómo se mide de acá en adelante, sin pedirlo
+
+El cron de rollups ahora reporta `perOrgMs` en cada invocación. Corre 144 veces por día
+contra la cache caliente de producción y compitiendo con el tráfico real, así que **el
+sistema se mide solo**: el número bueno aparece en cuanto esto esté en `main`, sin
+disparar nada a mano.
+
+#### El primer intento falló, y vale anotarlo
+
+La primera corrida devolvió **327.272 organizaciones**. El dato que lo delató fue
+`filasEscritas: 0` en las cuatro orgs: el rollup no había escrito nada, porque la branch de
+Neon tenía una foto vieja y no había datos que procesar en la ventana medida. Midió el costo
+de no hacer nada.
+
+**Sin ese campo, el número habría pasado por bueno.** Es el mismo patrón que veníamos
+persiguiendo toda la branch: un resultado que se ve igual de convincente esté bien o mal.
+Por eso el endpoint devuelve las filas escritas al lado de cada tiempo.
+
+---
 
 ### [2026-09-08] 🧭 Revisión del PLAN contra lo construido — un revisor sin contexto + revisión de premisa
 

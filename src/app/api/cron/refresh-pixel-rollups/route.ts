@@ -325,6 +325,12 @@ export async function GET(req: NextRequest) {
     done: boolean;
     daysProcessed: number;
     ms: number;
+    /**
+     * Cuánto tardó cada organización. Este archivo tiene `@ts-nocheck`, así que
+     * agregar el campo abajo sin declararlo acá no habría dado ningún error —
+     * habría quedado un tipo mintiendo sobre lo que el objeto tiene.
+     */
+    perOrgMs: Array<{ org: string; ms: number; touched: number; ok: boolean }>;
   }> = [];
   // Arranca en el cursor explícito si vino (y cae dentro del rango); si no, en `from`.
   let cursor = manualCursor && manualCursor >= from && manualCursor <= to ? manualCursor : from;
@@ -359,6 +365,22 @@ export async function GET(req: NextRequest) {
       done: body?.done === true,
       daysProcessed: body?.daysProcessedThisCall ?? 0,
       ms: body?.ms ?? 0,
+      // Cuánto tardó cada organización, medido bajo carga real.
+      //
+      // Es la forma correcta de contestar "cuántos clientes aguantamos": este
+      // cron ya hace exactamente ese trabajo 144 veces por día, contra la cache
+      // caliente de producción y compitiendo con el tráfico real. Cualquier
+      // medición forzada —un endpoint disparado a mano, una branch de Neon con
+      // la cache fría— da un número que no transfiere.
+      //
+      // Así el sistema se mide solo y el dato aparece sin pedirlo.
+      // Ver src/lib/pixel/techo-de-orgs.ts para la cuenta que lo convierte en
+      // un techo.
+      perOrgMs: Array.isArray(body?.days)
+        ? (body.days as Array<{ perOrgMs?: unknown }>).flatMap((d) =>
+            Array.isArray(d?.perOrgMs) ? d.perOrgMs : [],
+          )
+        : [],
     });
     if (Array.isArray(body?.orgFailures) && body.orgFailures.length > 0) {
       orgFailures.push(...body.orgFailures);
