@@ -946,8 +946,20 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 
 ### E-30 · Las 8 movidas baratas que compran opcionalidad
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 semanas en total
-- **La más valiosa:** partir el pixel en **núcleo genérico + `vtexLayers()`**, sin cambiar un byte
-  del JavaScript que se emite hoy. De sus ~1.560 líneas, ~490 son genéricas (UTMs, click IDs,
+- **La más valiosa:** ✅ **HECHA (2026-09-13)** — partir el pixel en **núcleo genérico + `vtexLayers()`**, sin cambiar un byte
+  del JavaScript que se emite hoy.
+
+> **El corte quedó donde la ficha decía:** 479 + 17 líneas genéricas y **1.064 de capas VTEX** (la ficha estimaba ~490 y ~1.063). Las seis capas —LAYER 1, 1.5, 2, 2.3, 2.5 y 3— viven ahora en una sola función.
+>
+> **Cómo se hizo sin riesgo, que es lo único que importa acá.** El archivo lleva `⛔ CORE PROTEGIDO` y su header avisa que los regex usan doble escape `\\/` y que cambiarlo a `\/` rompe el script entero. Un refactor que toque eso no falla en ningún test: falla en el navegador del comprador de un cliente, en otra empresa, y se descubre cuando alguien nota que faltan ventas atribuidas.
+>
+> Por eso el orden fue: **primero la red, después el corte.** Se congelaron los 65.491 bytes que se sirven hoy (`pixel-script-byte-identico.test.ts`) y se verificó que la red detecta un espacio de más, el cambio de escape que avisa el header, una sintaxis rota y una interpolación sin resolver. Recién con eso verde se tocó el archivo.
+>
+> **El corte es textual, no lógico:** tres pedazos contiguos del mismo template, concatenados en el mismo orden. No se movió, reescribió ni reindentó una línea del script. El diff del archivo es **70 inserciones y 3 borrados** sobre 1.614 líneas, y los 3 borrados son los puntos de corte.
+>
+> **Corrección a lo que dije antes:** esto **no toca `attribution.ts`**. El emisor del pixel no importa nada más que Next. La lógica de atribución no se tocó.
+>
+> **Hallazgo de proceso:** este archivo estaba marcado core en su propio header pero **no figuraba en la lista de `docs/HANDOFF.md`**. El repo tenía dos definiciones distintas de "core protegido". Corregido en el HANDOFF. De sus ~1.560 líneas, ~490 son genéricas (UTMs, click IDs,
   cookies de TLD compuesto, sesiones, filtro de bots) y ~1.063 son capas VTEX. Esto convierte
   "agregar Shopify" en escribir una función nueva, en vez de operar sobre el CORE PROTEGIDO.
 - **Cuatro de las ocho son bugs latentes que hay que arreglar igual:** el `COALESCE("source",'VTEX')`

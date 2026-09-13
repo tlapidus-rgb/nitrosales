@@ -41,6 +41,19 @@ R-C09 en `PLAN_REMEDIACION.md`.
     (`src/__tests__/webhook-vtex-clave-rotable.test.ts`) que lo verifica. La excepción está anotada
     en el header del propio archivo. **Esto no habilita tocar el resto:** cualquier otro cambio a
     estos dos archivos sigue necesitando autorización explícita, una por una.
+  - **Ojo — hay un TERCER archivo marcado core que esta lista no nombra:**
+    `src/app/api/pixel/script/route.ts` lleva `⛔ CORE PROTEGIDO` en su propio header y **no estaba
+    acá**. O sea que el repo tiene dos definiciones distintas de "core protegido": esta lista y los
+    headers de los archivos. Si aparece una tercera marca en algún lado, esta lista es la que hay
+    que actualizar.
+  - **Excepción autorizada (2026-09-13, Axel, en el chat) — el pixel:** el template literal único de
+    ~1.600 líneas de `pixel/script/route.ts` se partió en `nucleoGenerico` (479 líneas),
+    `capasVtex` (1.064) y `cierreDelNucleo` (17), para que agregar Shopify o Tiendanube sea escribir
+    una función al lado en vez de operar adentro del archivo intocable. **El corte es textual: el
+    JavaScript emitido es idéntico byte a byte** (65.491 bytes), verificado por
+    `src/__tests__/pixel-script-byte-identico.test.ts`, que se escribió y se probó **antes** de
+    tocar el archivo. No se modificó una sola línea del script, ni el handler, ni la validación del
+    orgId, ni los headers de la respuesta. `src/lib/pixel/attribution.ts` **no se tocó**.
 - **Merge a main / go-live = requiere OK explícito del usuario** (Tomy es el que aprueba diseño/producto).
 - **Admin/cron key (prod):** `<VER-NOTA-DE-SECRETOS>` (= `ADMIN_API_KEY`).
 - **Repos van a `C:\Users\axelf\github\nitrosales`** (NO en `OneDrive\Documents`: Defender/CFA bloquea git/shell ahí). Al correr git/bash usar `cd /c/Users/axelf/github/nitrosales`.

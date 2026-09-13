@@ -1,122 +1,9 @@
-export const dynamic = "force-dynamic";
-
-// ══════════════════════════════════════════════════════════════
-// NitroPixel — Script Server
-// ══════════════════════════════════════════════════════════════
-// ⛔ CORE PROTEGIDO — NO MODIFICAR SIN AUTORIZACION DEL FUNDADOR
-// Ver CORE-ATTRIBUTION.md para documentacion completa.
-// Estabilizado: 26 de Marzo de 2026
-// ATENCION: Los regex dentro del template literal usan \\/ (doble escape).
-// NO cambiar a \/ — eso rompe el script entero (se interpreta como comentario).
-// ══════════════════════════════════════════════════════════════
-// ── EXCEPCION AUTORIZADA — 2026-09-13, Axel, en el chat (E-30) ──────────
-// El template literal unico de ~1.600 lineas se partio en tres funciones:
-// `nucleoGenerico` (479 lineas), `capasVtex` (1.064) y `cierreDelNucleo` (17).
-//
-// El corte es TEXTUAL, no logico: son tres pedazos contiguos del mismo
-// template, concatenados en el mismo orden. **No se movio, reescribio ni
-// reindento una sola linea del script.** El JavaScript emitido es identico
-// byte a byte al de antes — 65.491 bytes.
-//
-// La red se construyo ANTES de tocar este archivo:
-// `src/__tests__/pixel-script-byte-identico.test.ts` congela el output y se
-// verifico que detecta un espacio de mas, el cambio de `\\/` a `\/` que avisa
-// el header de arriba, una sintaxis rota y una interpolacion sin resolver.
-//
-// Para que sirve: las seis capas VTEX quedan aisladas, asi que agregar Shopify
-// o Tiendanube pasa a ser escribir una `capasShopify()` al lado en vez de
-// operar adentro de este archivo.
-//
-// Lo que NO cambio: ni una linea del JS, ni el handler GET, ni la validacion
-// del orgId, ni los headers de la respuesta.
-// ══════════════════════════════════════════════════════════════
-// GET /api/pixel/script?org={orgId}
-// Sirve el snippet JS del pixel, configurado con el orgId.
-// Se instala via GTM como <script src="..."></script>
-
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(request: NextRequest) {
-  const orgId = request.nextUrl.searchParams.get('org');
-
-  if (!orgId) {
-    return new NextResponse('// NitroPixel: missing org parameter', {
-      status: 200,
-      headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
-    });
-  }
-
-  // Sanitize orgId: only allow alphanumeric + cuid chars to prevent XSS injection
-  // orgId is interpolated directly into JavaScript source, so must be safe
-  const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '');
-  if (safeOrgId !== orgId || safeOrgId.length === 0) {
-    return new NextResponse('// NitroPixel: invalid org parameter', {
-      status: 200,
-      headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
-    });
-  }
-
-  const script = generatePixelScript(safeOrgId);
-
-  return new NextResponse(script, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=300, s-maxage=300',
-      'Access-Control-Allow-Origin': '*',
-    }
-  });
-}
-
-function generatePixelScript(orgId: string): string {
-  // El endpoint donde enviamos eventos
-  const endpoint = process.env.NEXT_PUBLIC_APP_URL
-    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/pixel/event`
-    : 'https://nitrosales.vercel.app/api/pixel/event';
-
-  return (
-    nucleoGenerico(orgId, endpoint) +
-    capasVtex() +
-    cierreDelNucleo()
-  ).trim();
-}
-
-// ══════════════════════════════════════════════════════════════
-// E-30 — el pixel partido en núcleo genérico + capas VTEX
-// ══════════════════════════════════════════════════════════════
-// Autorizado por Axel en el chat el 2026-09-13, sobre un archivo marcado
-// CORE PROTEGIDO.
-//
-// El corte es TEXTUAL, no lógico: las tres piezas son pedazos contiguos del
-// mismo template literal y se concatenan en el mismo orden, así que el
-// JavaScript emitido es **idéntico byte a byte** al de antes. No se movió,
-// reescribió ni reindentó una sola línea del script.
-//
-// Eso lo verifica `src/__tests__/pixel-script-byte-identico.test.ts`, que
-// congela los 65.491 bytes que se sirven hoy. Ese test se escribió y se
-// probó ANTES de tocar este archivo: se comprobó que detecta un espacio de
-// más, el cambio de `\\/` a `\/` que avisa el header, una sintaxis rota y
-// una interpolación sin resolver.
-//
-// PARA QUÉ SIRVE EL CORTE: las seis capas VTEX (LAYER 1 a 3) quedan en una
-// función sola. Agregar Shopify o Tiendanube pasa a ser escribir una
-// `capasShopify()` al lado, en vez de operar adentro de un template de 1.600
-// líneas marcado como intocable.
-//
-// ⚠️ NO reindentar ni reformatear estas tres funciones. Su contenido es el
-// script que corre en el navegador del comprador; un prettier de más y el
-// snapshot se cae — que es justamente lo que tiene que pasar.
-// ══════════════════════════════════════════════════════════════
-
-/** El núcleo: todo lo que no sabe de ninguna plataforma. */
-function nucleoGenerico(orgId: string, endpoint: string): string {
-  return `
 (function() {
   'use strict';
   try {
     // ─── Config ───
-    var ENDPOINT = '${endpoint}';
-    var ORG_ID = '${orgId}';
+    var ENDPOINT = 'https://nitrosales.vercel.app/api/pixel/event';
+    var ORG_ID = 'org-snapshot-fijo';
     var COOKIE_DAYS_VID = 365;
     var COOKIE_DAYS_CLICK = 30;
     var BATCH_DELAY = 2000; // ms antes de enviar batch
@@ -136,8 +23,8 @@ function nucleoGenerico(orgId: string, endpoint: string): string {
     var _rootDomain = (function() {
       try {
         var host = window.location.hostname;
-        if (!host || /^\\d+\\./.test(host) || host === 'localhost') return ''; // IP or localhost: no domain attr
-        var multiTld = /\\.(com|co|net|org|edu|gov|gob)\\.(ar|br|mx|cl|co|pe|uy|py|ec|ve|bo)$/;
+        if (!host || /^\d+\./.test(host) || host === 'localhost') return ''; // IP or localhost: no domain attr
+        var multiTld = /\.(com|co|net|org|edu|gov|gob)\.(ar|br|mx|cl|co|pe|uy|py|ec|ve|bo)$/;
         var parts = host.split('.');
         if (multiTld.test(host) && parts.length >= 3) {
           return '.' + parts.slice(-3).join('.');
@@ -476,8 +363,8 @@ function nucleoGenerico(orgId: string, endpoint: string): string {
           try {
             var ref = document.referrer || '';
             if (!ref) return '';
-            var refHost = new URL(ref).hostname.toLowerCase().replace(/^www\\./, '');
-            var ownHost = window.location.hostname.toLowerCase().replace(/^www\\./, '');
+            var refHost = new URL(ref).hostname.toLowerCase().replace(/^www\./, '');
+            var ownHost = window.location.hostname.toLowerCase().replace(/^www\./, '');
             return refHost === ownHost ? '' : ref;
           } catch(e) { return document.referrer || ''; }
         })(),
@@ -546,11 +433,11 @@ function nucleoGenerico(orgId: string, endpoint: string): string {
 
             // Check if new URL is a product page → fire VIEW_PRODUCT
             var pathname = window.location.pathname;
-            var isProduct = /\\/p\\/?$/.test(pathname) || /\\/p\\?/.test(window.location.href);
+            var isProduct = /\/p\/?$/.test(pathname) || /\/p\?/.test(window.location.href);
             if (isProduct) {
               setTimeout(function() {
                 // Only if dataLayer didn't generate a VIEW_PRODUCT for this product
-                var productName = document.title.replace(/\\s*[-|].*$/, '').trim();
+                var productName = document.title.replace(/\s*[-|].*$/, '').trim();
                 var dedupKey = productName || pathname;
                 if (!_sentProductViews[dedupKey]) {
                   _sentProductViews[dedupKey] = true;
@@ -588,12 +475,7 @@ function nucleoGenerico(orgId: string, endpoint: string): string {
       } catch(e) {}
     })();
 
-`;
-}
-
-/** Las seis capas específicas de VTEX (LAYER 1, 1.5, 2, 2.3, 2.5, 3). */
-function capasVtex(): string {
-  return `    // ══════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
     // LAYER 1: VTEX dataLayer — orderPlaced purchase detection
     // ══════════════════════════════════════════════════════════════
     // VTEX pushes an orderPlaced event to window.dataLayer when a
@@ -926,13 +808,13 @@ function capasVtex(): string {
       try {
         var url = window.location.pathname;
         // VTEX product pages: /product-name/p or /product-name-SKU/p
-        var isProductPage = /\\/p\\/?$/.test(url) || /\\/p\\?/.test(window.location.href);
+        var isProductPage = /\/p\/?$/.test(url) || /\/p\?/.test(window.location.href);
         if (isProductPage) {
           setTimeout(function() {
             // Only fire if dataLayer didn't already generate a VIEW_PRODUCT
             if (Object.keys(_sentProductViews).length === 0) {
               // Extract product name from page title or URL
-              var name = document.title.replace(/\\s*[-|].*$/, '').trim();
+              var name = document.title.replace(/\s*[-|].*$/, '').trim();
               trackEvent('VIEW_PRODUCT', {
                 productName: name || '',
                 source: 'url_fallback'
@@ -1152,14 +1034,14 @@ function capasVtex(): string {
         if (_identifiedEmail) return;
         var h = window.location.hash;
         // User passed email step or is on profile/shipping/payment
-        if (/\\/(profile|shipping|payment)/i.test(h)) {
+        if (/\/(profile|shipping|payment)/i.test(h)) {
           tryVtexIdentify();
           // Also try after a delay (orderForm might need time to update)
           setTimeout(tryVtexIdentify, 1000);
           setTimeout(tryVtexIdentify, 3000);
         }
         // User is ON the email step — start watching for email input
-        if (/\\/email/i.test(h)) {
+        if (/\/email/i.test(h)) {
           observeCheckoutEmail();
           setTimeout(observeCheckoutEmail, 2000);
           setTimeout(observeCheckoutEmail, 5000);
@@ -1270,12 +1152,12 @@ function capasVtex(): string {
       try {
         if (!hash) hash = window.location.hash;
         // VTEX shipping step: user selects delivery method
-        if (/\\/shipping/i.test(hash) && !_firedCheckoutSteps['shipping']) {
+        if (/\/shipping/i.test(hash) && !_firedCheckoutSteps['shipping']) {
           _firedCheckoutSteps['shipping'] = true;
           trackEvent('CHECKOUT_SHIPPING', { step: 'shipping', detection: 'hash' });
         }
         // VTEX payment step: user selects payment method
-        if (/\\/payment/i.test(hash) && !_firedCheckoutSteps['payment']) {
+        if (/\/payment/i.test(hash) && !_firedCheckoutSteps['payment']) {
           _firedCheckoutSteps['payment'] = true;
           trackEvent('CHECKOUT_PAYMENT', { step: 'payment', detection: 'hash' });
         }
@@ -1656,12 +1538,7 @@ function capasVtex(): string {
       }, 8000);
     }
 
-`;
-}
-
-/** El cierre del núcleo: flush y cola de llamadas. Va después de las capas. */
-function cierreDelNucleo(): string {
-  return `    // ─── Flush antes de cerrar pagina ───
+    // ─── Flush antes de cerrar pagina ───
     window.addEventListener('beforeunload', function() {
       try { flush(); } catch(e) {}
     });
@@ -1677,5 +1554,3 @@ function cierreDelNucleo(): string {
     // Error total — falla silencioso, no afecta la pagina
   }
 })();
-`;
-}
