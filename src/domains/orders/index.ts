@@ -298,8 +298,46 @@ export type FuenteDeOrden = (typeof FUENTES_DE_ORDEN)[number];
  *
  * Devuelve `null` si no es una fuente conocida — que es lo que los dos
  * endpoints ya hacían: sin filtro, en vez de error.
+ *
+ * ⚠️ **Preferí `interpretarFuentePedida`.** Esta función no distingue "no pidió
+ * filtro" de "pidió uno que no existe", y esa confusión es el modo de falla que
+ * el estudio de plataformas llama *el más silencioso de todos*.
  */
 export function fuenteDeOrdenPedida(crudo: string | null | undefined): FuenteDeOrden | null {
   const v = (crudo ?? "").toUpperCase();
   return (FUENTES_DE_ORDEN as readonly string[]).includes(v) ? (v as FuenteDeOrden) : null;
+}
+
+/** Qué pidió el que llama en `?source=`. */
+export type FuentePedida =
+  /** No pidió ninguna. Se muestran todas las plataformas. */
+  | { tipo: "sin-filtro" }
+  /** Pidió una que existe. */
+  | { tipo: "valida"; fuente: FuenteDeOrden }
+  /** Pidió una que no existe. **No es lo mismo que no pedir nada.** */
+  | { tipo: "desconocida"; pedida: string };
+
+/**
+ * Interpreta un `?source=` distinguiendo los tres casos.
+ *
+ * ── POR QUÉ HACEN FALTA TRES Y NO DOS ────────────────────────────────────
+ * Hasta el 2026-09-13 un `?source=` inválido se trataba como si no se hubiera
+ * pedido nada: el filtro se ignoraba y el endpoint devolvía **todas** las
+ * plataformas. O sea que alguien que pedía las ventas de Shopify recibía las de
+ * todo el mundo, con cara de respuesta correcta.
+ *
+ * El estudio de plataformas lo llama *"el modo de falla más silencioso de
+ * todos"*, y tiene razón: no hay error, no hay aviso, y el número está mal
+ * hacia arriba. El día que entre una tercera plataforma —cuando alguien filtre
+ * por ella antes de que esté en la lista— el error deja de ser hipotético.
+ */
+export function interpretarFuentePedida(crudo: string | null | undefined): FuentePedida {
+  const v = (crudo ?? "").trim();
+  if (v === "") return { tipo: "sin-filtro" };
+
+  const normalizada = v.toUpperCase();
+  if ((FUENTES_DE_ORDEN as readonly string[]).includes(normalizada)) {
+    return { tipo: "valida", fuente: normalizada as FuenteDeOrden };
+  }
+  return { tipo: "desconocida", pedida: v };
 }

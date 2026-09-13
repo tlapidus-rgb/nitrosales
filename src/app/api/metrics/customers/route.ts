@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidSql, fuenteDeOrdenPedida } from "@/domains/orders";
+import { ordersValidSql, interpretarFuentePedida, FUENTES_DE_ORDEN } from "@/domains/orders";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -20,7 +20,26 @@ export async function GET(request: NextRequest) {
     const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000-03:00") : new Date(now.getTime() - 365 * MS_PER_DAY);
     // E-30. La lista vivia inline aca Y en el otro endpoint de metrics:
     // sumar una plataforma era editar dos archivos y acordarse de los dos.
-    const sourceFilter = fuenteDeOrdenPedida(searchParams.get("source"));
+    // E-30. Un `?source=` que no existe ya NO se ignora.
+    //
+    // Antes se trataba igual que no pedir filtro: el endpoint devolvia TODAS
+    // las plataformas. Quien pedia las ventas de Shopify recibia las de todo
+    // el mundo, con cara de respuesta correcta — sin error, sin aviso, y el
+    // numero mal hacia arriba. El estudio de plataformas lo llama "el modo de
+    // falla mas silencioso de todos".
+    const fuentePedida = interpretarFuentePedida(searchParams.get("source"));
+    if (fuentePedida.tipo === "desconocida") {
+      return NextResponse.json(
+        {
+          error: `No conozco la plataforma "${fuentePedida.pedida}".`,
+          // Se dice cuales SI valen: un 400 sin la lista obliga a adivinar.
+          plataformasValidas: [...FUENTES_DE_ORDEN],
+          nota: "Sin el parametro `source` se devuelven todas las plataformas.",
+        },
+        { status: 400 },
+      );
+    }
+    const sourceFilter = fuentePedida.tipo === "valida" ? fuentePedida.fuente : null;
     const srcWhere = sourceFilter ? `AND o."source" = '${sourceFilter}'` : "";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const periodMs = dateTo.getTime() - dateFrom.getTime();

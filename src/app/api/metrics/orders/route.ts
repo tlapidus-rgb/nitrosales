@@ -19,7 +19,7 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { orgIdDeLaQuery, esOrgIdValido } from "@/lib/org-id-seguro";
-import { fuenteDeLaOrdenSql, meliPendienteSql, fuenteDeOrdenPedida } from "@/domains/orders";
+import { fuenteDeLaOrdenSql, meliPendienteSql, interpretarFuentePedida, FUENTES_DE_ORDEN } from "@/domains/orders";
 // enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
@@ -160,7 +160,26 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     // ── Source filter (validated whitelist to prevent SQL injection) ──
     // E-30. La lista vivia inline aca Y en el otro endpoint de metrics:
     // sumar una plataforma era editar dos archivos y acordarse de los dos.
-    const sourceFilter = fuenteDeOrdenPedida(searchParams.get("source"));
+    // E-30. Un `?source=` que no existe ya NO se ignora.
+    //
+    // Antes se trataba igual que no pedir filtro: el endpoint devolvia TODAS
+    // las plataformas. Quien pedia las ventas de Shopify recibia las de todo
+    // el mundo, con cara de respuesta correcta — sin error, sin aviso, y el
+    // numero mal hacia arriba. El estudio de plataformas lo llama "el modo de
+    // falla mas silencioso de todos".
+    const fuentePedida = interpretarFuentePedida(searchParams.get("source"));
+    if (fuentePedida.tipo === "desconocida") {
+      return NextResponse.json(
+        {
+          error: `No conozco la plataforma "${fuentePedida.pedida}".`,
+          // Se dice cuales SI valen: un 400 sin la lista obliga a adivinar.
+          plataformasValidas: [...FUENTES_DE_ORDEN],
+          nota: "Sin el parametro `source` se devuelven todas las plataformas.",
+        },
+        { status: 400 },
+      );
+    }
+    const sourceFilter = fuentePedida.tipo === "valida" ? fuentePedida.fuente : null;
 
     // ── Pagination ──
     const page = Math.max(1, Number(searchParams.get("page")) || 1);

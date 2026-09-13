@@ -969,7 +969,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   que alguien "arreglara" algo que ya estaba bien y no mirara lo que faltaba.
 
 ### E-30 · Las 8 movidas baratas que compran opcionalidad
-- **Estado:** 🟡 **5 de 8 hechas (2026-09-13)** — la del pixel (la más valiosa) y tres de los cuatro "bugs latentes"; el cuarto se reclasificó como N-09 porque necesita migrar datos. Quedan 3 movidas menores sin tocar.
+- **Estado:** 🟡 **6 de 8 hechas (2026-09-13)**. Quedan dos, las dos de costo bajo: extraer un `ingestOrder()` compartido —que de paso arreglaría que **las órdenes de MELI nunca pasan por el motor de atribución**— y parametrizar `sections/config.ts` por capacidad en vez de por nombre de plataforma. Los dos ítems restantes de la lista original (el spike de Shopify y la pregunta comercial) no son código.
 - **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 1-2 semanas en total
 - **La más valiosa:** ✅ **HECHA (2026-09-13)** — partir el pixel en **núcleo genérico + `vtexLayers()`**, sin cambiar un byte
   del JavaScript que se emite hoy.
@@ -1147,7 +1147,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
        para "mal escrita", que para el backfill son lo mismo y para quien revisa el sistema son
        opuestas.
     5. **Ida y vuelta por credenciales** — E-13 la redujo para VTEX. Falta medir cuánto queda.
-    6. **Borrado de datos** — hoy es "verificar a mano que no queden filas en ocho tablas". Es E-28.
+    6. ~~**Borrado de datos**~~ ✅ **HECHO (2026-09-13)** — era "verificar a mano que no queden filas en ocho tablas". Ahora lo verifica `GET /api/admin/orgs/{id}/que-queda`, que además descubrió que las tablas no eran ocho: son **75**, y `wipe-account` borraba de nueve. Ver E-28.
 - **Por qué esto y no E-10:** E-10 levanta un techo que no aprieta hasta 2028. Esto baja el número
   que el propio plan identifica como la restricción real, y el primer ítem cuesta un botón.
 

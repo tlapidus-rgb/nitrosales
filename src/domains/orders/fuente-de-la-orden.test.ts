@@ -3,6 +3,7 @@ import {
   fuenteDeLaOrdenSql,
   meliPendienteSql,
   fuenteDeOrdenPedida,
+  interpretarFuentePedida,
   FUENTES_DE_ORDEN,
 } from "./index";
 
@@ -79,5 +80,35 @@ describe("la whitelist de fuentes", () => {
     expect(fuenteDeOrdenPedida(null)).toBeNull();
     expect(fuenteDeOrdenPedida(undefined)).toBeNull();
     expect(fuenteDeOrdenPedida("")).toBeNull();
+  });
+});
+
+describe("EL MODO DE FALLA MAS SILENCIOSO: un filtro invalido se ignoraba", () => {
+  // Hasta el 2026-09-13, `?source=SHOPIFY` se trataba como si no se hubiera
+  // pedido filtro: el endpoint devolvia TODAS las plataformas. Quien pedia las
+  // ventas de Shopify recibia las de todo el mundo, con cara de respuesta
+  // correcta. Sin error, sin aviso, y el numero mal hacia arriba.
+  it("no pedir nada y pedir algo que no existe son cosas DISTINTAS", () => {
+    expect(interpretarFuentePedida(null).tipo).toBe("sin-filtro");
+    expect(interpretarFuentePedida("").tipo).toBe("sin-filtro");
+    expect(interpretarFuentePedida("   ").tipo).toBe("sin-filtro");
+    expect(interpretarFuentePedida("SHOPIFY").tipo).toBe("desconocida");
+  });
+
+  it("una desconocida conserva lo que se pidio, para poder decirlo", () => {
+    const r = interpretarFuentePedida("shopify");
+    expect(r).toEqual({ tipo: "desconocida", pedida: "shopify" });
+  });
+
+  it("las validas siguen normalizando a mayusculas", () => {
+    expect(interpretarFuentePedida("vtex")).toEqual({ tipo: "valida", fuente: "VTEX" });
+    expect(interpretarFuentePedida("MeLi")).toEqual({ tipo: "valida", fuente: "MELI" });
+  });
+
+  it("un intento de inyeccion cae en desconocida, no en sin-filtro", () => {
+    // Lo importante no es solo que no entre al SQL: es que NO se confunda con
+    // "mostrame todo", que es lo que pasaba antes.
+    const r = interpretarFuentePedida("VTEX'; DROP TABLE orders;--");
+    expect(r.tipo).toBe("desconocida");
   });
 });
