@@ -88,3 +88,47 @@ export const AURUM_AGRUPADO = `
   GROUP BY a."organizationId", a.mode, a.model
   LIMIT $2
 `;
+
+// ══════════════════════════════════════════════════════════════════════════
+// E-23 — las dos consultas de la cuota de Aurum
+// ══════════════════════════════════════════════════════════════════════════
+// Van acá y no inline en `/api/chat` por lo mismo que las de arriba: inline,
+// nada las ejecuta hasta producción. Y estas corren en el camino caliente del
+// chat, así que un error de SQL no se descubre en un reporte — se descubre con
+// el asistente caído.
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Consumo de Aurum de UNA organización desde `$2`, agrupado por modo y modelo.
+ *
+ * Agrupado porque el precio depende del modelo: para pasar a dólares hay que
+ * saber qué modelo gastó qué. Son pocas filas (3 modos × los modelos que haya).
+ *
+ * `$1` = organizationId · `$2` = desde cuándo (arranque del mes).
+ */
+export const AURUM_DEL_MES_DE_UNA_ORG = `
+  SELECT
+    a."organizationId"            AS "organizationId",
+    a.mode                        AS mode,
+    a.model                       AS model,
+    SUM(a."inputTokens")::float8  AS "inputTokens",
+    SUM(a."outputTokens")::float8 AS "outputTokens",
+    COUNT(*)::int                 AS llamadas
+  FROM aurum_usage_logs a
+  WHERE a."organizationId" = $1 AND a."createdAt" >= $2::timestamptz
+  GROUP BY a."organizationId", a.mode, a.model
+`;
+
+/**
+ * Cuántas consultas hizo una organización en el último minuto.
+ *
+ * Es el freno del loop, no el control de gasto: un cliente escribiendo a mano
+ * no llega a 20 por minuto; un `useEffect` mal puesto llega en dos segundos.
+ *
+ * `$1` = organizationId · `$2` = desde cuándo (hace un minuto).
+ */
+export const AURUM_ULTIMO_MINUTO_DE_UNA_ORG = `
+  SELECT COUNT(*)::int AS n
+  FROM aurum_usage_logs a
+  WHERE a."organizationId" = $1 AND a."createdAt" >= $2::timestamptz
+`;

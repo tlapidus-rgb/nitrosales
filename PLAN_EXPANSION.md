@@ -818,7 +818,13 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   probado con TeVeCompras.
 
 ### E-23 · Cuota y contabilidad de costo en Aurum
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-6 h
+- **Estado:** ✅ **HECHO (2026-09-13)**. La contabilidad la cerró E-21 (los dólares ya se pueden calcular); esto cierra la otra mitad: tope de gasto mensual por organización y freno de loop. 31 tests, verificado por mutación.
+  - **La decisión de diseño: degradar, no bloquear.** Pasado el tope, Aurum **sigue contestando**, en FLASH. Un cliente que paga y recibe "alcanzaste tu límite" pierde el producto entero por una variable de entorno; uno que recibe una respuesta más corta pierde profundidad y sigue trabajando. Y **se lo dice** — degradar en silencio haría que viera respuestas peores y culpara al producto en vez del tope.
+  - **La única puerta que cierra de verdad** es el rate limit (20 consultas/minuto por org, `AURUM_CONSULTAS_POR_MINUTO`). A ese ritmo no hay nadie escribiendo: hay código en loop, y el tope mensual todavía no se enteró — se va a enterar en unos minutos, cuando ya gastó.
+  - **El tope por defecto son 100 USD/mes/org** (`AURUM_TOPE_USD_MENSUAL`). ⚠️ **Ese número es un atrapa-fugas, no un precio.** Está para que un uso desbocado no se coma un mes de margen, no para definir cuánto Aurum le toca a cada plan. El número real sale de `/api/admin/consumo-por-cliente` y lo tiene que poner Tomy con el uso real en la mano.
+  - **Fail-open, a propósito y con incomodidad:** si el consumo no se puede medir, pasa. Bloquear el producto porque una query de telemetría falló es peor que el gasto que evita (misma regla que E-13 para las credenciales). El costo de esa decisión está dicho: una caída de la base es también gasto sin techo, y por eso `medicionDisponible: false` viaja en la respuesta.
+  - **Por qué DEEP no es "5× FLASH"** aunque el precio por token lo sea: FLASH es Haiku con 2.000 tokens y 2 rondas de tools; DEEP es Opus con 8.000 y 8 rondas. Cada ronda reenvía el historial más los resultados anteriores, así que **las rondas multiplican los tokens de entrada**. 5× de precio sobre 4× de salida sobre 4× de rondas es de dónde sale el 10-50× del plan.
+- **Estado original:** ⬜ pendiente · **Riesgo:** 🟢 bajo · **Esfuerzo:** 4-6 h
 - **Qué está mal:** el modo DEEP (Opus, 8 rondas de razonamiento) **lo elige el cliente desde la
   UI**, no hay cuota ni rate limit en `/api/chat`, y los logs no guardan dólares. Es el único
   componente con costo variable sin techo.

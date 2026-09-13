@@ -8,6 +8,8 @@ import { executeToolCall } from "@/lib/intelligence/handlers";
 import { ALERT_TOOLS, ALERT_TOOLS_PROMPT, isAlertToolName } from "@/lib/alerts/aurum-tools";
 import { executeAlertTool } from "@/lib/alerts/aurum-handlers";
 import { getSessionUserId } from "@/lib/alerts/get-user-id";
+import { evaluarCuota, limitesDeAurum } from "@/lib/aurum/cuota";
+import { consumoActualDe } from "@/lib/aurum/consumo-actual";
 
 export const dynamic = "force-dynamic";
 
@@ -276,13 +278,39 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { message, history, mode: rawMode } = body;
-    const mode = normalizeMode(rawMode);
-    modeForLog = mode;
-    const cfg = MODE_CONFIG[mode];
-    modelForLog = cfg.model;
+    const modoPedido = normalizeMode(rawMode);
 
     const org = await getOrganization();
     orgIdForLog = org.id;
+
+    // ── E-23: cuota y freno de loop ─────────────────────────────────────────
+    // Aurum es el único componente con costo variable, y el modo DEEP (Opus, 8
+    // rondas) lo elige el cliente desde la UI. Sin esto, el único techo del
+    // gasto es la buena fe del que usa el producto.
+    //
+    // Degrada, no bloquea: pasado el tope se contesta en FLASH y se le DICE.
+    // La única puerta que cierra de verdad es el rate limit, porque a 20+
+    // consultas por minuto no hay nadie escribiendo — hay código en loop.
+    //
+    // Todo esto es fail-open: si el consumo no se puede medir, pasa. Ver
+    // src/lib/aurum/cuota.ts para el razonamiento y para lo que cuesta.
+    const cuota = evaluarCuota({
+      modoPedido,
+      consumo: await consumoActualDe(org.id).catch(() => ({
+        usdDelMes: null,
+        consultasUltimoMinuto: null,
+      })),
+      limites: limitesDeAurum(),
+    });
+
+    if (!cuota.permitido) {
+      return NextResponse.json({ error: cuota.motivo, cuota }, { status: 429 });
+    }
+
+    const mode = cuota.modoEfectivo;
+    modeForLog = mode;
+    const cfg = MODE_CONFIG[mode];
+    modelForLog = cfg.model;
     // userId resuelto vía email-fallback (mismo patrón que alerts) para no
     // depender de session.user.id que puede venir null en JWT viejos.
     const resolvedUserId = await getSessionUserId().catch(() => null);
@@ -390,7 +418,20 @@ export async function POST(req: Request) {
       finalReply = "Analicé muchos datos pero me quedé sin espacio para responder. ¿Podés hacer la pregunta un poco más específica?";
     }
 
-    return NextResponse.json({ reply: finalReply, mode, model: cfg.model });
+    return NextResponse.json({
+      reply: finalReply,
+      mode,
+      model: cfg.model,
+      // E-23. Si se degradó el modo o falta poco para el tope, la UI lo tiene
+      // que poder mostrar. Sin esto el usuario ve respuestas más cortas y
+      // culpa al producto en vez al tope, que es justamente lo que no queremos.
+      modoPedido,
+      cuota: {
+        degradado: cuota.degradado,
+        cercaDelTope: cuota.cercaDelTope,
+        aviso: cuota.motivo,
+      },
+    });
   } catch (e: any) {
     success = false;
     errorMessage = e?.message || String(e);
