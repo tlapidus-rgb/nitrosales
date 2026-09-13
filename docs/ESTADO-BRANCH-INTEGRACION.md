@@ -1,19 +1,63 @@
 # Estado de la branch de integración
 
-> **Última actualización: 2026-09-13.** Branch `fix/expansion-gate-e0`, **93 commits** por delante de
-> `origin/main`. **Nada de esto está en producción.** La decisión fue explícita: todo el plan entra
-> en una sola branch, se prueba y se revisa entero, y recién ahí se mergea — antes de sumar clientes
-> nuevos.
+> **Última actualización: 2026-09-13, después de la revisión con ojos frescos.** Branch
+> `fix/expansion-gate-e0`, **106 commits** por delante de `origin/main`. **Nada de esto está en
+> producción.** La decisión fue explícita: todo el plan entra en una sola branch, se prueba y se
+> revisa entero, y recién ahí se mergea — antes de sumar clientes nuevos.
+>
+> **El merge todavía no está autorizado** (2026-09-13). Y antes de mergear hay un prerequisito que
+> el `checklist-merge` **no** verifica: `vercel.json` tiene la clave vieja escrita en las 29 URLs de
+> cron, y `admin-key.ts` ahora la lee de `ADMIN_API_KEY` con fallback a un valor aleatorio. Si esa
+> variable no está seteada en Vercel —o no vale ese mismo literal— los 29 crons y los endpoints
+> admin empiezan a devolver 403. Falla cerrado, que es lo correcto, pero falla.
 
 ## Cómo está
 
 | | |
 |---|---|
 | `npx tsc --noEmit` | 0 errores |
-| `npx vitest run` | **1.245 passed**, 7 skipped, **0 failed** |
+| `npx vitest run` | **1.362 passed**, 7 skipped, **0 failed** |
 | `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
-| Tests nuevos en la branch | 55 archivos |
+| Tests nuevos en la branch | 60 archivos (`git diff --name-status origin/main...HEAD`) |
 | Guards de build | `order-contract`, `serve-gold-first`, `ts-nocheck` — los 3 en verde |
+
+## La revisión con ojos frescos (2026-09-13) — commit `3560d31b`
+
+Repaso completo de la branch antes de mergear. **9 hallazgos**, cada uno verificado por mutación:
+se reintroduce el bug y se confirma que el test se pone rojo.
+
+**El más grave: `admin/aura-resend-onboarding` no autenticaba.** Un POST anónimo con
+`{"dryRun": false}` le mandaba a todos los creadores del cliente el mail con el link para definir
+su contraseña. Pasaba el test de *"toda ruta admin autentica"* porque menciona `getOrganization`,
+que **no es auth**: sin sesión cae al fallback de org única y devuelve la org igual. Hoy en
+producción devuelve 500 de rebote porque hay más de una org — pero eso es una casualidad del dato,
+no una puerta.
+
+**Seguridad (3 más).** `techo-de-orgs` aceptaba `?key=` y **escribe** (recalcula los rollups de
+todas las orgs) con una clave que está en `vercel.json` versionado. El token de Meta viajaba en la
+query string en un archivo que esta misma branch agrega. Y `cron/ml-sync` devolvía 500 si faltaba
+`CRON_SECRET`, apostando el cron a una variable que ningún otro de los 26 crons usa.
+
+**Bugs (5).** Uno peor que el reportado: **el fixture de los tests de `cursor-store` creaba una
+tabla distinta a la de producción** —`cursor TEXT NOT NULL` y sin ninguna columna de latido—, así
+que toda esa suite corría contra un esquema que no existe. La DDL pasó a estar en un solo lugar.
+Los otros cuatro: `warm-cache` usando una variable inexistente en el `catch` (que se comía el error
+real **y** el latido), el mail de control diciendo *"✅ Todo OK"* con crones caídos listados
+abajo, cerrar una vuelta borrando el latido, y la alerta de gasto publicitario silenciándose justo
+con poco volumen — la plata no tiene ruido de Poisson.
+
+**Tests que no probaban lo que decían (5).** `comparacion-segura.ts` —lo único que decide si entra
+un request al webhook de VTEX y a todo endpoint admin— **no tenía un solo test propio**. El guard
+de self-fetch leía comentarios (#S61, tercera vez en esta branch). `destinatarios` afirmaba
+`toContain("@")` sobre la casilla de alertas, así que podía pasar a ser cualquier cosa con arroba.
+
+**Honestidad (3).** La suspensión de un cliente se anotaba y contestaba `ok: true`, pero **nadie lee
+ese estado**: el cliente sigue entrando igual. No se conectó el gate acá —va en el camino de auth de
+todos los requests y merece su propia verificación— pero la respuesta ahora trae `seAplica: false`,
+y hay un test que barre el repo y falla si alguien lo conecta sin actualizar la constante.
+
+**Al margen:** tres archivos habían quedado con finales de línea mezclados, que es lo que hizo que
+una mutación anterior no se aplicara y reportara verde **sin haber tocado nada**.
 
 ## Lo que se construyó el 12 y 13 de septiembre
 

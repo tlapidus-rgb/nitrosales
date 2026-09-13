@@ -7,18 +7,28 @@
 > **Plan hermano:** `PLAN_REMEDIACION.md` (los 197 hallazgos de la auditoría del 2026-09-02).
 > Este documento **manda sobre aquel** mientras el objetivo sea expandir — ver § 2.
 >
-> **Estado global (revisado el 2026-09-13):** **22 de 33 hechas · 4 parciales · 6 pendientes · 1 esperando decisión de Tomy.**
+> **Estado global (revisado el 2026-09-13, después de la revisión con ojos frescos):** **23 de 33 hechas · 5 parciales · 4 pendientes · 1 esperando decisión de Tomy.**
 >
 > | | Tareas |
 > |---|---|
-> | ✅ Hechas (22) | E-01…E-06, E-08, E-11…E-19, E-21, E-23, E-24, E-25, E-26, E-29 |
-> | 🟡 Parciales (4) | **E-07** (preparada para rotar, sin rotar) · **E-20** · **E-30** (5 de 8) · **E-33** (4 de 6) |
-> | ⬜ Pendientes (6) | E-09, E-10, E-22, E-27, E-28, E-32 |
+> | ✅ Hechas (23) | E-01…E-06, E-08, E-11…E-19, E-21, E-23…E-27, E-29 |
+> | 🟡 Parciales (5) | **E-07** (preparada para rotar, sin rotar) · **E-20** · **E-28** (el borrado sí, la retención no) · **E-30** (7 de 8) · **E-33** (4 de 6) |
+> | ⬜ Pendientes (4) | E-09, E-10, E-22, E-32 |
 > | 🔒 Decisión | E-31 |
 >
-> **Lo que bloquea el gate ya no es técnico.** E-07 está preparada: los dos secretos toleran una ventana de rotación y rotar dejó de cortar la ingesta. Lo que falta es **la decisión del § 9 punto 6** — ¿se firma el próximo cliente antes de rotar?
+> **⚠️ Este cuadro se contradecía con sus propias fichas hasta el 2026-09-13.** Decía que E-27 y
+> E-28 estaban pendientes cuando las dos se habían construido ese mismo día (`3b08f9a3`,
+> `73c6329c`, `e3ede0d9`), y contaba E-30 como 5 de 8 mientras su ficha decía 7 de 8. Es el mismo
+> patrón que la branch entera vino a cazar —un documento que afirma algo que el código ya no
+> dice—, esta vez en el documento que manda. **Al cerrar una ficha hay que tocar los dos lugares.**
 >
-> **De las 6 pendientes, 4 no las puede hacer Claude solo:** E-09 y E-28 destruyen datos, E-22 necesita la decisión del § 9 punto 3, E-27 necesita columnas nuevas (SQL en Neon). Las que quedan son E-10 —que la revisión de premisa desaconseja, porque levanta un techo que no aprieta hasta 2028— y E-32, que se hace **durante** el próximo alta real.
+> **Lo que bloquea el gate ya no es técnico.** E-07 está preparada: los dos secretos toleran una ventana de rotación y rotar dejó de cortar la ingesta. La decisión del § 9 punto 6 **ya se tomó: no se rota** (2026-09-13). La ventana queda construida para cuando se quiera.
+>
+> **Ninguna de las 4 pendientes la puede hacer Claude solo, y dos no deberían hacerse:**
+> **E-09** no está pendiente sino **bloqueada** — su precondición innegociable (que el resumen
+> cubra toda la historia) no se cumple, porque `pixel_daily_channel` está vacía. **E-10** la
+> desaconseja la revisión de premisa: levanta un techo que no aprieta hasta 2028. **E-22** necesita
+> la decisión del § 9 punto 3. **E-32** se hace **durante** el próximo alta real, no antes.
 >
 > **Estado previo (2026-09-12):** **20 de 33 hechas, y E-33 con 4 de sus 6 items.** Los tres que se hicieron resultaron NO ser lo que decia la ficha: en los tres la cadena ya estaba construida y lo que faltaba era que alguien mirara el resultado.
 >
@@ -891,7 +901,28 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   - **Borrar** todo cuando un cliente se va: existe `wipe-account` pero **está incompleto**.
 
 ### E-28 · Borrado completo y retención — cumplimiento
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Esfuerzo:** 1 semana · **Depende de:** E-09
+- **Estado:** 🟡 **PARCIAL (2026-09-13).** Son dos mitades y sólo una se cerró.
+  - ✅ **El borrado.** `POST /api/admin/orgs/{id}/borrar-todo`, con `GET .../que-queda` para
+    auditarlo antes y después. El planificador descubre las tablas por
+    `information_schema` en vez de por una lista escrita a mano —que es como
+    `wipe-account` llegó a prometer 20 tablas y borrar 9— e incluye las **seis tablas que no
+    tienen `organizationId`** y cuelgan de otra (`order_items`, `bot_messages`,
+    `pixel_visitor_aliases`, `influencer_commission_tiers`, `audience_sync_logs`,
+    `login_events`). Sin eso, `que-queda` podía decir "no queda ningún dato" con seis tablas
+    llenas.
+  - ⛔ **La retención.** Es E-09, y E-09 está **bloqueada**, no pendiente. Sin política de
+    retención la mitad de cumplimiento de esta ficha sigue abierta.
+- **⚠️ `wipe-account` NO se borró: los dos endpoints conviven.** El commit del borrado dice
+  "reemplaza wipe-account" y la ficha de E-27 dice "lo cerró E-28", pero
+  `src/app/api/admin/orgs/[orgId]/wipe-account/route.ts` sigue ahí, con su encabezado que
+  promete 20 tablas. Mientras exista, alguien lo puede llamar y creerle. **Sacarlo es lo que
+  falta para cerrar la mitad del borrado de verdad.**
+- **De las dos cosas "antes de firmar con un cliente grande":** `/api/debug/meta` ✅ ya no
+  existe (hay un test que lo verifica). `dashboardPasswordPlain` ⬜ **sigue en el schema**: lo
+  único que se hizo el 13-09 fue impedir que salga en la exportación, que tapaba la fuga pero
+  no la causa — la contraseña del creador sigue guardada sin hashear.
+- **Riesgo:** 🟡 medio · **Esfuerzo restante:** sacar `wipe-account` (~1 h) + la retención, que
+  depende de E-09
 - **El hallazgo más expuesto del estudio.** El sistema guarda, **de los compradores de sus
   clientes**: emails, teléfonos normalizados, ciudad/provincia/país, identificadores de dispositivo,
   cookies de terceros y el historial completo de navegación y compra. Una búsqueda de `gdpr`,
@@ -1069,7 +1100,15 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   contradecirse.
 
 ### E-33 · Convertir en producto los pasos que hoy son fuera del producto
-- **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio — toca el flujo de alta, que es lo que se rompió
+- **Estado:** 🟡 **4 de 6 (2026-09-12).** La ficha decía ⬜ pendiente mientras el cuadro global y
+  `docs/ESTADO-BRANCH-INTEGRACION.md` decían 4 de 6 — corregido el 13-09. Hechos: Orders
+  Broadcaster, precios de costo, afiliado de VTEX y las 4 acciones manuales del merge
+  (`GET /api/admin/checklist-merge`, que **verifica y no ejecuta**: dos de las cuatro son
+  variables de Vercel y el código no las puede escribir).
+- **Los tres primeros no eran lo que decía la ficha:** en los tres la cadena ya estaba
+  construida y lo que faltaba era que alguien mirara el resultado
+  (`#FICHA-ESCRITA-LEYENDO-EL-RUNBOOK`).
+- **Riesgo:** 🟡 medio — toca el flujo de alta, que es lo que se rompió
   dos veces en E-13 · **Depende de:** E-32 para priorizar
 - **Qué está mal:** de los **19 pasos** del alta, **6 se hacen fuera de NitroSales**. Son los que
   exigen a Axel y los que hacen que el bus factor sea 1. E-18 los **documentó**; documentar un paso
