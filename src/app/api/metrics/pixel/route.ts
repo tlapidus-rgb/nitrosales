@@ -1951,7 +1951,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // Escribe en memoria Y en el caché compartido de Postgres. Sin esto, el
     // warm-cache calienta una instancia y el usuario cae en otra: la primera
     // carga del día paga los ~25s completos. Ver src/lib/api-cache-shared.ts.
-    setSharedCache("pixel", response, ...cacheKey);
+    // Keep the seed promise alive until the shared write finishes, including
+    // when waitUntil continues this computation after the request timeout.
+    await setSharedCache("pixel", response, ...cacheKey);
     return response;
     }; // ── fin computeAndCache ──
 

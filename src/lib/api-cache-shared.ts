@@ -81,21 +81,22 @@ export async function getSharedCachedSWR<T = unknown>(
 }
 
 /**
- * Escribe en los dos niveles. El write a Postgres NO se espera: el caller ya
- * tiene la respuesta lista y no tiene por qué pagar la latencia de guardarla.
+ * Escribe en memoria inmediatamente y devuelve la promesa del write compartido.
+ * Los callers que siembran el cache deben esperarla o registrarla en waitUntil
+ * para mantener la persistencia viva después de enviar la respuesta.
  */
-export function setSharedCache(
+export async function setSharedCache(
   prefix: string,
   data: unknown,
   ...keyParts: unknown[]
-): void {
+): Promise<void> {
   setCache(prefix, data, ...keyParts); // nivel 1, sincrónico
 
   const key = buildKey(prefix, keyParts);
   const freshUntil = new Date(Date.now() + DEFAULT_TTL_MS);
   const staleUntil = new Date(Date.now() + DEFAULT_TTL_MS + STALE_GRACE_MS);
 
-  void prisma
+  await prisma
     .$executeRaw`
       INSERT INTO api_cache (cache_key, payload, fresh_until, stale_until, updated_at)
       VALUES (${key}, ${JSON.stringify(data)}::jsonb, ${freshUntil}, ${staleUntil}, now())
