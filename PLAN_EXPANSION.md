@@ -871,6 +871,17 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   puede dejar como está.
 
 ### E-27 · Ciclo de vida de una organización
+- **Estado:** ✅ **HECHO (2026-09-13)** — las tres partes. 31 tests.
+  - **Suspender** — `/api/admin/orgs/{id}/suspension`. **No necesitó migración:** el estado vive en `Organization.settings`, que ya es `Json` y ya se usa para esto (roles custom, API keys, invitaciones). El costo de esa decisión está escrito: un campo dentro de un JSON no se indexa, así que si algún día hay que listar "todas las suspendidas" sobre cientos de organizaciones, merece su columna. Con cuatro, no.
+  - **Exportar** — `/api/admin/orgs/{id}/exportar`, en NDJSON. El manifiesto va en la **primera** línea, no al final: si la descarga se corta, lo que quedó igual dice qué debería haber contenido.
+  - **Borrar** — lo cerró E-28.
+
+> **La decisión que más discutí conmigo mismo: suspender NO corta la ingesta.** Los webhooks de VTEX y MercadoLibre **no reintentan**, así que un día sin ingerir es un agujero que no se rellena nunca — ni pagando después. Cortar la ingesta convertiría una suspensión reversible en un daño permanente a los datos del cliente.
+>
+> La contracara es real: seguir ingiriendo a alguien que no paga nos cuesta plata. Por eso `cortarIngesta: true` existe como opción explícita en vez de estar decidida en el código, y la respuesta del endpoint avisa que esos datos no se van a poder recuperar.
+>
+> **Lo que falta:** el flag está expuesto pero **la aplicación todavía no lo lee**. Suspender hoy registra el estado; no bloquea el acceso. Enganchar eso en el gate de secciones es el paso que queda, y es chico — pero hasta que se haga, esto es media función.
+
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Esfuerzo:** 1 semana
 - **Qué falta para poder vender:**
   - **Suspender** un cliente que no paga: **no existe** (no hay `status` en `Organization`).
