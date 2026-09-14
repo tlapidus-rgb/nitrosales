@@ -16,7 +16,12 @@ function sql(text) {
   }
   walk(ast); return queries.sort();
 }
-assert.deepEqual(sql(after),sql(before),'All tagged SQL queries must stay identical');
+// First-event lookup is the only intentional SQL change since the tail baseline.
+const expectedSql = sql(before).map(query => query.replace(
+  'SELECT MIN(timestamp) as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID}',
+  'SELECT timestamp as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID} AND timestamp IS NOT NULL ORDER BY timestamp ASC LIMIT 1'
+)).sort();
+assert.deepEqual(sql(after),expectedSql,'SQL must match the baseline plus the approved first-event lookup');
 const start=after.indexOf('    const [productData, manualSpends, fRow, dailySpendResult]');
 const end=after.indexOf('    // ═',start);
 const code=ts.transpileModule(`async function run(){${after.slice(start,end)}return {skuMap,productPurchasesResult,categoryLabels,manualSpends,fRow,dailySpendResult};} run();`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;

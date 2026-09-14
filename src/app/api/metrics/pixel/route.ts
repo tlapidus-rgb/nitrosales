@@ -271,9 +271,12 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // Used as floor for CR queries (pixel visitors vs orders).
     // Without this, orgs with orders pre-pixel would show 0 visitors for old sales.
     const pixelInstallResult = await prisma.$queryRaw`
-      SELECT MIN(timestamp) as "installedAt"
+      SELECT timestamp as "installedAt"
       FROM pixel_events
       WHERE "organizationId" = ${ORG_ID}
+        AND timestamp IS NOT NULL
+      ORDER BY timestamp ASC
+      LIMIT 1
     ` as Array<{ installedAt: Date | null }>;
     const pixelInstalledAt = pixelInstallResult[0]?.installedAt || null;
 
