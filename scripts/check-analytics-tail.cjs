@@ -29,7 +29,7 @@ const tick=()=>new Promise(r=>setImmediate(r));
 async function test(empty=false,fail=false){
   const pending={}; const calls=[];
   const hold=name=>{calls.push(name);return new Promise((resolve,reject)=>pending[name]={resolve,reject});};
-  const context={ORG_ID:'fixture',dateFrom:new Date('2026-09-01'),dateTo:new Date('2026-09-12'),crDateFrom:new Date('2026-09-01'),productViewersResult:[],
+  const context={trace:{run:(_stage,work)=>work()},ORG_ID:'fixture',dateFrom:new Date('2026-09-01'),dateTo:new Date('2026-09-12'),crDateFrom:new Date('2026-09-01'),productViewersResult:[],
     loadProductSkuMap:()=>hold('sku'),loadCategoryLabels:()=>hold('labels'),getFunnelStages:()=>hold('funnel'),ordersValidWhere:()=>'',
     prisma:{manualChannelSpend:{findMany:()=>hold('manual')},$queryRaw:strings=>hold(strings.join('').includes('order_items')?'purchases':'daily')}};
   let settled=false;
