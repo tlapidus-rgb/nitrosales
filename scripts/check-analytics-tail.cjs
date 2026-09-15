@@ -17,7 +17,12 @@ function sql(text) {
   walk(ast); return queries.sort();
 }
 // First-event lookup is the only intentional SQL change since the tail baseline.
-const expectedSql = sql(before).map(query => query.replace(
+const expectedSql = sql(before).map(query => {
+  if (query.includes('WITH visitor_to_orders AS') || query.includes('COALESCE(pv."deviceTypes"[1]')) {
+    return query.replace('pa.model::text = ${selectedModel}', 'pa.model = CAST(${selectedModel} AS "AttributionModel")');
+  }
+  return query;
+}).map(query => query.replace(
   'SELECT MIN(timestamp) as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID}',
   'SELECT timestamp as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID} AND timestamp IS NOT NULL ORDER BY timestamp ASC LIMIT 1'
 )).sort();
