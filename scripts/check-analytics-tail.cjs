@@ -19,7 +19,10 @@ function sql(text) {
 // First-event lookup is the only intentional SQL change since the tail baseline.
 const expectedSql = sql(before).map(query => {
   if (query.includes('WITH visitor_to_orders AS') || query.includes('COALESCE(pv."deviceTypes"[1]')) {
-    return query.replace('pa.model::text = ${selectedModel}', 'pa.model = CAST(${selectedModel} AS "AttributionModel")');
+    const scoped = query.replace('pa.model::text = ${selectedModel}', 'pa.model = CAST(${selectedModel} AS "AttributionModel")');
+    return query.includes('WITH visitor_to_orders AS')
+      ? scoped.replace('WHERE pa."organizationId" = ${ORG_ID}', 'WHERE pa."organizationId" = ${ORG_ID} AND o."organizationId" = ${ORG_ID}')
+      : scoped.replace('WHERE pa."organizationId" = ${ORG_ID} AND o."orderDate"', 'WHERE pa."organizationId" = ${ORG_ID} AND o."organizationId" = ${ORG_ID} AND o."orderDate"');
   }
   return query;
 }).map(query => query.replace(

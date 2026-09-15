@@ -995,6 +995,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           FROM orders o
           JOIN pixel_attributions pa ON pa."orderId" = o.id
           WHERE pa."organizationId" = ${ORG_ID}
+            AND o."organizationId" = ${ORG_ID}
             AND pa.model = CAST(${selectedModel} AS "AttributionModel")
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
@@ -1075,6 +1076,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
+          AND o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model = CAST(${selectedModel} AS "AttributionModel")

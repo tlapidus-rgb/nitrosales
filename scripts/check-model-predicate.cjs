@@ -14,4 +14,10 @@ const {PGlite}=require(root+'/node_modules/@electric-sql/pglite');
   assert.deepEqual(next.rows,old.rows);
  }
  console.log('PASS: typed enum predicate parity for all five models, tenant scopes, NULL models, duplicate orders and revenue totals.');
+ await db.exec(`CREATE TABLE orders (id text PRIMARY KEY,"organizationId" text,"orderDate" timestamptz);
+ INSERT INTO orders VALUES ('same','target','2026-09-01'),('cross','other','2026-09-01');
+ INSERT INTO pixel_attributions VALUES (502,'target','NITRO','same','v-same',10),(503,'target','NITRO','cross','v-cross',20);`);
+ const scoped=await db.query(`SELECT pa."orderId" FROM orders o JOIN pixel_attributions pa ON pa."orderId"=o.id WHERE pa."organizationId"=$1 AND o."organizationId"=$1 AND pa.model=CAST($2 AS "AttributionModel") ORDER BY 1`,['target','NITRO']);
+ assert.deepEqual(scoped.rows,[{orderId:'same'}]);
+ console.log('PASS: order organization scope uses the same tenant and rejects a cross-organization attribution.');
 }finally{await db.close()}})().catch(e=>{console.error(e);process.exitCode=1});
