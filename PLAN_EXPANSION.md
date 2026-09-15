@@ -161,7 +161,7 @@ decir a cuánto lo subió.** No alcanza con "hecho": la bitácora tiene que deci
 
 | Qué | Número | Fuente |
 |---|---|---|
-| Clientes que aguantaba el pipeline de rollups | ~~8-10~~ ~~50-77~~ → **44 tamaño Arredo, MEDIDO el 2026-09-13** (146 con la mezcla actual; ocupación de hoy: 2,7 %) · **resuelto por E-01** | `GET /api/admin/techo-de-orgs` — los dos números anteriores salían de comentarios del código, no de mediciones |
+| Clientes que aguantaba el pipeline de rollups | ~~8-10~~ ~~50-77~~ ~~44~~ → **≈2 tamaño Arredo** (≈8 con la mezcla actual). ⚠️ **El 44 estaba mal y se retiró el 2026-09-14** — ver el recuadro de abajo | `GET /api/admin/techo-de-orgs`, con el método corregido |
 | Crons que iteran todas las orgs con presupuesto fijo | **14** | ídem § 2 |
 | …de esos, que **no pueden continuar donde quedaron** | ~~8~~ → **0 de los 8 originales** (E-11, cerrada) · **pero aparecieron 3 más** | ídem · los 3 nuevos (`digest`, `anomalies`, `ads-utm-audit`) los encontró el revisor del 2026-09-08 y ya están arreglados: no estaban en la lista del estudio |
 | Cosas ya rotas **hoy, con 4 clientes** | ~~3~~ → **0** · resueltas (E-03, E-12, E-11) | `sync/chain` (1 org/corrida), `warm-cache` (1,4 orgs), `attribution-reconcile` (1 org) |
@@ -1329,12 +1329,48 @@ TeVe Compras. Son **dos grandes y dos chicas**, no una y tres.
 | Demanda de hoy | **16,4 minutos** (8 tablas × 123 s) |
 | **Ocupación actual** | **2,7 %** |
 | Techo con la mezcla de hoy | 146 organizaciones |
-| **Techo si todas fueran tamaño Arredo** | **44 organizaciones** |
+| **Techo si todas fueran tamaño Arredo** | ~~44~~ **≈2 organizaciones** — ver la corrección del 2026-09-14 |
 | Dispersión | **326×** — Arredo cuesta 326 veces lo que Prueb |
 
-**El número a usar es 44, no 146.** Con una dispersión de 326× el promedio no describe a
-ninguna organización real, y el techo optimista sólo se cumple si los clientes que entran
-son chicos — que es justo lo contrario de lo que se busca vendiendo.
+> ## ⚠️ CORRECCIÓN (2026-09-14): el 44 estaba mal. El techo es ≈2.
+>
+> **El cuadro de arriba divide por un presupuesto que no existe.** Las 10 horas salen de
+> `invocacionesPorDia × 250 s`, lo que supone que el trabajo se reparte entre todas las
+> invocaciones del día. No se reparte: el runner llama `backfillDay(cursor, orgs, table)`
+> **sin `deadlineAt`** (`rollup-backfill.ts:684`), así que la unidad de trabajo es *(un día ×
+> una tabla × TODAS las orgs)* y es **indivisible** — entra entera en una invocación de 250
+> segundos, o no entra.
+>
+> No es un descuido del runner: `rollup-backfill.ts:82-89` documenta que **no** pasa deadline a
+> propósito, y hay un guard test que lo clava. La solución de fondo es la cola persistida (E-10).
+>
+> Con la restricción real, y con los mismos datos medidos:
+>
+> | | publicado | real |
+> |---|---|---|
+> | Ocupación | 2,7 % | **~49 %** |
+> | Techo tamaño Arredo | 44 | **≈2** |
+> | Techo mezcla actual | 146 | **≈8** |
+>
+> El `≈2` es exactamente el número pesimista que el encabezado del módulo declaraba superado
+> por E-01.
+>
+> **Dos defectos más del mismo cálculo, sin corregir todavía:**
+> - La fórmula es algebraicamente `N / ocupación`, así que **sumar una org que no hace trabajo
+>   sube el techo**. Y mide sobre todas las organizaciones mientras el loop de producción
+>   itera sólo las que tienen pixel.
+> - `porHoraGithub = 4`, pero el workflow hace `for i in 1 2`: son **8 por hora**. El mismo
+>   hecho está calculado bien en `rollups-cadencia.test.ts:89` y mal en el endpoint.
+>
+> **La medición estaba bien; el método para convertirla en un techo estaba mal.** Ver
+> `ERRORES_CLAUDE_NO_REPETIR.md` → `#S62-VERIFIQUE-LA-ARITMETICA-Y-NO-LA-PREMISA`.
+>
+> ⬜ **Pendiente:** recalcular contra la restricción por invocación y poner un test que fije el
+> **método**, no sólo la aritmética.
+
+**El número a usar es el de Arredo, no el de la mezcla.** Con una dispersión de 326× el
+promedio no describe a ninguna organización real, y el techo optimista sólo se cumple si los
+clientes que entran son chicos — que es justo lo contrario de lo que se busca vendiendo.
 
 #### Lo que este número NO dice
 

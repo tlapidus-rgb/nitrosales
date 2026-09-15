@@ -8,10 +8,15 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-07-02 — Sesión Arredo/Pixel. Agregados **BP-PIXEL-CHANNEL-ROLLUP**
+> **Última actualización**: 2026-09-14 — Revisión multiagente de `fix/expansion-gate-e0`. Agregado
+> **BP-REVISION-0914** con los 37 hallazgos que la revisión dejó abiertos (detalle completo en
+> `docs/REVISION-MULTIAGENTE-2026-09-14.md`). **R-01 es lo único que puede estar afectando
+> producción hoy** y necesita que alguien mire si `SYNC_KEY` existe en Vercel.
+>
+> _(Anterior: 2026-07-02 — Sesión Arredo/Pixel. Agregados **BP-PIXEL-CHANNEL-ROLLUP**
 > (backfill masivo del rollup de funnel-por-canal), **BP-NEON-CAPACITY** (evaluar tier de Neon a la escala
 > de Arredo) y **BP-PIXEL-AUDIT** (endurecimiento post-auditoría, ver `PLAN_PIXEL_HARDENING.md`). Antes:
-> **BP-DASH-SEC** (deuda de seguridad del dashboard público del afiliado).
+> **BP-DASH-SEC** (deuda de seguridad del dashboard público del afiliado).)_
 >
 > _(Anterior: 2026-06-12 — Agregado **BP-ROLLUPS-001**: endpoint admin `setup-pixel-rollups`
 > (crea hll + 7 tablas rollup + backfill chunked, idempotente y resumible) que destraba el BLOCKER #1 del
@@ -22,6 +27,106 @@
 > _(Anterior: 2026-05-02 noche tarde — Sesion 60 EXT-2 BIS. 5 bugs: unificacion Funnel+Conversion por Canal a
 > first-touch, fix guard marketplace prefijos, cron VTEX 30 min, recuperacion autonomia Claude via WebFetch,
 > tooltips por modulo. Pendientes BP-S60-002/004/005 sin cambios.)_
+
+---
+
+## 🚧 BP-REVISION-0914 — Lo que dejó abierto la revisión multiagente de la branch (2026-09-14)
+
+Nueve revisiones independientes sobre `fix/expansion-gate-e0`, con los 127 archivos no-test
+repartidos en lotes disjuntos (cobertura demostrada: 127/127). El detalle completo, con
+`archivo:línea` y el escenario de falla de cada hallazgo, está en
+**`docs/REVISION-MULTIAGENTE-2026-09-14.md`**. Acá queda lo que **no se arregló**, para que no se
+pierda.
+
+### 🔴 Afecta producción HOY (no es de la branch)
+
+| # | Qué | Estado |
+|---|---|---|
+| **R-01** | **Cinco crons se abren mandando *nada*.** `if (syncKey !== process.env.SYNC_KEY)`: si la env no está seteada, `undefined !== undefined` es `false` y **pasa**. Con una clave *incorrecta* devuelve 401, así que ningún escáner de claves lo encuentra. Un `curl` pelado a `/api/cron/anomalies` enumera todas las orgs y dispara los mails de anomalías y digest a **todos** los clientes. Afecta `ads-utm-audit`, `anomalies`, `digest`, `exchange-rates`, `inflation-index` | ⬜ **Pendiente de confirmar si `SYNC_KEY` existe en Vercel.** No figura en `.env.example` ni en `vercel.json`. El arreglo es agregar `!syncKey \|\|` a la condición, en los cinco |
+
+### 🟠 Seguridad de la branch
+
+| # | Qué | Nota |
+|---|---|---|
+| **R-02** | **SQL injection en `admin/validate-orders-count:43`**: `?source=` entra crudo a tres `$queryRawUnsafe`. Requiere sesión de staff, pero convierte el set acotado de operaciones admin en lectura/escritura libre de toda la base | Es el **único** parámetro crudo que queda: el barrido de las 854 llamadas raw dio limpio salvo ésta |
+| **R-03** | **`aura/creators/[id]/send-password` no autentica.** Único gate: `getOrganization(req)`, que no es auth. Hermano exacto de `admin/aura-resend-onboarding` (ya arreglado) y manda el mismo mail con la misma función | Quedó afuera porque el test barre `/api/admin/**` y éste vive en `/api/aura/**`. Con el mismo gate hay otras 13 rutas de escritura bajo `/api/aura/**` |
+| **R-04** | **La clave del creador se puede romper a fuerza bruta**: `public/influencers/[slug]/[code]/verify` no tiene rate limit; su hermano sí. Link público, clave elegida por el creador, SHA-256 sin sal, y según `influencer-secretos.ts` los creadores la reusan en otros lados | — |
+| **R-05** | **Un preview puede filtrar `ADMIN_API_KEY` a un host arbitrario.** Seis rutas pasan `selfFetchBaseUrl(req.headers.get("origin"))`, y `Origin` lo controla quien hace el request. En no-producción `selfFetchBaseUrl` devuelve ese origin sin validar | Introducido por el arreglo del incidente 2026-09-06. En producción no aplica (gana `NEXTAUTH_URL`). El JSDoc documenta `req.nextUrl.origin`, que sí es confiable. Ver `#S62-ARREGLE-UN-PROBLEMA-INTRODUCIENDO-OTRO` |
+| **R-06** | **La rotación de secretos no separa nada mientras existan dos endpoints.** `admin/debug-vtex-hook-config` y `admin/vtex-configure-broadcaster` devuelven la URL del webhook de VTEX, que lleva `?key=<NEXTAUTH_SECRET>` adentro, a quien tenga `ADMIN_API_KEY` | **Sumar al plan de rotación** (R-C07/08/09). Hoy es circular porque los dos secretos son el mismo literal |
+
+### 🟡 Datos del cliente
+
+| # | Qué |
+|---|---|
+| **R-07** | **El borrado completo no borra la organización.** La fila de `organizations` no tiene columna `organizationId`, así que ningún descubrimiento la alcanza: quedan `settings` con **API keys, roles custom e invitaciones**. `wipe-account` sí la borraba. Lo mismo con `onboarding_requests` (CUIT, mail, teléfono, WhatsApp, credenciales de VTEX, token de Meta) |
+| **R-08** | **`wipe-account` sigue vivo y conviven los dos.** El commit dice "reemplaza wipe-account" y no lo borró. El viejo borra `organizations` y `onboarding_requests` pero deja 26 tablas; el nuevo es al revés. Cada uno está completo donde el otro falla, y nada en el código lo dice |
+| **R-09** | **`que-queda` reporta un número inflado**: `QUE_BORRA_HOY` está hardcodeado con 9 tablas sobre un claim falso (wipe-account nombra 38 y 7 de las 8 "ausentes" sí están). Y `TODAS_LAS_TABLAS` es código muerto, así que `borrar-todo` nunca calcula lo que queda afuera |
+| **R-10** | **`SE_CONSERVAN` es configuración muerta**: filtra sobre tablas que por construcción tienen `organizationId`, y las cuatro que lista no la tienen → `seConservan` es **siempre `[]`**. `email_log.toEmail` y `leads.contactEmail/Phone` sobreviven al borrado sin mencionarse en ninguna respuesta |
+| **R-11** | **`esColumnaSensible` / `limpiarFila` no tienen un solo test**, y son lo único que impide que una credencial salga en la exportación que se le entrega al cliente. Agujeros concretos: `appKey` no matchea `/apikey/i` (es el nombre literal de la credencial VTEX acá), y faltan `salt` y `clave` |
+
+### 🟡 Plata y números
+
+| # | Qué |
+|---|---|
+| **R-12** | **La facturación cuenta órdenes de más**: `costos/consultas.ts` usa `COUNT(*)` donde todo el resto del repo usa `COUNT(DISTINCT COALESCE("packId","externalId"))`. "Órdenes/mes" es una de las seis dimensiones que se **facturan**, y sale más alta que la que el cliente ve en su dashboard |
+| **R-13** | **El tope de gasto de Aurum puede no frenar nunca.** La cuota se mide con `usdConocido`, que excluye los modelos sin precio en la tabla. Un id de modelo nuevo sin agregar a `precios-de-modelos.ts` cuesta **$0 contra el tope**, y reporta `medicionDisponible: true` — un fail-open disfrazado de medición |
+| **R-14** | **El piso de volumen de las anomalías está bajo por √2**: `1/√n` es el desvío de *un* conteo, pero se evalúa la diferencia entre *dos*. Más que la facturación no es un conteo sino una suma de tickets. Efecto: con 45+ órdenes la corrección es inerte y el umbral queda en ~1σ → un HIGH *"Facturación cayó 30 %"* falso ~1 semana de cada 6. Tres defectos hermanos: `base = max()` es la base equivocada para las reglas de **suba**, CPA y ROAS están atados a `orders` cuando su ruido viene de las conversiones de ads, y la regla de margen no tiene ninguna corrección (dispara "el margen se comprimió" cuando no hubo ventas) |
+| **R-15** | **Aurum opina del margen sin saber la cobertura**: el snapshot que se le publica deja afuera `cogsCoverage` y `avisoDeCostos`. La tarjeta muestra "⚠ sólo 25 % de los productos"; el asistente contesta "tu margen es 78 %, muy sano" |
+
+### 🟡 Telemetría y trabajo que se pierde
+
+| # | Qué |
+|---|---|
+| **R-16** | **E-20 vigila 7 de los 29 crons, y `refresh-pixel-first-source` —el que la motivó— no late.** Si vuelve a salir de `vercel.json`, el detector sigue diciendo `"nunca-latió"`: sin transición de estado no hay señal. Y los 22 restantes salen en rojo en cada mail, cada 6 h, para siempre. El test que falta es de una línea: cruzar `schedulesDeVercel()` contra las routes que laten |
+| **R-17** | **Errores que se reportan como éxito**: fallo total de rollups → `ok: true` + HTTP 200 (antes era 500); `post-backfill-finalize` → `ok: true` con los 4 pasos fallados; `evaluarChecklist` → `listo: true` cuando no sabe nada; `que-queda` puede decir "no queda ningún dato" con tablas llenas si la query de dependencias falla |
+| **R-18** | **Una org nueva cuyos rollups fallan desde el día uno nunca alerta**: el chequeo de frescura enumera desde la **tabla de salida**, así que sin filas no aparece en el `GROUP BY` |
+| **R-19** | **Cursores**: tres crons ignoran `persiste` (una corrida manual pisa el cursor del incremental y las orgs de atrás pierden su digest esa semana); `guardarCorte` no corre si la lambda muere por presupuesto; `refresh-gold-attribution-channel` no tiene try/catch por org y una org que falle siempre clava el cursor **y deja a las anteriores sin refrescar** |
+| **R-20** | **El control de admisión del backfill no es atómico**: `contarJobsActivos` y `reclamarProximoJob` no comparten lock, y `SKIP LOCKED` hace que la segunda invocación se lleve **otro** job. Dos invocaciones simultáneas corren dos backfills con `maxConcurrentes = 1` |
+| **R-21** | **`ml-processor` descarta órdenes pasado el offset 1000**, en silencio. La ventana de 7 días "esquiva el límite de MELI" sólo si el vendedor factura <142 órdenes/día; Arredo hace ~1.600 por semana |
+| **R-22** | **`reattribute` perdió la mitad del trabajo**: `take: 2000` sin `skip`, sin cursor, sin `orderBy` y sin `hasMore`. El comentario dice "el caller repite"; repetir devuelve las mismas 2.000. Responde `success: true`. Antes procesaba todo |
+
+### 🟡 Onboarding
+
+| # | Qué |
+|---|---|
+| **R-23** | **Search Console: verde en el wizard, cero conexiones en el backend.** `NO_VIAJAN_AL_BACKEND` tiene sólo `NITROPIXEL` y el backend acepta cuatro plataformas sin GSC. Es la clase de bug que E-29 cerró, con otro disparador |
+| **R-24** | **La captura de leads no-VTEX está rota**: un prospecto de Shopify recibe un 400 pidiendo App Key y App Token — campos que la pantalla nunca mostró y que no existen para Shopify. **Sin salida desde la interfaz** |
+| **R-25** | **Un timeout de VTEX se le presenta al cliente como credenciales inválidas** (la guarda de "transitorio" busca palabras que el tester no emite en ese camino). Y problemas de **calidad de datos** —falta el rol Pricing, un SKU sin marca— bloquean el alta, mientras `readiness.ts` dice del mismo dato que no bloquea |
+| **R-26** | **El semáforo de alta da verde sin el Orders Broadcaster**, que su propio archivo describe como el paso que más duele olvidar. Y **no lo llama nadie**: no hay UI y el botón de habilitar no lo consulta |
+| **R-27** | **El tilde del pixel se puede clickear a mano** y la UI dice **"Verificado: ya recibimos datos tuyos"** sin que haya llegado un evento. La verificación depende del **reloj del navegador del visitante**, y la rama "recibió antes" da verde con cualquier evento histórico (si un deploy borra el snippet, sigue diciendo que está instalado) |
+| **R-28** | **`approve-backfill` escribe antes de abortar** (deja las conexiones en ACTIVE y después corta con 409: la org queda en la rotación de 7 crons sin estar aprobada), y **`force-complete-job` puede sacarle el producto a un cliente activo** mandándolo a `READY_FOR_REVIEW` |
+| **R-29** | **El wizard pide rango histórico de Meta Ads y Google Ads** con ETAs, lo clampea y lo persiste. No existe ningún backfill para esas dos plataformas |
+
+### 🟡 Tests que están verdes y no deberían
+
+Verificados **por mutación** (se reintrodujo el bug y el test siguió pasando). Detalle en el §9bis
+del documento de revisión.
+
+| # | Qué |
+|---|---|
+| **R-30** | **El escáner de inyección SQL tiene un typo**: `/^s*[(<]/` en vez de `/^\s*[(<]/`. `s*` matchea la letra `s`, no espacios → una inyección con un espacio antes del paréntesis pasa. Y como saltearse llamadas sólo baja el contador, el `toBeGreaterThan(0)` sigue en verde |
+| **R-31** | **`SEÑALES_DE_AUTH` incluye dos nombres de variable** (`"NEXTAUTH_SECRET"`, `"ADMIN_API_KEY"`): borrar la comparación y dejar el import deja el test verde. **38 rutas admin dependen hoy sólo de esas dos señales**, incluidas 25 `migrate-*` que corren DDL sobre producción |
+| **R-32** | Cuatro más: el guard de staff sólo tiene que **aparecer** en el layout; la aserción del `GET` del webhook de VTEX es **un comentario**; `checkStuckOnboardings` se verifica con un `toContain` sobre el archivo entero; y los bloques *"la comparación no filtra el secreto"* siguen verdes con `a === b` en lugar de `timingSafeEqual` |
+| **R-33** | **Dos promesas falsas siguen vivas**: *"Recalibración semanal"* en `bondly/ltv/page.tsx` (el test no la ve porque su regex usa un espacio literal y Prettier partió la frase), y `PREDICCIONES LTV (modelo BG/NBD)` en `lib/intelligence/handlers.ts:451` — **dentro del prompt que se le manda al asistente**, así que se lo dice al cliente. El regex busca `bgnbd\|bg_nbd` y el texto dice `BG/NBD`, con barra |
+| **R-34** | **Sin tests**: `api-cache-shared.ts`, la capa de arriba de `runRollupBackfill` (necesita Prisma), el `GET` del webhook de VTEX, y `metrics/orders/route.ts` entero (1.772 líneas, `@ts-nocheck`) |
+
+### Otros
+
+| # | Qué |
+|---|---|
+| **R-35** | **`/finanzas/estado` y `/finanzas/pulso` dicen cosas distintas del mismo margen.** `confianza-del-margen.ts` dice existir *"separado de las dos pantallas para que digan lo mismo"* y sólo `pulso` lo usa: con 0 % de costos cargados, el cliente ve "no podemos calcular el margen" en una y **"Margen 100 % — Excelente"** en la otra |
+| **R-36** | **El techo de organizaciones hay que recalcularlo** contra la restricción por invocación, corregir `porHoraGithub` (4 → 8) y la población que se mide, y poner un test que fije el **método**. Ver el recuadro de corrección en `PLAN_EXPANSION.md` |
+| **R-37** | **Encabezados que describen otra cosa que el código**: `backfill/vtex` dice dos factores de auth y hay uno; `alerts-scheduler` documenta como no arreglado un bug que esta misma branch arregló; `meli-status` dice "seis copias, 4 y 2" y son siete, 4 y 3; `techo-de-orgs` dice `Auth: staff o ?key=` 55 líneas antes de ser staff-only; `admin-key` y `webhook-key` leen el entorno con criterios opuestos y el segundo explica por qué el primero está mal |
+
+### Lo que se verificó y **está bien** (no revisar de nuevo)
+
+- **El SQL de `metrics/orders` es byte a byte idéntico a producción** — dos revisores independientes, las 72 ocurrencias. Ninguna métrica de ventas cambia.
+- **El pixel emite JavaScript byte-idéntico** — verificado por fuera del test, contra `origin/main`, carácter por carácter (62.471 = 62.471). `attribution.ts` no se tocó en toda la branch.
+- **El webhook CORE de VTEX** cambió 2 líneas y la validación nueva es equivalente a la anterior en las cuatro combinaciones posibles.
+- **Las ~45 rutas de influencers no filtran contraseñas de creadores** — barrido de las 72 rutas que tocan la tabla.
+- **El cambio de secciones a capacidades no desbloqueó ni bloqueó nada** — tabla completa de combinaciones, antes y después.
+- **Las 110 fuentes nuevas de la branch no tienen un solo `@ts-nocheck`.**
+- **No hay más bugs del tipo "variable inexistente en el `catch`"** — se escanearon los 290 archivos ciegos.
 
 ---
 

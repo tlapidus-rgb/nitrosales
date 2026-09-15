@@ -36,12 +36,23 @@
 > ⚠️ **Ojo con el snapshot del pixel:** si `pixel-script-byte-identico.test.ts` se pone rojo, el JS
 > emitido cambió. Regenerar el snapshot para que pase destruye la única red que ese archivo tiene.
 >
-> ### El techo de organizaciones: 44, medido
+> ### El techo de organizaciones: ≈2, no 44
 >
-> Medido el 2026-09-13 con `GET /api/admin/techo-de-orgs`. **44 organizaciones tamaño
-> Arredo** (146 con la mezcla actual de clientes; hoy se usa el **2,7 %** del presupuesto
-> diario). El número a citar es 44: la dispersión entre clientes es de **326×**, así que el
-> promedio no describe a ninguno.
+> ⚠️ **El 44 se retiró el 2026-09-14.** La medición era real; el método que la convertía en
+> techo estaba mal. Dividía por un presupuesto diario agregado (10 h) suponiendo que el trabajo
+> se reparte entre las invocaciones del día — y no se reparte: la unidad *(día × tabla × todas
+> las orgs)* es **indivisible** y tiene que entrar en **una** invocación de 250 s.
+>
+> Con los mismos datos y la restricción real: ocupación **~49 %** (no 2,7 %), techo **≈2**
+> tamaño Arredo (no 44), **≈8** con la mezcla actual (no 146). Un factor de 18×.
+>
+> **No citar 44 en ningún lado.** El detalle y los dos defectos secundarios del cálculo están
+> en `PLAN_EXPANSION.md` (recuadro de corrección) y en `ERRORES_CLAUDE_NO_REPETIR.md` →
+> `#S62-VERIFIQUE-LA-ARITMETICA-Y-NO-LA-PREMISA`.
+>
+> Lo que sí sigue en pie del trabajo original: la dispersión entre clientes es de **326×**, así
+> que el promedio no describe a ninguno, y los tres números que circulaban antes seguían sin
+> estar medidos.
 >
 > Los tres números que circulaban antes —8-10, 50-77, "2 grandes"— **ninguno estaba medido**:
 > salían de comentarios en el código. El costo de Arredo estaba sobreestimado 1,9× y el de El

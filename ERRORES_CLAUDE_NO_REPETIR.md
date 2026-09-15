@@ -3275,3 +3275,271 @@ dos está mal y hay que ir a ver cuál.
 `#VARIABLE-CON-DOS-DUENOS` — la causa raíz técnica fue exactamente ésa: dos definiciones de "qué
 plataformas viajan al backend", y sólo una sabía que NitroPixel se filtra. Por eso la barra podía
 decir 100 % sobre una lista vacía. El arreglo fue dejar una sola.
+
+---
+
+## Error #S62-VERIFIQUE-LA-ARITMETICA-Y-NO-LA-PREMISA
+
+**Fecha:** 2026-09-14 · **Severidad:** alta — el número equivocado se iba a comunicar como dato duro
+
+### Qué pasó
+
+Axel pidió un número real de capacidad: cuántas organizaciones aguanta el pipeline. Los tres
+números que circulaban (8-10, 50-77, ~10) salían de comentarios del código, no de mediciones. Medí
+de verdad, contra la base, y reporté **44 organizaciones tamaño Arredo**. Lo escribí en
+`PLAN_EXPANSION.md`, en `CLAUDE_STATE.md`, y lo preparé para contárselo a Tomy.
+
+Cuando Axel preguntó de dónde salía, defendí el número: la medición era real, el endpoint existía,
+los datos crudos estaban publicados. Verifiqué la aritmética —reproduje la cuenta y daba exacto— y
+di el tema por cerrado.
+
+Una revisión posterior encontró que **el método estaba mal**. El cálculo divide el trabajo por un
+presupuesto diario agregado (`invocacionesPorDia × 250 s` = 10 horas), lo que supone que el trabajo
+se puede repartir entre todas las invocaciones del día. No se puede: el runner llama
+`backfillDay(cursor, orgs, table)` **sin `deadlineAt`**, así que la unidad de trabajo es
+*(un día × una tabla × TODAS las orgs)* y es **indivisible** — entra entera en una invocación de
+250 segundos o no entra.
+
+Medí la capacidad contra una pileta de 10 horas cuando la restricción real era un balde de 250
+segundos. El techo real es **≈2**, no 44. Un factor de 18×.
+
+Y no era información oculta: el archivo de al lado (`rollup-backfill.ts:82-89`) documenta
+explícitamente que el runner no pasa `deadlineAt` **a propósito**, y hay un guard test que lo clava.
+
+### Causa raíz
+
+Verifiqué el cálculo y no el modelo. Son dos preguntas distintas:
+
+- *"¿la cuenta está bien hecha?"* — la respondí, y sí.
+- *"¿la cuenta describe el sistema?"* — no me la hice.
+
+El agravante: el módulo **declara su propia premisa en el encabezado** (*"con E-01 puesto, el límite
+deja de ser '¿entra la unidad?' y pasa a ser '¿alcanza el presupuesto del día?'"*). Leí esa frase
+como contexto y no como una afirmación a comprobar. Era exactamente la afirmación de la que dependía
+todo el resultado.
+
+Cuando un número sale de una medición real, la medición presta credibilidad a toda la cadena — y la
+parte frágil no es el dato, es la fórmula que lo convierte en conclusión.
+
+### Regla
+
+Un número medido tiene **dos** partes que verificar, y la segunda es la que importa:
+
+1. Los datos y la aritmética.
+2. **La premisa que convierte los datos en la conclusión.** Escribirla como oración, y buscar en el
+   código quién la contradice.
+
+Para un cálculo de capacidad en particular: **¿el recurso es fungible?** Sumar invocaciones,
+segundos o memoria en un pool sólo vale si el trabajo se puede partir entre ellos. Si la unidad de
+trabajo es indivisible, el techo lo fija **la unidad más grande contra el presupuesto de UNA
+corrida**, no la suma.
+
+### Prevención
+
+Antes de publicar un número que alguien va a usar para decidir:
+
+- Escribir la premisa en una oración y `grep`earla contra el repo. Acá `grep -n "deadlineAt"
+  src/lib/pixel/rollup-backfill.ts` la hubiera tumbado en diez segundos.
+- Buscar el resultado pesimista que el método descarta y preguntarse **por qué** lo descarta. El "2"
+  no apareció de la nada: es el número que el propio encabezado del módulo declaraba superado.
+- Si el módulo produce un número que va a un documento, que tenga un test que fije **el método**, no
+  sólo la aritmética.
+
+### Pattern relevante
+
+`#LA-PREMISA-NO-VERIFICADA` — emparentado con
+`#S61-LA-PROMESA-ESCRITA-COMO-ASPIRACION-Y-LEIDA-COMO-HECHO`: ahí el encabezado describía una
+intención y yo la leí como hecho consumado; acá el encabezado describía una premisa y la leí como
+contexto. En los dos casos la frase que había que comprobar era la que sonaba más establecida.
+
+---
+
+## Error #S62-EL-TEST-VERDE-QUE-NO-PUEDE-VER-LO-QUE-VINO-A-MATAR
+
+**Fecha:** 2026-09-14 · **Severidad:** alta — da cobertura aparente sobre bugs vivos
+
+### Qué pasó
+
+Una auditoría por mutación de los 61 tests de la branch encontró **seis tests verdes que no podían
+ponerse rojos**. Todos escritos por mí, todos con nombres que describen exactamente el bug que
+vinieron a impedir, y en al menos dos casos **el bug estaba vivo mientras el test pasaba**.
+
+Las seis caras del mismo defecto:
+
+1. **El regex no matchea el texto real por el formateo.** `promesas-del-producto.test.ts` busca
+   `/recalibración (semanal|diaria|mensual)/i` con un **espacio literal**. Prettier partió la frase
+   en dos líneas, así que el texto real es `Recalibración\r\n                semanal`. El test está
+   verde y la promesa falsa sigue en pantalla. (Y una hermana, `BG/NBD`, sobrevive en otro archivo
+   porque el regex usa `\b(bgnbd|bg_nbd)\b`, que no matchea la barra.)
+
+2. **El fixture construye algo que no existe en producción.** El `CREATE TABLE` de
+   `cursor-store.test.ts` declaraba `cursor TEXT NOT NULL` y ninguna de las columnas de latido. Toda
+   esa suite corría contra un esquema que no existe en ningún lado.
+
+3. **La lista de "señales" incluye algo que no es señal.** `gates-conectados.test.ts` contaba
+   `getOrganization` como autenticación — no lo es: sin sesión cae a un fallback de "la única org" y
+   devuelve la org igual. Un endpoint **sin ningún gate** pasaba el test. Y en otra lista contaba
+   `"NEXTAUTH_SECRET"` y `"ADMIN_API_KEY"`, que son **nombres de variable**: borrar la comparación y
+   dejar el import deja el test verde. 38 rutas admin dependen hoy sólo de esas dos señales.
+
+4. **El nombre del test afirma más que sus aserciones.** `readiness.test.ts` tiene un caso llamado
+   *"EL CASO TEVE COMPRAS: tener sólo uno de los dos no es estar listo"* que **nunca assertea
+   `listo`** — que vale `true`. El nombre dice lo contrario de lo que el código hace.
+
+5. **La aserción es un comentario.** `webhook-vtex-clave-rotable.test.ts` verifica que el `GET` del
+   webhook no pida clave con un `toContain("Allow GET without key for VTEX validation")`, que es el
+   texto de un comentario. Ponerle autenticación real al `GET` deja el archivo verde.
+
+6. **El guard sólo tiene que aparecer.** `admin-rutas-gateadas.test.ts` da por gateado cualquier
+   layout que **mencione** `isInternalUser`. Cambiar `if (!allowed) notFound()` por `void allowed`
+   deja el test verde.
+
+Además, un guard de seguridad con un typo: el escáner de inyección SQL de
+`backfill-vtex-hardening.test.ts` usa `/^s*[(<]/` en vez de `/^\s*[(<]/`. `s*` matchea la letra `s`,
+no espacios — una inyección escrita con un espacio antes del paréntesis pasa.
+
+### Causa raíz
+
+Todos comparten una misma forma: **el test tiene una manera de pasar que no depende del
+comportamiento que dice proteger.** Un regex que el formateo evade, un fixture que difiere del
+esquema real, una lista de señales demasiado generosa, un nombre que promete más que la aserción, un
+`toContain` que puede satisfacer un comentario.
+
+Y todos se escribieron en el mismo movimiento que el arreglo, cuando el código ya estaba bien. Ahí
+el test nace verde y **el verde no prueba nada**: no se vio nunca en rojo por el motivo correcto.
+
+### Regla
+
+**Un test de regresión no está terminado hasta que se lo vio rojo por el motivo correcto.**
+
+El procedimiento, sin excepciones, para todo test que protege contra un bug:
+
+1. Reintroducir el bug (mutación real sobre el archivo).
+2. Correr el test y confirmar que se pone rojo **y que el mensaje nombra el archivo correcto**.
+3. Restaurar y confirmar verde.
+
+Y al escribir la aserción:
+
+- Sobre texto que pasa por un formateador, **nunca un espacio literal**: normalizar
+  (`.replace(/\s+/g, " ")`) antes de buscar.
+- Un fixture de base **importa la DDL real**, no una copia.
+- Una lista de "señales" se queda corta antes que generosa: es preferible que falle de más y obligue
+  a mirar.
+- El nombre del test es una promesa: si dice "no está listo", tiene que haber un
+  `expect(...listo).toBe(false)`.
+- Buscar comportamiento, no texto. Si hay que mirar el fuente, mirar **código sin comentarios** y
+  pedir que el resultado se **use** (`/isInternalUser\s*\(/` **y** `/notFound\s*\(/`), no que aparezca.
+
+### Prevención
+
+Cuando el arreglo y su test entran juntos, el test nunca vio el bug. En ese caso la mutación no es
+opcional: es la única evidencia que existe.
+
+Para los tests que ya están: una pasada de mutación sobre los que protegen auth, borrado de datos y
+dinero, que es donde un falso verde cuesta caro.
+
+### Pattern relevante
+
+`#EL-TEST-ESTABA-MAL-NO-EL-CODIGO` — cuarta, quinta y sexta aparición. Contiene y generaliza a
+`#S61-EL-TEST-DE-SOURCE-LEE-MIS-PROPIOS-COMENTARIOS` y a `#REGEX-DE-TEST-DEMASIADO-ESTRECHA`.
+
+---
+
+## Error #S62-ARREGLE-UN-PROBLEMA-INTRODUCIENDO-OTRO
+
+**Fecha:** 2026-09-14 · **Severidad:** alta — el arreglo abrió una fuga de credencial
+
+### Qué pasó
+
+El incidente del 2026-09-06 fue que un deployment de preview le pegó a **producción**, porque siete
+rutas armaban su URL con `process.env.NEXTAUTH_URL || "https://app.nitrosales.ai"` y `NEXTAUTH_URL`
+está configurada en Vercel para todos los entornos con el valor de producción.
+
+Lo arreglé haciendo que cada ruta resolviera su origen real, con
+`selfFetchBaseUrl(req.headers.get("origin"))`. Escribí el guard, lo verifiqué por mutación con tres
+formas del bug, y lo di por cerrado.
+
+**`Origin` es un header que manda el navegador: lo controla quien hace el request.** Y en
+no-producción `selfFetchBaseUrl` hace `if (origin) return origin` sin validar nada. Así que un
+staff logueado que abra una página hostil hace que el server se auto-invoque contra el host del
+atacante — con `ADMIN_API_KEY` en la querystring.
+
+El JSDoc de la función documenta el parámetro como `req.nextUrl.origin`, que sí es confiable (Vercel
+valida el Host). Seis de los ocho call sites pasan otra cosa. La documentación correcta estaba
+escrita y no la leí.
+
+### Causa raíz
+
+Cambié la fuente del dato sin preguntarme **quién la controla**. `NEXTAUTH_URL` es una variable de
+entorno: la controla el que despliega. El header `Origin` lo controla el que hace el request. Pasar
+de una a otra no es un detalle de implementación, es mover el dato del lado confiable al lado no
+confiable de la frontera.
+
+Y el guard que escribí no lo podía ver: verifica que **ninguna ruta hardcodee producción**, que era
+el bug viejo. Un guard escrito contra el bug anterior no cubre el que introduce el arreglo.
+
+### Regla
+
+Cuando un arreglo **cambia de dónde sale un dato**, preguntarse explícitamente quién controla la
+fuente nueva. Escribirlo: *"antes esto lo decidía X, ahora lo decide Y"*. Si Y es el cliente, el
+dato es no confiable aunque el problema original desaparezca.
+
+Y: el test del arreglo prueba que el bug viejo no vuelve. **No prueba que el arreglo sea correcto.**
+Son dos preguntas distintas y la segunda necesita su propio caso.
+
+### Prevención
+
+Para cualquier valor que venga de un request (`headers.get`, `searchParams.get`, el body), tratarlo
+como hostil aunque el camino requiera sesión. Si termina en una URL a la que el server le va a
+pegar, validarlo contra una allowlist antes de usarlo.
+
+### Pattern relevante
+
+`#EL-ARREGLO-TRAJO-SU-PROPIO-BUG` — emparentado con `#S53-PROD-CHANGES-SIN-DRY-RUN`.
+
+---
+
+## Error #S62-TOME-POR-CIERTO-EL-INFORME-DE-UN-SUBAGENTE
+
+**Fecha:** 2026-09-14 · **Severidad:** baja, pero contamina el documento que otros van a usar
+
+### Qué pasó
+
+Coordiné once revisiones en paralelo sobre la branch. Verifiqué a mano los hallazgos más graves de
+cada informe antes de reportarlos — y después, al consolidar el documento, copié una lista de
+"módulos sin tests" de uno de los informes **sin comprobarla**.
+
+Tres de los cinco módulos **sí tenían tests**, buenos y agregados por la misma branch:
+`techo-de-orgs.test.ts` (143 líneas), `warm-plan.test.ts` (162) y `first-source-repair.test.ts`
+(257). Lo detectó otro revisor, no yo.
+
+Es exactamente lo que les había pedido a ellos que no hicieran: *"no inventes hallazgos, y separá lo
+confirmado de lo sospechado"*.
+
+### Causa raíz
+
+Apliqué el escrutinio a los hallazgos **graves** y lo bajé para los que sonaban administrativos. Una
+lista de archivos sin tests parece un dato de inventario, no una afirmación — pero es igual de
+verificable y de falseable que cualquier otra, y cuesta un `ls`.
+
+El volumen ayudó: con seis informes y ~65 hallazgos, el costo marginal de verificar uno más se
+siente alto justo cuando el documento se está cerrando.
+
+### Regla
+
+Un informe de subagente es **evidencia, no conclusión**, y eso vale para todas sus líneas, no sólo
+para las alarmantes. Lo que entra a un documento que otros van a usar se verifica, aunque sea
+aburrido.
+
+Las afirmaciones baratas de comprobar (existe / no existe un archivo, cuántas líneas, si un símbolo
+aparece) **se comprueban siempre**: cuestan un comando.
+
+### Prevención
+
+Al consolidar, marcar cada afirmación con su origen (`✔` verificada por mí / `—` reportada). Lo que
+no llegue a verificarse va marcado como del revisor, no en voz propia.
+
+### Pattern relevante
+
+`#LA-FICHA-ESCRITA-LEYENDO-EL-RUNBOOK` — misma familia: escribir como hecho algo que salió de una
+fuente secundaria sin ir a la primaria.

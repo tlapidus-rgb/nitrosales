@@ -21,6 +21,26 @@
 | Tests nuevos en la branch | 60 archivos (`git diff --name-status origin/main...HEAD`) |
 | Guards de build | `order-contract`, `serve-gold-first`, `ts-nocheck` — los 3 en verde |
 
+## La revisión multiagente (2026-09-14) — `docs/REVISION-MULTIAGENTE-2026-09-14.md`
+
+Nueve revisiones independientes, con los 127 archivos no-test repartidos en lotes **disjuntos y
+exhaustivos** (cobertura demostrada con un script: 127/127, cero sin asignar). **37 hallazgos
+abiertos**, en `BACKLOG_PENDIENTES.md` → `BP-REVISION-0914`.
+
+Los cinco que bloquean el merge: el **techo de organizaciones estaba 18× inflado** (ver la
+corrección en `PLAN_EXPANSION.md`), un preview puede **filtrar `ADMIN_API_KEY`** a un host
+arbitrario, el **borrado completo no borra la organización** (`wipe-account` sí lo hacía), **Search
+Console da verde sin crear conexiones**, y la **captura de leads no-VTEX está rota**.
+
+Y uno que **no es de esta branch y afecta producción hoy**: cinco crons se abren mandando *nada*,
+porque `undefined !== undefined` es `false`. Pendiente de confirmar si `SYNC_KEY` existe en Vercel.
+
+Lo que **se verificó y está bien**, para no revisarlo de nuevo: el SQL de `metrics/orders` es byte a
+byte idéntico a producción (dos revisores, 72 ocurrencias), el pixel emite JS byte-idéntico
+(verificado por fuera del test, 62.471 = 62.471), las ~45 rutas de influencers no filtran
+contraseñas de creadores, el cambio de secciones a capacidades no movió ningún acceso, y las 110
+fuentes nuevas de la branch no tienen un solo `@ts-nocheck`.
+
 ## La revisión con ojos frescos (2026-09-13) — commit `3560d31b`
 
 Repaso completo de la branch antes de mergear. **9 hallazgos**, cada uno verificado por mutación:
