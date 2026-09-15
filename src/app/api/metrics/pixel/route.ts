@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 // Timezone: Argentina (UTC-3)
 // ══════════════════════════════════════════════════════════════
 
+import { Prisma } from "@prisma/client";
+import { queryWithPreviewPlan } from "@/lib/pixel/preview-query-plan";
 import { createPixelTrace } from "@/lib/pixel/performance-trace";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
@@ -987,7 +989,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // visitantes con PAGE_VIEW cuyo first_touch GLOBAL = source, en la ventana; sin
       // sobre-conteo). purchases desde pixel_attributions (tabla chica) cruzado contra
       // la dimensión pixel_visitor_first_source (first_source inmutable por visitante).
-      trace.run("$queryRaw:L979", () => prisma.$queryRaw`
+      trace.run("$queryRaw:L979", () => queryWithPreviewPlan("sourceConversion", Prisma.sql`
         WITH visitor_to_orders AS (
           SELECT DISTINCT pa."visitorId" as pv_id, o.id as order_id
           FROM orders o
@@ -1054,7 +1056,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         -- conserva el resto (ver más abajo). El 200 es sólo un tope de seguridad:
         -- la cardinalidad real es ~26 sources por org.
         LIMIT 200
-      `) as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
+      `, daysInPeriod >= 28)) as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — device del visitante atribuido.
       // CRITICAL: pa."visitorId" guarda pv.id (cuid Prisma), NO pv.visitorId (UUID cookie).
@@ -1064,7 +1066,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // → superaba el timeout de 25s y la página crasheaba en 30 días. Ahora usa
       // pv."deviceTypes"[1] (el device del visitante, que ya estaba como fallback) →
       // simple JOIN+agregación, sub-segundo. Uses crDateFrom (piso de cobertura del pixel).
-      trace.run("$queryRaw:L1056", () => prisma.$queryRaw`
+      trace.run("$queryRaw:L1056", () => queryWithPreviewPlan("ordersByDevice", Prisma.sql`
         SELECT
           COALESCE(pv."deviceTypes"[1], 'unknown') as device,
           COUNT(DISTINCT pa."orderId")::int as orders,
@@ -1085,7 +1087,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY orders DESC
-      `) as Promise<Array<{ device: string; orders: number; revenue: number }>>,
+      `, daysInPeriod >= 28)) as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
       // 25. Product viewers — rollup pixel_daily_product (HLL de visitantes por producto).
       // Usa crDateFrom (piso de cobertura del pixel) como límite inferior del rango.

@@ -11,7 +11,7 @@ function sql(text) {
   const ast=ts.createSourceFile(path,text,ts.ScriptTarget.Latest,true);
   const queries=[];
   function walk(n) {
-    if(ts.isTaggedTemplateExpression(n)) queries.push(n.getText(ast).replace(/\s+/g,' ').trim());
+    if(ts.isTaggedTemplateExpression(n)) queries.push(n.getText(ast).replace(/^Prisma\.sql/, 'prisma.$queryRaw').replace(/\s+/g,' ').trim());
     ts.forEachChild(n,walk);
   }
   walk(ast); return queries.sort();
