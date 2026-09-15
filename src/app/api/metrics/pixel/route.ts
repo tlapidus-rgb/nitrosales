@@ -1401,7 +1401,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // NO corre (el guard queda trabado). waitUntil mantiene viva la función hasta
       // que la promesa resuelve. Patrón ya usado en otros endpoints del repo.
       waitUntil(
-        trace.run("$queryRaw<Array<{ c: number }>>`\n          SELECT COUNT(*)::int as c FROM pixel_events WHERE \"organizationId\" = ${ORG_ID}\n        `\n          .then((r) => { _allTimeEventsCount.set(ORG_ID, { count: r[0]?.c ?? 0, at: Date.now() }); })\n          .catch(() => { /* no romper el dashboard si el refresh falla */ })\n          .finally:L1393", () => prisma.$queryRaw<Array<{ c: number }>>`
+        trace.run("allTimeEventsCount", () => prisma.$queryRaw<Array<{ c: number }>>`
           SELECT COUNT(*)::int as c FROM pixel_events WHERE "organizationId" = ${ORG_ID}
         `
           .then((r) => { _allTimeEventsCount.set(ORG_ID, { count: r[0]?.c ?? 0, at: Date.now() }); })
