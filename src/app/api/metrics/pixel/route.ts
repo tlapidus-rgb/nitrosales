@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 
 import { Prisma } from "@prisma/client";
-import { queryWithPreviewPlan } from "@/lib/pixel/preview-query-plan";
 import { createPixelTrace } from "@/lib/pixel/performance-trace";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
@@ -989,75 +988,10 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // visitantes con PAGE_VIEW cuyo first_touch GLOBAL = source, en la ventana; sin
       // sobre-conteo). purchases desde pixel_attributions (tabla chica) cruzado contra
       // la dimensión pixel_visitor_first_source (first_source inmutable por visitante).
-      trace.run("$queryRaw:L979", () => queryWithPreviewPlan("sourceConversion", Prisma.sql`
-        WITH visitor_to_orders AS (
-          SELECT DISTINCT pa."visitorId" as pv_id, o.id as order_id
-          FROM orders o
-          JOIN pixel_attributions pa ON pa."orderId" = o.id
-          WHERE pa."organizationId" = ${ORG_ID}
-            AND o."organizationId" = ${ORG_ID}
-            AND pa.model = CAST(${selectedModel} AS "AttributionModel")
-            AND o."orderDate" >= ${dateFrom}
-            AND o."orderDate" <= ${dateTo}
-            AND ${ordersValidWhere("o")}
-            AND o."totalValue" > 0
-            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-            AND o.source IS DISTINCT FROM 'MELI'
-            AND o.channel IS DISTINCT FROM 'marketplace'
-            AND o."externalId" NOT LIKE 'FVG-%'
-            AND o."externalId" NOT LIKE 'BPR-%'
-        ),
-        src_visitors AS (
-          SELECT first_source as source,
-            hll_cardinality(hll_union_agg(pv_visitors_hll))::int as visitors
-          FROM pixel_daily_source
-          WHERE "organizationId" = ${ORG_ID}
-            AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-            AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          GROUP BY 1
-        ),
-        src_purchases AS (
-          -- ⚠️ LEFT JOIN, no INNER. Es el MISMO bug que se arregló en
-          -- rollup-backfill.ts (ver el comentario largo de su rollup #6), que
-          -- acá seguía vivo en el otro camino: el rollup ya mandaba a los
-          -- visitantes sin canal a 'sin_clasificar' vía COALESCE, pero este
-          -- CTE los descartaba.
-          --
-          -- Resultado medido el 2026-07-22: el bucket mostraba 21.139 VISITAS y
-          -- CERO COMPRAS. No es que no compren — es que sus compras se caían de
-          -- la tabla. Y un canal con visitas y sin ventas se lee como basura,
-          -- que es justo lo que hizo que el bucket pareciera peor de lo que es.
-          --
-          -- ⚠️ Limitación conocida que este fix NO cierra: src_visitors lee el
-          -- rollup MATERIALIZADO y esto lee la dimensión EN VIVO. Un visitante
-          -- resuelto después del último rollup tiene sus visitas en el bucket y
-          -- sus compras ya en su canal real. El desvío se achica con cada
-          -- corrida del cron; no se elimina.
-          SELECT COALESCE(d.first_source, 'sin_clasificar') as source,
-                 COUNT(DISTINCT vto.order_id)::int as purchases
-          FROM visitor_to_orders vto
-          LEFT JOIN pixel_visitor_first_source d
-            ON d."organizationId" = ${ORG_ID} AND d."visitorId" = vto.pv_id
-          GROUP BY 1
-        )
-        SELECT
-          COALESCE(sv.source, sp.source) as source,
-          COALESCE(sv.visitors, 0)::int as visitors,
-          COALESCE(sp.purchases, 0)::int as purchases
-        FROM src_visitors sv
-        FULL OUTER JOIN src_purchases sp ON sv.source = sp.source
-        ORDER BY visitors DESC
-        -- ⚠️ NO cortar en 10 acá (bug encontrado con TeVe Compras, 2026-07-21).
-        -- El plegado de alias (fb→meta, adwords→google) ocurre DESPUÉS, en JS. Con
-        -- LIMIT 10 sobre los sources CRUDOS, un canal partido en variantes que
-        -- individualmente rankean 12º-30º no entraba nunca, aunque plegado fuera
-        -- el segundo. Y lo que quedaba afuera desaparecía sin dejar rastro: la
-        -- columna "Visitantes" no sumaba el total y nada en la UI lo decía.
-        -- El corte para mostrar se hace al final, con un bucket "otros" que
-        -- conserva el resto (ver más abajo). El 200 es sólo un tope de seguridad:
-        -- la cardinalidad real es ~26 sources por org.
-        LIMIT 200
-      `, daysInPeriod >= 28)) as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
+      // Se carga después del dashboard desde /api/metrics/pixel/rate-summary.
+      // En 30 días este join tardaba 75s y bloqueaba todos los KPI aunque la tabla
+      // de conversión está al final de la página.
+      Promise.resolve([]) as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — device del visitante atribuido.
       // CRITICAL: pa."visitorId" guarda pv.id (cuid Prisma), NO pv.visitorId (UUID cookie).
@@ -1067,29 +1001,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // → superaba el timeout de 25s y la página crasheaba en 30 días. Ahora usa
       // pv."deviceTypes"[1] (el device del visitante, que ya estaba como fallback) →
       // simple JOIN+agregación, sub-segundo. Uses crDateFrom (piso de cobertura del pixel).
-      trace.run("$queryRaw:L1056", () => queryWithPreviewPlan("ordersByDevice", Prisma.sql`
-        SELECT
-          COALESCE(pv."deviceTypes"[1], 'unknown') as device,
-          COUNT(DISTINCT pa."orderId")::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY orders DESC
-      `, daysInPeriod >= 28)) as Promise<Array<{ device: string; orders: number; revenue: number }>>,
+      Promise.resolve([]) as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
       // 25. Product viewers — rollup pixel_daily_product (HLL de visitantes por producto).
       // Usa crDateFrom (piso de cobertura del pixel) como límite inferior del rango.

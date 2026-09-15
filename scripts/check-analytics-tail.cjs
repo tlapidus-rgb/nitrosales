@@ -16,16 +16,10 @@ function sql(text) {
   }
   walk(ast); return queries.sort();
 }
-// First-event lookup is the only intentional SQL change since the tail baseline.
-const expectedSql = sql(before).map(query => {
-  if (query.includes('WITH visitor_to_orders AS') || query.includes('COALESCE(pv."deviceTypes"[1]')) {
-    const scoped = query.replace('pa.model::text = ${selectedModel}', 'pa.model = CAST(${selectedModel} AS "AttributionModel")');
-    return query.includes('WITH visitor_to_orders AS')
-      ? scoped.replace('WHERE pa."organizationId" = ${ORG_ID}', 'WHERE pa."organizationId" = ${ORG_ID} AND o."organizationId" = ${ORG_ID}')
-      : scoped.replace('WHERE pa."organizationId" = ${ORG_ID} AND o."orderDate"', 'WHERE pa."organizationId" = ${ORG_ID} AND o."organizationId" = ${ORG_ID} AND o."orderDate"');
-  }
-  return query;
-}).map(query => query.replace(
+// Normalize intentional query changes before comparing the stable analytics tail.
+const expectedSql = sql(before).filter(query =>
+  !query.includes('WITH visitor_to_orders AS') && !query.includes('COALESCE(pv."deviceTypes"[1]')
+).map(query => query.replace(
   'SELECT MIN(timestamp) as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID}',
   'SELECT timestamp as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID} AND timestamp IS NOT NULL ORDER BY timestamp ASC LIMIT 1'
 )).sort();

@@ -274,6 +274,15 @@ interface DiscrepancyData {
   dailyTrend: Array<{ day: string; pixelRevenue: number; platformRevenue: number; spend: number; delta: number }>;
 }
 
+interface ConversionSummaryData {
+  range: string;
+  conversionRates: {
+    byChannel: Array<{ source: string; visitors: number; purchases: number; revenue: number; cr: number; channelsMerged?: number }>;
+    byDevice: Array<{ device: string; visitors: number; orders: number; revenue: number; cr: number }>;
+  };
+  meta: { pixelInstalledAt?: string | null; crDateFrom?: string; crDateAdjusted?: boolean };
+}
+
 // NitroScoreData type removed — NitroScore lives in /pixel
 
 // ── Count-up hook ──
@@ -469,6 +478,8 @@ export default function AnalyticsPage() {
   // Data states
   const [pixelData, setPixelData] = useState<PixelData | null>(null);
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyData | null>(null);
+  const [conversionSummary, setConversionSummary] = useState<ConversionSummaryData | null>(null);
+  const [conversionSummaryLoading, setConversionSummaryLoading] = useState(false);
   // NitroScore removed — belongs in /pixel, not analytics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -508,6 +519,7 @@ export default function AnalyticsPage() {
   const pixelAbortRef = useRef<AbortController | null>(null);
   const discrepancyAbortRef = useRef<AbortController | null>(null);
   const funnelAbortRef = useRef<AbortController | null>(null);
+  const conversionAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch analytics resources independently ──
   // reqIdRef: guard anti-stale. Cada fetch incrementa el id; si al volver la
@@ -611,6 +623,7 @@ export default function AnalyticsPage() {
     pixelAbortRef.current?.abort();
     discrepancyAbortRef.current?.abort();
     funnelAbortRef.current?.abort();
+    conversionAbortRef.current?.abort();
   }, []);
 
   // Primera carga → no-silent (muestra el skeleton). Cambios de rango → silent
@@ -621,6 +634,35 @@ export default function AnalyticsPage() {
     fetchAll(!firstLoadRef.current);
     firstLoadRef.current = false;
   }, [fetchAll]);
+
+  // Las dos consultas de CR por canal/dispositivo son las más caras en 30 días.
+  // Se piden recién cuando los KPI del rango ya llegaron, para que una sección al
+  // final de la página no bloquee el cambio de todo el dashboard.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
+    conversionAbortRef.current?.abort();
+    const controller = new AbortController();
+    conversionAbortRef.current = controller;
+    setConversionSummaryLoading(true);
+    fetch(`/api/metrics/pixel/rate-summary?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Conversion summary: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted && data?.conversionRates) {
+          setConversionSummary({ range, conversionRates: data.conversionRates, meta: data.meta || {} });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando resumen de conversión:", error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setConversionSummaryLoading(false);
+      });
+    return () => controller.abort();
+  }, [dateFrom, dateTo, displayedRange]);
 
   // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
   useEffect(() => {
@@ -2082,11 +2124,17 @@ export default function AnalyticsPage() {
         <div id="sec-conversion" className="scroll-mt-20" />
         {(() => {
           try {
-          const cr = pixelData?.conversionRates;
-          if (!cr) return null;
+          const range = `${dateFrom}:${dateTo}`;
+          const currentSummary = conversionSummary?.range === range ? conversionSummary : null;
+          const cr = currentSummary?.conversionRates;
+          if (!cr) return (
+            <div className={`${cardStyle} p-6 text-center text-sm text-ink-60`} style={cardShadow} aria-busy={conversionSummaryLoading}>
+              Cargando tasas de conversión…
+            </div>
+          );
 
           // Pixel coverage metadata
-          const meta = pixelData?.meta;
+          const meta = currentSummary.meta;
           const crDateAdjusted = meta?.crDateAdjusted || false;
           const crDateFrom = meta?.crDateFrom ? new Date(meta.crDateFrom) : null;
           const pixelInstallDate = meta?.pixelInstalledAt ? new Date(meta.pixelInstalledAt) : null;
