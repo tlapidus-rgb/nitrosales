@@ -24,6 +24,7 @@
 // y queda solo el rollup (comportamiento original, rápido).
 // ══════════════════════════════════════════════════════════════════════════
 
+import { createPixelTrace } from "@/lib/pixel/performance-trace";
 import { prisma } from "@/lib/db/client";
 import { CHECKOUT_URL_REGEX } from "@/lib/pixel/first-source-sql";
 
@@ -53,16 +54,17 @@ function arDay(d: Date): string {
 export async function getFunnelStages(
   orgId: string,
   dateFrom: Date,
-  dateTo: Date
+  dateTo: Date,
+  trace = createPixelTrace()
 ): Promise<FunnelStages> {
   const fromDay = arDay(dateFrom);
   const toDay = arDay(dateTo);
 
   // Último día presente en el rollup (PK chica → instantáneo).
-  const mr = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
+  const mr = await trace.run("funnel.rollup_watermark", () => prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
     `SELECT MAX(day)::text AS d FROM pixel_daily_aggregates WHERE "organizationId" = $1`,
     orgId
-  );
+  ));
   const maxRoll = mr[0]?.d || null;
 
   // Desde qué día AR calculamos en vivo: el último día del rollup (parcial) en
@@ -75,7 +77,7 @@ export async function getFunnelStages(
   const liveTsLo = new Date(`${liveFromDay}T00:00:00.000-03:00`);
   liveTsLo.setUTCDate(liveTsLo.getUTCDate() - 1);
 
-  const rows = await prisma.$queryRawUnsafe<Array<FunnelStages>>(
+  const rows = await trace.run("funnel.live_merge", () => prisma.$queryRawUnsafe<Array<FunnelStages>>(
     `
     WITH rollup_part AS (
       SELECT hll_union_agg(pv_visitors_hll)      AS pv,
@@ -97,8 +99,11 @@ export async function getFunnelStages(
       WHERE "organizationId" = $1
         AND timestamp >= $4::timestamptz
         AND timestamp <= $5::timestamptz
-        AND (timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= $6::date
-        AND (timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <= $3::date
+        -- Convert bounds once instead of converting each event timestamp.
+        AND timestamp >= ($6::date::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')
+        AND timestamp < (($3::date + 1)::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')
+        -- Other event types contribute to none of the four HLL aggregates.
+        AND type IN ('PAGE_VIEW', 'VIEW_PRODUCT', 'ADD_TO_CART', 'INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING')
         AND ("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')
     )
     SELECT
@@ -113,7 +118,7 @@ export async function getFunnelStages(
     liveTsLo.toISOString(),
     dateTo.toISOString(),
     liveFromDay
-  );
+  ));
 
   const r = rows[0];
   return {

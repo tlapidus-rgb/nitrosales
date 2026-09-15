@@ -1354,7 +1354,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         }));
         return manualSpends;
       })(),
-      trace.run("getFunnelStages:L1346", () => getFunnelStages(ORG_ID, dateFrom, dateTo)),
+      trace.run("getFunnelStages:L1346", () => getFunnelStages(ORG_ID, dateFrom, dateTo, trace)),
       (async () => {
         const dailySpendResult = await trace.run("$queryRaw:L1348", () => prisma.$queryRaw`
           SELECT
