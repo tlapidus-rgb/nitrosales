@@ -47,30 +47,12 @@ const expectedSql = sql(before)
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
   .sort();
 
-const afterSql = sql(after);
-const isOrderTotals = query => query.includes('as "marketplaceOrders"') && query.includes('as "webOrders"');
-const isGoldAttributedOrders = query => query.includes('0::int as "totalOrders"') && query.includes('COUNT(*)::int as "attributedOrders"');
-const afterOrderTotals = afterSql.filter(isOrderTotals);
-const expectedOrderTotals = expectedSql.filter(isOrderTotals);
-assert.equal(afterOrderTotals.length, 1, 'core must keep one order-totals query');
-assert.equal(expectedOrderTotals.length, 1, 'baseline must contain one order-totals query');
-assert(afterOrderTotals[0].includes("TO_CHAR(DATE(\"orderDate\" AT TIME ZONE 'America/Argentina/Buenos_Aires')"), 'order totals must be grouped by local day');
-assert(afterOrderTotals[0].includes('GROUP BY 1 ORDER BY 1'), 'order totals must expose reusable daily rows');
-const goldAttributedSql = afterSql.filter(isGoldAttributedOrders);
-assert.equal(goldAttributedSql.length, 1, 'Gold path must fetch one exact attributed-order series');
-assert(goldAttributedSql[0].includes('pa.model = CAST(${selectedModel} AS "AttributionModel")'), 'attributed-order query must preserve the enum index');
-assert.deepEqual(
-  afterSql.filter(query => !isOrderTotals(query) && !isGoldAttributedOrders(query)),
-  expectedSql.filter(query => !isOrderTotals(query)),
-  'core SQL must match the approved deferred-query baseline'
-);
+assert.deepEqual(sql(after), expectedSql, 'core SQL must match the approved deferred-query baseline');
 assert(!after.includes('getFunnelStages('), 'core must not compute the dedicated funnel');
 assert(!after.includes('loadProductSkuMap('), 'core must not compute product conversion tables');
 assert(after.includes('const [manualSpends, dailySpendResult] = await Promise.all(['), 'independent post-batch reads must stay concurrent');
 assert(after.includes('$queryRawUnsafe:dailyRevenueGoldChannel'), 'channel Gold must serve daily attribution revenue');
 assert(after.includes('$queryRawUnsafe:dailyRevenueGoldSource'), 'source Gold must serve daily attribution revenue');
-assert(after.includes('$queryRaw:dailyAttributedOrders'), 'Gold coverage must use the exact live attribution count');
-assert(after.includes('totalOrderRows.map'), 'Gold coverage must reuse daily order totals');
 assert(after.includes('const pixelRevenue = dailyRevenueRows.reduce'), 'selected-model KPIs must reuse normalized daily attribution totals');
 assert(after.includes('const ordersAttributed = perDayCoverage.reduce'), 'KPI order totals must use distinct daily coverage counts');
 
