@@ -704,8 +704,33 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
       `) as Promise<Array<{ withClickId: number; total: number }>>,
 
-      // 17. Daily revenue from attributions (for revenue chart)
-      trace.run("$queryRaw:L766", () => prisma.$queryRaw`
+      // 17. Daily revenue from attributions (for revenue chart + KPI strip).
+      // Gold already contains the same model components at org/day/channel grain.
+      // Reading those few rows avoids re-joining the full attribution/order history
+      // on every cold range change (Arredo 30d: ~11s for the Bronze query).
+      // Order counts are filled from perDayCoverage below because a multi-touch
+      // order can be present in more than one Gold channel bucket.
+      (useGoldChannel
+        ? trace.run("$queryRawUnsafe:dailyRevenueGoldChannel", () => prisma.$queryRawUnsafe(`
+            SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
+              0::int AS orders
+            FROM gold_attribution_channel
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY day
+            ORDER BY day
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; revenue: number; orders: number }>>
+      : useGoldSource
+        ? trace.run("$queryRawUnsafe:dailyRevenueGoldSource", () => prisma.$queryRawUnsafe(`
+            SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
+              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
+              0::int AS orders
+            FROM gold_attribution_source
+            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+            GROUP BY day
+            ORDER BY day
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; revenue: number; orders: number }>>
+      : trace.run("$queryRaw:L766", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           SUM(pa."attributedValue")::float as revenue,
@@ -725,7 +750,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY 1
-      `) as Promise<Array<{ day: string; revenue: number; orders: number }>>,
+      `) as Promise<Array<{ day: string; revenue: number; orders: number }>>),
 
       // 18. Previous-period comparisons are loaded by /summary-tail after KPIs.
       Promise.resolve([]) as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
@@ -740,13 +765,14 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       trace.run("$queryRaw:L814", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          COUNT(DISTINCT o.id)::int as "totalOrders",
-          COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
+          COUNT(*)::int as "totalOrders",
+          COUNT(*) FILTER (WHERE EXISTS (
+            SELECT 1
+            FROM pixel_attributions pa
+            WHERE pa."orderId" = o.id
+              AND pa.model::text = ${selectedModel}
+          ))::int as "attributedOrders"
         FROM orders o
-        LEFT JOIN pixel_attributions pa
-          ON pa."orderId" = o.id
-         AND pa."organizationId" = ${ORG_ID}
-         AND pa.model::text = ${selectedModel}
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
@@ -1173,10 +1199,17 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     );
 
     // ── NEW: Process business KPIs ──
-    // dailyRevenueResult already contains one exact row per AR day for the selected
-    // model. Reuse it instead of scanning the same attributed orders a second time.
-    const pixelRevenue = dailyRevenueResult.reduce((sum, row) => sum + (row.revenue || 0), 0);
-    const ordersAttributed = dailyRevenueResult.reduce((sum, row) => sum + (row.orders || 0), 0);
+    // Gold is at day/channel grain, so its `orders` values are participations and
+    // cannot be added across channels. Coverage has the exact distinct order count
+    // at day grain; merge that count into the revenue series before computing KPIs.
+    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
+    const attributedOrdersByDay = new Map(perDayCoverage.map((d) => [d.day, d.attributedOrders]));
+    const dailyRevenueRows = dailyRevenueResult.map((row) => ({
+      ...row,
+      orders: attributedOrdersByDay.get(row.day) ?? row.orders,
+    }));
+    const pixelRevenue = dailyRevenueRows.reduce((sum, row) => sum + (row.revenue || 0), 0);
+    const ordersAttributed = perDayCoverage.reduce((sum, row) => sum + (row.attributedOrders || 0), 0);
     const attributionByModel = [{
       model: selectedModel,
       ordersAttributed,
@@ -1199,7 +1232,6 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // days have 0% and others 98% coverage), we compute an "effective coverage"
     // using only days where the pixel was active (attributedOrders > 0).
     // This avoids pre-pixel-deployment days from dragging down the ratio.
-    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
     const activeDays = perDayCoverage.filter(d => d.attributedOrders > 0);
     const effectiveTotalOrders = activeDays.reduce((s, d) => s + d.totalOrders, 0);
     const effectiveAttributedOrders = activeDays.reduce((s, d) => s + d.attributedOrders, 0);
@@ -1267,7 +1299,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
 
     // ── NEW: Daily revenue merged with daily spend ──
     const spendByDay = new Map(dailySpendResult.map((d) => [d.day, d.spend]));
-    const dailyRevenue = dailyRevenueResult.map((d) => {
+    const dailyRevenue = dailyRevenueRows.map((d) => {
       const daySpend = spendByDay.get(d.day) || 0;
       return {
         ...d,

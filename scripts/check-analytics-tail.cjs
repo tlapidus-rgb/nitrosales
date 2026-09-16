@@ -45,12 +45,19 @@ const expectedSql = sql(before)
       'LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model::text = ${selectedModel}'
     ))
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
+  .map(query => query.replace(
+    'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")::int as "attributedOrders" FROM orders o LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model::text = ${selectedModel}',
+    'COUNT(*)::int as "totalOrders", COUNT(*) FILTER (WHERE EXISTS ( SELECT 1 FROM pixel_attributions pa WHERE pa."orderId" = o.id AND pa.model::text = ${selectedModel} ))::int as "attributedOrders" FROM orders o'
+  ))
   .sort();
 
 assert.deepEqual(sql(after), expectedSql, 'core SQL must match the approved deferred-query baseline');
 assert(!after.includes('getFunnelStages('), 'core must not compute the dedicated funnel');
 assert(!after.includes('loadProductSkuMap('), 'core must not compute product conversion tables');
 assert(after.includes('const [manualSpends, dailySpendResult] = await Promise.all(['), 'independent post-batch reads must stay concurrent');
-assert(after.includes('const pixelRevenue = dailyRevenueResult.reduce'), 'selected-model KPIs must reuse daily attribution totals');
+assert(after.includes('$queryRawUnsafe:dailyRevenueGoldChannel'), 'channel Gold must serve daily attribution revenue');
+assert(after.includes('$queryRawUnsafe:dailyRevenueGoldSource'), 'source Gold must serve daily attribution revenue');
+assert(after.includes('const pixelRevenue = dailyRevenueRows.reduce'), 'selected-model KPIs must reuse normalized daily attribution totals');
+assert(after.includes('const ordersAttributed = perDayCoverage.reduce'), 'KPI order totals must use distinct daily coverage counts');
 
 console.log('PASS: core SQL parity; slow tail deferred; coverage join scoped; KPI totals reused.');
