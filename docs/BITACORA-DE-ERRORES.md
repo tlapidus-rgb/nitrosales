@@ -374,3 +374,31 @@ a leer como dato. Que sea de un mensaje de commit y no de un endpoint no lo camb
 el commit antes de correr la verificación final, va sin número.
 
 ---
+
+### E-13 · Mi chequeo de "¿ya lo hice?" volvió a leer el texto que yo había escrito
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** el script, que dijo "ya estaba" sobre algo que no
+existía
+
+**Qué hice mal:** el script que agrega los tests de R-18 arrancaba con
+`if (crudo.includes("R-18")) { console.log("ya estaba"); exit }`. Un paso antes, otro script
+**mío** había insertado en ese mismo archivo un comentario que dice `(R-18)`. Así que el
+chequeo dio verdadero y los tests no se agregaron.
+
+**Cómo se manifestó:** el script imprimió "ya estaba" y la suite siguió con los mismos 13
+tests de antes. Lo agarré porque el número no se movió.
+
+**Por qué pasó:** es **E-07 otra vez**, y E-07 es de esta misma sesión. Un chequeo de
+idempotencia que busca una cadena corta y genérica en un archivo que yo mismo acabo de editar
+con esa cadena adentro.
+
+**Qué hago distinto:** el centinela de idempotencia no puede ser el código del hallazgo —
+`R-18`, `#S62`, etc.— porque eso aparece en todos los comentarios que escribo. Tiene que ser
+algo que **sólo existe si el cambio se aplicó**: el nombre del `describe`, la firma de la
+función, el identificador nuevo.
+
+Tres apariciones del mismo patrón en un día (E-07, E-11 en su forma de "leer el formato
+equivocado", y ésta) dicen que no es distracción: es que **escribo el chequeo mirando lo que
+quiero encontrar en vez de lo que distingue los dos estados**.
+
+---

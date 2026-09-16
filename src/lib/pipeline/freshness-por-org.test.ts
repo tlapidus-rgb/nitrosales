@@ -38,10 +38,23 @@ const HORA = 3600_000;
 async function nuevaDb(colOrg: string | null) {
   db = new PGlite();
   const col = colOrg ? `"${colOrg}" text,` : "";
+  // El chequeo de frescura enumera desde el padrón de organizaciones (R-18),
+  // no desde la tabla de salida — si no, una org sin una sola fila no aparece
+  // y nunca alerta. El fixture tiene que tener la tabla que producción tiene.
+  await db.query(`CREATE TABLE "organizations" (id text PRIMARY KEY)`);
   await db.query(`CREATE TABLE gold_daily_revenue (${col} gold_updated_at timestamptz)`);
 }
 
 async function fila(org: string | null, haceHoras: number, colOrg = "organization_id") {
+  // Toda fila de una tabla vigilada pertenece a una organización que existe.
+  // Sin esto el LEFT JOIN no la encuentra y el fixture deja de parecerse a
+  // producción.
+  if (org !== null) {
+    await db.query(
+      `INSERT INTO "organizations" (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
+      [org],
+    );
+  }
   if (org === null) {
     await db.query(
       `INSERT INTO gold_daily_revenue (gold_updated_at) VALUES (NOW() - ($1 || ' hours')::interval)`,
@@ -190,5 +203,51 @@ describe("el chequeo no puede matar al cron que lo hospeda", () => {
     const r = await checkPipelineFreshness([TARGET[0], TARGET[0]], { presupuestoMs: 30_000 });
     expect(r).toHaveLength(2);
     expect(r[0].stale).toBe(true);
+  });
+});
+
+describe("R-18 — el cliente al que el pipeline NUNCA le corrió", () => {
+  // El chequeo enumeraba con un `GROUP BY` sobre la tabla vigilada. Una
+  // organización **sin una sola fila** no aparece en ese resultado: no se
+  // mide, no alerta.
+  //
+  // O sea que el chequeo que existe para avisar que algo dejó de correr era
+  // ciego justo al caso más caro: el cliente recién firmado cuyos rollups
+  // fallan desde el día uno, que abre la app y la ve vacía.
+  //
+  // Es la misma forma del bug que ya tenía el módulo con el MAX global, sólo
+  // que un escalón más abajo: la métrica se calculaba sobre los que
+  // aparecían, y quien no aparecía no existía.
+  it("una org sin una sola fila se reporta, no se ignora", async () => {
+    await nuevaDb("organization_id");
+    // Dos clientes viejos, al día.
+    await fila("org-vieja-1", 1);
+    await fila("org-vieja-2", 1);
+    // Y uno nuevo, dado de alta, sin una sola fila escrita.
+    await db.query(`INSERT INTO "organizations" (id) VALUES ('org-recien-firmada')`);
+
+    const r = await checkPipelineFreshness();
+    const fila_ = r.find((x) => x.table === "gold_daily_revenue");
+
+    expect(fila_, "la tabla tiene que aparecer en el chequeo").toBeTruthy();
+    expect(
+      fila_!.orgsSinNingunDato,
+      "la org sin datos tiene que estar listada",
+    ).toContain("org-recien-firmada");
+    expect(
+      fila_!.stale,
+      "una org a la que nunca le corrió es un problema, no un silencio",
+    ).toBe(true);
+  });
+
+  it("sin orgs sin datos, no inventa el campo", async () => {
+    await nuevaDb("organization_id");
+    await fila("org-1", 1);
+    await fila("org-2", 1);
+
+    const r = await checkPipelineFreshness();
+    const fila_ = r.find((x) => x.table === "gold_daily_revenue");
+    expect(fila_!.orgsSinNingunDato).toBeUndefined();
+    expect(fila_!.stale).toBe(false);
   });
 });

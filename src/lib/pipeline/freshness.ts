@@ -158,6 +158,17 @@ export interface FreshnessRow {
    * "quince clientes quietos" es un dato en sí mismo.
    */
   orgsSinNovedad?: number;
+  /**
+   * Organizaciones SIN UNA SOLA FILA en esta tabla.
+   *
+   * Distinto de `orgsStale`: aquéllas corrieron y se quedaron viejas, éstas
+   * **nunca corrieron**. Es el cliente recién dado de alta cuyo pipeline falla
+   * desde el dia uno — el que abre la app y la ve vacia.
+   *
+   * Antes ni se medían: la query enumeraba desde la tabla de salida, así que
+   * una org sin filas no aparecía en el GROUP BY (R-18).
+   */
+  orgsSinNingunDato?: string[];
 }
 
 /** `true` si el error de Postgres es "la relación no existe" (42P01). */
@@ -387,22 +398,59 @@ export async function checkPipelineFreshness(
       : null;
     try {
       if (orgCol) {
+        // ⚠️ SE ENUMERA DESDE EL PADRÓN DE ORGANIZACIONES, NO DESDE LA TABLA
+        // DE SALIDA (R-18).
+        //
+        // Esto era un `GROUP BY` sobre la tabla vigilada. Una organización
+        // **sin una sola fila** no aparece en el resultado, así que no se
+        // mide, así que no alerta.
+        //
+        // El escenario: cliente nuevo, sus rollups fallan desde el día uno,
+        // cero filas escritas. El chequeo de frescura —que existe justamente
+        // para avisar que algo dejó de correr— **no lo ve**, porque su forma
+        // de enumerar depende de que haya corrido al menos una vez.
+        //
+        // Y es el caso que las propias notas del repo describen como el más
+        // caro: *"el recién firmado abre la app y la ve vacía"*.
+        //
+        // El `LEFT JOIN` desde `organizations` hace que una org sin filas
+        // salga con `last = NULL`, que aguas abajo ya se trata como
+        // `missing` — el estado que sí alerta.
         const filas = await prisma.$queryRawUnsafe<
           Array<{ org: string; last: Date | null; hours: number | null }>
         >(
-          `SELECT "${orgCol}" AS org,
-                  MAX("${t.column}") AS last,
-                  EXTRACT(EPOCH FROM (NOW() - MAX("${t.column}")))/3600 AS hours
-             FROM ${t.table}
+          `SELECT o.id AS org,
+                  MAX(t."${t.column}") AS last,
+                  EXTRACT(EPOCH FROM (NOW() - MAX(t."${t.column}")))/3600 AS hours
+             FROM "organizations" o
+             LEFT JOIN ${t.table} t ON t."${orgCol}" = o.id
             GROUP BY 1`,
         );
-        const conHoras = filas
-          .map((f) => ({
-            org: String(f.org),
-            hours: f.hours != null ? Math.round(Number(f.hours) * 10) / 10 : null,
-            last: f.last,
-          }))
-          .filter((f) => f.hours != null) as Array<{ org: string; hours: number; last: Date | null }>;
+        const todas = filas.map((f) => ({
+          org: String(f.org),
+          hours: f.hours != null ? Math.round(Number(f.hours) * 10) / 10 : null,
+          last: f.last,
+        }));
+
+        // ⚠️ Las que NO tienen una sola fila se separan, NO se descartan (R-18).
+        //
+        // El `.filter(hours != null)` que había acá tiraba justo el caso que
+        // importa: una organización cuyos rollups fallan desde el día uno tiene
+        // cero filas, así que `hours` es `null` y quedaba afuera del chequeo
+        // por completo.
+        //
+        // El resultado era que el cliente recién firmado —el que abre la app y
+        // la ve vacía— es exactamente el que este chequeo no podía ver.
+        //
+        // No se mezclan con las atrasadas porque no son lo mismo: una
+        // atrasada corrió y se quedó vieja; ésta **nunca corrió**. El
+        // diagnóstico y lo que hay que ir a mirar son distintos.
+        const sinNingunDato = todas.filter((f) => f.hours == null).map((f) => f.org);
+        const conHoras = todas.filter((f) => f.hours != null) as Array<{
+          org: string;
+          hours: number;
+          last: Date | null;
+        }>;
 
         // Una organización vieja NO está atrasada si su fuente tampoco se
         // movió: un cliente sin ventas hace cuatro días no tiene nada que
@@ -430,10 +478,13 @@ export async function checkPipelineFreshness(
           refreshedBy: t.refreshedBy,
           hoursStale: peor,
           lastRefresh: masReciente ? new Date(masReciente).toISOString() : null,
-          stale: atrasadas.length > 0,
+          // Una organización sin una sola fila cuenta como problema: es un
+          // cliente al que el pipeline nunca le corrió.
+          stale: atrasadas.length > 0 || sinNingunDato.length > 0,
           missing: false,
           orgsStale: atrasadas,
           orgsSinNovedad: sinNovedad,
+          orgsSinNingunDato: sinNingunDato.length ? sinNingunDato : undefined,
           porOrg: true,
         });
         continue;
