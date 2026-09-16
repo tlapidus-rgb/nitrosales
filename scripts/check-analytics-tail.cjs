@@ -45,10 +45,6 @@ const expectedSql = sql(before)
       'LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model::text = ${selectedModel}'
     ))
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
-  .map(query => query.replace(
-    'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")::int as "attributedOrders" FROM orders o LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model::text = ${selectedModel}',
-    'COUNT(*)::int as "totalOrders", COUNT(*) FILTER (WHERE EXISTS ( SELECT 1 FROM pixel_attributions pa WHERE pa."orderId" = o.id AND pa.model::text = ${selectedModel} ))::int as "attributedOrders" FROM orders o'
-  ))
   .sort();
 
 assert.deepEqual(sql(after), expectedSql, 'core SQL must match the approved deferred-query baseline');

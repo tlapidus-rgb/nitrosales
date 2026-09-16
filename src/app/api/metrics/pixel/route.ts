@@ -765,14 +765,13 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       trace.run("$queryRaw:L814", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          COUNT(*)::int as "totalOrders",
-          COUNT(*) FILTER (WHERE EXISTS (
-            SELECT 1
-            FROM pixel_attributions pa
-            WHERE pa."orderId" = o.id
-              AND pa.model::text = ${selectedModel}
-          ))::int as "attributedOrders"
+          COUNT(DISTINCT o.id)::int as "totalOrders",
+          COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
         FROM orders o
+        LEFT JOIN pixel_attributions pa
+          ON pa."orderId" = o.id
+         AND pa."organizationId" = ${ORG_ID}
+         AND pa.model::text = ${selectedModel}
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
