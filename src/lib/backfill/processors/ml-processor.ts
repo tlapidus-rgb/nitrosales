@@ -339,10 +339,92 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     }
 
     // 6. Avanzar cursor
+
+    // ⚠️ CHOCAR CON EL LÍMITE DE MELI NO ES LO MISMO QUE TERMINAR (R-21).
+    //
+    // Estas dos condiciones hacían lo mismo: mover a la ventana anterior. Pero
+    // significan cosas opuestas.
+    //
+    //   · `offset + PAGE_SIZE >= total` → la ventana se agotó de verdad.
+    //   · `offset + PAGE_SIZE >= ML_OFFSET_MAX` → MELI no deja paginar más
+    //     allá de 1000, y **quedan órdenes sin traer**.
+    //
+    // Tratar la segunda como la primera descarta todo lo que pase del offset
+    // 1000, en silencio: el chunk devuelve `error: undefined`, el job avanza
+    // normal y termina `COMPLETED` con órdenes faltantes.
+    //
+    // El encabezado de este archivo dice que las ventanas de 7 días existen
+    // *"para esquivar el límite de MELI"*. Sólo lo esquivan si el vendedor
+    // factura menos de ~142 órdenes por día (1000 ÷ 7). Arredo hace ~1.600 por
+    // semana, así que no lo esquiva: lo choca todas las veces.
+    //
+    // La salida es partir la ventana a la mitad y reintentar, no saltearla.
+    // Con 7 días → 3 → 1 → medio día, el techo efectivo sube de 142 a ~2.000
+    // órdenes por día antes de volver a chocar.
+    const ventanaAgotada = offset + PAGE_SIZE >= total;
+    const choqueConElLimite = !ventanaAgotada && offset + PAGE_SIZE >= ML_OFFSET_MAX;
+
+    if (choqueConElLimite) {
+      const diasDeLaVentana = Math.max(
+        1,
+        Math.round(
+          (new Date(cursor.windowEnd).getTime() - new Date(windowStartIso).getTime()) /
+            (24 * 3600 * 1000),
+        ),
+      );
+
+      if (diasDeLaVentana > 1) {
+        // Se parte al medio y se reintenta desde el offset 0. Lo ya procesado
+        // no se pierde: los upserts son idempotentes por
+        // `organizationId_externalId`.
+        const mitad = new Date(
+          new Date(windowStartIso).getTime() +
+            Math.floor((diasDeLaVentana / 2) * 24 * 3600 * 1000),
+        );
+        console.warn(
+          `[ml-processor] ventana de ${diasDeLaVentana}d chocó el límite de ${ML_OFFSET_MAX} ` +
+            `de MELI (total=${total}); se parte al medio y se reintenta`,
+        );
+        return {
+          itemsProcessed: totalProcessed,
+          // El cursor lleva las TRES cosas: `{ windowStart, windowEnd, offset }`.
+          // Devolver sólo dos deja la ventana sin arranque y el chunk siguiente
+          // la reinicializa desde `job.toDate` — o sea que rehace todo desde el
+          // principio, en loop. `@ts-nocheck` en la línea 1 no lo habría dicho.
+          //
+          // La mitad nueva va de `windowStart` (el mismo) a `mitad`: se achica
+          // por el lado del final, que es el que tiene las órdenes que no
+          // entraban.
+          newCursor: {
+            windowStart: windowStartIso,
+            windowEnd: mitad.toISOString(),
+            offset: 0,
+          },
+          isComplete: false,
+        };
+      }
+
+      // Ventana de un día que igual pasa de 1000: acá MELI ya no da más sin
+      // `scroll_id`. Se reporta como ERROR en vez de seguir como si nada — es
+      // pérdida de datos y tiene que verse.
+      console.error(
+        `[ml-processor] ventana de 1 día con ${total} órdenes: más de ${ML_OFFSET_MAX}. ` +
+          `Se pierden las que pasan de ese offset.`,
+      );
+      return {
+        itemsProcessed: totalProcessed,
+        newCursor: cursor,
+        isComplete: false,
+        error:
+          `Un solo día tiene ${total} órdenes, más del límite de ${ML_OFFSET_MAX} que ` +
+          `permite paginar la API de MercadoLibre. Hace falta \`scroll_id\` para ` +
+          `traerlas todas.`,
+      };
+    }
+
     // ¿Terminamos la página actual?
-    if (offset + PAGE_SIZE >= total || offset + PAGE_SIZE >= ML_OFFSET_MAX) {
-      // Esta ventana se agotó (o choco con el límite de 1000 de MELI).
-      // Mover a la ventana anterior.
+    if (ventanaAgotada) {
+      // Esta ventana se agotó de verdad. Mover a la ventana anterior.
       const newWindowEnd = new Date(windowStartIso);
       const newWindowStart = new Date(Math.max(
         fromDate.getTime(),

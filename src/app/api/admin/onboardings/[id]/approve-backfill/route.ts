@@ -88,6 +88,47 @@ export async function POST(
     // Marcar connections como ACTIVE si están listas para sincronizar.
     // Para OAuth (ML/Google Ads): ACTIVE solo si ya hay tokens (accessToken/mlUserId).
     // Para el resto: ACTIVE directo.
+    // ⚠️ SE DECIDE ANTES DE ESCRIBIR (R-28).
+    //
+    // El orden era: poner todas las conexiones en ACTIVE → crear los jobs →
+    // si no se creó ninguno, cortar con 409. O sea que el 409 dejaba la
+    // organización **enrolada en la rotación de siete crons**
+    // (`vtex-sync-recent`, `attribution-reconcile`, `ml-sync`,
+    // `ml-missed-feeds`, `sync/chain`, `sync/ean-backfill`,
+    // `sync/cost-prices`, que filtran por `status: ACTIVE` sin mirar el
+    // onboarding) con el alta SIN aprobar. Y reaprobar no lo revierte.
+    //
+    // Un alta que el admin no pudo aprobar empezaba a consumir la base igual.
+    //
+    // La condición de abajo es la misma que decide si se crean jobs, unas
+    // líneas más abajo: hay algo que backfillear si existe una conexión de
+    // VTEX o de MELI, incluida en la selección, y con meses > 0.
+    const hayVtexParaBackfill =
+      (!selectedPlatforms || selectedPlatforms.has("VTEX")) &&
+      Number(ob.historyVtexMonths) > 0 &&
+      connections.some((c) => c.platform === "VTEX" && !(c.credentials as any)?.needsSetup);
+    const hayMlParaBackfill =
+      (!selectedPlatforms || selectedPlatforms.has("MERCADOLIBRE")) &&
+      Number(ob.historyMlMonths) > 0 &&
+      connections.some(
+        (c) => c.platform === "MERCADOLIBRE" && !(c.credentials as any)?.needsSetup,
+      );
+
+    if (!hayVtexParaBackfill && !hayMlParaBackfill) {
+      return NextResponse.json(
+        {
+          error: "No hay nada que backfillear.",
+          detalle:
+            "El cliente no tiene una conexión utilizable de VTEX ni de MercadoLibre, " +
+            "o los meses de historia quedaron en 0. Revisá las credenciales y la " +
+            "selección de plataformas antes de aprobar.",
+          nota: "No se modificó ninguna conexión: la organización sigue como estaba.",
+          onboardingId: ob.id,
+        },
+        { status: 409 },
+      );
+    }
+
     for (const c of connections) {
       const creds = (c.credentials as any) || {};
       if (creds.needsSetup) continue;
@@ -165,6 +206,10 @@ export async function POST(
     //
     // Ahora se corta acá y se le dice al admin qué falta, en vez de dejar al
     // cliente esperando algo que no existe.
+    // Red de seguridad. El caso normal ya se atajó arriba, ANTES de escribir
+    // nada; si se llega acá es porque `createBackfillJob` falló o porque
+    // había un job vivo para las dos plataformas. Las conexiones ya quedaron
+    // en ACTIVE, así que la nota de abajo dice la verdad y no la de arriba.
     if (createdJobs.length === 0) {
       return NextResponse.json(
         {
