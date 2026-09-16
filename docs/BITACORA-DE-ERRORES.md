@@ -285,3 +285,43 @@ un backslash, no va por el shell.** Y para editar un archivo del scratchpad ya e
 herramienta de edición directa es más rápida que volver a generarlo.
 
 ---
+
+### E-10 · Tres intentos para escribir un guard que distinguiera algo
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** la mutación, las tres veces
+
+**Qué hice mal:** el guard de "una org rota no secuestra la vuelta de las demás" (R-19) me
+llevó tres versiones, y cada una falló por un motivo distinto:
+
+1. **Regex con distancia fija.** `/for\s*\([\s\S]{0,400}?\btry\s*\{/` — marcó en rojo un cron
+   **correcto**, porque entre el `for` y el `try` había más de 400 caracteres. El largo del
+   cuerpo de un loop no es una propiedad que valga la pena clavar en un test.
+2. **Regex atada a nombres de variable.** Pedía `fallos|failures|console.error`, y
+   `refresh-silver-orders` anota en `results.push({ org: id, ok: false })`. Volví a marcar en
+   rojo código correcto — y es **exactamente el error que acabo de arreglar en otros seis
+   tests** (R-31: atarse al nombre en vez de a la propiedad).
+3. **Criterio demasiado laxo.** "Hay un catch en el loop" pasaba igual sin el aislamiento,
+   porque ese archivo tiene **otro** try/catch más arriba, para las reglas de canal, que hace
+   un fallback silencioso.
+
+La versión que quedó pide que algún catch **registre qué organización falló**: un catch que no
+lo sabe no sirve para operar, y el fallback de las reglas de canal no lo menciona.
+
+**Por qué pasó:** las tres veces escribí el regex mirando **el archivo que tenía adelante** en
+vez de la propiedad que quería afirmar. La 1 y la 2 lo sobre-ajustaron a la forma de un
+archivo; la 3 se quedó con algo que cualquier archivo satisface.
+
+**Qué hago distinto:** antes de escribir un guard estructural, contestar por escrito dos
+preguntas:
+
+- *"¿qué código correcto podría marcar en rojo?"* (mató a las versiones 1 y 2)
+- *"¿qué código incorrecto podría dejar en verde?"* (mató a la 3)
+
+Y probarlo **en las dos direcciones**, siempre: verde sobre todos los archivos sanos, rojo
+sobre el bug. Con una sola dirección no alcanza, y esto ya me pasó en E-03.
+
+**Lo que salvó las tres veces fue la mutación, no yo.** Es la única razón por la que no quedó
+un guard cosmético en el repo — y también la razón por la que esta entrada existe en vez de
+un commit que dice "guard agregado".
+
+---

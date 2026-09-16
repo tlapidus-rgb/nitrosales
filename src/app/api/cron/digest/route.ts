@@ -79,7 +79,10 @@ export async function GET(req: NextRequest) {
     // presupuesto corta, los de atras lo reciben en la proxima invocacion en vez
     // de no recibirlo nunca.
     const ids = orgs.map((o) => o.id);
-    const { desde } = arranqueDeLaVuelta({
+    // `persiste` NO se descarta: dice si esta corrida tiene derecho a mover
+    // el cursor del incremental. Una corrida manual con `?orgCursor=` no lo
+    // tiene — si lo moviera, las orgs de atrás perderían su vuelta.
+    const { desde, persiste: persisteCursor } = arranqueDeLaVuelta({
       ids,
       cursorGuardado: await ultimoProcesado(CRON),
       cursorExplicito: searchParams.get("orgCursor"),
@@ -288,7 +291,10 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
     // peor, porque nadie mira los 200. Con al menos una bien, ok:true y las que
     // fallaron en `failures`.
     const todasFallaron = results.length === 0 && failures.length > 0;
-    await guardarCorte(CRON, i, ids);
+    // Sólo el modo automático mueve el cursor. Ver `arranqueDeLaVuelta`.
+    if (persisteCursor) {
+      await guardarCorte(CRON, i, ids);
+    }
     await registrarLatido("digest", true);
     return NextResponse.json({
       ok: !todasFallaron,

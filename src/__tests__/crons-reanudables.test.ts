@@ -168,3 +168,94 @@ describe("control-alerts: el reporte se hace barato, no se reparte", () => {
     expect(src).not.toMatch(/maxDuration\s*=\s*60\b/);
   });
 });
+
+describe("R-19 — el cursor del incremental no se pisa desde una corrida manual", () => {
+  // `arranqueDeLaVuelta` devuelve `{ desde, persiste }`, y documenta en 30
+  // líneas por qué existe `persiste`: una corrida manual con `?orgCursor=` no
+  // tiene derecho a mover el cursor del cron automático.
+  //
+  // Tres de los cinco consumidores lo descartaban con
+  // `const { desde } = arranqueDeLaVuelta(...)` y guardaban siempre. Un
+  // `?orgCursor=10` a mano sobre `digest` que cortara en la org 14 dejaba el
+  // cursor del incremental en 14, y el domingo siguiente **las orgs 2..13 no
+  // recibían su mail**. Es el bug que el módulo dice haber corregido.
+  const CRONS_CON_CURSOR = [
+    "anomalies",
+    "digest",
+    "ads-utm-audit",
+    "refresh-silver-orders",
+    "refresh-gold-attribution-channel",
+  ];
+
+  it.each(CRONS_CON_CURSOR)("%s lee `persiste` y lo respeta al guardar", (cron) => {
+    const src = fuente(`src/app/api/cron/${cron}/route.ts`);
+
+    // Lee el campo…
+    expect(src, `${cron} descarta \`persiste\``).toMatch(
+      /persiste(:\s*\w+)?\s*\}\s*=\s*arranqueDeLaVuelta/,
+    );
+
+    // …y el guardado está detrás de un `if`. Sin esto, leerlo no sirve de nada.
+    const i = src.indexOf("guardarCorte(");
+    expect(i, `${cron} no llama a guardarCorte`).toBeGreaterThan(-1);
+    const antes = src.slice(Math.max(0, i - 300), i);
+    expect(antes, `${cron} guarda el corte sin mirar \`persiste\``).toMatch(
+      /if\s*\(\s*persiste/,
+    );
+  });
+});
+
+describe("R-19 — una org rota no secuestra la vuelta de las demás", () => {
+  // `refresh-gold-attribution-channel` no tenía try/catch por org. Como
+  // `guardarCorte` vive después del loop y dentro del mismo `try`, una
+  // excepción se lo salteaba: el cursor quedaba clavado, y **las orgs
+  // anteriores al cursor dejaban de refrescarse por completo**, porque cada
+  // corrida arrancaba ahí y moría en la misma org.
+  //
+  // Su hermano `refresh-silver-orders` sí lo tenía. Los dos recibieron el
+  // cursor en el mismo esfuerzo; sólo uno recibió el aislamiento.
+  it.each(["refresh-gold-attribution-channel", "refresh-silver-orders"])(
+    "%s aísla el fallo de una org",
+    (cron) => {
+      const src = fuente(`src/app/api/cron/${cron}/route.ts`);
+      // El `try` tiene que estar DENTRO del loop por org, no envolviéndolo: si
+      // envuelve al loop, la primera org que falle se lleva puesto el
+      // `guardarCorte` que viene después — que es exactamente el bug.
+      //
+      // Se mira el texto desde el primer `for` hasta el final, sin fijar una
+      // distancia máxima: el largo del cuerpo del loop no es una propiedad que
+      // valga la pena clavar en un test, y la primera versión de esto falló
+      // sobre código correcto por asumir 400 caracteres.
+      const i = src.search(/\bfor\s*\(/);
+      expect(i, `${cron} no tiene loop por org`).toBeGreaterThan(-1);
+      const cuerpo = src.slice(i);
+      expect(cuerpo, `${cron} no aísla el fallo de una org`).toMatch(/\btry\s*\{/);
+      // Y el `catch` tiene que HACER algo con el error, no tragárselo.
+      //
+      // Sin atarse al nombre de la variable: `refresh-gold-attribution-channel`
+      // acumula en `fallos` y `refresh-silver-orders` en `results.push({ ok:
+      // false, error })`. Las dos están bien. La primera versión de este test
+      // pedía `fallos|failures|console.error` y marcaba en rojo el cron que
+      // anotaba correctamente con otro nombre — el mismo error de atarse al
+      // nombre en vez de a la propiedad que este repo ya arrastra.
+      // Y el `catch` tiene que **registrar qué org falló**.
+      //
+      // Pedir "hay un catch" no alcanza y se midió: `refresh-gold-attribution-
+      // channel` tiene otro `try/catch` más arriba, para las reglas de canal,
+      // que hace un fallback silencioso. Con ese criterio, sacarle el
+      // aislamiento de la transacción dejaba el test **verde**.
+      //
+      // Lo que distingue un aislamiento de verdad es que anote la organización:
+      // un catch que no sabe de quién fue el fallo no sirve para operar. Los dos
+      // crons lo hacen con nombres distintos —`fallos.push({ org, … })` y
+      // `results.push({ org: id, ok: false, … })`— así que se busca la
+      // propiedad, no el nombre.
+      const catchs = cuerpo.match(/catch\s*(\([^)]*\))?\s*\{[\s\S]{0,400}?\n\s*\}/g) || [];
+      expect(catchs.length, `${cron} no tiene ningún catch en el loop`).toBeGreaterThan(0);
+      expect(
+        catchs.some((c) => /\borg\b/.test(c) && /push\(|console\./.test(c)),
+        `${cron} no registra QUÉ organización falló — un catch que no lo sabe no sirve para operar`,
+      ).toBe(true);
+    },
+  );
+});

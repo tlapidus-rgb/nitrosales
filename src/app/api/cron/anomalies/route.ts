@@ -71,7 +71,10 @@ export async function GET(req: NextRequest) {
     const failures: { orgId: string; orgName: string; error: string }[] = [];
 
     const ids = orgs.map((o) => o.id);
-    const { desde } = arranqueDeLaVuelta({
+    // `persiste` NO se descarta: dice si esta corrida tiene derecho a mover
+    // el cursor del incremental. Una corrida manual con `?orgCursor=` no lo
+    // tiene — si lo moviera, las orgs de atrás perderían su vuelta.
+    const { desde, persiste: persisteCursor } = arranqueDeLaVuelta({
       ids,
       cursorGuardado: await ultimoProcesado(CRON),
       cursorExplicito: searchParams.get("orgCursor"),
@@ -326,7 +329,10 @@ export async function GET(req: NextRequest) {
 
     // E-05: ver digest. Ninguna org procesada + fallos = no es un exito.
     const todasFallaron = results.length === 0 && failures.length > 0;
-    await guardarCorte(CRON, i, ids);
+    // Sólo el modo automático mueve el cursor. Ver `arranqueDeLaVuelta`.
+    if (persisteCursor) {
+      await guardarCorte(CRON, i, ids);
+    }
     await registrarLatido("anomalies", true);
     return NextResponse.json({
       ok: !todasFallaron,

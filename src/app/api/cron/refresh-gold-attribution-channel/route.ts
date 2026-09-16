@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
     });
 
     const done: Array<{ org: string; rows: number; huerfanasBorradas: number }> = [];
+    const fallos: Array<{ org: string; error: string }> = [];
     let i = start;
     for (; i < orgs.length; i++) {
       if (Date.now() - startedAt > BUDGET_MS) break;
@@ -110,16 +111,36 @@ export async function GET(req: NextRequest) {
       // Upsert + borrado de huérfanas EN LA MISMA TRANSACCIÓN, por org.
       // Separarlos deja una ventana donde conviven la fila del canal viejo y la
       // del nuevo — o sea revenue DUPLICADO si alguien lee el panel justo ahí.
-      const [n, huerfanas] = await prisma.$transaction([
-        prisma.$executeRawUnsafe(buildGoldAttributionChannelUpsert(channelCase), org, since),
-        prisma.$executeRawUnsafe(
-          buildGoldAttributionChannelDeleteOrphans(),
-          org,
-          since,
-          runStartedAt,
-        ),
-      ]);
-      done.push({ org, rows: Number(n), huerfanasBorradas: Number(huerfanas) });
+      //
+      // ⚠️ Y CON try/catch POR ORG (R-19).
+      //
+      // Sin esto, una org que falle siempre deja el cursor clavado: el
+      // `guardarCorte` de abajo está dentro del mismo `try` que el loop, así
+      // que la excepción se lo saltea. El efecto no es sólo que esa org no se
+      // procese — es que **las orgs ANTERIORES al cursor dejan de refrescarse**,
+      // porque cada corrida arranca en el cursor y muere en la misma org.
+      // Regresión contra el estado previo a E-11, donde cada corrida arrancaba
+      // en cero y al menos ésas se hacían.
+      //
+      // `refresh-silver-orders`, que recibió el cursor en el mismo esfuerzo, sí
+      // tiene el aislamiento.
+      try {
+        const [n, huerfanas] = await prisma.$transaction([
+          prisma.$executeRawUnsafe(buildGoldAttributionChannelUpsert(channelCase), org, since),
+          prisma.$executeRawUnsafe(
+            buildGoldAttributionChannelDeleteOrphans(),
+            org,
+            since,
+            runStartedAt,
+          ),
+        ]);
+        done.push({ org, rows: Number(n), huerfanasBorradas: Number(huerfanas) });
+      } catch (e: any) {
+        // Se anota y se sigue. El cursor avanza igual, que es el punto: una org
+        // rota no puede secuestrar la vuelta de las demás.
+        fallos.push({ org, error: e?.message ?? String(e) });
+        console.error(`[refresh-gold-attribution-channel] org ${org} falló:`, e?.message);
+      }
     }
     const remaining = i < orgs.length;
     // Guardar donde cortamos. Si terminamos la vuelta, se borra el cursor y la
@@ -128,8 +149,13 @@ export async function GET(req: NextRequest) {
     if (persisteCursor) {
       await guardarCorte(CRON, i, orgs);
     }
+    // El aislamiento por org no puede volverse silencio: si fallaron todas,
+    // esto NO es un éxito. Mismo criterio que `rollup-backfill` (R-17).
+    const fallaronTodas = done.length === 0 && fallos.length > 0;
+
     return NextResponse.json({
-      ok: true,
+      ok: !fallaronTodas,
+      fallos: fallos.length ? fallos : undefined,
       mode: full ? "backfill" : "incremental",
       since,
       orgsTotal: orgs.length,
