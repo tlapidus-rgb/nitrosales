@@ -197,3 +197,44 @@ describe("una regla que no dispara cede el turno", () => {
     expect(await loadAllPendingSchedules()).toEqual([]);
   });
 });
+
+describe("una regla cuya primitive TIRA tampoco puede tapar la cola", () => {
+  // El arreglo de arriba cubre "evaluó y no disparó". Si `evaluate()` **tira**
+  // —query rota, organización sin conexión, una API caída— el catch devolvía
+  // `null` sin tocar `nextFireAt`, así que la regla seguía `dueNow` para
+  // siempre.
+  //
+  // Es el mismo starvation por el camino que había quedado sin cubrir: por el
+  // `ORDER BY nextFireAt` se queda a la cabeza y tapa a las de atrás. Este
+  // archivo tenía diez casos y ninguno hacía tirar a `evaluate`.
+  it("se reprograma igual, así deja de estar a la cabeza", async () => {
+    await regla("explota", { vencidaHaceMin: 60 });
+
+    // El mock evalúa `disparaPara(key)`; haciéndolo tirar, tira `evaluate`.
+    disparaPara = () => {
+      throw new Error("la query explotó");
+    };
+
+    const antes = await nextFireAtDe("explota");
+    const alerta = await evaluateRule((await loadAllPendingSchedules())[0]);
+
+    expect(alerta).toBeNull();
+    const despues = await nextFireAtDe("explota");
+    expect(
+      despues!.getTime(),
+      "una regla que explota tiene que salir de la cabeza de la cola",
+    ).toBeGreaterThan(antes!.getTime());
+    expect(despues!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("y con eso la siguiente corrida ya no la trae", async () => {
+    await regla("explota", { vencidaHaceMin: 60 });
+    disparaPara = () => {
+      throw new Error("la query explotó");
+    };
+
+    await evaluateRule((await loadAllPendingSchedules())[0]);
+    const pendientes = await loadAllPendingSchedules();
+    expect(pendientes.map((r: any) => r.id)).not.toContain("explota");
+  });
+});

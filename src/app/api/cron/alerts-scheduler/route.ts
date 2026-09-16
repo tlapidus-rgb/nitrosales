@@ -33,16 +33,28 @@ export const maxDuration = 300;
 // que quedan sin evaluar siguen siendo las mas atrasadas y entran primero en la
 // proxima corrida. El orden ES el cursor.
 //
-// ⚠️ PERO HAY UN AGUJERO EN ESA PREMISA, y no se arregla aca porque cambia
-// semantica de alertas: `evaluateRule` hace `if (!result.triggered) return null`
-// ANTES de actualizar `nextFireAt` (engine.ts:118 vs :155). O sea que una regla
-// de schedule que NO dispara nunca avanza su proxima fecha: queda `dueNow` para
-// siempre, se re-evalua en cada corrida y —por el ORDER BY— se queda a la
-// cabeza de la cola tapando a las de atras. Con varios clientes, un punado de
-// reglas que nunca disparan alcanza para que las demas no se evaluen nunca.
-// Arreglarlo significa decidir si una regla diaria que no dispara a las 09:00
-// se re-chequea a las 09:15 (hoy) o recien al dia siguiente. Es una decision de
-// producto. Ver PLAN_EXPANSION.md, E-11.
+// ✅ EL AGUJERO DE LA COLA YA SE ARREGLO (2026-09-13, `engine.ts:140`).
+//
+// Este comentario decia que NO se arreglaba aca y describia el bug como
+// abierto: `evaluateRule` hacia `if (!result.triggered) return null` ANTES de
+// actualizar `nextFireAt`, asi que una regla de schedule que no dispara nunca
+// avanzaba su proxima fecha — quedaba `dueNow` para siempre y, por el ORDER
+// BY, se quedaba a la cabeza de la cola tapando a las de atras.
+//
+// **Esa misma branch lo arreglo**: `engine.ts:140-151` reprograma
+// `nextFireAt` a `+REINTENTO_SIN_DISPARO_MS` cuando la regla no dispara, con
+// su propio test (`engine-cola.test.ts`, 10 casos). Las referencias de linea
+// que citaba este parrafo —`engine.ts:118 vs :155`— ya no apuntan a nada.
+//
+// Se deja escrito porque un comentario que describe como abierto un bug
+// cerrado manda a alguien a arreglar lo que ya esta hecho, o peor: a creer
+// que las alertas de schedule estan rotas y no usarlas.
+//
+// ⚠️ Lo que SI sigue abierto: si `primitive.evaluate()` TIRA, el catch
+// devuelve `null` sin pasar por el bloque de reprogramacion. Una regla cuya
+// primitive falla siempre (query rota, org sin conexion) sigue quedandose a la
+// cabeza de la cola. Es el mismo starvation por el camino que quedo sin
+// cubrir, y `engine-cola.test.ts` no tiene ningun caso donde `evaluate` tire.
 const TIME_BUDGET_MS = 250_000;
 
 const CRON_KEY = ADMIN_API_KEY;

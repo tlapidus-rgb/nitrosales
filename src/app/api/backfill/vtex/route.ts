@@ -644,7 +644,11 @@ export async function GET(request: Request) {
   // algo que esta en el JavaScript que sirve la app.
   //
   // La clave NO se rota aca (Axel congelo la rotacion de secretos hasta
-  // entender el impacto), pero deja de alcanzar por si sola. Sigue pendiente
+  // entender el impacto). ⚠️ Y el chequeo de la clave SE ELIMINO: no es que
+  // "deje de alcanzar por si sola" —como decia este comentario—, es que ya
+  // no esta. Queda UN factor: la sesion de staff, que es mas fuerte que la
+  // clave. No es un agujero; lo que no puede quedar es el comentario
+  // describiendo una defensa en profundidad que no existe. Sigue pendiente
   // rotarla y sacarla del fuente.
   if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

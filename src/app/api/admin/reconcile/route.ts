@@ -3,7 +3,11 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 // Admin: Batch Reconciliation — Pixel ↔ Orders
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/reconcile?key=ADMIN_SECRET
+// POST /api/admin/reconcile?key=<ADMIN_API_KEY>
+//
+// ⚠️ Decía `?key=ADMIN_SECRET`, que es OTRA variable — y que no está
+// seteada en ningún lado del repo. Cualquier runbook que diga ADMIN_SECRET
+// da 401. La que vale es `ADMIN_API_KEY`, la misma que manda `vercel.json`.
 //
 // Multi-layer batch reconciliation that links unattributed orders
 // to pixel visitors. Run after deploying the reconciliation fixes

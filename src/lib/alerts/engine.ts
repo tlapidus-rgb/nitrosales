@@ -207,6 +207,32 @@ export async function evaluateRule(
     return alert;
   } catch (err) {
     console.warn(`[alerts/engine] Error evaluating rule ${rule.id}:`, err);
+
+    // ⚠️ TAMBIÉN SE REPROGRAMA CUANDO LA EVALUACIÓN TIRA.
+    //
+    // La reprogramación de arriba cubre el caso "evaluó y no disparó". Si
+    // `primitive.evaluate()` **tira** —query rota, organización sin conexión,
+    // una API caída— el catch devolvía `null` sin tocar `nextFireAt`, así que
+    // la regla seguía `dueNow` para siempre.
+    //
+    // Es el mismo starvation que el bloque de arriba vino a cerrar, por el
+    // camino que había quedado sin cubrir: por el `ORDER BY nextFireAt`, una
+    // regla que falla siempre se queda a la cabeza de la cola y tapa a las de
+    // atrás. Un puñado alcanza para que las demás no se evalúen nunca.
+    //
+    // Se usa el mismo reintento corto: que una regla rota se siga chequeando
+    // está bien, lo que no puede es monopolizar la vuelta.
+    if (rule.type === "schedule") {
+      await prisma
+        .$executeRawUnsafe(
+          `UPDATE "alert_rules" SET "nextFireAt" = $2, "updatedAt" = NOW() WHERE "id" = $1`,
+          rule.id,
+          new Date(Date.now() + REINTENTO_SIN_DISPARO_MS),
+        )
+        .catch((e) =>
+          console.warn(`[alerts/engine] no se pudo reprogramar ${rule.id}:`, e?.message),
+        );
+    }
     return null;
   }
 }

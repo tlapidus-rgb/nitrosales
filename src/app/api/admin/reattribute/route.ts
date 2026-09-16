@@ -3,7 +3,11 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 // Admin: Reprocess All Attributions
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/reattribute?key=ADMIN_SECRET
+// POST /api/admin/reattribute?key=<ADMIN_API_KEY>
+//
+// ⚠️ Decía `?key=ADMIN_SECRET`, que es OTRA variable — y que no está
+// seteada en ningún lado del repo. Cualquier runbook que diga ADMIN_SECRET
+// da 401. La que vale es `ADMIN_API_KEY`, la misma que manda `vercel.json`.
 // Recalculates attribution for all orders that have a matched visitor.
 // Use after fixing attribution logic to update historical data.
 

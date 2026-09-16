@@ -11,11 +11,16 @@
 // ══════════════════════════════════════════════════════════════
 // POR QUÉ EXISTE (E-30, 2026-09-13)
 // ══════════════════════════════════════════════════════════════
-// Había **seis copias** del mapeo, en dos familias que no coincidían:
+// Había **siete copias** del mapeo, en dos familias que no coincidían:
+//
+// (El encabezado decía "seis", y "Familia B (2 archivos)". Son siete, 4 y 3:
+//  se olvidaba `admin/ml-force-refresh`, que es familia B pura. El test de
+//  este mismo commit las lista bien y contradecía al encabezado.)
 //
 //   Familia A (4 archivos, incluido el webhook en vivo):
 //     confirmed → APPROVED · sin `invalid` · sin `partially_refunded` · sin tags
-//   Familia B (2 archivos: el backfill y el cron de reconcile):
+//   Familia B (3 archivos: el procesador de backfill, el cron de reconcile
+//   y `admin/ml-force-refresh`):
 //     confirmed → PENDING · invalid → CANCELLED · partially_refunded → APPROVED
 //
 // Las dos diferencias caen justo sobre el filtro de "venta válida"

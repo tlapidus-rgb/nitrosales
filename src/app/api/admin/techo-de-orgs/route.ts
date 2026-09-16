@@ -33,7 +33,10 @@
 // cache, y con 5 orgs grandes son >100 GB. Ese no se arregla con más CU; se
 // arregla con E-09 (retención), que está pendiente.
 //
-// Auth: staff o ?key=.
+// Auth: **sólo sesión de staff**. Este endpoint ESCRIBE —`backfillDay`
+// recalcula los rollups de todas las organizaciones— y la clave de admin
+// viaja en `vercel.json`, que está versionado. El argumento completo está
+// abajo, en el propio gate.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";

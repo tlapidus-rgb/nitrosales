@@ -272,11 +272,15 @@ export function fuenteDeLaOrdenSql(aliasOrders: string = ""): string {
  *
  * Se excluye de los conteos porque MELI crea la orden al iniciar el checkout,
  * no al pagarlo: contarlas infla las ventas con carritos abandonados. Es el
- * patrón que aparecía 18 veces repetido.
+ * patrón que aparecía 30 veces repetido (29 en `metrics/orders` y una en
+ * `validate-orders-count`).
+ *
+ * (Decía "18 veces" acá y "29 copias" cuatro líneas más abajo. Ninguno de los
+ *  dos era el número: son 30.)
  */
 export function meliPendienteSql(aliasOrders: string = ""): string {
   // Mismo criterio que arriba: alias sin comillas, para quedar byte a byte
-  // igual a las 29 copias que este helper reemplaza.
+  // igual a las 30 copias que este helper reemplaza.
   const p = aliasOrders ? `${aliasOrders}.` : "";
   return `${fuenteDeLaOrdenSql(aliasOrders)} = 'MELI' AND ${p}status = 'PENDING'`;
 }
