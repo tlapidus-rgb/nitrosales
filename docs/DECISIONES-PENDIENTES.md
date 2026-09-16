@@ -1,7 +1,7 @@
 # Decisiones pendientes — post-revisión de `fix/expansion-gate-e0`
 
 > **Al 2026-09-15.** De los 37 hallazgos de `BP-REVISION-0914`, **8 están arreglados** y
-> commiteados. De los 29 restantes, éstos son los que **no puedo cerrar yo**: cambian lo que
+> commiteados. De los 29 restantes, éstos son los **11** que no puedo cerrar yo: cambian lo que
 > ve o recibe un cliente, o eligen entre dos caminos igual de defendibles.
 >
 > Cada uno lleva mi recomendación. Las ordené por lo que cuesta postergarlas, no por
@@ -196,6 +196,73 @@ plan de rotación**, para cuando se haga. Ya está anotado en el backlog.
 
 ---
 
+## 10 · ¿El Orders Broadcaster bloquea el alta? (R-26)
+
+**El problema.** `readiness.ts` define tres bloqueantes: credenciales, backfill y órdenes.
+**El webhook de VTEX no está entre ellos.** Un cliente con el Orders Broadcaster sin
+configurar da `listo: true`, con el item en rojo más abajo.
+
+Y el propio archivo dice, en mayúsculas, sobre ese paso: *"ESTE ES EL PASO QUE MÁS SE OLVIDA
+Y EL QUE MÁS DUELE… sin eso NO LLEGA UN SOLO WEBHOOK… Ya rompió a TeVe Compras entero (0 de
+8 órdenes atribuidas)"*.
+
+O sea: el semáforo dice "listo" sobre el caso exacto que lo motivó.
+
+**Por qué es tuya.** Agregarlo a los bloqueantes hace que altas que hoy pasan dejen de
+pasar. Si el flujo real es "habilito al cliente y configuro el broadcaster después", esto
+trabaría trabajo que hoy funciona.
+
+**Mi recomendación: que bloquee.** El costo de un alta trabada es una llamada; el de un alta
+habilitada sin webhook es un cliente que ve cero ventas y no sabe por qué. Y hay una
+mitigación que baja el riesgo: `activate-client` ya auto-configura el broadcaster al
+habilitar, así que el caso frecuente se resuelve solo — lo que quedaría bloqueado es el que
+de verdad está roto.
+
+Sea cual sea la respuesta, hay un test que hay que arreglar igual: se llama *"tener sólo uno
+de los dos no es estar listo"* y **nunca verifica si está listo**.
+
+---
+
+## 11 · ¿"El pixel está instalado" puede basarse en un evento de hace seis meses? (R-27)
+
+**Dos cosas distintas, y sólo una es decisión.**
+
+**La que arreglo yo, sin preguntarte:** el checkbox de "ya pegué el snippet" se puede tildar
+a mano, y al tildarlo la UI dice **"Verificado: ya recibimos datos tuyos"** sin que haya
+llegado un solo evento. Eso es directamente una mentira y la saco.
+
+**La que es tuya:** la verificación tiene dos ramas. Una mira los últimos 30 minutos; la
+otra, `recibio-antes`, da verde con **cualquier** evento histórico de la organización.
+
+El escenario: el cliente pega el snippet, abre su tienda, llegan eventos. Meses después un
+deploy del sitio pisa el `<head>` y lo borra. Verifica de nuevo → **"El pixel está
+instalado"**, en verde, con cero tráfico entrando.
+
+**Por qué es tuya.** Si esa rama pasa a exigir tráfico reciente, clientes que hoy ven verde
+van a ver rojo — algunos con razón (el pixel se les rompió y no lo sabían) y otros no (una
+tienda con poco tráfico puede pasar 30 minutos sin una sola visita).
+
+**Mi recomendación:** que la rama `recibio-antes` diga lo que sabe — *"recibimos datos tuyos
+hasta el 3 de marzo"*, con la fecha — en vez de afirmar el presente. No bloquea a nadie, no
+genera falsos rojos, y el cliente cuyo pixel se rompió ve una fecha vieja y entiende solo.
+Cambiar el umbral de 30 minutos es otra conversación y no hace falta tocarlo.
+
+---
+
+## Y una que hago yo, pero conviene que sepas (R-21)
+
+`ml-processor` **descarta órdenes en silencio** pasado el offset 1000 de la API de
+MercadoLibre. La ventana de 7 días "esquiva el límite" sólo si el vendedor factura menos de
+~142 órdenes por día; Arredo hace ~1.600 por semana. El chunk devuelve éxito, el job avanza
+y termina `COMPLETED` con órdenes faltantes.
+
+El arreglo es partir la ventana a la mitad y reintentar. **Efecto lateral que vale decir:**
+los backfills de clientes grandes van a tardar más y a hacer más requests contra la API de
+ML. Me parece claramente preferible a perder órdenes sin avisar, así que lo hago salvo que
+me digas lo contrario.
+
+---
+
 # Resumen: qué necesito de vos
 
 | | Decisión | Mi recomendación | Urgencia |
@@ -207,5 +274,7 @@ plan de rotación**, para cuando se haga. Ya está anotado en el backlog.
 | 4 | ¿Se corrigen los umbrales de alertas? | Sí | 🟡 |
 | 6 | ¿`reattribute` con cursor? | Sí | 🟡 |
 | 7 | ¿La cuota de Aurum falla cerrada? | Sí | 🟡 |
+| 10 | ¿El Orders Broadcaster bloquea el alta? | Que bloquee | 🟡 |
+| 11 | ¿"Pixel instalado" puede basarse en un evento viejo? | Que muestre la fecha en vez de afirmar el presente | 🟡 |
 | 8 | ¿Se recalcula el techo ahora? | No: después de decidir el punto 2 | 🟢 |
 | 9 | Los dos endpoints que filtran el otro secreto | Nada ahora; paso 0 de la rotación | 🟢 |
