@@ -726,9 +726,10 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
+          AND o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
+          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
           AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
@@ -748,9 +749,10 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
+          AND o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${prevFrom}
           AND o."orderDate" <= ${prevTo}
-          AND pa.model::text = ${selectedModel}
+          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
           AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
