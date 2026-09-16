@@ -172,7 +172,12 @@ export async function GET(req: NextRequest) {
       // eran un SELECT y un UPDATE separados, y dos invocaciones que arrancaban
       // juntas podian salir las dos con el mismo job QUEUED.
       if (!currentJob) {
-        currentJob = await reclamarProximoJob(COOLDOWN_JOB_MS);
+        // El cupo va DENTRO del claim (R-20). El `decidirAdmision` de arriba
+        // sigue sirviendo para el resto de los frenos (ventana horaria,
+        // latencia) y para no entrar al loop si ya se sabe que no toca — pero
+        // el que garantiza el tope es este parametro, porque se evalua en la
+        // misma sentencia que toma el job.
+        currentJob = await reclamarProximoJob(COOLDOWN_JOB_MS, maxConcurrentes());
         if (!currentJob) {
           // No hay mas jobs en QUEUED/RUNNING activos
           break;

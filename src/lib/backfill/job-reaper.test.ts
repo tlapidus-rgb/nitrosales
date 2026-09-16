@@ -121,6 +121,7 @@ async function avanzarReloj(db: PGlite, minutos: number) {
  * por eso no se notó que sacar `lastChunkAt` del claim rompía este conteo.
  */
 async function activos(db: PGlite): Promise<number> {
+  // Este SQL lleva UN solo parametro: cuenta, no reclama.
   const r = await db.query<any>(CONTAR_JOBS_ACTIVOS_SQL, [
     new Date(Date.now() - COOLDOWN_MS),
   ]);
@@ -138,6 +139,8 @@ async function reaper(db: PGlite): Promise<string[]> {
 async function reclamar(db: PGlite): Promise<any | null> {
   const r = await db.query<any>(RECLAMAR_PROXIMO_JOB_SQL, [
     new Date(Date.now() - COOLDOWN_MS),
+    // Cupo alto: estos casos prueban el reaper, no el tope de concurrencia.
+    99,
   ]);
   return r.rows[0] ?? null;
 }
@@ -304,9 +307,14 @@ async function tick(
   o: { claimSql?: string; elChunkAnda?: boolean } = {},
 ): Promise<{ muertos: string[]; tomado: string | null }> {
   const muertos = await reaper(db);
-  const r = await db.query<any>(o.claimSql ?? RECLAMAR_PROXIMO_JOB_SQL, [
-    new Date(Date.now() - COOLDOWN_MS),
-  ]);
+  // El claim de hoy lleva DOS parámetros (corte y cupo); el claim viejo que
+  // algunos casos pasan a propósito para mostrar el bug lleva uno solo. Los
+  // parámetros se arman según cuál se use.
+  const sql = o.claimSql ?? RECLAMAR_PROXIMO_JOB_SQL;
+  const params: unknown[] = [new Date(Date.now() - COOLDOWN_MS)];
+  // Cupo alto: estos casos prueban el reaper, no el tope de concurrencia.
+  if (sql === RECLAMAR_PROXIMO_JOB_SQL) params.push(99);
+  const r = await db.query<any>(sql, params);
   const tomado = r.rows[0]?.id ?? null;
   // Un chunk exitoso mueve `lastChunkAt`; uno que falla, no. Es lo que hace
   // `updateJobProgress` con `tocarLatido: !result.error`.

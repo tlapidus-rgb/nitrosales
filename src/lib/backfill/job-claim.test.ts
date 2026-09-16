@@ -82,9 +82,14 @@ async function encolar(
 }
 
 /** Una invocación del runner reclamando trabajo. */
-async function reclamar(db: PGlite): Promise<any | null> {
+/**
+ * @param cupo tope de jobs corriendo a la vez. Por defecto 1, que es el de
+*   producción. Los casos que prueban el ORDEN de la cola —no el cupo— pasan
+ *   un número alto a propósito, para no mezclar las dos propiedades.
+ */
+async function reclamar(db: PGlite, cupo = 1): Promise<any | null> {
   const corte = new Date(Date.now() - COOLDOWN_MS);
-  const r = await db.query<any>(RECLAMAR_PROXIMO_JOB_SQL, [corte]);
+  const r = await db.query<any>(RECLAMAR_PROXIMO_JOB_SQL, [corte, cupo]);
   return r.rows[0] || null;
 }
 
@@ -126,9 +131,12 @@ describe("E-08 — el claim es atómico", () => {
     await encolar(db, "viejo", { creadoHaceMs: 60_000 });
     await encolar(db, "nuevo", { creadoHaceMs: 1_000 });
 
-    const a = await reclamar(db);
-    const b = await reclamar(db);
-    const c = await reclamar(db);
+    // Cupo 2: este caso prueba el ORDEN de la cola, no el tope. Con el cupo
+    // de producción (1) la segunda invocación no tomaría nada — que es lo
+    // correcto y lo prueba el caso de R-20, más abajo.
+    const a = await reclamar(db, 2);
+    const b = await reclamar(db, 2);
+    const c = await reclamar(db, 2);
 
     expect(a.id).toBe("viejo"); // FIFO por createdAt
     expect(b.id).toBe("nuevo");
@@ -225,12 +233,73 @@ describe("E-08 — dos clientes nuevos la misma semana", () => {
 
     const tomados: string[] = [];
     for (let i = 0; i < 5; i++) {
-      const j = await reclamar(db);
+      // Cupo alto: este caso prueba el ORDEN de la cola, no el tope. Ver el
+      // helper y los casos de R-20.
+      const j = await reclamar(db, 99);
       if (j) tomados.push(j.id);
     }
 
     expect(tomados).toEqual(["A-vtex", "A-ml", "B-vtex", "B-ml"]);
     expect(new Set(tomados).size).toBe(4); // ninguno repetido
+    await db.close();
+  });
+});
+
+describe("R-20 — el cupo se verifica dentro del claim, no afuera", () => {
+  // `contarJobsActivos()` → `decidirAdmision()` → `reclamar` eran tres pasos
+  // sin nada en el medio. `FOR UPDATE SKIP LOCKED` evita que dos invocaciones
+  // se lleven el MISMO job, pero hace lo contrario de lo que hace falta para
+  // el cupo: la segunda saltea la fila lockeada y se lleva **otra**.
+  //
+  // Con el cron cada minuto más el disparo inmediato de `approve-backfill`,
+  // dos invocaciones simultáneas veían ambas `jobsActivos = 0`, las dos eran
+  // admitidas, y salían con dos backfills en paralelo contra Neon — con
+  // `maxConcurrentes = 1`. Es el escenario que E-08 dice haber cerrado.
+  it("con dos encolados y cupo 1, la segunda invocación no toma nada", async () => {
+    const db = await nuevaDb();
+    await encolar(db, "j1", { creadoHaceMs: 60_000 });
+    await encolar(db, "j2", { creadoHaceMs: 1_000 });
+
+    const primera = await reclamar(db, 1);
+    const segunda = await reclamar(db, 1);
+
+    expect(primera?.id).toBe("j1");
+    expect(
+      segunda,
+      "con un job ya corriendo y cupo 1, no se puede tomar otro",
+    ).toBeNull();
+    await db.close();
+  });
+
+  it("el cupo es configurable: con 2, entran dos", async () => {
+    const db = await nuevaDb();
+    await encolar(db, "j1", { creadoHaceMs: 60_000 });
+    await encolar(db, "j2", { creadoHaceMs: 1_000 });
+    await encolar(db, "j3", { creadoHaceMs: 500 });
+
+    expect((await reclamar(db, 2))?.id).toBe("j1");
+    expect((await reclamar(db, 2))?.id).toBe("j2");
+    expect(await reclamar(db, 2), "el tercero ya no entra").toBeNull();
+    await db.close();
+  });
+
+  it("un RUNNING colgado no ocupa cupo: si no, el reaper no lo podría recuperar", async () => {
+    // Un job pasado de cooldown está abandonado. Si contara contra el tope, el
+    // sistema quedaría trabado contra su propio job muerto para siempre.
+    const db = await nuevaDb();
+    await encolar(db, "colgado", { creadoHaceMs: 60_000 });
+    await reclamar(db, 1);
+    // Se lo manda al pasado, más allá del cooldown.
+    await db.query(
+      `UPDATE "backfill_jobs" SET "updatedAt" = $1 WHERE id = 'colgado'`,
+      [new Date(Date.now() - COOLDOWN_MS * 10)],
+    );
+
+    const recuperado = await reclamar(db, 1);
+    expect(
+      recuperado?.id,
+      "el reaper tiene que poder recuperarlo aunque el cupo sea 1",
+    ).toBe("colgado");
     await db.close();
   });
 });
