@@ -325,3 +325,52 @@ un guard cosmético en el repo — y también la razón por la que esta entrada 
 un commit que dice "guard agregado".
 
 ---
+
+### E-11 · Escribí un test que saltea la función que estoy arreglando
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** la mutación
+
+**Qué hice mal:** el arreglo de R-25 es que un timeout de VTEX deje de
+presentársele al cliente como "tus credenciales están mal". La conversión ocurre en una línea:
+
+```ts
+ok: x.ok ? true : esTransitoria(x.detail) ? null : false
+```
+
+Escribí los tests construyendo el resultado **a mano**, con `ok: null` ya puesto. O sea que
+probaban que `mensajeParaElCliente` ignora los nulos — cierto, y completamente al lado de lo
+que estaba arreglando.
+
+**Cómo se manifestó:** vaciar `SEÑALES_DE_FALLA_TRANSITORIA` —el corazón del arreglo— dejaba
+mis dos casos **en verde**. Los que se pusieron rojos fueron los tests viejos del archivo.
+
+**Por qué pasó:** armé el input en el formato que la función *devuelve* en vez del que
+*recibe*. Es más cómodo: no hay que mockear nada. Y produce un test que nunca toca el código
+en discusión.
+
+**Qué hago distinto:** antes de escribir el caso, ubicar **la línea exacta** que implementa el
+arreglo y preguntarme por dónde tiene que entrar el input para pasar por ahí. Si el caso no
+atraviesa esa línea, no prueba el arreglo — por más que el nombre diga que sí.
+
+Los casos de al lado en ese mismo archivo ya lo hacían bien (mockean el tester y llaman a
+`validarCredenciales`). No los miré antes de escribir los míos, que es el mismo descuido de
+E-06.
+
+---
+
+### E-12 · Puse un número de tests en un commit sin mirarlo
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** la salida del comando, justo después
+
+**Qué hice mal:** el mensaje del commit `6886e6b2` dice "1409 tests en verde". Eran **1420**.
+Escribí el número de memoria mientras redactaba, y la verificación que corrí un segundo
+después lo desmintió.
+
+**Por qué importa aunque sea chico:** es exactamente el patrón que vengo documentando y
+arreglando toda la sesión — un número afirmado sin comprobar, en un lugar donde alguien lo va
+a leer como dato. Que sea de un mensaje de commit y no de un endpoint no lo cambia.
+
+**Qué hago distinto:** el número va **copiado de la salida**, no escrito. Si estoy redactando
+el commit antes de correr la verificación final, va sin número.
+
+---

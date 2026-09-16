@@ -445,9 +445,27 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   }
 
   const firstHint = failing.find((r) => r.hint)?.hint;
+
+  // ⚠️ EL DETALLE LLEVA LA CAUSA DE LAS ÁREAS QUE FALLARON (R-25).
+  //
+  // Antes decía sólo `⚠️ Parcial: 5/6 áreas OK`. Ese texto es el que
+  // `validacion-wizard.ts` inspecciona para decidir si el fallo fue
+  // TRANSITORIO (un timeout de VTEX) o REAL (credenciales mal). Sin la
+  // causa adentro, un timeout de `/logistics/pvt/shipping-policies` se le
+  // presentaba al cliente como *"Revisar permisos o completar data en VTEX
+  // Admin"* — y se iba a rehacer credenciales que estaban bien.
+  //
+  // El acoplamiento por texto entre el tester y el wizard sigue siendo
+  // frágil (hay un test que dice pinearlo y mockea una cadena que este
+  // archivo nunca emitió). Lo correcto sería un flag `transitoria` en el
+  // resultado; mientras tanto, que el texto al menos DIGA lo que pasó.
+  const causas = failing
+    .map((r) => `${r.area}: ${r.detail}`)
+    .join(" · ");
+
   return {
     ok: false,
-    detail: `⚠️ Parcial: ${passing.length}/${areasList.length} áreas OK`,
+    detail: `⚠️ Parcial: ${passing.length}/${areasList.length} áreas OK — ${causas}`,
     hint: firstHint || "Revisar permisos o completar data en VTEX Admin.",
     areas: areasList,
   };

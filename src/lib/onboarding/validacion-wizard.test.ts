@@ -245,3 +245,69 @@ describe("C2 — una falla transitoria no puede trabar un alta", () => {
     expect((await validarCredenciales([{ platform: "VTEX", credentials: {} }]))[0].ok).toBeNull();
   });
 });
+
+describe("R-25 — un timeout de la plataforma no es culpa del cliente", () => {
+  // El wizard decide entre TRANSITORIO (reintentá) y REAL (tus credenciales
+  // están mal) mirando el texto del detalle que emite el tester.
+  //
+  // El tester de VTEX prueba seis áreas. Si falla la de Ventas, el detalle
+  // lleva la causa. Si falla **cualquiera de las otras cinco**, el detalle era
+  // sólo `⚠️ Parcial: 5/6 áreas OK` — sin la palabra "timeout" aunque el área
+  // hubiera fallado por timeout.
+  //
+  // Resultado: credenciales perfectas + `/logistics/pvt/shipping-policies`
+  // lento = 400 con *"Revisar permisos o completar data en VTEX Admin"*, y el
+  // cliente se iba a rehacer credenciales que estaban bien.
+  //
+  // ⚠️ Estos casos van por `validarCredenciales` con el tester mockeado, NO
+  // construyendo el resultado a mano. Una primera versión les pasaba el
+  // `ok: null` ya resuelto — o sea que probaba que `mensajeParaElCliente`
+  // ignora los nulos, que no es lo que está en discusión. Lo que hay que
+  // ejercitar es la conversión `detalle → ok`, que es donde vive el bug.
+  it("el detalle parcial lleva la causa, así que el timeout se reconoce", async () => {
+    // El formato real que emite `testVtex` después del arreglo.
+    testCredentialsByPlatform.mockResolvedValue({
+      ok: false,
+      detail: "⚠️ Parcial: 5/6 áreas OK — Envíos: timeout",
+      hint: "Revisar permisos o completar data en VTEX Admin.",
+    });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok, "un timeout no es una credencial inválida").toBeNull();
+    expect(mensajeParaElCliente(r)).toBeNull();
+  });
+
+  it("el formato VIEJO —sin la causa— es el que dejaba pasar el bug", async () => {
+    // Se deja escrito para que se vea por qué el arreglo no es cosmético: con
+    // este detalle, el mismo timeout se le presenta al cliente como que sus
+    // credenciales están mal.
+    testCredentialsByPlatform.mockResolvedValue({
+      ok: false,
+      detail: "⚠️ Parcial: 5/6 áreas OK",
+      hint: "Revisar permisos o completar data en VTEX Admin.",
+    });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok).toBe(false);
+  });
+
+  it("un fallo REAL sigue bloqueando", async () => {
+    // Que se reconozca lo transitorio no puede volver permisivo lo demás: una
+    // credencial mal escrita tiene que seguir dando 400.
+    testCredentialsByPlatform.mockResolvedValue({
+      ok: false,
+      detail: "⚠️ Parcial: 5/6 áreas OK — Precios: App Key necesita permiso Pricing",
+      hint: "App Key necesita permiso Pricing - Read",
+    });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok).toBe(false);
+    expect(mensajeParaElCliente(r)).not.toBeNull();
+  });
+
+  it("un 503 de la plataforma tampoco es culpa del cliente", async () => {
+    testCredentialsByPlatform.mockResolvedValue({
+      ok: false,
+      detail: "⚠️ Parcial: 4/6 áreas OK — Stock: HTTP 503",
+    });
+    const r = await validarCredenciales([{ platform: "VTEX", credentials: {} }]);
+    expect(r[0].ok).toBeNull();
+  });
+});

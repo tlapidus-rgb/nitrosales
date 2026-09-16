@@ -94,7 +94,31 @@ export function plataformasAValidar<T extends { platform: string }>(
  * El acoplamiento está pineado por un test: si alguien cambia el texto, salta
  * ahí y no en producción.
  */
-const SEÑALES_DE_FALLA_TRANSITORIA = ["timeout", "error de red"];
+// Qué hace que un fallo sea TRANSITORIO: que reintentar tenga sentido.
+//
+// La lista arrancó con dos entradas y sólo funcionaba para el caso en que
+// el área de Ventas era la que fallaba — el único camino donde el detalle
+// de nivel superior llevaba la palabra. Si fallaba cualquiera de las otras
+// cinco, el detalle era `⚠️ Parcial: 5/6 áreas OK` y el timeout se leía
+// como credenciales inválidas (R-25). Eso se arregló del lado del tester,
+// que ahora propaga la causa.
+//
+// Acá se agregan las formas en que una API caída se presenta de verdad: un
+// 5xx es de ellos, no del cliente, y `ECONNRESET`/`fetch failed` son lo que
+// tira Node cuando la conexión se corta.
+const SEÑALES_DE_FALLA_TRANSITORIA = [
+  "timeout",
+  "error de red",
+  "econnreset",
+  "etimedout",
+  "enotfound",
+  "fetch failed",
+  "socket hang up",
+  "http 500",
+  "http 502",
+  "http 503",
+  "http 504",
+];
 
 function esTransitoria(detalle?: string): boolean {
   if (!detalle) return false;
