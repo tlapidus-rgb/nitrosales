@@ -135,7 +135,25 @@ export async function purgeExpiredSharedCache(
       WHERE ctid IN (
         SELECT ctid FROM api_cache WHERE stale_until < now() LIMIT ${limit}
       )`;
-  } catch {
-    return 0;
+  } catch (e: any) {
+    // ⚠️ `0` significaba DOS cosas distintas (R-34, 2026-09-15).
+    //
+    // Este catch devolvía `0` sin decir nada, o sea "no había nada que
+    // borrar" y "el DELETE falló" eran indistinguibles para el llamador. Y el
+    // llamador (`warm-cache`) sólo loguea cuando el número es mayor a cero,
+    // así que un timeout o un lock en el DELETE se reportaba como silencio
+    // mientras `api_cache` seguía creciendo — que es exactamente el bug que
+    // E-04 vino a arreglar.
+    //
+    // El repo ya tiene escrito el principio, en `freshness.ts`: *"ESTO ES LA
+    // DIFERENCIA ENTRE 'NO HAY PROBLEMA' Y 'NO SÉ'… el chequeo que existe
+    // para avisar que algo dejó de correr se rompe, y lo que reporta es
+    // silencio"*. Ahí se aplicó; acá no.
+    //
+    // Se mantiene el fail-soft —purgar caché no puede tumbar al cron que la
+    // llama— pero deja rastro. `-1` es distinguible de `0` sin cambiar el
+    // tipo de retorno ni romper a ningún llamador que sólo mire `> 0`.
+    console.error("[api-cache-shared] no se pudo purgar la caché vencida:", e?.message ?? e);
+    return -1;
   }
 }

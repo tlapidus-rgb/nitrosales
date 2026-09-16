@@ -388,13 +388,18 @@ export async function GET(req: NextRequest) {
     // el retorno de la función por limpiar caché.
     let cachePurged = 0;
     if (Date.now() - startedAt < 260_000) {
-      try {
-        cachePurged = await purgeExpiredSharedCache();
-        if (cachePurged > 0) {
-          console.log(`[warm-cache] api_cache: ${cachePurged} entradas vencidas borradas`);
-        }
-      } catch (e: any) {
-        console.error("[warm-cache] purga de api_cache falló:", e?.message);
+      // `purgeExpiredSharedCache` no tira nunca: es fail-soft a propósito,
+      // porque limpiar caché no puede tumbar al cron. Así que este `try` era
+      // código muerto — y el `0` que devolvía al fallar era indistinguible de
+      // "no había nada que borrar" (R-34).
+      //
+      // Ahora devuelve `-1` cuando falla, y eso sí se reporta: `api_cache`
+      // creciendo en silencio es el bug que E-04 vino a arreglar.
+      cachePurged = await purgeExpiredSharedCache();
+      if (cachePurged > 0) {
+        console.log(`[warm-cache] api_cache: ${cachePurged} entradas vencidas borradas`);
+      } else if (cachePurged < 0) {
+        console.error("[warm-cache] la purga de api_cache FALLÓ — la tabla sigue creciendo");
       }
     }
 
