@@ -30,11 +30,12 @@
 // el dia 15 garantiza que ya este disponible. Re-correrlo cualquier dia
 // es seguro (idempotente).
 //
-// Auth: SYNC_KEY via ?key=... o Authorization: Bearer ...
+// Auth: ADMIN_API_KEY o SYNC_KEY, via ?key=... o Authorization: Bearer ...
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -48,7 +49,25 @@ export async function GET(req: NextRequest) {
   // Auth
   const { searchParams } = req.nextUrl;
   const syncKey = searchParams.get("key") || req.headers.get("authorization")?.replace("Bearer ", "");
-  if (syncKey !== process.env.SYNC_KEY) {
+  // ⚠️ FAIL-CLOSED (R-01, 2026-09-15). Antes era `syncKey !== process.env.SYNC_KEY`
+  // a secas: si la env NO estaba seteada, las dos puntas valian `undefined` y
+  // `undefined !== undefined` es **false**, asi que un GET sin `?key=` y sin
+  // header ENTRABA. Con una clave incorrecta devolvia 401, o sea que solo se
+  // abria mandando *nada* — ningun escaner que pruebe claves lo encontraba.
+  //
+  // Y no alcanza con agregar el guard de vacio: `vercel.json` manda
+  // `?key=<ADMIN_API_KEY>` a estos cinco, NO `SYNC_KEY`. Cerrar solo la de
+  // SYNC_KEY los dejaria a los cinco en 401, y un cron que devuelve 401 no
+  // alerta a nadie (es el modo de falla de E-20).
+  //
+  // Por eso entran por cualquiera de las dos, y las dos son fail-closed:
+  // `isValidAdminKey` cae a una clave aleatoria por proceso si la env falta, y
+  // la de SYNC_KEY exige que exista ANTES de comparar.
+  const porSyncKey =
+    typeof process.env.SYNC_KEY === "string" &&
+    process.env.SYNC_KEY.length > 0 &&
+    syncKey === process.env.SYNC_KEY;
+  if (!porSyncKey && !isValidAdminKey(syncKey)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

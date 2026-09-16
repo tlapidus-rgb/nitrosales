@@ -104,6 +104,50 @@ describe("selfFetchHeaders", () => {
   });
 });
 
+describe("GUARD — el origin no puede venir de un header que manda el cliente", () => {
+  // R-05 (2026-09-15). El arreglo del incidente del 2026-09-06 hizo que cada
+  // ruta resolviera su origen real con
+  // `selfFetchBaseUrl(req.headers.get("origin"))`.
+  //
+  // `Origin` es un header que manda el navegador: **lo controla quien hace el
+  // request**. Y en no-producción `selfFetchBaseUrl` hace `if (origin) return
+  // origin` sin validar nada. Un staff logueado que abriera una página hostil
+  // hacía que el server se auto-invocara contra el host del atacante, con
+  // `ADMIN_API_KEY` en la querystring.
+  //
+  // `req.nextUrl.origin` deriva del Host, que Vercel valida antes de rutear —
+  // y es lo que el JSDoc de `selfFetchBaseUrl` documentó desde el principio.
+  // Seis de los ocho call sites pasaban otra cosa.
+  it("nadie le pasa a selfFetchBaseUrl un header del request", async () => {
+    const { readdirSync, statSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const malos: string[] = [];
+    const recorrer = (dir: string) => {
+      for (const e of readdirSync(dir)) {
+        const p = join(dir, e);
+        if (statSync(p).isDirectory()) recorrer(p);
+        else if (e === "route.ts") {
+          const src = readFileSync(p, "utf8")
+            .split(/\r?\n/)
+            .filter((l) => {
+              const t = l.trim();
+              return !(t.startsWith("//") || t.startsWith("/*") || t.startsWith("*"));
+            })
+            .join("\n");
+          if (/selfFetchBaseUrl\s*\(\s*req\.headers\.get/.test(src)) {
+            malos.push(p.replace(process.cwd(), ""));
+          }
+        }
+      }
+    };
+    recorrer(join(process.cwd(), "src", "app", "api"));
+    expect(
+      malos,
+      `estas rutas dejan que el cliente elija a qué host se auto-invoca el server:\n${malos.join("\n")}`,
+    ).toEqual([]);
+  });
+});
+
 describe("GUARD — ninguna ruta vuelve a hardcodear el dominio de producción", () => {
   // Sólo se busca `baseUrl`, que es la convención del repo para "URL a la que me
   // llamo a mí mismo". `appUrl` está exento a propósito: se usa para armar LINKS

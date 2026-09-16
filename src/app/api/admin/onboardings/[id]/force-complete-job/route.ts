@@ -94,7 +94,7 @@ export async function POST(
               : "El onboarding no tiene ningun job de backfill.";
       }
       if (allDone) {
-        const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
+        const baseUrl = selfFetchBaseUrl(req.nextUrl.origin);
         const KEY = ADMIN_API_KEY;
         const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(job.organizationId)}&key=${KEY}`;
         waitUntil(

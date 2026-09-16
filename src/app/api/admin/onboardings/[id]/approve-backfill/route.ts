@@ -212,7 +212,7 @@ export async function POST(
     // o si la base esta lenta. No es una falla: los jobs quedan en QUEUED y el
     // cron de cada minuto los toma cuando se pueda. Si estas debugueando "aprobe
     // y no arranco", mira el campo `motivo` de la respuesta del runner.
-    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
+    const baseUrl = selfFetchBaseUrl(req.nextUrl.origin);
     if (createdJobs.length > 0) {
       const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
       waitUntil(

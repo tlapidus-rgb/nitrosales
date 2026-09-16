@@ -100,7 +100,7 @@ export async function POST(
     });
 
     // Trigger el runner
-    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
+    const baseUrl = selfFetchBaseUrl(req.nextUrl.origin);
     const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
     waitUntil(
       fetch(runnerUrl, { method: "GET" })

@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { fuenteDeLaOrdenSql, meliPendienteSql } from "@/domains/orders";
+import { interpretarFuentePedida, FUENTES_DE_ORDEN } from "@/domains/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,33 @@ export async function GET(req: NextRequest) {
     const dateFrom = new Date(fromParam + "T00:00:00.000-03:00");
     const dateTo = new Date(toParam + "T23:59:59.999-03:00");
 
-    const srcFilter = source ? `AND "source" = '${source}'` : "";
+    // ⚠️ INYECCIÓN SQL (R-02, 2026-09-15). Esto era:
+    //
+    //     source ? `AND "source" = '${source}'` : ""
+    //
+    // interpolado crudo en tres `$queryRawUnsafe`. El gate es
+    // `isInternalUser()`, así que hacía falta sesión de staff — pero eso
+    // convierte el set acotado de operaciones admin en lectura y escritura
+    // libre de toda la base, incluidas `influencers.dashboardPasswordPlain`
+    // y `connections.credentials`.
+    //
+    // Se valida contra la allowlist del dominio en vez de parametrizar,
+    // porque es el mismo criterio que ya usan `metrics/orders` y
+    // `metrics/customers` para este parámetro: un valor que no es una
+    // fuente conocida no tiene interpretación posible, así que es un 400 y
+    // no una query vacía. Ver `org-id-seguro.ts` para el mismo argumento.
+    const fuente = interpretarFuentePedida(source);
+    if (fuente.estado === "desconocida") {
+      return NextResponse.json(
+        {
+          error:
+            `No conozco la plataforma "${fuente.pedida}". ` +
+            `Las que hay son: ${FUENTES_DE_ORDEN.join(", ")}.`,
+        },
+        { status: 400 },
+      );
+    }
+    const srcFilter = fuente.estado === "valida" ? `AND "source" = '${fuente.fuente}'` : "";
 
     // Replica EXACTA del KPI ventas en /api/metrics/orders (post anti-join)
     const ventasRow: any[] = await prisma.$queryRawUnsafe(

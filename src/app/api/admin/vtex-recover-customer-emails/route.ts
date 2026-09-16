@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
     // Vercel mantiene la funcion alive con waitUntil hasta que el fetch
     // dispara y vuelve.
     if (hasMore && autoContinue && !dryRun) {
-      const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
+      const baseUrl = selfFetchBaseUrl(req.nextUrl.origin);
       const nextUrl =
         `${baseUrl}/api/admin/vtex-recover-customer-emails` +
         `?orgId=${encodeURIComponent(orgId)}&key=${encodeURIComponent(KEY)}&autoContinue=1`;

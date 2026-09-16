@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
-import { getOrganization } from "@/lib/auth-guard";
+import { getOrganizationIdStrict } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { sendOnboardingEmail } from "@/lib/aura/create-creator";
 
@@ -21,7 +21,32 @@ export async function POST(
   { params }: { params: { id: string } },
 ) {
   try {
-    const org = await getOrganization(req);
+    // ⚠️ ESTE ENDPOINT NO AUTENTICABA (R-03, 2026-09-15).
+    //
+    // El único gate era `getOrganization(req)`, que **no autentica**: si no
+    // hay sesión cae al fallback de organización única (`auth-guard.ts:80`)
+    // y devuelve la org igual. O sea que un POST anónimo mandaba el link de
+    // set-password del creador a su casilla, las veces que quisiera — DoS
+    // del onboarding del creador, y control del *timing* del mail para un
+    // tercero (phishing sincronizado).
+    //
+    // Es el hermano exacto de `admin/aura-resend-onboarding`, que se arregló
+    // el 2026-09-13 y manda el mismo mail con la misma función. Quedó afuera
+    // porque el test que barre buscando rutas sin auth mira `/api/admin/**` y
+    // esto vive en `/api/aura/**`.
+    //
+    // ── POR QUÉ NO `isInternalUser()` ────────────────────────────────────
+    // Aquél es una herramienta de staff; éste lo llama la UI del CLIENTE
+    // (`(app)/aura/creadores/[id]/page.tsx:365`). Gatearlo con staff lo
+    // rompería para el dueño de la tienda, que es quien legítimamente le
+    // reenvía el link a su creador. `getOrganizationIdStrict` tira si no hay
+    // sesión, que es exactamente la diferencia con `getOrganization`.
+    const orgId = await getOrganizationIdStrict();
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, name: true, slug: true },
+    });
+    if (!org) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
 
     const influencer = await prisma.influencer.findFirst({
       where: { id: params.id, organizationId: org.id },

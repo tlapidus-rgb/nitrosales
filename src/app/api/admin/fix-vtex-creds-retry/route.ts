@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     );
 
     // 3. Trigger runner immediately
-    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
+    const baseUrl = selfFetchBaseUrl(req.nextUrl.origin);
     waitUntil(
       fetch(`${baseUrl}/api/cron/backfill-runner?key=${BACKFILL_RUNNER_KEY}`, { method: "GET" })
         .then((r) => console.log(`[fix-vtex-creds] runner triggered: ${r.status}`))

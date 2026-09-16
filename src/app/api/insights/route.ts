@@ -157,7 +157,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const section = searchParams.get("section") || "dashboard";
 
-    const baseUrl = selfFetchBaseUrl(req.headers.get("origin"));
+    const baseUrl = selfFetchBaseUrl(new URL(req.url).origin);
 
     // Load org context dynamically (name + industry/country from onboarding)
     const org = await getOrganization();
