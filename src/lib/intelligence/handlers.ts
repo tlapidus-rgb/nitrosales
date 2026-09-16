@@ -448,7 +448,11 @@ export async function handleCustomersLtv(orgId: string): Promise<string> {
 
   let ltvPredStr = "";
   if (predictions.length > 0) {
-    ltvPredStr = `\nPREDICCIONES LTV (modelo BG/NBD):\n` +
+    // El modelo NO es BG/NBD: es predicción de frecuencia por cohortes
+    // (RFM). Decía `(modelo BG/NBD)` acá adentro, o sea que el asistente se
+    // lo afirmaba al cliente en su respuesta — la misma promesa falsa que se
+    // sacó de la UI de LTV, sobreviviendo en el prompt.
+    ltvPredStr = `\nPREDICCIONES LTV (frecuencia por cohortes):\n` +
       predictions.slice(0, 10).map((p, i) =>
         `${i + 1}. Cliente ${p.customerId.substring(0, 8)}...: LTV predicho $${fmt(Number(p.predictedLtv90d))} | Confianza: ${(Number(p.confidence) * 100).toFixed(0)}% | Segmento: ${p.segmentBucket}`
       ).join("\n");

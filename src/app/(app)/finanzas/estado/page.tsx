@@ -15,6 +15,7 @@ import WaterfallDrillPanel, { DrillData, DrillRow } from "@/components/finanzas/
 import ExportMenu from "@/components/finanzas/ExportMenu";
 import { exportPnLToExcel, ExportRow, ExportManualCost } from "@/lib/finanzas/export";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
+import { confianzaDelMargen } from "@/lib/finanzas/confianza-del-margen";
 
 /* ── Types ──────────────────────────────────── */
 interface PnlSummary {
@@ -149,8 +150,36 @@ function MarginBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-/** Health status based on net margin */
-function getHealthStatus(margin: number): { label: string; color: string; bgColor: string; dotColor: string } {
+/**
+ * El semáforo del margen neto.
+ *
+ * ⚠️ RECIBE LA COBERTURA DE COSTOS, y no es opcional (R-35, 2026-09-15).
+ *
+ * `confianza-del-margen.ts` dice, en su encabezado, que existe *"separado de
+ * las dos pantallas para que digan lo mismo"*. Lo usaba una sola:
+ * `/finanzas/pulso`. Acá el umbral estaba escrito a mano en dos lugares y el
+ * semáforo no miraba la cobertura en absoluto.
+ *
+ * Resultado: con 0 % de costos cargados, el mismo cliente veía **"no podemos
+ * calcular tu margen"** en una pantalla y **"Margen 100 % — Excelente"** en la
+ * otra. Exactamente la divergencia que el módulo dice cerrar.
+ *
+ * Un margen del 100 % no es una buena noticia: es que no hay costos cargados.
+ */
+function getHealthStatus(
+  margin: number,
+  coberturaPct: number,
+): { label: string; color: string; bgColor: string; dotColor: string } {
+  // Sin cobertura suficiente no hay margen que semaforear. El criterio es el
+  // del módulo compartido, no un número escrito acá.
+  if (confianzaDelMargen(coberturaPct) === "sin-datos") {
+    return {
+      label: "Sin datos de costo",
+      color: "text-ink-60",
+      bgColor: "bg-ink-5 border-ink-10",
+      dotColor: "bg-ink-30",
+    };
+  }
   if (margin >= 15) return { label: "Excelente", color: "text-green-700", bgColor: "bg-green-50 border-green-200", dotColor: "bg-green-500" };
   if (margin >= 10) return { label: "Saludable", color: "text-green-600", bgColor: "bg-green-50 border-green-200", dotColor: "bg-green-400" };
   if (margin >= 5) return { label: "Aceptable", color: "text-yellow-600", bgColor: "bg-yellow-50 border-yellow-200", dotColor: "bg-yellow-400" };
@@ -236,7 +265,7 @@ function ExecutiveView({
 
   const netProfit = summary.netOperatingProfit ?? summary.operatingProfit;
   const netMargin = summary.netOperatingMargin ?? summary.operatingMargin;
-  const health = getHealthStatus(netMargin);
+  const health = getHealthStatus(netMargin, summary.cogsCoverage);
 
   // Total costs
   const totalCosts = summary.cogs + summary.adSpend + summary.shipping
@@ -247,7 +276,9 @@ function ExecutiveView({
   return (
     <>
       {/* COGS Coverage Warning */}
-      {summary.cogsCoverage < 50 && (
+      {/* El umbral sale del módulo compartido, no de un 50 escrito acá.
+          Ver `confianza-del-margen.ts` y el comentario de getHealthStatus. */}
+      {confianzaDelMargen(summary.cogsCoverage) !== "confiable" && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
           <span className="text-amber-500 text-lg">&#9888;</span>
           <div>
@@ -386,7 +417,7 @@ function ExecutiveView({
       {bySource.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {bySource.map((s) => {
-            const channelHealth = getHealthStatus(s.operatingMargin);
+            const channelHealth = getHealthStatus(s.operatingMargin, summary.cogsCoverage);
             const revPct = summary.revenue > 0 ? ((s.revenue / summary.revenue) * 100).toFixed(0) : 0;
             return (
               <div key={s.source} className="bg-elevated rounded-xl p-5 shadow-sm">
@@ -795,7 +826,9 @@ function DetailedView({
   return (
     <>
       {/* COGS Coverage Warning */}
-      {summary.cogsCoverage < 50 && (
+      {/* El umbral sale del módulo compartido, no de un 50 escrito acá.
+          Ver `confianza-del-margen.ts` y el comentario de getHealthStatus. */}
+      {confianzaDelMargen(summary.cogsCoverage) !== "confiable" && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
           <span className="text-amber-500 text-lg">&#9888;</span>
           <div>

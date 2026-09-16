@@ -14,9 +14,28 @@
 
 import { ordersValidSql } from "@/domains/orders";
 
-/** Órdenes válidas del período, por organización. */
+/**
+ * Órdenes válidas del período, por organización.
+ *
+ * ⚠️ `COUNT(DISTINCT COALESCE("packId", "externalId"))`, NO `COUNT(*)`.
+ *
+ * Esto contaba con `COUNT(*)` y **inflaba la factura** (R-12, 2026-09-15).
+ * `prisma/schema.prisma` lo dice sobre la columna: *"MELI pack_id: varias
+ * ordenes de 1 carrito comparten packId, COUNT DISTINCT para no inflar"*. Todo
+ * el resto del repo cuenta así —`metrics/orders`, los transforms Gold,
+ * `validate-orders-count`— y esta query era la única que no.
+ *
+ * El efecto no era cosmético: *órdenes por mes* es una de las seis dimensiones
+ * que se **facturan**, así que salía más alta que el número que el mismo
+ * cliente ve en su dashboard de Pedidos. Por cada carrito de MercadoLibre con
+ * más de un ítem, y siempre para el mismo lado: cobrando de más.
+ *
+ * El test no lo podía ver: la tabla `orders` del fixture de PGlite no tiene
+ * columna `packId`, así que el escenario era inexpresable.
+ */
 export const ORDENES_POR_ORG = `
-  SELECT o."organizationId" AS "organizationId", COUNT(*)::int AS n
+  SELECT o."organizationId" AS "organizationId",
+         COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::int AS n
   FROM orders o
   WHERE o."orderDate" >= $1::timestamptz AND ${ordersValidSql("o")}
   GROUP BY o."organizationId"

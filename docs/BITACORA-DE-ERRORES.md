@@ -143,3 +143,100 @@ hipótesis es que no está corriendo nada.
 intento fallido.)
 
 ---
+
+### E-05 · Rompí dos archivos más escribiendo prosa que cierra su propio contenedor
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** el parser, las dos veces
+
+**Qué hice mal:** dos veces seguidas, en archivos distintos, escribí un comentario cuyo
+**texto** termina el bloque que lo contiene:
+
+1. En `promesas-del-producto.test.ts` quise explicar, dentro de un JSDoc, que el problema eran
+   los comentarios JSX de bloque. Para escribir la secuencia de cierre sin cerrarlo, la partí
+   en dos strings concatenados — que al escribirse al archivo se **reunieron** y lo cerraron
+   igual.
+2. En `consumo-por-cliente-sql.test.ts` escribí un comentario SQL que citaba código entre
+   backticks, adentro de un template literal de TypeScript. El primer backtick cerró el
+   template.
+
+**Cómo se manifestó:** las dos veces, `Tests  no tests`. Ninguna dijo "falló".
+
+**Por qué pasó:** escribí la prosa pensando en el lector y no en el parser. El detalle
+irónico del primero: el error fue *al explicar exactamente ese tipo de error*.
+
+**Qué hago distinto:** dentro de un comentario de bloque o de un template literal, la prosa
+**no cita sintaxis**. Se describe en palabras ("un comentario JSX de bloque", "el conteo de a
+una fila") en vez de mostrar los caracteres. Si hay que mostrarlos sí o sí, van en un
+comentario de línea afuera del bloque.
+
+Y la señal de diagnóstico, que ya vale para los tres casos de hoy: **`Tests no tests` es un
+archivo que no compila**, no un resultado.
+
+---
+
+### E-06 · Escribí `base()` donde el helper se llama `db()`
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** el test, al correrlo
+
+**Qué hice mal:** los dos casos nuevos que agregué a `consumo-por-cliente-sql.test.ts`
+llamaban a `base()`. El helper de ese archivo se llama `db()`.
+
+**Cómo se manifestó:** `ReferenceError: base is not defined`. Y de paso apareció un segundo
+descuido: mi regex para completar los `INSERT` existentes con las columnas nuevas no cubrió
+uno que estaba escrito en una sola línea, así que ese test rompió por número de columnas.
+
+**Por qué pasó:** escribí los casos nuevos de memoria, copiando la forma de otros tests que
+había leído hacía rato, sin volver a mirar el archivo.
+
+**Qué hago distinto:** al agregar un caso a un archivo de tests existente, releer los helpers
+de **ese** archivo antes de escribir, no después de que falle. Cuesta un `grep` y evita dos
+vueltas.
+
+Es menor y se arregló en un minuto — entra igual, porque los que se arreglan en un minuto son
+los que vuelven.
+
+---
+
+### E-07 · Casi dejo una página rota en runtime: mi script leyó sus propios comentarios
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** yo, al no ver el `ok [import]` que esperaba
+
+**Qué hice mal:** el script que arregló `/finanzas/estado` agregaba el import sólo si el
+archivo no mencionaba ya el módulo:
+
+```js
+if (!s.includes("confianza-del-margen")) { …agregar el import… }
+```
+
+Para cuando corría ese chequeo, el script **ya había insertado tres comentarios** que
+mencionan `confianza-del-margen.ts` explicando el arreglo. Así que el chequeo dio falso y el
+import **nunca se agregó**, mientras el código nuevo llamaba a `confianzaDelMargen()` en
+cuatro lugares.
+
+**Cómo se manifestó:** casi no se manifiesta. `npx tsc --noEmit` **pasó limpio**, porque el
+archivo tiene `// @ts-nocheck` en la línea 1. La página habría explotado recién en el
+navegador, con `confianzaDelMargen is not defined`, en la pantalla de finanzas de un cliente.
+
+Lo agarré porque el script no imprimió el `ok [import]` que yo esperaba ver. Un paso de log
+que puse por costumbre, no por diseño.
+
+**Por qué pasó:** dos causas que se combinaron:
+
+1. **El chequeo leyó mi propia prosa.** Es el `#S61` de siempre —el test que lee sus
+   comentarios— pero esta vez del lado del script de edición, y con el agravante de que el
+   script **crea** el texto que después confunde a su propio chequeo. El orden de las
+   operaciones lo garantizaba.
+2. **`tsc` es ciego en 290 archivos de este repo.** Ya lo sabía, está escrito en todos los
+   briefs que le di a los revisores, y aun así corrí `tsc` y canté "OK".
+
+**Qué hago distinto:**
+
+- Un chequeo de "¿ya existe este import?" mira **líneas que empiezan con `import`**, nunca el
+  archivo entero:
+  ```js
+  lineas.some(l => l.startsWith("import ") && l.includes("<módulo>"))
+  ```
+- Y al tocar un archivo con `@ts-nocheck`, `tsc` no cuenta como verificación: hay que correr
+  `next build`, que es lo único que los mira.
+
+---

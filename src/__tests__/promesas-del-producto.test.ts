@@ -36,14 +36,48 @@ function archivosDe(dir: string, ext: string[]): string[] {
   return salida;
 }
 
+/**
+ * El archivo sin comentarios, de los tres tipos que usa el repo.
+ *
+ * ── POR QUÉ HACE FALTA, Y POR QUÉ EL FILTRO POR LÍNEA NO ALCANZA ─────────
+ * Este test busca menciones de modelos que el producto NO implementa. Y el
+ * lugar donde más probable es que aparezca el nombre de un modelo inexistente
+ * es, justamente, el comentario que explica que no existe. Este repo tiene
+ * tres de esos, escritos a propósito para que nadie reviva el sello.
+ *
+ * No alcanza con filtrar las líneas que arrancan con doble barra o asterisco:
+ * el caso real es un comentario JSX de bloque, multilínea, en
+ * `primitives.tsx` — y las líneas del medio son prosa suelta, sin prefijo.
+ *
+ * Tercera vez que este patrón muerde en el repo (#S61 en
+ * ERRORES_CLAUDE_NO_REPETIR.md). La salida fácil sería borrar los comentarios
+ * explicativos, que es exactamente lo que no queremos: son la memoria de por
+ * qué el sello se quitó.
+ */
+function sinComentarios(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split(/\r?\n/)
+    .filter((l) => !l.trim().startsWith("//"))
+    .join("\n");
+}
+
 describe("el motor de LTV es el que decimos que es", () => {
   it("NO hay implementacion de BG/NBD ni Gamma-Gamma en el repo", () => {
     // Si algun dia se implementan de verdad, este test se pone rojo y ahi si
     // se puede volver a poner el sello. Es la unica via valida para revivirlo.
     const fuentes = archivosDe(join(raiz, "src"), [".ts", ".tsx"]);
     const implementan = fuentes.filter((f) => {
-      const s = readFileSync(f, "utf8");
-      return /\b(bgnbd|bg_nbd|betaGeometric|gammaGamma|paretoNBD)\b/i.test(s);
+      const s = sinComentarios(readFileSync(f, "utf8"));
+      // El segundo regex existe porque `\b` NO matchea `BG/NBD`: la barra ya
+      // es un borde de palabra, así que `\bbgnbd\b` nunca la encuentra. Por
+      // eso la mención sobrevivió en `lib/intelligence/handlers.ts`, dentro
+      // del prompt que se le manda al asistente — o sea, en el único lugar
+      // donde el cliente la iba a leer como afirmación del producto.
+      return (
+        /\b(bgnbd|bg_nbd|betaGeometric|gammaGamma|paretoNBD)\b/i.test(s) ||
+        /BG\s*\/\s*NBD|Gamma\s*-\s*Gamma|Pareto\s*\/\s*NBD/i.test(s)
+      );
     });
     expect(implementan).toEqual([]);
   });
@@ -119,12 +153,24 @@ describe("el behavioral score no promete una calibracion que no existe", () => {
       archivosDe(join(raiz, "src/components"), [".tsx"]),
     );
     const culpables = ui.filter((f) => {
-      const s = readFileSync(f, "utf8")
-        .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .split("\n")
-        .filter((l) => !l.trim().startsWith("//"))
-        .join("\n");
+      // ⚠️ EL WHITESPACE SE NORMALIZA ANTES DE BUSCAR.
+      //
+      // Este test estuvo VERDE con la promesa falsa viva en pantalla. El
+      // regex pedía un espacio literal entre las dos palabras, y Prettier
+      // había partido la frase en dos líneas:
+      //
+      //     …consistencia). Recalibración\r\n                semanal contra…
+      //
+      // O sea que el texto real llevaba un salto de línea y doce espacios de
+      // indentación donde el regex esperaba uno solo. Un test que busca una
+      // frase en código formateado **nunca** puede usar un espacio literal:
+      // el formateador decide dónde corta, y cambia con el ancho de la línea.
+      //
+      // Se colapsa todo el whitespace a un espacio, y de paso se sacan los
+      // `{" "}` que JSX mete al cortar texto.
+      const s = sinComentarios(readFileSync(f, "utf8"))
+        .replace(/\{"\s*"\}/g, " ")
+        .replace(/\s+/g, " ");
       return /recalibraci[oó]n (semanal|diaria|mensual)|se recalibra/i.test(s);
     });
     expect(culpables).toEqual([]);

@@ -1121,8 +1121,7 @@ export default function LtvPage() {
               </h2>
               <p className="text-xs text-ink-60 mt-1.5 max-w-2xl leading-relaxed">
                 Score 0-100 calculado server-side sobre señales pixel (sesiones,
-                navegación, intención, origen, consistencia). Recalibración
-                semanal contra conversiones reales.
+                navegación, intención, origen, consistencia), con pesos fijos.
                 <BondlyInfoTip
                   text="Basado en investigación de marketing digital sobre señales tempranas de intención de compra (McKinsey, HBR, Google Research) aplicada a tu propio funnel con NitroPixel. El score es una estimación probabilística, no una garantía."
                   title="Cómo se calcula"

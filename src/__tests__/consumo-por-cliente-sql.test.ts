@@ -28,7 +28,13 @@ CREATE TABLE orders (
   "organizationId" text NOT NULL,
   "orderDate" timestamptz NOT NULL,
   status text NOT NULL,
-  "totalValue" numeric NOT NULL
+  "totalValue" numeric NOT NULL,
+  -- Las dos columnas que deciden como se cuenta una orden. Faltaban, asi que
+  -- el caso de los packs de MercadoLibre era inexpresable en este test, y por
+  -- eso nadie vio que la query de facturacion contaba de a una fila mientras
+  -- el resto del repo cuenta packs distintos.
+  "externalId" text,
+  "packId" text
 );
 CREATE TABLE products (
   id text PRIMARY KEY,
@@ -80,9 +86,9 @@ describe("ordenes — respeta el contrato de venta valida", () => {
     const d = await db();
     await d.query(
       `INSERT INTO orders VALUES
-        ('o1','orgA',$1,'INVOICED',1000),
-        ('o2','orgA',$1,'APPROVED',2000),
-        ('o3','orgB',$1,'INVOICED',500)`,
+        ('o1','orgA',$1,'INVOICED',1000,'ext-o1',NULL),
+        ('o2','orgA',$1,'APPROVED',2000,'ext-o2',NULL),
+        ('o3','orgB',$1,'INVOICED',500,'ext-o3',NULL)`,
       [diasAtras(5)],
     );
     const r = await filas<Conteo>(d, ORDENES_POR_ORG, [DESDE]);
@@ -90,16 +96,50 @@ describe("ordenes — respeta el contrato de venta valida", () => {
     expect(m.get("orgA")).toBe(2);
     expect(m.get("orgB")).toBe(1);
   });
+  it("un carrito de MercadoLibre cuenta como UNA orden, no como sus items", async () => {
+    // R-12. `prisma/schema.prisma` lo dice sobre la columna: varias órdenes de
+    // un mismo carrito de MELI comparten `packId`. Contarlas por separado
+    // **infla la factura**, y siempre para el mismo lado.
+    //
+    // Acá: tres órdenes de orgA, dos de ellas del mismo carrito. Son 2, no 3.
+    // Con el `COUNT(*)` que había, este test daba 3 y al cliente se le cobraba
+    // una orden de más por cada carrito con más de un ítem.
+    const d = await db();
+    await d.query(
+      `INSERT INTO orders VALUES
+        ('o1','orgA',$1,'INVOICED',1000,'ext-1','pack-9'),
+        ('o2','orgA',$1,'INVOICED',2000,'ext-2','pack-9'),
+        ('o3','orgA',$1,'APPROVED',500,'ext-3',NULL)`,
+      [diasAtras(5)],
+    );
+    const r = await filas<Conteo>(d, ORDENES_POR_ORG, [DESDE]);
+    const m = new Map(r.map((x) => [x.organizationId, Number(x.n)]));
+    expect(m.get("orgA"), "dos del mismo pack son una sola orden").toBe(2);
+  });
+
+  it("sin packId, cada orden cuenta por su externalId", async () => {
+    // El `COALESCE` tiene que seguir contando bien lo que NO es de MELI.
+    const d = await db();
+    await d.query(
+      `INSERT INTO orders VALUES
+        ('o1','orgA',$1,'INVOICED',1000,'ext-1',NULL),
+        ('o2','orgA',$1,'INVOICED',2000,'ext-2',NULL)`,
+      [diasAtras(5)],
+    );
+    const r = await filas<Conteo>(d, ORDENES_POR_ORG, [DESDE]);
+    const m = new Map(r.map((x) => [x.organizationId, Number(x.n)]));
+    expect(m.get("orgA")).toBe(2);
+  });
 
   it("NO cuenta canceladas, pendientes ni devueltas", async () => {
     // Si las contara, se le facturaria al cliente por ventas que no existieron.
     const d = await db();
     await d.query(
       `INSERT INTO orders VALUES
-        ('o1','orgA',$1,'CANCELLED',1000),
-        ('o2','orgA',$1,'PENDING',1000),
-        ('o3','orgA',$1,'RETURNED',1000),
-        ('o4','orgA',$1,'INVOICED',1000)`,
+        ('o1','orgA',$1,'CANCELLED',1000,'ext-o1',NULL),
+        ('o2','orgA',$1,'PENDING',1000,'ext-o2',NULL),
+        ('o3','orgA',$1,'RETURNED',1000,'ext-o3',NULL),
+        ('o4','orgA',$1,'INVOICED',1000,'ext-o4',NULL)`,
       [diasAtras(5)],
     );
     const r = await filas<Conteo>(d, ORDENES_POR_ORG, [DESDE]);
@@ -108,14 +148,14 @@ describe("ordenes — respeta el contrato de venta valida", () => {
 
   it("tampoco cuenta una orden de valor cero", async () => {
     const d = await db();
-    await d.query(`INSERT INTO orders VALUES ('o1','orgA',$1,'INVOICED',0)`, [diasAtras(5)]);
+    await d.query(`INSERT INTO orders VALUES ('o1','orgA',$1,'INVOICED',0,'ext-o1',NULL)`, [diasAtras(5)]);
     expect(await filas(d, ORDENES_POR_ORG, [DESDE])).toEqual([]);
   });
 
   it("y respeta el periodo: una orden vieja queda afuera", async () => {
     const d = await db();
     await d.query(
-      `INSERT INTO orders VALUES ('o1','orgA',$1,'INVOICED',1000),('o2','orgA',$2,'INVOICED',1000)`,
+      `INSERT INTO orders VALUES ('o1','orgA',$1,'INVOICED',1000,'ext-o1',NULL),('o2','orgA',$2,'INVOICED',1000,'ext-o2b',NULL)`,
       [diasAtras(5), diasAtras(90)],
     );
     const r = await filas<Conteo>(d, ORDENES_POR_ORG, [DESDE]);
