@@ -62,7 +62,7 @@ describe("backfillDay — aislamiento por organización (E-05)", () => {
     ]);
   });
 
-  it("si fallan todas, se ven todas — el día no queda 'ok' y mudo", async () => {
+  it("si fallan todas, `backfillDay` las reporta todas en `failures`", async () => {
     const r = await backfillDay("2026-09-01", ORGS, undefined, {
       runOrg: async () => {
         throw new Error("Neon caído");
@@ -170,5 +170,33 @@ describe("GUARD — el runner no corta un día a mitad de las organizaciones", (
     // Y no debe reaparecer el corte por presupuesto dentro del día.
     expect(src).not.toContain("deadlineAt: startedAt + budget");
     expect(src).not.toContain("nextOrgCursor");
+  });
+});
+
+describe("R-17 — un día en el que fallan TODAS las orgs no es un éxito", () => {
+  // `backfillDay` reporta bien las fallas (los casos de arriba). El problema
+  // estaba una capa más arriba: `runRollupBackfill` empujaba el día a `days[]`,
+  // avanzaba el cursor y devolvía **`ok: true` con HTTP 200** aunque no se
+  // hubiera escrito una sola fila. La única señal era un `console.error`.
+  //
+  // Esa capa necesita Prisma, así que no se puede ejecutar acá — es el hueco
+  // que la auditoría de tests marcó. Hasta que se pueda inyectar el acceso a
+  // la base (igual que ya se hizo con `runOrg` y `now`), este guard
+  // estructural es lo que hay: verifica que el `ok` del body **dependa** de
+  // los fallos por org, en vez de ser un literal.
+  //
+  // Es un test de forma y se sabe. Sin él, el arreglo se puede revertir sin
+  // que nada se ponga rojo.
+  it("el `ok` del body se calcula, no es un literal `true`", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const src = readFileSync(
+      join(process.cwd(), "src", "lib", "pixel", "rollup-backfill.ts"),
+      "utf8",
+    );
+
+    expect(src).toMatch(/fallaronTodas/);
+    expect(src).toMatch(/ok:\s*!fallaronTodas/);
+    expect(src).toMatch(/httpStatus:\s*fallaronTodas\s*\?\s*500\s*:\s*200/);
   });
 });

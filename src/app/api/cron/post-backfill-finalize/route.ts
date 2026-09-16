@@ -93,8 +93,22 @@ export async function GET(req: NextRequest) {
       baseUrl,
     );
 
+    // ⚠️ `ok` describe si los pasos SALIERON BIEN, no si se intentaron (R-17).
+    //
+    // Esto devolvía `ok: true` aunque los cuatro fallaran. El daño lo
+    // describe el comentario de `backfill-runner` que lo dispara: cliente
+    // nuevo con los costos en null, rentabilidad y P&L en cero, "con toda la
+    // pinta de estar bien", y nada lo reintenta.
+    //
+    // `callInternal` devuelve un objeto por paso; se considera fallado el que
+    // traiga `ok: false` o un `error`.
+    const pasosFallados = Object.entries(results)
+      .filter(([, r]: [string, any]) => r && (r.ok === false || r.error))
+      .map(([nombre]) => nombre);
+
     return NextResponse.json({
-      ok: true,
+      ok: pasosFallados.length === 0,
+      pasosFallados: pasosFallados.length ? pasosFallados : undefined,
       orgId,
       durationMs: Date.now() - t0,
       results,

@@ -718,10 +718,37 @@ export async function runRollupBackfill(params: {
   const done = cursor > to;
   const orgQs = params.org ? `&org=${params.org}` : "";
   const tableQs = table ? `&table=${table}` : "";
+
+  // ⚠️ UN DÍA EN EL QUE FALLARON TODAS LAS ORGS NO ES UN ÉXITO (R-17).
+  //
+  // El aislamiento por org (E-05) evita que un cliente roto frene a los
+  // demás, y eso está bien. Pero convirtió el fallo TOTAL —las 8 orgs
+  // fallando— de un HTTP 500 en un `ok: true` con 200 y cero filas
+  // escritas. La única señal que quedaba era un `console.error`.
+  //
+  // En este mismo archivo, la incoherencia MANDA MAIL, y el comentario
+  // explica por qué: *"antes sólo lo logueaba → moría en los logs del
+  // server y nadie se enteraba"*. El mismo diagnóstico, el tratamiento
+  // opuesto.
+  //
+  // El criterio: si se intentó trabajo y NINGUNA org lo pudo hacer, es un
+  // fallo. Que falle una de ocho sigue siendo `ok` — para eso se hizo el
+  // aislamiento.
+  const orgsQueFallaron = days.reduce(
+    (n, d: any) => n + ((d.perOrgMs ?? []).filter((o: any) => o.ok === false).length),
+    0,
+  );
+  const orgsIntentadas = days.reduce(
+    (n, d: any) => n + (d.perOrgMs ?? []).length,
+    0,
+  );
+  const fallaronTodas = orgsIntentadas > 0 && orgsQueFallaron === orgsIntentadas;
+
   return {
-    httpStatus: 200,
+    httpStatus: fallaronTodas ? 500 : 200,
     body: {
-      ok: true,
+      ok: !fallaronTodas,
+      fallaronTodasLasOrgs: fallaronTodas || undefined,
       phase: "backfill",
       window: { from, to },
       org: params.org ?? null,

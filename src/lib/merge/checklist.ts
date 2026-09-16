@@ -69,8 +69,16 @@ export type InsumosDelChecklist = {
 const VENTANA_INCREMENTAL_DIAS = 4;
 
 export function evaluarChecklist(i: InsumosDelChecklist): {
+  /**
+   * `true` sólo si TODOS los pasos se pudieron verificar y están bien.
+   *
+   * Un paso en `no-se-sabe` lo deja en `false`: no saber no es estar listo.
+   */
   listo: boolean;
+  /** Pasos que faltan o están mal. */
   pendientes: number;
+  /** Pasos que no se pudieron verificar. Distinto de `pendientes`. */
+  sinSaber: number;
   pasos: PasoDelMerge[];
 } {
   const pasos: PasoDelMerge[] = [];
@@ -254,5 +262,21 @@ export function evaluarChecklist(i: InsumosDelChecklist): {
   // mirar a mano. Contarlo como pendiente daría rojo permanente en un entorno
   // donde la consulta no se puede hacer; contarlo como ok sería inventar.
   const pendientes = pasos.filter((p) => p.estado === "falta" || p.estado === "mal").length;
-  return { listo: pendientes === 0, pendientes, pasos };
+
+  // ⚠️ …y el código decía justo lo contrario del comentario de arriba (R-17).
+  //
+  // `listo: pendientes === 0` cuenta el "no sé" **como listo**, porque
+  // `pendientes` sólo suma `falta` y `mal`. En el escenario donde la base no
+  // responde —que es cuando más importa— el checklist contestaba
+  // `listo: true` sin haber podido verificar un solo paso.
+  //
+  // Ahora hay tres estados y ninguno se disfraza de otro: `listo` sólo es
+  // `true` si TODO se pudo verificar y está bien.
+  const sinSaber = pasos.filter((p) => p.estado === "no-se-sabe").length;
+  return {
+    listo: pendientes === 0 && sinSaber === 0,
+    pendientes,
+    sinSaber,
+    pasos,
+  };
 }

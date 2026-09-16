@@ -249,3 +249,41 @@ describe("las DOS ventanas de rotación — son secretos distintos", () => {
     expect(p.automatizable).toBe(false);
   });
 });
+
+describe("R-17 — no saber no es estar listo", () => {
+  // El comentario del módulo decía, textualmente, que `no-se-sabe` no cuenta
+  // *ni como pendiente ni como listo*. El código hacía `listo: pendientes === 0`
+  // y `pendientes` sólo suma `falta` y `mal` — o sea que el "no sé" contaba
+  // **como listo**.
+  //
+  // El escenario que importa es justo ése: la base no responde, no se puede
+  // verificar nada, y el checklist contesta que se puede mergear.
+  it("con la tabla de cursores sin consultar, NO dice listo", () => {
+    const r = evaluarChecklist({
+      tablaDeCursores: null, // null = no se pudo consultar
+      alertas: { destinatarios: 2, esElFallback: false },
+      ventana: { estado: "ok", valor: "02-08" },
+      historiaGold: { source: 400, channel: 400 },
+      ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
+    } as any);
+
+    expect(r.sinSaber, "el paso quedó sin verificar").toBeGreaterThan(0);
+    expect(r.listo, "no saber no es estar listo").toBe(false);
+  });
+
+  it("`pendientes` y `sinSaber` son cosas distintas", () => {
+    // No saber NO infla el contador de pendientes: eso daría rojo permanente
+    // en un entorno donde la consulta no se puede hacer, que es justo lo que
+    // el módulo quería evitar. Son dos números separados a propósito.
+    const r = evaluarChecklist({
+      tablaDeCursores: null,
+      alertas: { destinatarios: 2, esElFallback: false },
+      ventana: { estado: "ok", valor: "02-08" },
+      historiaGold: { source: 400, channel: 400 },
+      ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
+    } as any);
+
+    expect(r.pendientes).toBe(0);
+    expect(r.sinSaber).toBeGreaterThan(0);
+  });
+});
