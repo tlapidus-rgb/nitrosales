@@ -24,24 +24,15 @@ import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
-import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
 import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
 import { touchpointChannelSql } from "@/lib/pixel/touchpoint-channel-sql";
 import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
 import type { ChannelRule } from "@/lib/pixel/channel-rules";
-import {
-  loadProductSkuMap,
-  foldPurchasesToProductGrain,
-  type PurchaseRow,
-} from "@/lib/pixel/product-id-map";
-import { loadCategoryLabels } from "@/lib/products/category-label";
-import { crPct } from "@/lib/pixel/cr-rate";
 import { buildPixelCacheKey } from "@/lib/pixel/cache-key";
 import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
-  canonicalMarketingSource,
   mergeChannelRolesByGroupKey,
 } from "@/lib/pixel/source-classification";
 
@@ -91,7 +82,6 @@ const GLOBAL_TIMEOUT_MS = 85000;
 // que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
 // 500 y recortaba en silencio: Arredo tiene 848 productos visitados en 30 días,
 // así que la tabla mostraba 499 y parecía completa mientras tiraba 348.
-const PRODUCT_UNIVERSE_CAP = 20000;
 
 // IMPORTANTE: este mock debe tener la MISMA FORMA que la respuesta real de
 // realHandler(), pero en cero. Se devuelve en el cold-cache/timeout (primera
@@ -138,7 +128,6 @@ function buildEmptyMockResponse() {
     _demoMode: true,
   };
 }
-
 export async function GET(request: NextRequest) {
   const trace = createPixelTrace();
   // Warm-cache: SIN race (BP-PIXEL-TIMEOUT, 2026-08-18). El cron warm-cache pre-siembra
@@ -368,7 +357,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       dailyChannelSpendResult,
       // ── Channel role breakdown (first/assist/last touch per source) ──
       channelRolesResult,
-      // ── Conversion Rates queries ──
+      // ── Deferred dashboard queries ──
       visitorsBySourceResult,
       ordersByDeviceResult,
       productViewersResult,
@@ -477,29 +466,10 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         LIMIT 10
       `) as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
 
-      // 8. Attribution by model
-      trace.run("$queryRaw:L469", () => prisma.$queryRaw`
-        SELECT
-          pa.model,
-          COUNT(*)::int as "ordersAttributed",
-          SUM(pa."attributedValue")::float as revenue,
-          AVG(pa."attributedValue")::float as "avgValue",
-          AVG(pa."touchpointCount")::float as "avgTouchpoints"
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY revenue DESC
-      `) as Promise<Array<{
+      // 8. Attribution by model used to scan the same attributed orders again.
+      // Analytics only needs the selected model for its KPI strip, which is derived
+      // below from dailyRevenueResult (same contract, already in this batch).
+      Promise.resolve([]) as Promise<Array<{
         model: string; ordersAttributed: number; revenue: number;
         avgValue: number; avgTouchpoints: number;
       }>>,
@@ -630,36 +600,9 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           `)
       ) as Promise<Array<{ source: string; orders: number; revenue: number }>>,
 
-      // 10. Conversion lag distribution
+      // 10. Conversion lag is loaded after the KPI response from /lag-summary.
       // Negative lags are treated as 0 (same-session: pixel fires after VTEX order)
-      trace.run("$queryRaw:L623", () => prisma.$queryRaw`
-        SELECT
-          CASE
-            WHEN pa."conversionLag" IS NULL THEN 'unknown'
-            WHEN pa."conversionLag" <= 0 THEN 'Mismo día'
-            WHEN pa."conversionLag" BETWEEN 1 AND 3 THEN '1-3 días'
-            WHEN pa."conversionLag" BETWEEN 4 AND 7 THEN '4-7 días'
-            WHEN pa."conversionLag" BETWEEN 8 AND 14 THEN '8-14 días'
-            WHEN pa."conversionLag" BETWEEN 15 AND 30 THEN '15-30 días'
-            ELSE '30+ días'
-          END as bucket,
-          COUNT(*)::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
-      `) as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
+      Promise.resolve([]) as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
 
       // 11. Recent events
       trace.run("$queryRaw:L653", () => prisma.$queryRaw`
@@ -826,15 +769,13 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       trace.run("$queryRaw:L814", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          COUNT(*)::int as "totalOrders",
+          COUNT(DISTINCT o.id)::int as "totalOrders",
           COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
         FROM orders o
-        LEFT JOIN (
-          SELECT DISTINCT "orderId"
-          FROM pixel_attributions
-          WHERE "organizationId" = ${ORG_ID}
-            AND model::text = ${selectedModel}
-        ) pa ON pa."orderId" = o.id
+        LEFT JOIN pixel_attributions pa
+          ON pa."orderId" = o.id
+         AND pa."organizationId" = ${ORG_ID}
+         AND pa.model::text = ${selectedModel}
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
@@ -1003,74 +944,19 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // simple JOIN+agregación, sub-segundo. Uses crDateFrom (piso de cobertura del pixel).
       Promise.resolve([]) as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
-      // 25. Product viewers — rollup pixel_daily_product (HLL de visitantes por producto).
-      // Usa crDateFrom (piso de cobertura del pixel) como límite inferior del rango.
-      trace.run("$queryRaw:L1081", () => prisma.$queryRaw`
-        SELECT
-          product_id as "productExternalId",
-          COALESCE(hll_cardinality(hll_union_agg(viewers_hll)), 0)::int as viewers
-        FROM pixel_daily_product
-        WHERE "organizationId" = ${ORG_ID}
-          AND day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY 1
-        ORDER BY viewers DESC
-        LIMIT ${PRODUCT_UNIVERSE_CAP}
-      `) as Promise<Array<{ productExternalId: string; viewers: number }>>,
+      // Product conversion has its own endpoint (/api/metrics/conversion).
+      Promise.resolve([]) as Promise<Array<{ productExternalId: string; viewers: number }>>,
 
       // (26. Product purchases se movió DESPUÉS del batch: ahora depende del
       //  mapa skuId⇄productId, que a su vez depende de los viewers. Ver abajo.)
 
       // ── Journey Intelligence queries (use crDateFrom for pixel coverage) ──
 
-      // 27. Journey complexity distribution (touchpoint count → journeys, revenue, AOV)
-      trace.run("$queryRaw:L1100", () => prisma.$queryRaw`
-        SELECT
-          CASE
-            WHEN pa."touchpointCount" = 1 THEN 1
-            WHEN pa."touchpointCount" = 2 THEN 2
-            WHEN pa."touchpointCount" = 3 THEN 3
-            WHEN pa."touchpointCount" BETWEEN 4 AND 6 THEN 4
-            ELSE 5
-          END as bucket,
-          COUNT(*)::int as journeys,
-          SUM(pa."attributedValue")::float as revenue,
-          AVG(pa."attributedValue")::float as aov
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-        GROUP BY 1
-        ORDER BY 1
-      `) as Promise<Array<{ bucket: number; journeys: number; revenue: number; aov: number }>>,
+      // Journey Intelligence is disabled in the UI; do not pay two full JSONB scans.
+      Promise.resolve([]) as Promise<Array<{ bucket: number; journeys: number; revenue: number; aov: number }>>,
 
       // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
-      trace.run("$queryRaw:L1126", () => prisma.$queryRaw`
-        SELECT
-          ${tpSourceOrChannel("pa.touchpoints::jsonb->0")} as first_channel,
-          ${tpSourceOrChannel("pa.touchpoints::jsonb->(-1)")} as last_channel,
-          COUNT(*)::int as journeys,
-          SUM(pa."attributedValue")::float as revenue,
-          AVG(pa."attributedValue")::float as aov
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND pa."touchpointCount" >= 2
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-        GROUP BY 1, 2
-        ORDER BY revenue DESC
-        LIMIT 10
-      `) as Promise<Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>>,
+      Promise.resolve([]) as Promise<Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>>,
 
       // 29. Revenue por (modelo, canal) — para tarjeta "Comparacion de modelos"
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
@@ -1199,67 +1085,9 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       `) as Promise<Array<{ model: string; source: string; revenue: number }>>),
     ]);
 
-    // ══════════════════════════════════════════════════════════
-    // 26. Product purchases — DESPUÉS del batch, acotado y verificado
-    // ══════════════════════════════════════════════════════════
-    // Dos bugs corregidos acá (mismos que en metrics/conversion, 2026-07-18):
-    //
-    // A) DOBLE LIMIT DESALINEADO: viewers y purchases corrían en paralelo, cada
-    //    uno con LIMIT 500 pero ordenados por criterios DISTINTOS (más visitados
-    //    vs más facturación). Recortaban subconjuntos disjuntos del catálogo: en
-    //    Arredo la intersección daba CERO. Ahora el universo lo define el lado
-    //    VISTO y las compras se piden solo para esos productos.
-    //
-    // B) CRUCE POR EL ID EQUIVOCADO: el pixel emite el productId del PADRE y
-    //    products."externalId" guarda el skuId de la VARIANTE. Un ~24% colisiona
-    //    por azar → mostrábamos el CR de otro producto. Ahora pasa por la
-    //    dimensión vtex_sku_product; sin mapa no se atribuye nada.
-    // Run only the independent post-batch reads together (at most four).
-    // Product -> SKU -> purchases -> labels remains an ordered dependency chain.
-    const [productData, manualSpends, fRow, dailySpendResult] = await Promise.all([
-      (async () => {
-        const pixelViewedIds = (
-          productViewersResult as Array<{ productExternalId: string; viewers: number }>
-        ).map((v) => v.productExternalId);
-        const skuMap = await trace.run("loadProductSkuMap:L1297", () => loadProductSkuMap(ORG_ID, pixelViewedIds));
-        const purchasableSkuIds = [...skuMap.productIdBySkuId.keys()];
-
-        const productPurchasesResult = purchasableSkuIds.length
-          ? ((await trace.run("$queryRaw:L1301", () => prisma.$queryRaw`
-              SELECT
-                COALESCE(p."externalId", oi."productId") as "productExternalId",
-                COALESCE(p.name, 'Producto desconocido') as "productName",
-                COALESCE(p.category, 'Sin categoría') as category,
-                COALESCE(p.brand, 'Sin marca') as brand,
-                COUNT(DISTINCT oi."orderId")::int as orders,
-                SUM(oi.quantity)::int as units,
-                SUM(oi."totalPrice")::float as revenue
-              FROM order_items oi
-              JOIN orders o ON o.id = oi."orderId"
-              LEFT JOIN products p ON p.id = oi."productId"
-              WHERE o."organizationId" = ${ORG_ID}
-                AND o."orderDate" >= ${crDateFrom}
-                AND o."orderDate" <= ${dateTo}
-                AND ${ordersValidWhere("o")}
-                AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-                AND o.source IS DISTINCT FROM 'MELI'
-                AND o.channel IS DISTINCT FROM 'marketplace'
-                AND o."externalId" NOT LIKE 'FVG-%'
-                AND o."externalId" NOT LIKE 'BPR-%'
-                AND COALESCE(p."externalId", oi."productId") = ANY(${purchasableSkuIds})
-              GROUP BY 1, 2, 3, 4
-            `)) as PurchaseRow[])
-          : [];
-
-        // Etiquetas legibles de categoría: products.category guarda IDs ("/1/11/"),
-        // no nombres. Se resuelve acá (async) para poder usarse sincrónicamente
-        // dentro del armado de la respuesta.
-        const categoryLabels = await trace.run("loadCategoryLabels:L1330", () => loadCategoryLabels(
-          ORG_ID,
-          [...new Set(productPurchasesResult.map((p) => p.category))]
-        ));
-        return { skuMap, productPurchasesResult, categoryLabels };
-      })(),
+    // Secondary panels use dedicated endpoints. Keep only the two reads required
+    // to assemble the KPI response after the main parallel batch.
+    const [manualSpends, dailySpendResult] = await Promise.all([
       (async () => {
         const manualSpends = await trace.run("manualChannelSpend.findMany:L1337", () => prisma.manualChannelSpend.findMany({
           where: {
@@ -1270,7 +1098,6 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         }));
         return manualSpends;
       })(),
-      trace.run("getFunnelStages:L1346", () => getFunnelStages(ORG_ID, dateFrom, dateTo, trace)),
       (async () => {
         const dailySpendResult = await trace.run("$queryRaw:L1348", () => prisma.$queryRaw`
           SELECT
@@ -1285,7 +1112,6 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         return dailySpendResult;
       })(),
     ]);
-    const { skuMap, productPurchasesResult, categoryLabels } = productData;
 
     // ══════════════════════════════════════════════════════════
     // PROCESS RESULTS
@@ -1376,9 +1202,17 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     );
 
     // ── NEW: Process business KPIs ──
-    const selectedModelData = attributionByModelResult.find((m) => m.model === selectedModel);
-    const pixelRevenue = selectedModelData?.revenue || 0;
-    const ordersAttributed = selectedModelData?.ordersAttributed || 0;
+    // dailyRevenueResult already contains one exact row per AR day for the selected
+    // model. Reuse it instead of scanning the same attributed orders a second time.
+    const pixelRevenue = dailyRevenueResult.reduce((sum, row) => sum + (row.revenue || 0), 0);
+    const ordersAttributed = dailyRevenueResult.reduce((sum, row) => sum + (row.orders || 0), 0);
+    const attributionByModel = [{
+      model: selectedModel,
+      ordersAttributed,
+      revenue: pixelRevenue,
+      avgValue: ordersAttributed > 0 ? pixelRevenue / ordersAttributed : 0,
+      avgTouchpoints: 0,
+    }];
     const totalOrders = totalOrdersResult[0]?.total || 0;
     const webOrders = totalOrdersResult[0]?.webOrders || 0;
     const webRevenue = totalOrdersResult[0]?.webRevenue || 0;
@@ -1451,27 +1285,12 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       };
     });
 
-    // ── Funnel from NitroPixel (S60 EXT — decision producto) ──
-    // Steps 1–4: visitors UNICOS por etapa desde rollup HLL (webhook-filtrado).
-    //   Visitas       → PAGE_VIEW
-    //   Vio Producto  → VIEW_PRODUCT
-    //   Carrito       → ADD_TO_CART
-    //   Checkout      → INITIATE_CHECKOUT o CHECKOUT_SHIPPING
-    // Compra: órdenes web atribuidas (misma métrica que businessKpis.ordersAttributed).
-    // Ver DATA_COHERENCE.md Regla 5 — nunca eventos PURCHASE sueltos en el último step.
-    // PERF + FIX "Hoy" (2026-06-17): las etapas del funnel salían SOLO del rollup
-    // `pixel_daily_aggregates`, que queda stale/parcial para el/los día(s) reciente(s)
-    // (el cron de refresh corre cada 2h y el día AR en curso es SIEMPRE parcial).
-    // Resultado: al filtrar por "Hoy" las etapas daban 0 mientras la compra (órdenes
-    // web atribuidas, en vivo) daba >0 → "el funnel muestra solo las compras". El
-    // endpoint dedicado /api/metrics/pixel/funnel ya usaba getFunnelStages (live-merge
-    // rollup+crudo); este card (NitroPixel "Activo Vivo" + dashboard) había quedado
-    // afuera. Ahora usa el MISMO helper → números coherentes entre ambas vistas.
+    // The funnel has a dedicated endpoint and is loaded after the KPI response.
     const funnel = {
-      pageView: fRow.pageView || 0,
-      viewProduct: fRow.viewProduct || 0,
-      addToCart: fRow.addToCart || 0,
-      checkoutStart: fRow.checkoutStart || 0,
+      pageView: 0,
+      viewProduct: 0,
+      addToCart: 0,
+      checkoutStart: 0,
       purchase: ordersAttributed,
     };
 
@@ -1632,184 +1451,11 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       eventTypes,
       popularPages: popularPagesResult,
 
-      // ── Conversion Rates data (100% NitroPixel + VTEX orders) ──
-      conversionRates: (() => {
-        // CR by Channel — UNIFICADO con funnel (S60 EXT-2): same query, same first-touch logic.
-        // S60 EXT-2 BIS: normalizar source canonical en ambos lados (CTE + attributionBySource)
-        // para que el JOIN funcione. Filtrar sources con caracteres invalidos (clickIds mal).
-
-        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
-
-        const isValidConversionSource = (s: string): boolean => {
-          if (!s || s.length === 0) return false;
-          return /^[a-z0-9_\-\.]+$/i.test(s);
-        };
-
-        // Construir attrMap con keys canonicalizadas — sumar revenue si hay aliases
-        const attrMap = new Map<string, { revenue: number; orders: number }>();
-        for (const ch of attributionBySource) {
-          const key = canonicalMarketingSource(ch.source);
-          const existing = attrMap.get(key);
-          attrMap.set(key, {
-            revenue: (existing?.revenue || 0) + (ch.revenue || 0),
-            orders: (existing?.orders || 0) + (ch.orders || 0),
-          });
-        }
-
-        // ── Plegado de canales (reescrito 2026-07-21) ──────────────────────────
-        // Antes: se descartaban en silencio los sources con ≤5 visitantes, los que
-        // no matcheaban el regex, y todo lo que caía fuera del top-10 del SQL. El
-        // resultado era una tabla cuya columna "Visitantes" no sumaba el total y
-        // no lo aclaraba en ningún lado — con TeVe Compras daba 6.682 contra los
-        // 66.723 del panel de dispositivo, que cuenta el universo completo.
-        //
-        // Ahora no se descarta NADA. Lo chico termina agregado en `otros`, así el
-        // total siempre cierra.
-        //
-        // ⚠️ ACÁ SE EXCLUÍAN LAS PASARELAS DE PAGO (quitado 2026-07-22):
-        //
-        //     if (isNonMarketingChannelSource(vs.source)) continue;
-        //     if (isNonMarketingChannelSource(key)) continue;
-        //
-        // La intención era correcta —el viaje de ida y vuelta al pago no es
-        // adquisición— pero el filtro miraba sólo el NOMBRE del source, y
-        // GoCuotas, MODO, Naranja, Ualá y Mercado Pago además MANDAN TRÁFICO a la
-        // tienda. Un visitante que entra por `/?utm_source=gocuotas`, navega y
-        // compra es una adquisición real de GoCuotas, y acá se borraba.
-        //
-        // Medido el 2026-07-22: 8.751 visitantes entre las tres orgs, el 85% de
-        // todos los marcados "sin canal". En EMDJ además se perdía la atribución
-        // de $174M.
-        //
-        // La discriminación ahora la hace la dimensión: FIRST_SOURCE_MARKETING_CASE
-        // sólo anula la pasarela cuando hay evidencia de RETORNO (referrer de la
-        // pasarela o URL de checkout). Entonces un 'gocuotas' que llega hasta acá
-        // ya es una llegada legítima, y volver a filtrarlo por nombre lo mataba.
-        //
-        // Es seguro para el histórico: con la regla vieja un source de pasarela
-        // NUNCA se escribía en la dimensión, así que no hay filas viejas que este
-        // cambio pueda dejar entrar de más.
-        const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
-        for (const vs of pixelVisitorsBySource) {
-          const key = canonicalMarketingSource(vs.source);
-          const existing = channelMap.get(key);
-          const attr = attrMap.get(key);
-          // Sumar visitors+purchases si hay aliases (ej: fb + meta → meta)
-          if (existing) {
-            existing.visitors += vs.visitors;
-            existing.purchases += vs.purchases;
-          } else {
-            channelMap.set(key, {
-              source: key,
-              visitors: vs.visitors,
-              purchases: vs.purchases,
-              revenue: attr?.revenue || 0,
-            });
-          }
-        }
-        const withCr = (ch: { source: string; visitors: number; purchases: number; revenue: number }) => ({
-          ...ch,
-          cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0,
-        });
-        const foldedChannels = Array.from(channelMap.values()).sort(
-          (a, b) => b.visitors - a.visitors
-        );
-        // Se muestran los N más grandes; el resto se agrega en `otros` en vez de
-        // desaparecer. Los que no pasan el regex de nombre (basura de UTM) van
-        // directo a `otros`: se cuentan, pero no se les da una fila propia.
-        const CHANNEL_DISPLAY_LIMIT = 12;
-        const named = foldedChannels.filter((c) => isValidConversionSource(c.source));
-        const unnamed = foldedChannels.filter((c) => !isValidConversionSource(c.source));
-        const head = named.slice(0, CHANNEL_DISPLAY_LIMIT);
-        const tail = [...named.slice(CHANNEL_DISPLAY_LIMIT), ...unnamed];
-        const byChannel = head.map(withCr);
-        if (tail.length > 0) {
-          const agg = tail.reduce(
-            (acc, c) => ({
-              source: "otros",
-              visitors: acc.visitors + c.visitors,
-              purchases: acc.purchases + c.purchases,
-              revenue: acc.revenue + c.revenue,
-            }),
-            { source: "otros", visitors: 0, purchases: 0, revenue: 0 }
-          );
-          byChannel.push({ ...withCr(agg), channelsMerged: tail.length } as any);
-        }
-
-        // CR by Device: pixel visitors (deviceBreakdown from query #5) + pixel-attributed orders by device (query #24)
-        // Both use the same device naming from pixel (Mobile, Desktop, etc.)
-        const deviceVisitorMap = new Map(deviceBreakdown.map(d => [(d as any).device?.toLowerCase(), (d as any).count || 0]));
-        const byDevice = (ordersByDeviceResult as Array<{ device: string; orders: number; revenue: number }>).map(d => {
-          const visitors = deviceVisitorMap.get(d.device?.toLowerCase()) || 0;
-          return {
-            device: d.device,
-            visitors,
-            orders: d.orders,
-            revenue: d.revenue || 0,
-            cr: visitors > 0 ? Math.round((d.orders / visitors) * 10000) / 100 : 0,
-          };
-        });
-
-        // Merge viewers (pixel, grano PRODUCTO) + purchases (VTEX, grano SKU).
-        // Las compras se pliegan al grano producto sumando todas las variantes:
-        // sin ese plegado, un producto con 4 colores multiplicaría su revenue x4.
-        const viewers = productViewersResult as Array<{ productExternalId: string; viewers: number }>;
-        const purchases = [
-          ...foldPurchasesToProductGrain(
-            productPurchasesResult,
-            skuMap.productIdBySkuId
-          ).values(),
-        ];
-        const viewerMap = new Map(viewers.map(v => [v.productExternalId, v.viewers]));
-
-        // Sesion 22: excluir productos con 0 visitantes del pixel.
-        // Si un producto tiene ventas pero 0 vistas del pixel, significa
-        // que la compra vino de un canal no trackeado (directo al checkout,
-        // link externo, etc.) — el ratio 0 visits / 1 sale es incoherente
-        // como CR y distorsiona el promedio por categoria/marca.
-        const products = purchases
-          .map(p => {
-            const pViewers = viewerMap.get(p.productExternalId) || 0;
-            return {
-              ...p,
-              category: categoryLabels.get(p.category) ?? p.category,
-              viewers: pViewers,
-              cr: crPct(p.orders, pViewers),
-            };
-          })
-          .filter(p => p.viewers > 0);
-
-        // Aggregate by category
-        const catMap = new Map<string, { category: string; viewers: number; buyers: number; revenue: number }>();
-        for (const p of products) {
-          const existing = catMap.get(p.category) || { category: p.category, viewers: 0, buyers: 0, revenue: 0 };
-          existing.viewers += p.viewers;
-          existing.buyers += p.orders;
-          existing.revenue += p.revenue || 0;
-          catMap.set(p.category, existing);
-        }
-        const byCategory = Array.from(catMap.values())
-          .map(c => ({ ...c, cr: crPct(c.buyers, c.viewers) }))
-          .sort((a, b) => b.revenue - a.revenue);
-
-        // Aggregate by brand
-        const brandMap = new Map<string, { brand: string; viewers: number; buyers: number; revenue: number }>();
-        for (const p of products) {
-          const existing = brandMap.get(p.brand) || { brand: p.brand, viewers: 0, buyers: 0, revenue: 0 };
-          existing.viewers += p.viewers;
-          existing.buyers += p.orders;
-          existing.revenue += p.revenue || 0;
-          brandMap.set(p.brand, existing);
-        }
-        const byBrand = Array.from(brandMap.values())
-          .map(b => ({ ...b, cr: crPct(b.buyers, b.viewers) }))
-          .sort((a, b) => b.revenue - a.revenue);
-
-        return { byChannel, byDevice, byCategory, byBrand, byProduct: products };
-      })(),
+      // Heavy conversion tables are fetched independently after the KPI response.
+      conversionRates: { byChannel: [], byDevice: [], byCategory: [], byBrand: [], byProduct: [] },
 
       attribution: {
-        byModel: attributionByModelResult,
+        byModel: attributionByModel,
         bySource: attributionBySource,
         byModelChannel: attributionByModelChannelResult,
         conversionLag: conversionLagResult,

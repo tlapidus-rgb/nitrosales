@@ -283,6 +283,11 @@ interface ConversionSummaryData {
   meta: { pixelInstalledAt?: string | null; crDateFrom?: string; crDateAdjusted?: boolean };
 }
 
+interface LagSummaryData {
+  range: string;
+  conversionLag: Array<{ bucket: string; orders: number; revenue: number }>;
+}
+
 // NitroScoreData type removed — NitroScore lives in /pixel
 
 // ── Count-up hook ──
@@ -480,6 +485,8 @@ export default function AnalyticsPage() {
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyData | null>(null);
   const [conversionSummary, setConversionSummary] = useState<ConversionSummaryData | null>(null);
   const [conversionSummaryLoading, setConversionSummaryLoading] = useState(false);
+  const [lagSummary, setLagSummary] = useState<LagSummaryData | null>(null);
+  const [lagSummaryLoading, setLagSummaryLoading] = useState(false);
   // NitroScore removed — belongs in /pixel, not analytics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -520,6 +527,7 @@ export default function AnalyticsPage() {
   const discrepancyAbortRef = useRef<AbortController | null>(null);
   const funnelAbortRef = useRef<AbortController | null>(null);
   const conversionAbortRef = useRef<AbortController | null>(null);
+  const lagAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch analytics resources independently ──
   // reqIdRef: guard anti-stale. Cada fetch incrementa el id; si al volver la
@@ -604,7 +612,10 @@ export default function AnalyticsPage() {
       }
     };
 
-    await Promise.allSettled([loadPixel(), loadDiscrepancy()]);
+    await loadPixel();
+    // Do not make the primary KPI query compete with another attribution scan.
+    // The discrepancy panel starts once the main response has painted.
+    if (validPixel && reqId === reqIdRef.current) await loadDiscrepancy();
     if (reqId === reqIdRef.current) {
       if (validPixel && validDisc) {
         setDiscrepancy(validDisc);
@@ -624,6 +635,7 @@ export default function AnalyticsPage() {
     discrepancyAbortRef.current?.abort();
     funnelAbortRef.current?.abort();
     conversionAbortRef.current?.abort();
+    lagAbortRef.current?.abort();
   }, []);
 
   // Primera carga → no-silent (muestra el skeleton). Cambios de rango → silent
@@ -664,16 +676,39 @@ export default function AnalyticsPage() {
     return () => controller.abort();
   }, [dateFrom, dateTo, displayedRange]);
 
+  // Conversion speed is informative but expensive. Load it only after the KPI
+  // response for the current range has painted.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
+    if (conversionSummary?.range !== range || conversionSummaryLoading) return;
+    lagAbortRef.current?.abort();
+    const controller = new AbortController();
+    lagAbortRef.current = controller;
+    setLagSummaryLoading(true);
+    fetch(`/api/metrics/pixel/lag-summary?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Lag summary: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted && Array.isArray(data?.conversionLag)) {
+          setLagSummary({ range, conversionLag: data.conversionLag });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando velocidad de conversión:", error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLagSummaryLoading(false);
+      });
+    return () => controller.abort();
+  }, [dateFrom, dateTo, displayedRange, conversionSummary, conversionSummaryLoading]);
+
   // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
   useEffect(() => {
-    if (funnelChannel === "all") {
-      // Sin filtro: usar el funnel del fetch principal, no override
-      funnelAbortRef.current?.abort();
-      funnelAbortRef.current = null;
-      setFunnelOverride(null);
-      setFunnelLoading(false);
-      return;
-    }
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
     let cancelled = false;
     funnelAbortRef.current?.abort();
     const controller = new AbortController();
@@ -693,7 +728,7 @@ export default function AnalyticsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [funnelChannel, dateFrom, dateTo]);
+  }, [funnelChannel, dateFrom, dateTo, displayedRange]);
 
   // Reset funnel filter cuando cambia el rango de fechas (para evitar mostrar data stale)
   useEffect(() => {
@@ -792,7 +827,6 @@ export default function AnalyticsPage() {
   }
   const channels = Array.from(mergedMap.values()).sort((a, b) => b.pixelRevenue - a.pixelRevenue);
 
-  const funnel = pixelData?.funnel;
   const journeys = pixelData?.recentJourneys || [];
   const dailyTrend = discrepancy?.dailyTrend || [];
   const dailyChannels = pixelData?.dailyChannelBreakdown || [];
@@ -1302,8 +1336,12 @@ export default function AnalyticsPage() {
               />
             </div>
             {(() => {
-              const f = funnelOverride || funnel;
-              if (!f) return null;
+              const f = funnelOverride;
+              if (!f) return (
+                <div className="py-10 text-center text-sm text-ink-60" aria-busy={funnelLoading}>
+                  Cargando funnel…
+                </div>
+              );
               // Secuencial monocromo: se oscurece hacia la conversión; Compra = accent (el objetivo)
               const steps = [
                 { label: "Visitas", value: f.pageView, color: "#57544C" },
@@ -1558,12 +1596,17 @@ export default function AnalyticsPage() {
         <div id="sec-velocidad" className="scroll-mt-20" />
         {(() => {
           try {
-          const lagData = (pixelData?.attribution?.conversionLag || []).map(d => ({
+          const range = `${dateFrom}:${dateTo}`;
+          const lagData = (lagSummary?.range === range ? lagSummary.conversionLag : []).map(d => ({
             bucket: d.bucket || "unknown",
             orders: Number(d.orders) || 0,
             revenue: Number(d.revenue) || 0,
           }));
-          if (lagData.length === 0) return null;
+          if (lagData.length === 0) return lagSummaryLoading ? (
+            <div className={`${cardStyle} p-6 text-center text-sm text-ink-60`} style={cardShadow} aria-busy>
+              Cargando velocidad de conversión…
+            </div>
+          ) : null;
 
           const totalOrders = lagData.reduce((s, d) => s + d.orders, 0) || 1;
           const maxOrders = lagData.length > 0 ? Math.max(...lagData.map(d => d.orders)) : 1;
