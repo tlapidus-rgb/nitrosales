@@ -99,19 +99,50 @@ export const NO_SE_EXPORTA: Array<{ que: string; porQue: string }> = [
 // es recuperable (se pide aparte), sacar de menos no.
 // ══════════════════════════════════════════════════════════════════════════
 
+// ⚠️ NADA DE `\b` ACÁ ADENTRO, Y NADA DE PALABRAS ENTERAS.
+//
+// Las columnas de este repo son camelCase (`dashboardPasswordPlain`,
+// `vtexAppKeyEncrypted`, `fingerprintHash`), y en camelCase **no hay bordes de
+// palabra**: `/\bhash\b/` no matchea `pwdHash` ni `fingerprintHash`. El
+// patrón viejo de hash era inerte contra la convención de nombres del propio
+// repo.
+//
+// Y `key` va suelto, no sólo como `apikey`: la credencial de VTEX se llama
+// `vtexAppKeyEncrypted`, que ningún `/apikey/i` encuentra.
+//
+// El filtro es ANCHO a propósito. Sacar de más es recuperable —el cliente
+// pide esa columna aparte y se la damos—; sacar de menos entrega una
+// credencial y eso no se deshace. Si algún día una columna inocente cae acá,
+// la respuesta correcta es agregarla a `NUNCA_ES_SENSIBLE`, no aflojar el
+// patrón.
 const PATRONES_SENSIBLES = [
   /password/i,
+  /passwd/i,
   /secret/i,
   /token/i,
-  /apikey/i,
-  /api_key/i,
+  /\bkey\b|key(?=[A-Z_])|[a-z_]key/i, // apiKey, appKey, api_key, privateKey, key
   /credential/i,
-  /privatekey/i,
-  /\bhash\b/i,
+  /hash/i,
+  /\bsalt\b|salt(?=[A-Z_])|[a-z_]salt/i,
+  /clave/i,
+  /firma|signature/i,
 ];
+
+/**
+ * Columnas que matchean un patrón de arriba pero NO son sensibles.
+ *
+ * Existe para poder mantener el filtro ancho sin perder datos que el cliente
+ * necesita. Cada entrada va con el motivo: una excepción sin motivo es cómo un
+ * filtro de seguridad se vacía de a poco.
+ */
+const NUNCA_ES_SENSIBLE = new Set<string>([
+  // "monkey" y compañía no existen hoy en el schema; la lista arranca vacía y
+  // se llena con evidencia, no por las dudas.
+]);
 
 /** `true` si esa columna no puede salir en una exportación. */
 export function esColumnaSensible(nombre: string): boolean {
+  if (NUNCA_ES_SENSIBLE.has(nombre)) return false;
   return PATRONES_SENSIBLES.some((p) => p.test(nombre));
 }
 

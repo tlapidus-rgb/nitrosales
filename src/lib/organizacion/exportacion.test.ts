@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  esColumnaSensible,
+  limpiarFila,
   armarManifiesto,
   estaCompleta,
   SE_EXPORTA,
@@ -138,5 +140,120 @@ describe("saber si quedo completa", () => {
 
   it("si no se sabia cuantas esperar, NO se puede afirmar que este completa", () => {
     expect(estaCompleta(null, 1000)).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// R-11 — el filtro que impide que una credencial salga en la exportación
+// ══════════════════════════════════════════════════════════════════════════
+// `esColumnaSensible` y `limpiarFila` son lo ÚNICO que impide que una
+// credencial viaje en el archivo que se le entrega al cliente. La exportación
+// hace `SELECT *`, así que cada columna nueva del schema entra sola.
+//
+// Hasta el 2026-09-15 no tenían un solo test. Los casos de abajo son nombres
+// REALES del schema de este repo, no inventados: se sacaron leyendo
+// `prisma/schema.prisma` y los `migrate-*`.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("esColumnaSensible — columnas que NO pueden salir", () => {
+  // Cada uno de estos nombres existe en el schema o en una migración.
+  const SENSIBLES = [
+    // La que motivó el filtro: la contraseña del creador, SIN HASHEAR.
+    "dashboardPasswordPlain",
+    "dashboardPassword",
+    // Credenciales de las plataformas.
+    "vtexAppKeyEncrypted",
+    "vtexAppTokenEncrypted",
+    "metaAccessTokenEncrypted",
+    "accessToken",
+    "refreshToken",
+    "clientSecret",
+    "apiKey",
+    "api_key",
+    "privateKey",
+    // Huellas y hashes.
+    "fingerprintHash",
+    "ipHash",
+    "passwordHash",
+    "pwdHash",
+    // Variantes que el filtro viejo NO atrapaba.
+    "passwordSalt",
+    "claveDelDashboard",
+  ];
+
+  it.each(SENSIBLES)("%s no sale", (col) => {
+    expect(esColumnaSensible(col)).toBe(true);
+  });
+
+  it("los agujeros concretos que tenía el filtro viejo", () => {
+    // `appKey` no matchea /apikey/i — y es el nombre literal de la credencial
+    // de VTEX. `\bhash\b` no matchea dentro de camelCase, porque en camelCase
+    // no hay bordes de palabra. Los dos entraban en la exportación.
+    expect(esColumnaSensible("vtexAppKeyEncrypted"), "appKey vs /apikey/i").toBe(true);
+    expect(esColumnaSensible("fingerprintHash"), "\\b no existe en camelCase").toBe(true);
+  });
+});
+
+describe("esColumnaSensible — columnas que SÍ tienen que salir", () => {
+  // El filtro es ancho a propósito, pero no puede vaciar la exportación: si
+  // se lleva puesto el `id` o el `totalValue`, el archivo no sirve.
+  const NORMALES = [
+    "id",
+    "organizationId",
+    "orderDate",
+    "totalValue",
+    "customerId",
+    "name",
+    "email",
+    "status",
+    "externalId",
+    "packId",
+  ];
+
+  it.each(NORMALES)("%s sale", (col) => {
+    expect(esColumnaSensible(col)).toBe(false);
+  });
+});
+
+describe("limpiarFila", () => {
+  it("quita la columna en vez de enmascararla, y dice cuál quitó", () => {
+    // Quitarla y no poner `***` es deliberado: un campo que dice `***` invita
+    // a preguntarse cuál era; uno que no está, no.
+    const { limpia, quitadas } = limpiarFila({
+      id: "inf_1",
+      name: "Juana",
+      dashboardPasswordPlain: "hunter2",
+      dashboardPassword: "5e884898da...",
+    });
+
+    expect(limpia).toEqual({ id: "inf_1", name: "Juana" });
+    expect("dashboardPasswordPlain" in limpia).toBe(false);
+    expect(quitadas.sort()).toEqual([
+      "dashboardPassword",
+      "dashboardPasswordPlain",
+    ]);
+  });
+
+  it("una fila sin nada sensible pasa entera", () => {
+    const fila = { id: "o1", totalValue: 1000, status: "INVOICED" };
+    const { limpia, quitadas } = limpiarFila(fila);
+    expect(limpia).toEqual(fila);
+    expect(quitadas).toEqual([]);
+  });
+
+  it("no muta la fila original", () => {
+    // El llamador itera sobre filas que vienen de la base; mutarlas en el
+    // medio del stream es la clase de bug que aparece tres semanas después.
+    const fila = { id: "x", apiKey: "sk-123" };
+    limpiarFila(fila);
+    expect(fila.apiKey).toBe("sk-123");
+  });
+
+  it("un valor nulo o vacío igual se quita", () => {
+    // Que venga vacío hoy no significa que venga vacío siempre, y el
+    // manifiesto promete que las credenciales no salen NUNCA.
+    const { limpia, quitadas } = limpiarFila({ id: "x", accessToken: null });
+    expect(limpia).toEqual({ id: "x" });
+    expect(quitadas).toEqual(["accessToken"]);
   });
 });
