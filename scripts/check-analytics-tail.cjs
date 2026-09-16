@@ -47,12 +47,24 @@ const expectedSql = sql(before)
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
   .sort();
 
-assert.deepEqual(sql(after), expectedSql, 'core SQL must match the approved deferred-query baseline');
+const afterSql = sql(after);
+const goldCoverageSql = afterSql.filter(query =>
+  query.includes('COUNT(*)::int as "totalOrders"') &&
+  query.includes('0::int as "attributedOrders"')
+);
+assert.equal(goldCoverageSql.length, 1, 'Gold coverage must count eligible orders without joining attributions');
+assert.deepEqual(
+  afterSql.filter(query => query !== goldCoverageSql[0]),
+  expectedSql,
+  'core SQL must match the approved deferred-query baseline'
+);
 assert(!after.includes('getFunnelStages('), 'core must not compute the dedicated funnel');
 assert(!after.includes('loadProductSkuMap('), 'core must not compute product conversion tables');
 assert(after.includes('const [manualSpends, dailySpendResult] = await Promise.all(['), 'independent post-batch reads must stay concurrent');
 assert(after.includes('$queryRawUnsafe:dailyRevenueGoldChannel'), 'channel Gold must serve daily attribution revenue');
 assert(after.includes('$queryRawUnsafe:dailyRevenueGoldSource'), 'source Gold must serve daily attribution revenue');
+assert(after.includes('SUM(first_touch_count)::int AS orders'), 'Gold first-touch counts must provide exact attributed orders');
+assert(after.includes('$queryRaw:dailyOrderCoverageGold'), 'Gold coverage must avoid the live attribution join');
 assert(after.includes('const pixelRevenue = dailyRevenueRows.reduce'), 'selected-model KPIs must reuse normalized daily attribution totals');
 assert(after.includes('const ordersAttributed = perDayCoverage.reduce'), 'KPI order totals must use distinct daily coverage counts');
 

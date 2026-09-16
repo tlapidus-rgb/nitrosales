@@ -708,13 +708,14 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // Gold already contains the same model components at org/day/channel grain.
       // Reading those few rows avoids re-joining the full attribution/order history
       // on every cold range change (Arredo 30d: ~11s for the Bronze query).
-      // Order counts are filled from perDayCoverage below because a multi-touch
-      // order can be present in more than one Gold channel bucket.
+      // `first_touch_count` is additive across buckets: every attributed order
+      // has exactly one first touch. Unlike `orders`, summing it does not count
+      // multi-channel journeys more than once.
       (useGoldChannel
         ? trace.run("$queryRawUnsafe:dailyRevenueGoldChannel", () => prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
-              0::int AS orders
+              SUM(first_touch_count)::int AS orders
             FROM gold_attribution_channel
             WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
             GROUP BY day
@@ -724,7 +725,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         ? trace.run("$queryRawUnsafe:dailyRevenueGoldSource", () => prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
-              0::int AS orders
+              SUM(first_touch_count)::int AS orders
             FROM gold_attribution_source
             WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
             GROUP BY day
@@ -762,7 +763,30 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       //       - Marketplace flag (channel/trafficSource)
       //       - VTEX marketplaces que el seller publica via VTEX (Fravega, Banco Provincia)
       //         se identifican por prefijo en externalId (FVG-, BPR-)
-      trace.run("$queryRaw:L814", () => prisma.$queryRaw`
+      // Gold already gives us the exact attributed count via first_touch_count.
+      // On that path only count eligible orders here, avoiding the 5s attribution
+      // join seen on Arredo 30d. Keep the Bronze join as the feature-flag fallback.
+      ((useGoldChannel || useGoldSource)
+        ? trace.run("$queryRaw:dailyOrderCoverageGold", () => prisma.$queryRaw`
+          SELECT
+            TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+            COUNT(*)::int as "totalOrders",
+            0::int as "attributedOrders"
+          FROM orders o
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o."orderDate" >= ${dateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWhere("o")}
+            AND o."totalValue" > 0
+            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+            AND o.source IS DISTINCT FROM 'MELI'
+            AND o.channel IS DISTINCT FROM 'marketplace'
+            AND o."externalId" NOT LIKE 'FVG-%'
+            AND o."externalId" NOT LIKE 'BPR-%'
+          GROUP BY 1
+          ORDER BY 1
+        `)
+        : trace.run("$queryRaw:L814", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           COUNT(DISTINCT o.id)::int as "totalOrders",
@@ -784,7 +808,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY 1
-      `) as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
+      `)) as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
 
       // 20. Per-day per-source pixel revenue (for daily trend table)
       // S60 EXT-2 BIS++: respeta el modelo seleccionado distribuyendo el revenue
@@ -1198,10 +1222,15 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     );
 
     // ── NEW: Process business KPIs ──
-    // Gold is at day/channel grain, so its `orders` values are participations and
-    // cannot be added across channels. Coverage has the exact distinct order count
-    // at day grain; merge that count into the revenue series before computing KPIs.
-    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
+    // Gold `orders` above is SUM(first_touch_count), therefore an exact attributed
+    // order count per day. Merge it into coverage; Bronze already returned it.
+    const goldAttributedOrdersByDay = new Map(dailyRevenueResult.map((d) => [d.day, d.orders]));
+    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>).map((d) => ({
+      ...d,
+      attributedOrders: (useGoldChannel || useGoldSource)
+        ? (goldAttributedOrdersByDay.get(d.day) ?? 0)
+        : d.attributedOrders,
+    }));
     const attributedOrdersByDay = new Map(perDayCoverage.map((d) => [d.day, d.attributedOrders]));
     const dailyRevenueRows = dailyRevenueResult.map((row) => ({
       ...row,
