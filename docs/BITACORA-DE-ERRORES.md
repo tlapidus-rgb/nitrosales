@@ -240,3 +240,48 @@ que puse por costumbre, no por diseño.
   `next build`, que es lo único que los mira.
 
 ---
+
+### E-08 · Mi primer arreglo de un falso verde era, otra vez, un falso verde
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** la mutación, no yo
+
+**Qué hice mal:** el test de `checkStuckOnboardings` verificaba
+`expect(CHECKS).toContain("BACKFILLING")` sobre el **archivo entero**. Lo "arreglé" recortando
+al cuerpo de la función.
+
+No alcanzaba: adentro de esa función vive `BACKFILLING_HORAS`, así que
+`toContain("BACKFILLING")` seguía pasando aunque el SQL dejara de mirar ese estado. Arreglé la
+forma del bug y no su causa.
+
+**Cómo se manifestó:** la mutación —cambiar el literal del `IN (...)`— quedó **verde**.
+
+**Por qué pasó:** apunté al síntoma reportado ("mira el archivo entero") en vez de a la
+propiedad ("¿el SQL filtra por ese estado?"). Recortar el alcance es una mejora, pero la
+aserción seguía siendo una búsqueda de texto que otra cosa podía satisfacer.
+
+**Qué hago distinto:** al arreglar un test flojo, la pregunta no es "¿achico el alcance?" sino
+**"¿qué otra cosa del archivo puede satisfacer esta aserción?"**. Acá la respuesta era una
+constante con el mismo prefijo, y se resuelve pidiendo el literal SQL con sus comillas
+(`'BACKFILLING'`) en vez del nombre suelto.
+
+Y lo que lo agarró fue la mutación, que ya es política: **un arreglo de test no está terminado
+hasta que la mutación correspondiente se pone roja.** Sin ese paso, hoy habría tres arreglos
+cosméticos más en el repo, con la tranquilidad de haberlos "cerrado".
+
+---
+
+### E-09 · Cuarta vez en el día con `node -e` y escapes
+
+**Cuándo:** 2026-09-15 · **Lo detectó:** el parser de node
+
+**Qué hice mal:** volví a pasar un script con `\n` dentro de strings por `node -e '...'`. El
+shell se comió los escapes y dejó saltos de línea reales dentro de un string literal.
+
+**Por qué pasó:** ya lo tenía escrito como regla en E-04, de hoy mismo. La rompí tres veces
+más el mismo día, siempre con el mismo razonamiento: *"este es cortito"*.
+
+**Qué hago distinto:** la regla pasa a ser mecánica, sin juicio de tamaño. **Si el texto lleva
+un backslash, no va por el shell.** Y para editar un archivo del scratchpad ya escrito, la
+herramienta de edición directa es más rápida que volver a generarlo.
+
+---

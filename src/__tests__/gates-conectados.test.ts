@@ -100,14 +100,28 @@ function rutas(dir: string, out: string[] = []): string[] {
  * auth convierte al test en un sello de goma. Es más seguro que la lista se
  * quede corta —y falle de más, obligando a mirar— que que sea generosa.
  */
-const SEÑALES_DE_AUTH = [
-  "isValidAdminKey",
-  "isInternalUser",
-  "getServerSession",
-  "requirePermission",
-  "getOrganizationIdStrict",
-  "NEXTAUTH_SECRET",
-  "ADMIN_API_KEY",
+// ⚠️ SON REGEX, NO SUBSTRINGS, Y ES A PROPÓSITO.
+//
+// La lista tenía `"NEXTAUTH_SECRET"` y `"ADMIN_API_KEY"` como texto suelto.
+// Eso son **nombres de variable**, no puertas: alcanzaba con que el archivo
+// los mencionara. Verificado por mutación: borrando la comparación
+// `if (key !== KEY) return 403` de una ruta admin y dejando el import, el
+// test quedaba **verde**. 38 rutas dependían sólo de esas dos señales,
+// incluidas 25 `migrate-*` que corren DDL sobre producción.
+//
+// Ahora se pide la **comparación**, no el nombre. Es justo lo que el bloque
+// de arriba advierte y este mismo archivo hacía.
+const SEÑALES_DE_AUTH: RegExp[] = [
+  /isValidAdminKey\s*\(/,
+  /isInternalUser\s*\(/,
+  /getServerSession\s*\(/,
+  /requirePermission\s*\(/,
+  /getOrganizationIdStrict\s*\(/,
+  // Comparar contra el secreto sí cuenta — pero tiene que ser una
+  // comparación, no la palabra suelta.
+  /[!=]==\s*process\.env\.(NEXTAUTH_SECRET|ADMIN_API_KEY)/,
+  /[!=]==\s*(ADMIN_API_KEY|BACKFILL_KEY|KEY)\b/,
+  /coincideConAlguna\s*\(/,
 ];
 
 const RUTAS_ADMIN = rutas(RAIZ_ADMIN);
@@ -125,7 +139,7 @@ describe("ninguna ruta admin queda sin autenticación", () => {
       const src = readFileSync(join(process.cwd(), p), "utf8")
         .replace(/^\s*\/\*[\s\S]*?\*\//gm, "")
         .replace(/^\s*\/\/.*$/gm, "");
-      return !SEÑALES_DE_AUTH.some((s) => src.includes(s));
+      return !SEÑALES_DE_AUTH.some((r) => r.test(src));
     });
     expect(sinAuth).toEqual([]);
   });

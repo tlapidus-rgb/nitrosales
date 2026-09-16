@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { igualSeguro, coincideConAlguna } from "./comparacion-segura";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // ══════════════════════════════════════════════════════════════════════════
 // La primitiva que sostiene las dos puertas del sistema
@@ -86,6 +88,42 @@ describe("coincideConAlguna — la ventana de rotación", () => {
 
   it("cerrada la ventana, la vieja deja de servir", () => {
     expect(coincideConAlguna("la-vieja", "la-nueva", null)).toBe(false);
+  });
+});
+
+describe("la comparación es de tiempo constante — estructuralmente", () => {
+  // ⚠️ ESTE BLOQUE ES UN GREP, Y ES A PROPÓSITO.
+  //
+  // Los casos de arriba afirman el booleano que devuelve la función. Eso está
+  // bien, pero **no distingue** una comparación de tiempo constante de un
+  // `===`: verificado por mutación, reemplazar `crypto.timingSafeEqual(ha, hb)`
+  // por `a === b` deja los 15 casos en verde, más los de `admin-key` y
+  // `webhook-key`. La primitiva puede perder su propiedad de seguridad sin que
+  // se ponga rojo nada.
+  //
+  // Un canal lateral de timing no se puede medir de forma confiable en un unit
+  // test —el ruido del scheduler tapa la diferencia—, así que la única defensa
+  // barata es afirmar que la construcción sigue ahí.
+  //
+  // Es un test de forma, con todo lo que eso tiene de malo. Se acepta acá
+  // porque la alternativa es no tener ninguna cobertura de la única propiedad
+  // que justifica que este módulo exista.
+  const fuente = readFileSync(
+    join(process.cwd(), "src", "lib", "comparacion-segura.ts"),
+    "utf8",
+  );
+
+  it("usa crypto.timingSafeEqual y no un ===", () => {
+    expect(fuente).toMatch(/crypto\.timingSafeEqual\s*\(/);
+  });
+
+  it("hashea las dos puntas antes de comparar", () => {
+    // Sin esto, `timingSafeEqual` tira cuando los largos difieren — y una
+    // excepción adentro de un `if` de auth es una puerta que se comporta
+    // distinto según lo que le mandes: el mismo canal lateral, por otra vía.
+    // Además filtraría el largo del secreto.
+    const hashes = fuente.match(/createHash\("sha256"\)/g) || [];
+    expect(hashes.length, "las dos puntas se hashean").toBeGreaterThanOrEqual(2);
   });
 });
 

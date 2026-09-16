@@ -47,12 +47,31 @@ function fuente(p = RUTA): string {
  * que la version anterior de este escaner no veia: buscaba literalmente
  * "RawUnsafe(" y se salteaba 6 de las 15 llamadas del archivo.
  */
+/**
+ * Cuantas llamadas crudas tiene hoy `backfill/vtex`.
+ *
+ * Se fija el numero a proposito. Con `toBeGreaterThan(0)`, un escaner que se
+ * saltea llamadas sigue pasando — y asi sobrevivio el typo de `siguienteLlamada`.
+ * Si este numero cambia, el test se pone rojo y hay que venir a mirar si la
+ * llamada nueva interpola algo.
+ */
+const LLAMADAS_ESPERADAS = 15;
+
 function siguienteLlamada(src: string, desde: number): number {
   const i = src.indexOf("RawUnsafe", desde);
   if (i < 0) return -1;
   const resto = src.slice(i + "RawUnsafe".length);
   // Puede seguir "(" directo, o "<...>(" si esta tipada.
-  if (/^s*[(<]/.test(resto)) return i;
+  //
+  // ⚠️ El regex decia `/^s*[(<]/` — SIN la barra invertida. `s*` matchea la
+  // LETRA ese, no espacios en blanco. Funcionaba de casualidad para
+  // `RawUnsafe(` y `RawUnsafe<`, y descartaba en silencio cualquier llamada
+  // escrita con un espacio: `RawUnsafe (`.
+  //
+  // O sea que este escaner —que existe para que no vuelva una inyeccion SQL—
+  // se saltaba llamadas sin decirlo. Verificado por mutacion: la misma
+  // interpolacion es roja sin espacio y VERDE con espacio.
+  if (/^\s*[(<]/.test(resto)) return i;
   return siguienteLlamada(src, i + 1);
 }
 
@@ -86,7 +105,17 @@ describe("R-C02 — no queda una sola interpolacion en SQL crudo", () => {
       }
       desde = i + 1;
     }
-    expect(encontradas).toBeGreaterThan(0);
+    // Y el conteo se fija, no se pide que sea mayor a cero.
+    //
+    // Con `toBeGreaterThan(0)`, saltearse llamadas solo bajaba el contador y
+    // el test seguia pasando — que es exactamente como el typo de arriba
+    // sobrevivio. Si manana alguien agrega o saca una llamada, este numero
+    // se pone rojo y hay que venir a mirar por que: es barato y es el unico
+    // aviso de que el escaner dejo de ver algo.
+    expect(
+      encontradas,
+      "si esto cambia, alguien agrego o saco una llamada cruda — revisala",
+    ).toBe(LLAMADAS_ESPERADAS);
     expect(sospechosas).toEqual([]);
   });
 

@@ -49,7 +49,24 @@ describe("la clave del webhook se valida con el helper rotable", () => {
 
 describe("lo que la autorizacion NO cubria sigue intacto", () => {
   it("el GET de validacion de VTEX sigue sin pedir key", () => {
-    expect(fuente).toContain("Allow GET without key for VTEX validation");
+    // ⚠️ Esto afirmaba `toContain("Allow GET without key for VTEX
+    // validation")` — que es el texto de un COMENTARIO del handler.
+    //
+    // Verificado por mutación: poniéndole autenticación real al GET, el
+    // archivo quedaba verde 8/8. El test cuidaba la prosa, no el
+    // comportamiento.
+    //
+    // Ahora se mira el código: el GET no puede tener una comparación de
+    // clave. Es lo que hace que VTEX pueda dar de alta el hook de un cliente
+    // nuevo — si algún día pide clave, el alta de VTEX se rompe en silencio.
+    const i = codigo.indexOf("export async function GET");
+    expect(i, "no encontré el handler GET").toBeGreaterThan(-1);
+    const siguiente = codigo.indexOf("export async function", i + 10);
+    const cuerpoDelGet = codigo.slice(i, siguiente === -1 ? undefined : siguiente);
+
+    expect(cuerpoDelGet).not.toMatch(/esClaveDeWebhookValida\s*\(/);
+    expect(cuerpoDelGet).not.toMatch(/[!=]==\s*process\.env\./);
+    expect(cuerpoDelGet).not.toMatch(/status:\s*401/);
   });
 
   it("la deduplicacion por isNewOrder sigue estando", () => {

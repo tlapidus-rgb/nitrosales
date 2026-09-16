@@ -49,7 +49,20 @@ function sinComentarios(src: string): string {
 function tieneGuardDeStaff(archivo: string): boolean {
   if (!existsSync(archivo)) return false;
   const src = sinComentarios(readFileSync(archivo, "utf8"));
-  return src.includes("isInternalUser") || src.includes("isStaffUser");
+  // ⚠️ NO ALCANZA CON QUE APAREZCA: el resultado tiene que CORTAR.
+  //
+  // Antes esto era `src.includes("isInternalUser")`. Verificado por
+  // mutación: cambiando `if (!allowed) notFound()` por `void allowed`, el
+  // test quedaba **verde** con el layout completamente abierto. Y un archivo
+  // que sólo importa el helper también contaba.
+  //
+  // Se pide la llamada Y una salida que corte. Lo sólido de verdad sería
+  // renderizar el layout con `isInternalUser` mockeado en `false` y exigir
+  // que tire — pero eso necesita el stack de React, y esto ya distingue el
+  // caso que importa.
+  const llama = /\b(isInternalUser|isStaffUser)\s*\(/.test(src);
+  const corta = /\b(notFound|redirect|forbidden|unauthorized)\s*\(/.test(src);
+  return llama && corta;
 }
 
 /** Recorre de la carpeta de la página hacia arriba buscando un layout con guard. */

@@ -39,7 +39,29 @@ describe("los estados donde el alta espera están vigilados", () => {
   it.each(["BACKFILLING", "READY_FOR_REVIEW"])(
     "%s entra en checkStuckOnboardings",
     (estado) => {
-      expect(CHECKS).toContain(estado);
+      // ⚠️ Esto miraba `CHECKS` ENTERO, o sea el archivo completo.
+      //
+      // Verificado por mutación: sacando `BACKFILLING` del `IN (...)` y del
+      // `WHERE` de esta función, el test seguía **verde**, porque sobreviven
+      // un `const BACKFILLING_HORAS`, un `desdeBackfilling` y un
+      // `::text = 'BACKFILLING'` de otra función distinta.
+      //
+      // Ahora se recorta a la función y se mira el SQL.
+      const i = CHECKS.indexOf("export async function checkStuckOnboardings");
+      expect(i, "no encontré checkStuckOnboardings").toBeGreaterThan(-1);
+      const j = CHECKS.indexOf("export async function", i + 10);
+      const fn = CHECKS.slice(i, j === -1 ? undefined : j);
+
+      // Y se busca el LITERAL SQL, entre comillas — no el nombre suelto.
+      //
+      // Recortar a la función no alcanzaba: adentro vive `BACKFILLING_HORAS`,
+      // así que un `toContain("BACKFILLING")` seguía pasando aunque el SQL
+      // dejara de mirar ese estado. Medido por mutación: cambiando el literal
+      // del `IN (...)` el test quedaba verde.
+      expect(
+        fn,
+        `${estado} tiene que aparecer como literal SQL en checkStuckOnboardings`,
+      ).toContain(`'${estado}'`);
     },
   );
 
