@@ -131,7 +131,26 @@ export function armarPlanDeBorrado(
   dependencias: Dependencia[],
   seConservan: Record<string, string> = SE_CONSERVAN,
 ): PlanDeBorrado {
-  const conservadas = tablas.filter((t) => t in seConservan);
+  // ⚠️ `seConservan` SE REPORTA ENTERO, no filtrado contra `tablas` (R-10).
+  //
+  // `tablas` son, por construcción, las que tienen columna `organizationId`.
+  // Y **ninguna de las cuatro de `SE_CONSERVAN` la tiene**: `email_log` y
+  // `leads` se crean por `migrate-*` sin esa columna, y `email_templates` y
+  // `channel_rules_global` son globales.
+  //
+  // O sea que el filtro nunca encontraba nada y `seConservan` salía **siempre
+  // vacío**, en las dos respuestas que lo publican. La configuración estaba
+  // escrita, documentada, y era inerte.
+  //
+  // Lo que importa no es el campo: es que `email_log.toEmail` —las direcciones
+  // de la gente del cliente— y `leads.contactEmail`/`contactPhone` sobreviven
+  // al borrado **y no se mencionaban en ninguna parte de la respuesta**. Quien
+  // corre un borrado total no se enteraba de que quedaban.
+  //
+  // El motivo de cada una dice "si se pide borrado total hay que anonimizarlo,
+  // no conservarlo entero", y no hay nada en el código que anonimice. Eso
+  // sigue abierto; lo que se cierra acá es que deje de ser invisible.
+  const conservadas = Object.keys(seConservan);
   const aBorrar = tablas.filter((t) => !(t in seConservan));
   const enJuego = new Set(aBorrar);
 

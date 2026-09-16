@@ -85,6 +85,23 @@ Necesito tu OK porque cambia qué significa "borramos todo" en el contrato con e
 
 ---
 
+## 3bis · Y algo que quedó bloqueado por la decisión 3 (R-09)
+
+`que-queda` calcula un campo `seLeEscapanAWipeAccount` contra una lista
+**hardcodeada de 9 tablas**, sobre un claim que es falso: wipe-account nombra 38, y de
+las 8 que el comentario dice que "ni aparecen en su código", **7 sí están**.
+
+O sea que el número que ese endpoint existe para producir está inflado.
+
+No lo arreglo todavía porque **el arreglo depende de qué decidas en el punto 3**: si
+`wipe-account` se borra, el campo entero desaparece y no hay nada que corregir. Si se
+queda, hay que rehacer la lista contra lo que de verdad borra.
+
+Arreglarlo ahora y borrarlo mañana es trabajo tirado; dejarlo como está es publicar un
+número que sabemos mal. Queda anotado y sin tocar.
+
+---
+
 ## 4 · Los umbrales de las alertas de anomalías (R-14)
 
 **El problema.** El piso de volumen tiene un error de factor √2: modela el ruido de *un*

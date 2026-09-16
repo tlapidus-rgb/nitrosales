@@ -86,7 +86,35 @@ describe("lo que se conserva lleva motivo escrito", () => {
   it("las conservadas salen del plan de borrado", () => {
     const plan = armarPlanDeBorrado(["orders", "email_log"], [], SE_CONSERVAN);
     expect(plan.orden).toEqual(["orders"]);
-    expect(plan.seConservan.map((c) => c.tabla)).toEqual(["email_log"]);
+  });
+
+  it("R-10 — las conservadas se reportan aunque el barrido no las descubra", () => {
+    // La entrada de arriba —`["orders", "email_log"]`— es una lista que el
+    // runtime **no puede producir**: `tablas` son, por construcción, las que
+    // tienen columna `organizationId`, y `email_log` no la tiene. Ninguna de
+    // las cuatro de `SE_CONSERVAN` la tiene.
+    //
+    // Por eso el filtro viejo (`tablas.filter(t => t in seConservan)`) daba
+    // **siempre vacío** en producción, y las dos respuestas que publican
+    // `seConservan` mostraban `[]`.
+    //
+    // Lo que importa no es el campo: es que `email_log.toEmail` y
+    // `leads.contactEmail` sobreviven al borrado y no se mencionaban en ningún
+    // lado. Quien corre un borrado total no se enteraba.
+    //
+    // Con una lista realista —sólo tablas con `organizationId`— las cuatro
+    // tienen que aparecer igual.
+    const plan = armarPlanDeBorrado(["orders", "customers"], [], SE_CONSERVAN);
+
+    // El orden es topologico, no el de entrada: se afirma el contenido.
+    expect(plan.orden.slice().sort()).toEqual(["customers", "orders"]);
+    expect(plan.seConservan.map((c) => c.tabla).sort()).toEqual(
+      Object.keys(SE_CONSERVAN).sort(),
+    );
+    // Y cada una con su motivo, para que el que lo lea pueda discutirlo.
+    for (const c of plan.seConservan) {
+      expect(c.motivo.length, `${c.tabla} sin motivo`).toBeGreaterThan(20);
+    }
   });
 
   it("TODA conservada tiene un motivo no vacio", () => {
