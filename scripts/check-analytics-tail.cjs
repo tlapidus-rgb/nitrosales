@@ -48,14 +48,16 @@ const expectedSql = sql(before)
   .sort();
 
 const afterSql = sql(after);
-const goldCoverageSql = afterSql.filter(query =>
-  query.includes('COUNT(*)::int as "totalOrders"') &&
-  query.includes('0::int as "attributedOrders"')
-);
-assert.equal(goldCoverageSql.length, 1, 'Gold coverage must count eligible orders without joining attributions');
+const isOrderTotals = query => query.includes('as "marketplaceOrders"') && query.includes('as "webOrders"');
+const afterOrderTotals = afterSql.filter(isOrderTotals);
+const expectedOrderTotals = expectedSql.filter(isOrderTotals);
+assert.equal(afterOrderTotals.length, 1, 'core must keep one order-totals query');
+assert.equal(expectedOrderTotals.length, 1, 'baseline must contain one order-totals query');
+assert(afterOrderTotals[0].includes("TO_CHAR(DATE(\"orderDate\" AT TIME ZONE 'America/Argentina/Buenos_Aires')"), 'order totals must be grouped by local day');
+assert(afterOrderTotals[0].includes('GROUP BY 1 ORDER BY 1'), 'order totals must expose reusable daily rows');
 assert.deepEqual(
-  afterSql.filter(query => query !== goldCoverageSql[0]),
-  expectedSql,
+  afterSql.filter(query => !isOrderTotals(query)),
+  expectedSql.filter(query => !isOrderTotals(query)),
   'core SQL must match the approved deferred-query baseline'
 );
 assert(!after.includes('getFunnelStages('), 'core must not compute the dedicated funnel');
@@ -64,7 +66,8 @@ assert(after.includes('const [manualSpends, dailySpendResult] = await Promise.al
 assert(after.includes('$queryRawUnsafe:dailyRevenueGoldChannel'), 'channel Gold must serve daily attribution revenue');
 assert(after.includes('$queryRawUnsafe:dailyRevenueGoldSource'), 'source Gold must serve daily attribution revenue');
 assert(after.includes('SUM(first_touch_count)::int AS orders'), 'Gold first-touch counts must provide exact attributed orders');
-assert(after.includes('$queryRaw:dailyOrderCoverageGold'), 'Gold coverage must avoid the live attribution join');
+assert(after.includes('? Promise.resolve([])'), 'Gold coverage must avoid a second live orders scan');
+assert(after.includes('totalOrderRows.map'), 'Gold coverage must reuse daily order totals');
 assert(after.includes('const pixelRevenue = dailyRevenueRows.reduce'), 'selected-model KPIs must reuse normalized daily attribution totals');
 assert(after.includes('const ordersAttributed = perDayCoverage.reduce'), 'KPI order totals must use distinct daily coverage counts');
 

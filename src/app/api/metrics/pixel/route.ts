@@ -631,6 +631,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       //        because MELI-synced orders don't always have trafficSource set
       trace.run("$queryRaw:L690", () => prisma.$queryRaw`
         SELECT
+          TO_CHAR(DATE("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           COUNT(*)::int as total,
           COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace' OR "externalId" LIKE 'FVG-%' OR "externalId" LIKE 'BPR-%')::int as "marketplaceOrders",
           SUM("totalValue") FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace' OR "externalId" LIKE 'FVG-%' OR "externalId" LIKE 'BPR-%')::float as "marketplaceRevenue",
@@ -642,7 +643,9 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           AND "orderDate" <= ${dateTo}
           AND ${ordersValidWhere("")}
           AND "totalValue" > 0
-      `) as Promise<Array<{ total: number; marketplaceOrders: number; marketplaceRevenue: number; webOrders: number; webRevenue: number }>>,
+        GROUP BY 1
+        ORDER BY 1
+      `) as Promise<Array<{ day: string; total: number; marketplaceOrders: number; marketplaceRevenue: number; webOrders: number; webRevenue: number }>>,
 
       // 14. Ad spend + platform metrics grouped by source (META/GOOGLE)
       trace.run("$queryRaw:L706", () => prisma.$queryRaw`
@@ -763,29 +766,12 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       //       - Marketplace flag (channel/trafficSource)
       //       - VTEX marketplaces que el seller publica via VTEX (Fravega, Banco Provincia)
       //         se identifican por prefijo en externalId (FVG-, BPR-)
-      // Gold already gives us the exact attributed count via first_touch_count.
-      // On that path only count eligible orders here, avoiding the 5s attribution
-      // join seen on Arredo 30d. Keep the Bronze join as the feature-flag fallback.
+      // Gold already gives us the exact attributed count via first_touch_count,
+      // while query #13 now returns eligible order totals by day. Reuse both on
+      // the Gold path so `orders` is scanned only once. Keep the Bronze join as
+      // the feature-flag fallback.
       ((useGoldChannel || useGoldSource)
-        ? trace.run("$queryRaw:dailyOrderCoverageGold", () => prisma.$queryRaw`
-          SELECT
-            TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-            COUNT(*)::int as "totalOrders",
-            0::int as "attributedOrders"
-          FROM orders o
-          WHERE o."organizationId" = ${ORG_ID}
-            AND o."orderDate" >= ${dateFrom}
-            AND o."orderDate" <= ${dateTo}
-            AND ${ordersValidWhere("o")}
-            AND o."totalValue" > 0
-            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-            AND o.source IS DISTINCT FROM 'MELI'
-            AND o.channel IS DISTINCT FROM 'marketplace'
-            AND o."externalId" NOT LIKE 'FVG-%'
-            AND o."externalId" NOT LIKE 'BPR-%'
-          GROUP BY 1
-          ORDER BY 1
-        `)
+        ? Promise.resolve([])
         : trace.run("$queryRaw:L814", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
@@ -1224,8 +1210,15 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // ── NEW: Process business KPIs ──
     // Gold `orders` above is SUM(first_touch_count), therefore an exact attributed
     // order count per day. Merge it into coverage; Bronze already returned it.
+    const totalOrderRows = totalOrdersResult as Array<{
+      day: string; total: number; marketplaceOrders: number; marketplaceRevenue: number;
+      webOrders: number; webRevenue: number;
+    }>;
     const goldAttributedOrdersByDay = new Map(dailyRevenueResult.map((d) => [d.day, d.orders]));
-    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>).map((d) => ({
+    const rawPerDayCoverage = (useGoldChannel || useGoldSource)
+      ? totalOrderRows.map((d) => ({ day: d.day, totalOrders: d.webOrders, attributedOrders: 0 }))
+      : (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
+    const perDayCoverage = rawPerDayCoverage.map((d) => ({
       ...d,
       attributedOrders: (useGoldChannel || useGoldSource)
         ? (goldAttributedOrdersByDay.get(d.day) ?? 0)
@@ -1245,11 +1238,11 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       avgValue: ordersAttributed > 0 ? pixelRevenue / ordersAttributed : 0,
       avgTouchpoints: 0,
     }];
-    const totalOrders = totalOrdersResult[0]?.total || 0;
-    const webOrders = totalOrdersResult[0]?.webOrders || 0;
-    const webRevenue = totalOrdersResult[0]?.webRevenue || 0;
-    const marketplaceOrders = totalOrdersResult[0]?.marketplaceOrders || 0;
-    const marketplaceRevenue = totalOrdersResult[0]?.marketplaceRevenue || 0;
+    const totalOrders = totalOrderRows.reduce((sum, d) => sum + (d.total || 0), 0);
+    const webOrders = totalOrderRows.reduce((sum, d) => sum + (d.webOrders || 0), 0);
+    const webRevenue = totalOrderRows.reduce((sum, d) => sum + (d.webRevenue || 0), 0);
+    const marketplaceOrders = totalOrderRows.reduce((sum, d) => sum + (d.marketplaceOrders || 0), 0);
+    const marketplaceRevenue = totalOrderRows.reduce((sum, d) => sum + (d.marketplaceRevenue || 0), 0);
     const totalAdSpend = adSpendBySourceResult.reduce((sum, s) => sum + (s.spend || 0), 0);
     // Attribution rate uses web-only orders (marketplace orders can't be pixel-tracked)
     const attributionRate = webOrders > 0 ? Math.round((ordersAttributed / webOrders) * 100) : 0;
