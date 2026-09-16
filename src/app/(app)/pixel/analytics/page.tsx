@@ -528,6 +528,7 @@ export default function AnalyticsPage() {
   const funnelAbortRef = useRef<AbortController | null>(null);
   const conversionAbortRef = useRef<AbortController | null>(null);
   const lagAbortRef = useRef<AbortController | null>(null);
+  const summaryTailAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch analytics resources independently ──
   // reqIdRef: guard anti-stale. Cada fetch incrementa el id; si al volver la
@@ -636,6 +637,7 @@ export default function AnalyticsPage() {
     funnelAbortRef.current?.abort();
     conversionAbortRef.current?.abort();
     lagAbortRef.current?.abort();
+    summaryTailAbortRef.current?.abort();
   }, []);
 
   // Primera carga → no-silent (muestra el skeleton). Cambios de rango → silent
@@ -704,6 +706,56 @@ export default function AnalyticsPage() {
       });
     return () => controller.abort();
   }, [dateFrom, dateTo, displayedRange, conversionSummary, conversionSummaryLoading]);
+
+  // Top pages and previous-period comparisons are useful context, but both can
+  // take several seconds on large organizations. They must never delay the KPI
+  // strip for a newly selected range.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
+    summaryTailAbortRef.current?.abort();
+    const controller = new AbortController();
+    summaryTailAbortRef.current = controller;
+
+    fetch(`/api/metrics/pixel/summary-tail?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Summary tail: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setPixelData((current) => {
+          if (!current) return current;
+          const previousRevenue = Number(data?.previous?.revenue) || 0;
+          const previousOrders = Number(data?.previous?.ordersAttributed) || 0;
+          const pctChange = (value: number, previous: number) =>
+            previous === 0 ? (value > 0 ? 100 : 0) : Math.round(((value - previous) / previous) * 100);
+          const previousRoas = current.businessKpis.totalAdSpend > 0
+            ? previousRevenue / current.businessKpis.totalAdSpend
+            : 0;
+          const updated: PixelData = {
+            ...current,
+            popularPages: Array.isArray(data?.popularPages) ? data.popularPages : [],
+            businessKpis: {
+              ...current.businessKpis,
+              changes: {
+                pixelRevenue: pctChange(current.businessKpis.pixelRevenue, previousRevenue),
+                ordersAttributed: pctChange(current.businessKpis.ordersAttributed, previousOrders),
+                pixelRoas: pctChange(current.businessKpis.pixelRoas * 100, previousRoas * 100),
+              },
+            },
+          };
+          const cached = rangeCache.current.get(range);
+          if (cached) cached.pixel = updated;
+          return updated;
+        });
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando detalle secundario:", error);
+      });
+
+    return () => controller.abort();
+  }, [dateFrom, dateTo, displayedRange]);
 
   // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
   useEffect(() => {

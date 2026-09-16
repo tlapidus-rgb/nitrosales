@@ -450,21 +450,8 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         ORDER BY count DESC
       `) as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
 
-      // 7. Popular pages — rollup pixel_daily_page (path limpio sin query params, excluye
-      //    checkout; pageViews aditivo exacto + HLL visitantes). LIMIT 10 por visitantes.
-      trace.run("$queryRaw:L454", () => prisma.$queryRaw`
-        SELECT
-          url,
-          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as visitors,
-          COALESCE(SUM(page_views), 0)::int as "pageViews"
-        FROM pixel_daily_page
-        WHERE "organizationId" = ${ORG_ID}
-          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY 1
-        ORDER BY visitors DESC
-        LIMIT 10
-      `) as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
+      // 7. Popular pages are loaded by /summary-tail after the KPI response.
+      Promise.resolve([]) as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
 
       // 8. Attribution by model used to scan the same attributed orders again.
       // Analytics only needs the selected model for its KPI strip, which is derived
@@ -726,10 +713,9 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
+          AND pa.model::text = ${selectedModel}
           AND ${ordersValidWhere("o")}
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
@@ -741,25 +727,8 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         ORDER BY 1
       `) as Promise<Array<{ day: string; revenue: number; orders: number }>>,
 
-      // 18. Previous period attribution revenue (for business KPI changes)
-      trace.run("$queryRaw:L789", () => prisma.$queryRaw`
-        SELECT
-          COUNT(*)::int as "ordersAttributed",
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${prevFrom}
-          AND o."orderDate" <= ${prevTo}
-          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-      `) as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
+      // 18. Previous-period comparisons are loaded by /summary-tail after KPIs.
+      Promise.resolve([]) as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
 
       // 19. Per-day coverage: total orders vs attributed orders per day
       //     Used for accurate ROAS scaling instead of uniform coverage ratio

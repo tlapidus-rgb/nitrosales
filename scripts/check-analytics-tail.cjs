@@ -29,6 +29,8 @@ const deferredSql = [
   'as first_channel',
   'FROM order_items oi',
   'FROM pixel_daily_product',
+  'SELECT url, COALESCE(hll_cardinality(hll_union_agg(visitors_hll))',
+  'COUNT(*)::int as "ordersAttributed",',
 ];
 
 const expectedSql = sql(before)
@@ -43,14 +45,6 @@ const expectedSql = sql(before)
       'LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model::text = ${selectedModel}'
     ))
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
-  .map(query => {
-    const isDailyAttribution = query.includes('TO_CHAR(DATE(o."orderDate"') && query.includes('COUNT(*)::int as orders');
-    const isPreviousAttribution = query.includes('o."orderDate" >= ${prevFrom}') && query.includes('as "ordersAttributed"');
-    if (!isDailyAttribution && !isPreviousAttribution) return query;
-    return query
-      .replace('WHERE pa."organizationId" = ${ORG_ID} AND o."orderDate"', 'WHERE pa."organizationId" = ${ORG_ID} AND o."organizationId" = ${ORG_ID} AND o."orderDate"')
-      .replace('AND pa.model::text = ${selectedModel}', 'AND pa.model = CAST(${selectedModel} AS "AttributionModel")');
-  })
   .sort();
 
 assert.deepEqual(sql(after), expectedSql, 'core SQL must match the approved deferred-query baseline');
