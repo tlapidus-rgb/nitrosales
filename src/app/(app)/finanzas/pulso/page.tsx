@@ -90,12 +90,27 @@ export default function PulsoPage() {
               asOfDate: data.runway.asOfDate,
               breakdown: data.runway.breakdown,
             },
+            // ⚠️ `cogsCoverage` y `avisoDeCostos` VAN (R-15).
+            //
+            // Esta whitelist los dejaba afuera, así que la TARJETA mostraba
+            // "⚠ sólo el 25 % de los productos tiene costo cargado" y Aurum,
+            // mirando los mismos datos, contestaba "tu margen es 78 %, muy
+            // sano" sin un solo matiz.
+            //
+            // Con cobertura baja el margen no es alto: es desconocido. Y el
+            // asistente es el canal donde el cliente lo va a preguntar en
+            // palabras, o sea el que más necesita el matiz.
+            //
+            // `tsc` no lo veía porque los dos campos son opcionales en
+            // `types/finanzas.ts` — y este archivo tiene `@ts-nocheck`.
             sparkline12m: data.sparkline12m
               ? {
                   revenue12mTotal: data.sparkline12m.revenue12mTotal,
                   revenueDeltaPct: data.sparkline12m.revenueDeltaPct,
                   costosYTD: data.sparkline12m.costosYTD,
                   grossMarginYTD: data.sparkline12m.grossMarginYTD,
+                  cogsCoverage: data.sparkline12m.cogsCoverage,
+                  avisoDeCostos: data.sparkline12m.avisoDeCostos,
                 }
               : null,
             narrative: data.narrative

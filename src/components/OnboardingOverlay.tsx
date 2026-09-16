@@ -2087,7 +2087,13 @@ function NitroPixelInputs({ creds, onChange, orgId }: any) {
             background: creds.confirmedInstalled ? ACCENT_GREEN : "transparent",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2,
           }}
-          onClick={() => onChange("confirmedInstalled", !creds.confirmedInstalled)}
+          onClick={() => {
+            const nuevo = !creds.confirmedInstalled;
+            onChange("confirmedInstalled", nuevo);
+            // Destildar borra la verificación: si el cliente dice que NO lo
+            // instaló, no podemos seguir afirmando que recibimos datos.
+            if (!nuevo) onChange("pixelVerificado", false);
+          }}
         >
           {creds.confirmedInstalled && (
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
@@ -2101,15 +2107,43 @@ function NitroPixelInputs({ creds, onChange, orgId }: any) {
         <div style={{ flex: 1, fontSize: 13, color: "#fff", fontWeight: 500 }}>
           Ya pegué el snippet en mi sitio (head o GTM)
           <div style={{ fontSize: 11, color: TEXT_SECONDARY, fontWeight: 400, marginTop: 2 }}>
-            {creds.confirmedInstalled
+            {/* ⚠️ "Verificado" SÓLO si lo verificamos nosotros (R-15/R-27).
+
+                Este tilde se puede clickear a mano, y al hacerlo el texto
+                decía "Verificado: ya recibimos datos tuyos" sin que hubiera
+                llegado un solo evento. El comentario del bloque de abajo
+                dice que "el tilde pasa a estar respaldado por un dato en vez
+                de por una afirmación del cliente" — cierto por el camino del
+                botón, falso por el del clic.
+
+                Antes decía "ya pegué el snippet", que era una afirmación del
+                cliente y se leía como tal. Al cambiarlo por "Verificado"
+                pasó a mentir con más autoridad que antes.
+
+                Ahora son dos estados distintos, porque son dos cosas
+                distintas: lo que el cliente dice, y lo que nosotros
+                comprobamos. `pixelVerificado` sólo lo escribe el botón. */}
+            {creds.pixelVerificado
               ? "Verificado: ya recibimos datos tuyos."
-              : "Podés verificarlo acá abajo y te lo confirmamos al instante."}
+              : creds.confirmedInstalled
+                ? "Lo marcaste como instalado. Verificalo acá abajo para confirmarlo."
+                : "Podés verificarlo acá abajo y te lo confirmamos al instante."}
           </div>
         </div>
       </label>
 
-      {/* E-14: el botón que hace verdadero al tilde de arriba. */}
-      <VerificarPixel onConfirmado={() => onChange("confirmedInstalled", true)} />
+      {/* E-14: el botón que hace verdadero al tilde de arriba.
+
+          Es el ÚNICO que escribe `pixelVerificado`. El tilde de arriba se
+          puede clickear a mano y eso está bien —el cliente puede querer
+          seguir sin esperar—, pero entonces lo que queda registrado es su
+          afirmación, no nuestra verificación. */}
+      <VerificarPixel
+        onConfirmado={() => {
+          onChange("confirmedInstalled", true);
+          onChange("pixelVerificado", true);
+        }}
+      />
     </>
   );
 }
