@@ -71,7 +71,7 @@ export function funnelLiveTimeoutMs(fromDay: string, toDay: string): number {
   // A long raw-event scan is optional enrichment: if it cannot finish quickly,
   // the endpoint returns the same rollup fallback it used after four seconds.
   // Keep a wider budget for one-day ranges, where live freshness matters most.
-  return fromDay === toDay ? 4000 : 500;
+  return fromDay === toDay ? 4000 : 100;
 }
 
 async function readRollupStages(

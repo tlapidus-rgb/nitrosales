@@ -26,8 +26,8 @@ describe("funnel rollup fast path", () => {
 });
 
 describe("funnel live merge budget", () => {
-  it("bounds multi-day enrichment to 500ms", () => {
-    expect(funnelLiveTimeoutMs("2026-09-03", "2026-09-17")).toBe(500);
+  it("bounds multi-day enrichment to 100ms", () => {
+    expect(funnelLiveTimeoutMs("2026-09-03", "2026-09-17")).toBe(100);
   });
 
   it("keeps the freshness budget for one-day ranges", () => {
