@@ -109,7 +109,6 @@ export async function GET(request: NextRequest) {
     const [
       rollupAgg,
       windowAgg,
-      firstEvent,
       attributedAgg,
       last10Events,
       timelineRows,
@@ -122,11 +121,12 @@ export async function GET(request: NextRequest) {
       // de ~decenas de filas en vez de millones. Bonus: usa los MISMOS rollups que el
       // dashboard /pixel → los números quedan CONSISTENTES entre páginas. Excluye eventos
       // sintéticos de webhook (mejora de correctitud, igual que la Fase 2 del pixel route).
-      prisma.$queryRaw<Array<{ total_events: bigint; visitors: number; identified: number }>>`
+      prisma.$queryRaw<Array<{ total_events: bigint; visitors: number; identified: number; first_day: Date | null }>>`
         SELECT
           COALESCE(SUM(total_events), 0)::bigint AS total_events,
           COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int AS visitors,
-          COALESCE(hll_cardinality(hll_union_agg(identify_visitors_hll)), 0)::int AS identified
+          COALESCE(hll_cardinality(hll_union_agg(identify_visitors_hll)), 0)::int AS identified,
+          MIN(day)::timestamp AS first_day
         FROM pixel_daily_aggregates
         WHERE "organizationId" = ${orgId}
       `,
@@ -148,11 +148,6 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = ${orgId}
           AND day >= ((${now} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date - INTERVAL '6 days')
       `,
-      prisma.pixelEvent.findFirst({
-        where: { organizationId: orgId, timestamp: { gte: pixelFloor } },
-        orderBy: { timestamp: "asc" },
-        select: { timestamp: true },
-      }),
       // El SUM histórico sobre pixel_attributions crecía sin límite. Gold ya
       // contiene exactamente el mismo total por día/source; LAST_CLICK asigna
       // cada orden a una sola source, por eso su suma no duplica journeys.
@@ -162,19 +157,46 @@ export async function GET(request: NextRequest) {
          WHERE organization_id = $1`,
         orgId
       ),
-      prisma.pixelEvent.findMany({
-        where: { organizationId: orgId },
-        orderBy: { timestamp: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          type: true,
-          pageUrl: true,
-          timestamp: true,
-          country: true,
-          deviceType: true,
-        },
-      }),
+      // No existe un índice (organizationId, timestamp). Pedir los últimos diez
+      // eventos de toda la organización obligaba a Postgres a ordenar millones
+      // de filas en una carga fría. pixel_events sí tiene el índice
+      // (organizationId, type, timestamp): tomamos hasta diez por tipo conocido
+      // en el rollup y recién entonces ordenamos ese conjunto pequeño.
+      prisma.$queryRaw<Array<{
+        id: string;
+        type: string;
+        pageUrl: string | null;
+        timestamp: Date;
+        country: string | null;
+        deviceType: string | null;
+      }>>`
+        SELECT recent.id,
+               recent.type,
+               recent."pageUrl",
+               recent.timestamp,
+               recent.country,
+               recent."deviceType"
+        FROM (
+          SELECT DISTINCT type
+          FROM pixel_daily_type
+          WHERE "organizationId" = ${orgId}
+        ) known_type
+        CROSS JOIN LATERAL (
+          SELECT pe.id,
+                 pe.type,
+                 pe."pageUrl",
+                 pe.timestamp,
+                 pe.country,
+                 pe."deviceType"
+          FROM pixel_events pe
+          WHERE pe."organizationId" = ${orgId}
+            AND pe.type = known_type.type
+          ORDER BY pe.timestamp DESC
+          LIMIT 10
+        ) recent
+        ORDER BY recent.timestamp DESC
+        LIMIT 10
+      `,
       // Eventos por día últimos 30 días — PERF (2026-06-12): desde el rollup
       // `pixel_daily_aggregates` (day, total_events) en vez de date_trunc+COUNT sobre
       // ~1-2M eventos crudos (2,6s → ~10ms). Grano diario AR, consistente con los totales.
@@ -215,8 +237,14 @@ export async function GET(request: NextRequest) {
 
     const attributedRevenue = Number(attributedAgg[0]?.attributed_revenue ?? 0);
 
-    const daysAlive = firstEvent
-      ? Math.max(1, Math.floor((now.getTime() - firstEvent.timestamp.getTime()) / MS_DAY))
+    // El primer día del rollup evita otro ORDER BY sobre pixel_events sin índice
+    // (organizationId, timestamp). Conservamos el piso de creación de la org.
+    const rollupFirstDay = rollupAgg[0]?.first_day ?? null;
+    const firstSeenAt = rollupFirstDay && rollupFirstDay >= pixelFloor
+      ? rollupFirstDay
+      : pixelFloor;
+    const daysAlive = rollupFirstDay
+      ? Math.max(1, Math.floor((now.getTime() - firstSeenAt.getTime()) / MS_DAY))
       : 0;
 
     const level = computeLevel(totalEvents, identifiedVisitors, attributedRevenue);
@@ -254,7 +282,7 @@ export async function GET(request: NextRequest) {
         level,
         stage,
         estimatedAssetValueUsd,
-        firstSeenAt: firstEvent?.timestamp ?? null,
+        firstSeenAt: rollupFirstDay ? firstSeenAt : null,
       },
       last10Events: last10Events.map((e) => ({
         id: e.id,
