@@ -2,8 +2,9 @@
 // ══════════════════════════════════════════════════════════════
 // GET /api/cron/warm-cache
 // ══════════════════════════════════════════════════════════════
-// Pre-calienta el cache SWR de los endpoints pesados (/api/metrics/pixel
-// y /api/metrics/products) para todas las orgs activas con los rangos
+// Pre-calienta el cache SWR de los endpoints visibles de Analytics
+// (/api/metrics/pixel y /api/metrics/pixel/rate-summary) y products para
+// todas las orgs activas con los rangos
 // más usados. Asi cuando el cliente abre el dashboard, siempre
 // encuentra cache fresh — nunca paga el costo completo de las queries.
 //
@@ -223,10 +224,14 @@ export async function GET(req: NextRequest) {
       error?: string;
     }> = [];
 
-    // Endpoints PESADOS con SWR a precalentar. (orders/pnl/customers son <1s, no
-    // necesitan warm; products es el más caro junto con pixel.)
+    // Endpoints con SWR a precalentar. rate-summary se apoya en rollups/Silver,
+    // pero en una función/DB fría todavía puede sumar 4-7s al cambio de rango.
+    // Va antes de products para priorizar los dos bloques visibles de Analytics.
+    // No se incluyen funnel/lag: sus fallbacks pueden consumir varios segundos
+    // por org y multiplicar innecesariamente la carga secuencial del cron.
     const endpoints = [
       "/api/metrics/pixel",
+      "/api/metrics/pixel/rate-summary",
       "/api/metrics/products",
     ];
 
