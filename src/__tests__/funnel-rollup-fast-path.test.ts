@@ -7,13 +7,18 @@ describe("funnel rollup fast path", () => {
       .toBe(true);
   });
 
+  it("does not wait for a live merge when only the current day is absent", () => {
+    expect(shouldUseFunnelRollupOnly("2026-09-03", "2026-09-17", "2026-06-01", "2026-09-16"))
+      .toBe(true);
+  });
+
   it("keeps the live merge for a one-day range", () => {
     expect(shouldUseFunnelRollupOnly("2026-09-17", "2026-09-17", "2026-06-01", "2026-09-17"))
       .toBe(false);
   });
 
   it("keeps the live merge when the rollup does not cover the requested range", () => {
-    expect(shouldUseFunnelRollupOnly("2026-09-03", "2026-09-17", "2026-06-01", "2026-09-16"))
+    expect(shouldUseFunnelRollupOnly("2026-09-03", "2026-09-17", "2026-06-01", "2026-09-15"))
       .toBe(false);
     expect(shouldUseFunnelRollupOnly("2026-09-03", "2026-09-17", "2026-09-04", "2026-09-17"))
       .toBe(false);
