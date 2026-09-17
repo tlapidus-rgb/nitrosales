@@ -496,6 +496,10 @@ export default function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState(() => localYMD(new Date()));
   const [dateTo, setDateTo] = useState(() => localYMD(new Date()));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(null);
+  // Cada interacción del selector debe producir una carga, incluso si clicks
+  // muy rápidos vuelven al mismo rango antes de que React pinte los intermedios.
+  // Sin esta revisión, el botón podía quedar en "Hoy" mostrando todavía 7 días.
+  const [rangeRevision, setRangeRevision] = useState(0);
 
   // UI states
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
@@ -662,7 +666,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchAll(!firstLoadRef.current);
     firstLoadRef.current = false;
-  }, [fetchAll]);
+  }, [fetchAll, rangeRevision]);
 
   // Las tasas salen de rollups/Silver y ya no compiten con scans de atribución.
   // Arrancarlas con el cambio de rango evita sumar la latencia de los KPI antes
@@ -694,7 +698,7 @@ export default function AnalyticsPage() {
         if (!controller.signal.aborted) setConversionSummaryLoading(false);
       });
     return () => controller.abort();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, rangeRevision]);
 
   // Conversion speed stays independent from the conversion-rate cards. A slow
   // attribution scan must not keep the already-rolled-up rate tables hidden.
@@ -722,7 +726,7 @@ export default function AnalyticsPage() {
         if (!controller.signal.aborted) setLagSummaryLoading(false);
       });
     return () => controller.abort();
-  }, [dateFrom, dateTo, displayedRange]);
+  }, [dateFrom, dateTo, displayedRange, rangeRevision]);
 
   // Top pages and previous-period comparisons are useful context, but both can
   // take several seconds on large organizations. They must never delay the KPI
@@ -772,7 +776,7 @@ export default function AnalyticsPage() {
       });
 
     return () => controller.abort();
-  }, [dateFrom, dateTo, displayedRange]);
+  }, [dateFrom, dateTo, displayedRange, rangeRevision]);
 
   // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
   useEffect(() => {
@@ -802,13 +806,13 @@ export default function AnalyticsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [funnelChannel, dateFrom, dateTo, displayedRange, pixelData?.businessKpis?.ordersAttributed]);
+  }, [funnelChannel, dateFrom, dateTo, displayedRange, pixelData?.businessKpis?.ordersAttributed, rangeRevision]);
 
   // Resetear sólo el filtro. Conservamos el último funnel válido hasta que llegue
   // el nuevo para que cambios rápidos no pinten cinco etapas en cero.
   useEffect(() => {
     setFunnelChannel("all");
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, rangeRevision]);
 
   // ── Count-up values ──
   const revCountUp = useCountUp(pixelData?.businessKpis?.pixelRevenue || 0);
@@ -971,6 +975,7 @@ export default function AnalyticsPage() {
                 if (type === "from") setDateFrom(value);
                 else setDateTo(value);
                 setActiveQuickRange(null);
+                setRangeRevision((revision) => revision + 1);
               }}
               quickRanges={[
                 { label: "7 días", days: 7 },
@@ -983,6 +988,7 @@ export default function AnalyticsPage() {
                 const to = new Date(); const from = new Date(Date.now() - days * MS_PER_DAY);
                 setDateFrom(localYMD(from));
                 setDateTo(localYMD(to));
+                setRangeRevision((revision) => revision + 1);
               }}
             />
           </div>
