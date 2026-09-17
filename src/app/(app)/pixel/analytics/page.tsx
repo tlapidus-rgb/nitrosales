@@ -295,6 +295,7 @@ interface LagSummaryData {
 function useCountUp(target: number, duration = 800): number {
   const [current, setCurrent] = useState(0);
   const prevTarget = useRef(0);
+  const receivedRealValue = useRef(false);
   const rafRef = useRef(0);
 
   useEffect(() => {
@@ -302,6 +303,15 @@ function useCountUp(target: number, duration = 800): number {
     const to = target;
     prevTarget.current = to;
     if (from === to) { setCurrent(to); return; }
+
+    // En la carga inicial, los datos ya llegaron: empezar una animación desde
+    // cero muestra por un instante KPIs falsos y parece una respuesta vacía.
+    // Los cambios posteriores entre rangos sí conservan el count-up.
+    if (!receivedRealValue.current && to !== 0) {
+      receivedRealValue.current = true;
+      setCurrent(to);
+      return;
+    }
 
     const start = performance.now();
     const ease = (t: number) => 1 - Math.pow(1 - t, 4); // easeOutQuart
