@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
     const toParam = url.searchParams.get("to");
     const channelRaw = (url.searchParams.get("channel") || "").trim().toLowerCase();
     const channel = channelRaw && channelRaw !== "all" ? channelRaw : null;
+    const stagesOnly = url.searchParams.get("stagesOnly") === "1" && !channel;
 
     const now = new Date();
     const dateTo = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
@@ -164,7 +165,9 @@ export async function GET(req: NextRequest) {
     let funnelRow: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
 
     // Compra = órdenes web atribuidas (misma definición que businessKpis.ordersAttributed).
-    const purchasePromise = channel
+    const purchasePromise = stagesOnly
+      ? Promise.resolve([{ purchase: 0 }])
+      : channel
       ? (prisma.$queryRawUnsafe(
           `SELECT COUNT(DISTINCT o.id)::int as purchase
            FROM orders o
@@ -233,6 +236,7 @@ export async function GET(req: NextRequest) {
       to: dateTo.toISOString(),
       channel: channel || "all",
       model: selectedModel,
+      stagesOnly,
       funnel: {
         pageView: funnelRow.pageView || 0,
         viewProduct: funnelRow.viewProduct || 0,

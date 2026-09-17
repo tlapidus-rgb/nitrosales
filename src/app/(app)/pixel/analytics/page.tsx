@@ -766,13 +766,18 @@ export default function AnalyticsPage() {
     const controller = new AbortController();
     funnelAbortRef.current = controller;
     setFunnelLoading(true);
-    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}`, {
+    const stagesOnly = funnelChannel === "all";
+    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}&stagesOnly=${stagesOnly ? "1" : "0"}`, {
       signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        if (data.ok && data.funnel) setFunnelOverride(data.funnel);
+        if (data.ok && data.funnel) {
+          setFunnelOverride(stagesOnly
+            ? { ...data.funnel, purchase: Number(pixelData?.businessKpis?.ordersAttributed) || 0 }
+            : data.funnel);
+        }
       })
       .catch((e: unknown) => { if (!isAbortError(e)) console.warn("Error cargando funnel:", e); })
       .finally(() => { if (!cancelled) setFunnelLoading(false); });
@@ -780,7 +785,7 @@ export default function AnalyticsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [funnelChannel, dateFrom, dateTo, displayedRange]);
+  }, [funnelChannel, dateFrom, dateTo, displayedRange, pixelData?.businessKpis?.ordersAttributed]);
 
   // Reset funnel filter cuando cambia el rango de fechas (para evitar mostrar data stale)
   useEffect(() => {

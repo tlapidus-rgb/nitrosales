@@ -768,13 +768,10 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
           COUNT(DISTINCT o.id)::int as "totalOrders",
           COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
         FROM orders o
-        LEFT JOIN LATERAL (
-          SELECT candidate."orderId"
-          FROM pixel_attributions candidate
-          WHERE candidate."orderId" = o.id
-            AND candidate.model = CAST(${selectedModel} AS "AttributionModel")
-          LIMIT 1
-        ) pa ON TRUE
+        LEFT JOIN pixel_attributions pa
+          ON pa."orderId" = o.id
+         AND pa."organizationId" = ${ORG_ID}
+         AND pa.model = CAST(${selectedModel} AS "AttributionModel")
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
