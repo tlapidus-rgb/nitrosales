@@ -650,12 +650,11 @@ export default function AnalyticsPage() {
     firstLoadRef.current = false;
   }, [fetchAll]);
 
-  // Las dos consultas de CR por canal/dispositivo son las más caras en 30 días.
-  // Se piden recién cuando los KPI del rango ya llegaron, para que una sección al
-  // final de la página no bloquee el cambio de todo el dashboard.
+  // Las tasas salen de rollups/Silver y ya no compiten con scans de atribución.
+  // Arrancarlas con el cambio de rango evita sumar la latencia de los KPI antes
+  // de mostrar estas tablas. El `range` de la respuesta mantiene el guard stale.
   useEffect(() => {
     const range = `${dateFrom}:${dateTo}`;
-    if (displayedRange !== range) return;
     conversionAbortRef.current?.abort();
     const controller = new AbortController();
     conversionAbortRef.current = controller;
@@ -681,7 +680,7 @@ export default function AnalyticsPage() {
         if (!controller.signal.aborted) setConversionSummaryLoading(false);
       });
     return () => controller.abort();
-  }, [dateFrom, dateTo, displayedRange]);
+  }, [dateFrom, dateTo]);
 
   // Conversion speed stays independent from the conversion-rate cards. A slow
   // attribution scan must not keep the already-rolled-up rate tables hidden.

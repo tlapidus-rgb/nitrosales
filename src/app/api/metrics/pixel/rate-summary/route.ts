@@ -5,7 +5,6 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ordersValidWhere } from "@/domains/orders";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 
@@ -41,12 +40,14 @@ export async function GET(request: NextRequest) {
       : null;
     const crDateFrom = installedAt && installedAt > dateFrom ? installedAt : dateFrom;
     const cacheKey = [organizationId, dateFrom.toISOString(), dateTo.toISOString(), selectedModel];
-    const cached = await getSharedCachedSWR<Record<string, unknown>>("pixel-rate-summary-v3", ...cacheKey);
+    const cached = await getSharedCachedSWR<Record<string, unknown>>("pixel-rate-summary-v4", ...cacheKey);
     if (cached?.data) return NextResponse.json(cached.data);
 
     // Traffic and first-touch attribution are already maintained as daily rollups.
     // Reading them here avoids revisiting every attribution whenever a date button
-    // changes. Device conversion uses the device recorded on the web order itself.
+    // changes. Device conversion reads the enriched Silver order dimension: most
+    // VTEX orders do not carry deviceType, while Silver already fills it from the
+    // attributed pixel visitor and keeps the exact valid/web order flags.
     const [sourceVisitors, sourcePurchases, deviceVisitors, deviceOrders] = await Promise.all([
       prisma.$queryRaw<Array<{ source: string; visitors: number }>>`
         SELECT first_source as source,
@@ -74,19 +75,15 @@ export async function GET(request: NextRequest) {
         GROUP BY 1
       `,
       prisma.$queryRaw<Array<{ device: string; orders: number; revenue: number }>>`
-        SELECT COALESCE(NULLIF(LOWER(o."deviceType"), ''), 'unknown') as device,
+        SELECT COALESCE(NULLIF(LOWER(s.device_enriched), ''), 'unknown') as device,
                COUNT(*)::int as orders,
-               COALESCE(SUM(o."totalValue"), 0)::float as revenue
-        FROM orders o
-        WHERE o."organizationId" = ${organizationId}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
+               COALESCE(SUM(s.total_value), 0)::float as revenue
+        FROM silver_orders s
+        WHERE s.organization_id = ${organizationId}
+          AND s.order_date >= ${crDateFrom}
+          AND s.order_date <= ${dateTo}
+          AND s.is_valid
+          AND s.is_web
         GROUP BY 1
         ORDER BY orders DESC
       `,
@@ -146,7 +143,7 @@ export async function GET(request: NextRequest) {
         deviceOrdersBasis: "web_orders",
       },
     };
-    await setSharedCache("pixel-rate-summary-v3", payload, ...cacheKey);
+    await setSharedCache("pixel-rate-summary-v4", payload, ...cacheKey);
     return NextResponse.json(payload);
   } catch (error) {
     console.error("[pixel-rate-summary]", error);
