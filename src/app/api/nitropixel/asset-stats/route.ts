@@ -30,7 +30,7 @@ export const revalidate = 0;
 export const maxDuration = 30;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
-const ASSET_CACHE_PREFIX = "nitropixel-asset-v3";
+const ASSET_CACHE_PREFIX = "nitropixel-asset-v4";
 
 // ── Heurística de nivel: 0-100 ──
 function computeLevel(events: number, identified: number, revenue: number): number {
@@ -111,7 +111,6 @@ export async function GET(request: NextRequest) {
       rollupAgg,
       windowAgg,
       attributedAgg,
-      last10Events,
       timelineRows,
       topSourcesRows,
     ] = await Promise.all([
@@ -158,46 +157,6 @@ export async function GET(request: NextRequest) {
          WHERE organization_id = $1`,
         orgId
       ),
-      // No existe un índice (organizationId, timestamp). Pedir los últimos diez
-      // eventos de toda la organización obligaba a Postgres a ordenar millones
-      // de filas en una carga fría. pixel_events sí tiene el índice
-      // (organizationId, type, timestamp): tomamos hasta diez por tipo conocido
-      // en el rollup y recién entonces ordenamos ese conjunto pequeño.
-      prisma.$queryRaw<Array<{
-        id: string;
-        type: string;
-        pageUrl: string | null;
-        timestamp: Date;
-        country: string | null;
-        deviceType: string | null;
-      }>>`
-        SELECT recent.id,
-               recent.type,
-               recent."pageUrl",
-               recent.timestamp,
-               recent.country,
-               recent."deviceType"
-        FROM (
-          SELECT DISTINCT type
-          FROM pixel_daily_type
-          WHERE "organizationId" = ${orgId}
-        ) known_type
-        CROSS JOIN LATERAL (
-          SELECT pe.id,
-                 pe.type,
-                 pe."pageUrl",
-                 pe.timestamp,
-                 pe.country,
-                 pe."deviceType"
-          FROM pixel_events pe
-          WHERE pe."organizationId" = ${orgId}
-            AND pe.type = known_type.type
-          ORDER BY pe.timestamp DESC
-          LIMIT 10
-        ) recent
-        ORDER BY recent.timestamp DESC
-        LIMIT 10
-      `,
       // Eventos por día últimos 30 días — PERF (2026-06-12): desde el rollup
       // `pixel_daily_aggregates` (day, total_events) en vez de date_trunc+COUNT sobre
       // ~1-2M eventos crudos (2,6s → ~10ms). Grano diario AR, consistente con los totales.
@@ -285,16 +244,9 @@ export async function GET(request: NextRequest) {
         estimatedAssetValueUsd,
         firstSeenAt: rollupFirstDay ? firstSeenAt : null,
       },
-      last10Events: last10Events.map((e) => ({
-        id: e.id,
-        type: e.type,
-        pageUrl: e.pageUrl,
-        // Mantiene la key `receivedAt` del response (el frontend la usa en timeAgo);
-        // ahora la alimenta `timestamp` (indexado). Mismo significado práctico.
-        receivedAt: e.timestamp,
-        country: e.country,
-        deviceType: e.deviceType,
-      })),
+      // El stream se carga por separado desde /api/me/nitropixel-recent-events.
+      // No debe retrasar las métricas principales del activo.
+      last10Events: [],
       timeline,
       topSources,
     };

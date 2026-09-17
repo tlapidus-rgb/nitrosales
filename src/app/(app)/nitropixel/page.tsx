@@ -68,16 +68,18 @@ function timeAgo(iso: string): string {
 
 export default function NitroPixelPage() {
   const [data, setData] = useState<AssetStats | null>(null);
+  const [liveEvents, setLiveEvents] = useState<AssetStats["last10Events"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch initial + refresh every 20s
   useEffect(() => {
     let alive = true;
-    let inFlight = false;
-    async function load() {
-      if (inFlight) return;
-      inFlight = true;
+    let statsInFlight = false;
+    let eventsInFlight = false;
+    async function loadStats() {
+      if (statsInFlight) return;
+      statsInFlight = true;
       try {
         const r = await fetch("/api/nitropixel/asset-stats", { cache: "no-store" });
         const j = (await r.json()) as AssetStats;
@@ -89,15 +91,31 @@ export default function NitroPixelPage() {
         if (!alive) return;
         setError(e instanceof Error ? e.message : "Error desconocido");
       } finally {
-        inFlight = false;
+        statsInFlight = false;
         if (alive) setLoading(false);
       }
     }
-    load();
-    const id = setInterval(load, 20_000);
+    async function loadEvents() {
+      if (eventsInFlight) return;
+      eventsInFlight = true;
+      try {
+        const r = await fetch("/api/me/nitropixel-recent-events", { cache: "no-store" });
+        const j = await r.json();
+        if (alive && j.ok && Array.isArray(j.events)) setLiveEvents(j.events);
+      } catch {
+        // El stream es complementario: nunca debe bloquear ni romper las métricas.
+      } finally {
+        eventsInFlight = false;
+      }
+    }
+    loadStats();
+    loadEvents();
+    const statsId = setInterval(loadStats, 20_000);
+    const eventsId = setInterval(loadEvents, 20_000);
     return () => {
       alive = false;
-      clearInterval(id);
+      clearInterval(statsId);
+      clearInterval(eventsId);
     };
   }, []);
 
@@ -291,8 +309,8 @@ export default function NitroPixelPage() {
               </div>
             </div>
             <div className="space-y-2">
-              {data?.last10Events?.length ? (
-                data.last10Events.map((e) => (
+              {liveEvents.length ? (
+                liveEvents.map((e) => (
                   <div
                     key={e.id}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
