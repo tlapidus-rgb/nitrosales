@@ -21,6 +21,105 @@
 | Tests nuevos en la branch | 60 archivos (`git diff --name-status origin/main...HEAD`) |
 | Guards de build | `order-contract`, `serve-gold-first`, `ts-nocheck` — los 3 en verde |
 
+## La tanda de arreglos (2026-09-15/16) — 24 de 37 hallazgos cerrados
+
+Doce commits, todos en la branch, **ninguno pusheado**. Cada arreglo verificado por
+**mutación**: se reintroduce el bug y se confirma que el test se pone rojo. Ese paso frenó
+cuatro arreglos que ya estaban dados por buenos y eran cosméticos.
+
+### Seguridad (`540cf21e`)
+
+- **Cinco crons se abrían mandando *nada*.** `if (syncKey !== process.env.SYNC_KEY)`: con la
+  env sin setear, las dos puntas valen `undefined` y `undefined !== undefined` es **false**.
+  Con una clave *incorrecta* devolvía 401, así que sólo se abría mandando nada — ningún
+  escáner de claves lo encontraba. **Está en `main`**, no lo introdujo esta branch.
+- **SQL injection** en `admin/validate-orders-count`: `?source=` entraba crudo a tres
+  `$queryRawUnsafe`.
+- **`aura/creators/[id]/send-password` no autenticaba.** Se gateó con
+  `getOrganizationIdStrict`, no con staff: lo llama la UI del cliente.
+- **La clave del creador se podía romper a fuerza bruta.** Se agrega
+  `src/lib/rate-limit.ts` (5 intentos/minuto por IP **+ código**; el limitador de al lado
+  permitía 86.400 por día).
+- **Un preview podía filtrar `ADMIN_API_KEY`** a un host arbitrario, porque seis rutas
+  pasaban el header `Origin` —que controla quien hace el request— a `selfFetchBaseUrl`.
+  Lo introdujo el arreglo del incidente del 2026-09-06.
+
+### Datos y plata (`30e9b2ff`, `6886e6b2`, `5585cf2c`, `e608cd80`)
+
+- **La facturación contaba órdenes de más**: `COUNT(*)` donde todo el repo usa
+  `COUNT(DISTINCT COALESCE("packId","externalId"))`. Una de las seis dimensiones que se
+  facturan, siempre para el mismo lado: cobrando de más.
+- **El filtro de PII de la exportación tenía agujeros reales**: `appKey` no matchea
+  `/apikey/i` —y es el nombre literal de la credencial de VTEX— y `/\bhash\b/` es inerte
+  contra camelCase. Cero tests; ahora 21.
+- **Las dos promesas falsas que sobrevivieron a E-26**: "Recalibración semanal" en pantalla
+  y `modelo BG/NBD` **dentro del prompt del asistente**. Los dos tests que tenían que
+  cazarlas estaban verdes (un espacio literal que Prettier partió; un `\b` que no matchea
+  la barra de `BG/NBD`).
+- **Las dos pantallas del margen decían cosas distintas**: con 0 % de costos cargados, un
+  cliente veía "no podemos calcular tu margen" en una y **"Margen 100 % — Excelente"** en
+  la otra.
+- **Aurum opinaba del margen sin saber la cobertura**, porque el snapshot que se le publica
+  dejaba esos campos afuera.
+- **`SE_CONSERVAN` era configuración muerta**: `email_log` y `leads` sobrevivían al borrado
+  y no se mencionaban en ninguna respuesta.
+
+### Trabajo que se perdía (`571f3cd0`, `0a4ab8d4`, `def18a17`, `a0773431`)
+
+- **Tres crons descartaban `persiste`**: una corrida manual pisaba el cursor del
+  incremental y las orgs de atrás perdían su vuelta.
+- **`refresh-gold-attribution-channel` sin aislamiento por org**: una org que falle siempre
+  clavaba el cursor **y dejaba a las anteriores sin refrescar**.
+- **El cupo de backfills no era atómico.** `SKIP LOCKED` evita que dos invocaciones tomen
+  el mismo job, pero hace lo contrario para el cupo: la segunda se lleva **otra**. Dos
+  backfills en paralelo con `maxConcurrentes = 1`.
+- **`ml-processor` descartaba órdenes** pasado el offset 1000 de MELI, en silencio. La
+  ventana de 7 días sólo "esquiva el límite" bajo ~142 órdenes/día; Arredo hace 1.600 por
+  semana. Ahora parte la ventana. ⚠️ Los backfills grandes van a tardar más.
+- **`approve-backfill` escribía antes de poder abortar**: el 409 dejaba la org enrolada en
+  siete crons con el alta sin aprobar.
+- **El chequeo de frescura era ciego al cliente recién firmado**: enumeraba desde la tabla
+  de salida, así que una org sin una sola fila no se medía.
+
+### Errores reportados como éxito (`a33b804c`, `decbaa3f`)
+
+Fallo total de rollups → `ok: true` + HTTP 200. `evaluarChecklist` → `listo: true` sin
+haber podido verificar nada. `post-backfill-finalize` → `ok: true` con los cuatro pasos
+fallados. El purgado de caché devolvía `0` tanto al fallar como al no hacer nada.
+
+### Tests que no podían ponerse rojos (`5483d249`, `280e6459`)
+
+Seis falsos verdes, cada uno confirmado por mutación. El peor: **el escáner de inyección
+SQL tenía un typo** (`/^s*[(<]/` en vez de `/^\s*[(<]/` — `s*` matchea la letra ese), así
+que una inyección escrita con un espacio pasaba. Y la lista de señales de auth incluía dos
+**nombres de variable**: borrar la comparación y dejar el import dejaba el test verde, con
+38 rutas admin dependiendo sólo de eso.
+
+Más siete encabezados que describían otra cosa que el código — incluido uno que documentaba
+como abierto un bug que **esta misma branch cerró**, y que al reescribirlo destapó un hueco
+real: el camino de excepción no reprogramaba la cola.
+
+### Lo que NO se hizo
+
+**11 decisiones** que cambian lo que ve o recibe un cliente: `docs/DECISIONES-PENDIENTES.md`
+(versión técnica) y `docs/PARA-TOMY-DECISIONES.md` (en castellano llano).
+
+**R-09 pausado**: su arreglo depende de qué se decida sobre `wipe-account`. Corregirlo ahora
+y borrarlo mañana es trabajo tirado.
+
+### Trece errores propios, documentados
+
+`docs/BITACORA-DE-ERRORES.md`. Escritos en el momento, no al final. Tres del mismo tipo en
+un día —un chequeo que lee el texto que yo mismo acababa de insertar— y uno que casi deja
+una página de finanzas rota en runtime, con `tsc` en verde porque ese archivo tiene
+`@ts-nocheck`.
+
+El que más importa: **el primer arreglo de un falso verde era, otra vez, un falso verde**, y
+lo detectó la mutación. Sin ese paso quedaban cuatro arreglos cosméticos en el repo con la
+tranquilidad de haberlos cerrado.
+
+---
+
 ## La revisión multiagente (2026-09-14) — `docs/REVISION-MULTIAGENTE-2026-09-14.md`
 
 Nueve revisiones independientes, con los 127 archivos no-test repartidos en lotes **disjuntos y

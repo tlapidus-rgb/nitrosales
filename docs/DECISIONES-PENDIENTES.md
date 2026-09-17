@@ -7,6 +7,10 @@
 > Cada uno lleva mi recomendación. Las ordené por lo que cuesta postergarlas, no por
 > esfuerzo.
 
+> **Hay una versión de esto escrita para Tomy**, en castellano llano y sin jerga:
+> `docs/PARA-TOMY-DECISIONES.md`. Las dos listas cubren lo mismo; esta tiene el detalle
+> técnico y los `archivo:línea`, aquélla tiene el escenario de negocio.
+
 ---
 
 ## 1 · Verificar `SYNC_KEY` en Vercel
