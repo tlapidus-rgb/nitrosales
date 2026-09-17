@@ -13,8 +13,11 @@ async function capture(source,from,to,watermark){
  const exported={};let captured;
  const prisma={$queryRawUnsafe:async(sql,...args)=>{
   if(sql.includes('SELECT MAX(day)'))return [{d:watermark}];
+  if(sql.includes('SELECT MIN(day)'))return [{minDay:null,maxDay:watermark}];
   captured={sql,args};return [];
  }};
+ prisma.$executeRawUnsafe=async()=>undefined;
+ prisma.$transaction=async work=>work(prisma);
  const trace={run:(_stage,work)=>work()};
  vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
   exports:exported,require:name=>name.includes('performance-trace')?{createPixelTrace:()=>trace}:name.includes('first-source-sql')?{CHECKOUT_URL_REGEX:regex}:{prisma}

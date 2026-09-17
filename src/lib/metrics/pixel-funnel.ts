@@ -45,6 +45,44 @@ function arDay(d: Date): string {
   }).format(d);
 }
 
+export function shouldUseFunnelRollupOnly(
+  fromDay: string,
+  toDay: string,
+  minRollupDay: string | null,
+  maxRollupDay: string | null
+): boolean {
+  // A one-day range needs the live merge so "Hoy" can include events created
+  // after the last rollup refresh. Multi-day presets favour the complete daily
+  // rollup when it covers the whole range; on large tenants this avoids paying
+  // a guaranteed statement timeout before returning the same rollup values.
+  return fromDay !== toDay
+    && !!minRollupDay
+    && !!maxRollupDay
+    && minRollupDay <= fromDay
+    && maxRollupDay >= toDay;
+}
+
+async function readRollupStages(
+  orgId: string,
+  fromDay: string,
+  toDay: string,
+  trace: ReturnType<typeof createPixelTrace>,
+  stage: "funnel.rollup_fast" | "funnel.rollup_fallback"
+): Promise<Array<FunnelStages>> {
+  return trace.run(stage, () => prisma.$queryRawUnsafe<Array<FunnelStages>>(
+    `SELECT
+       COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int AS "pageView",
+       COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int AS "viewProduct",
+       COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int AS "addToCart",
+       COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int AS "checkoutStart"
+     FROM pixel_daily_aggregates
+     WHERE "organizationId" = $1 AND day >= $2::date AND day <= $3::date`,
+    orgId,
+    fromDay,
+    toDay
+  ));
+}
+
 /**
  * Devuelve las 4 etapas del funnel (visitantes únicos por etapa, dedup HLL) para
  * el rango [dateFrom, dateTo], mergeando el rollup con un tramo vivo para los días
@@ -61,11 +99,25 @@ export async function getFunnelStages(
   const toDay = arDay(dateTo);
 
   // Último día presente en el rollup (PK chica → instantáneo).
-  const mr = await trace.run("funnel.rollup_watermark", () => prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
-    `SELECT MAX(day)::text AS d FROM pixel_daily_aggregates WHERE "organizationId" = $1`,
+  const mr = await trace.run("funnel.rollup_watermark", () => prisma.$queryRawUnsafe<Array<{ minDay: string | null; maxDay: string | null }>>(
+    `SELECT MIN(day)::text AS "minDay", MAX(day)::text AS "maxDay"
+     FROM pixel_daily_aggregates WHERE "organizationId" = $1`,
     orgId
   ));
-  const maxRoll = mr[0]?.d || null;
+  const minRoll = mr[0]?.minDay || null;
+  const maxRoll = mr[0]?.maxDay || null;
+
+  let rows: Array<FunnelStages>;
+  if (shouldUseFunnelRollupOnly(fromDay, toDay, minRoll, maxRoll)) {
+    rows = await readRollupStages(orgId, fromDay, toDay, trace, "funnel.rollup_fast");
+    const r = rows[0];
+    return {
+      pageView: r?.pageView || 0,
+      viewProduct: r?.viewProduct || 0,
+      addToCart: r?.addToCart || 0,
+      checkoutStart: r?.checkoutStart || 0,
+    };
+  }
 
   // Desde qué día AR calculamos en vivo: el último día del rollup (parcial) en
   // adelante. Si el rollup no tiene nada o arranca después del rango, vivo = todo.
@@ -77,7 +129,6 @@ export async function getFunnelStages(
   const liveTsLo = new Date(`${liveFromDay}T00:00:00.000-03:00`);
   liveTsLo.setUTCDate(liveTsLo.getUTCDate() - 1);
 
-  let rows: Array<FunnelStages>;
   try {
     rows = await trace.run("funnel.live_merge", () => prisma.$transaction(async (tx) => {
       // El merge vivo es una mejora de frescura, no puede bloquear todo Analytics.
@@ -127,18 +178,7 @@ export async function getFunnelStages(
     }, { timeout: 6000, maxWait: 2000 }));
   } catch (error) {
     console.warn("[funnel] live merge excedió 4s; usando rollup:", String(error).slice(0, 120));
-    rows = await trace.run("funnel.rollup_fallback", () => prisma.$queryRawUnsafe<Array<FunnelStages>>(
-      `SELECT
-         COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int AS "pageView",
-         COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int AS "viewProduct",
-         COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int AS "addToCart",
-         COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int AS "checkoutStart"
-       FROM pixel_daily_aggregates
-       WHERE "organizationId" = $1 AND day >= $2::date AND day <= $3::date`,
-      orgId,
-      fromDay,
-      toDay
-    ));
+    rows = await readRollupStages(orgId, fromDay, toDay, trace, "funnel.rollup_fallback");
   }
 
   const r = rows[0];
