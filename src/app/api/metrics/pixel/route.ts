@@ -44,6 +44,7 @@ export const revalidate = 0;
 // 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
 export const maxDuration = 200;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PIXEL_CACHE_PREFIX = "pixel-v2";
 
 // ══════════════════════════════════════════════════════════════
 // Cache del conteo all-time de eventos por org (ROOT CAUSE del crash).
@@ -235,7 +236,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // ── Org settings (model, weights, windows) ──
     const org = await trace.run("organization.findUnique:L235", () => prisma.organization.findUnique({
       where: { id: ORG_ID },
-      select: { settings: true },
+      select: { settings: true, createdAt: true },
     }));
     const orgSettings = (org?.settings as Record<string, any>) || {};
     const nitroWeights = orgSettings.nitroWeights || { first: 30, last: 40, middle: 30 };
@@ -269,18 +270,20 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     const goldDayTo = arDayStr(dateTo);
     const isTodayRange = goldDayFrom === arDayStr(now) && goldDayTo === arDayStr(now);
 
-    // ── Pixel install date: first event ever for this org ──
-    // Used as floor for CR queries (pixel visitors vs orders).
-    // Without this, orgs with orders pre-pixel would show 0 visitors for old sales.
+    // ── Pixel install date: first rollup day for this org ──
+    // pixel_events no tiene índice (organizationId, timestamp). El ORDER BY que
+    // vivía acá ordenaba millones de filas antes de empezar las demás queries
+    // (Arredo Hoy: ~9,5s hasta pintar datos). El rollup tiene PK por org/día y
+    // representa el mismo inicio útil para las métricas de conversión.
     const pixelInstallResult = await trace.run("$queryRaw:L273", () => prisma.$queryRaw`
-      SELECT timestamp as "installedAt"
-      FROM pixel_events
+      SELECT MIN(day)::timestamp as "installedAt"
+      FROM pixel_daily_aggregates
       WHERE "organizationId" = ${ORG_ID}
-        AND timestamp IS NOT NULL
-      ORDER BY timestamp ASC
-      LIMIT 1
     `) as Array<{ installedAt: Date | null }>;
-    const pixelInstalledAt = pixelInstallResult[0]?.installedAt || null;
+    const rollupInstalledAt = pixelInstallResult[0]?.installedAt || null;
+    const pixelInstalledAt = rollupInstalledAt && org?.createdAt && rollupInstalledAt < org.createdAt
+      ? org.createdAt
+      : rollupInstalledAt;
 
     // crDateFrom = effective start for Conversion Rate queries
     // MAX(user-selected dateFrom, pixel install date) — so we never compare
@@ -1538,7 +1541,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // carga del día paga los ~25s completos. Ver src/lib/api-cache-shared.ts.
     // Keep the seed promise alive until the shared write finishes, including
     // when waitUntil continues this computation after the request timeout.
-    await trace.run("setSharedCache:L1959", () => setSharedCache("pixel", response, ...cacheKey));
+    await trace.run("setSharedCache:L1959", () => setSharedCache(PIXEL_CACHE_PREFIX, response, ...cacheKey));
     return response;
     }; // ── fin computeAndCache ──
 
@@ -1549,13 +1552,13 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // warm cae al compute SÍNCRONO de abajo (isWarm ⇒ sin race) y mantiene su
     // secuencialidad. Usuarios: SWR normal (sirve stale al toque + refresh en bg).
     const isWarmCall = !!queryOrgId && queryKey === WARM_CACHE_KEY;
-    const cached = await trace.run("getSharedCachedSWR:L1970", () => getSharedCachedSWR("pixel", ...cacheKey));
+    const cached = await trace.run("getSharedCachedSWR:L1970", () => getSharedCachedSWR(PIXEL_CACHE_PREFIX, ...cacheKey));
     if (cached?.data && !(isWarmCall && cached.isStale)) {
-      if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
+      if (cached.isStale && tryAcquireRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey)) {
         waitUntil(
           computeAndCache()
             .catch((e) => { console.error("[pixel] background refresh failed:", e); })
-            .finally(() => releaseRefreshLock("pixel", ...cacheKey))
+            .finally(() => releaseRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey))
         );
       }
       return NextResponse.json(cached.data);
@@ -1573,13 +1576,13 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // warm-cache) leen data real instantánea. En orgs chicas (compute <85s) el
     // `await` devuelve data real directo, como antes. El lock evita thundering-herd:
     // si otro request ya está sembrando esta key, este devuelve el mock sin recomputar.
-    if (tryAcquireRefreshLock("pixel", ...cacheKey)) {
+    if (tryAcquireRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey)) {
       const missCompute = computeAndCache()
         .catch((e) => {
           console.error("[pixel] cache-miss seed failed:", e);
           return buildEmptyMockResponse();
         })
-        .finally(() => releaseRefreshLock("pixel", ...cacheKey));
+        .finally(() => releaseRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey));
       waitUntil(missCompute);
       const freshResponse = await missCompute;
       return NextResponse.json(freshResponse);
