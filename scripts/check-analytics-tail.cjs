@@ -42,7 +42,7 @@ const expectedSql = sql(before)
     )
     .replace(
       'LEFT JOIN ( SELECT DISTINCT "orderId" FROM pixel_attributions WHERE "organizationId" = ${ORG_ID} AND model::text = ${selectedModel} ) pa ON pa."orderId" = o.id',
-      'LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model::text = ${selectedModel}'
+      'LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model = CAST(${selectedModel} AS "AttributionModel")'
     ))
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
   .sort();

@@ -170,7 +170,8 @@ export async function GET(req: NextRequest) {
            FROM orders o
            JOIN pixel_attributions pa ON pa."orderId" = o.id
            WHERE pa."organizationId" = $1
-             AND pa.model::text = $2
+             AND o."organizationId" = $1
+             AND pa.model = CAST($2 AS "AttributionModel")
              AND o."orderDate" >= $3::timestamptz
              AND o."orderDate" <= $4::timestamptz
              AND ${ordersValidWebSql("o")}
@@ -191,7 +192,8 @@ export async function GET(req: NextRequest) {
           FROM pixel_attributions pa
           JOIN orders o ON o.id = pa."orderId"
           WHERE pa."organizationId" = ${orgId}
-            AND pa.model::text = ${selectedModel}
+            AND o."organizationId" = ${orgId}
+            AND pa.model = CAST(${selectedModel} AS "AttributionModel")
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWebWhere("o")}

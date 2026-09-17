@@ -771,7 +771,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         LEFT JOIN pixel_attributions pa
           ON pa."orderId" = o.id
          AND pa."organizationId" = ${ORG_ID}
-         AND pa.model::text = ${selectedModel}
+         AND pa.model = CAST(${selectedModel} AS "AttributionModel")
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}

@@ -57,9 +57,10 @@ export async function GET(request: NextRequest) {
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${organizationId}
+          AND o."organizationId" = ${organizationId}
           AND o."orderDate" >= ${prevFrom}
           AND o."orderDate" <= ${prevTo}
-          AND pa.model::text = ${selectedModel}
+          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
           AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
