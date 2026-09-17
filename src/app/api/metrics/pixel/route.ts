@@ -44,7 +44,7 @@ export const revalidate = 0;
 // 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
 export const maxDuration = 200;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PIXEL_CACHE_PREFIX = "pixel-v2";
+const PIXEL_CACHE_PREFIX = "pixel-v3";
 
 // ══════════════════════════════════════════════════════════════
 // Cache del conteo all-time de eventos por org (ROOT CAUSE del crash).
@@ -330,6 +330,61 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
     // leer una tabla vacía. Cuando esté todo, `PIXEL_USE_GOLD_CHANNEL=true`.
     const useGoldChannel =
       usePixelGold && usePixelChannels && process.env.PIXEL_USE_GOLD_CHANNEL === "true";
+
+    type DailyRevenueRow = { day: string; revenue: number; orders: number };
+    const loadDailyRevenue = async (): Promise<DailyRevenueRow[]> => {
+      let goldRows: DailyRevenueRow[] | null = null;
+      if (useGoldChannel) {
+        goldRows = await trace.run("$queryRawUnsafe:dailyRevenueGoldChannel", () => prisma.$queryRawUnsafe(`
+          SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
+            ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
+            0::int AS orders
+          FROM gold_attribution_channel
+          WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+          GROUP BY day
+          ORDER BY day
+        `, ORG_ID, goldDayFrom, goldDayTo)) as DailyRevenueRow[];
+      } else if (useGoldSource) {
+        goldRows = await trace.run("$queryRawUnsafe:dailyRevenueGoldSource", () => prisma.$queryRawUnsafe(`
+          SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
+            ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
+            0::int AS orders
+          FROM gold_attribution_source
+          WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+          GROUP BY day
+          ORDER BY day
+        `, ORG_ID, goldDayFrom, goldDayTo)) as DailyRevenueRow[];
+      }
+
+      // Para Hoy, Gold puede estar entre refreshes. Si ya tiene revenue sirve el
+      // camino rápido; si todavía no llegó el día actual, conservamos el fallback
+      // live que evita mostrar $0 con ventas reales.
+      if (goldRows && (!isTodayRange || goldRows.some((row) => row.revenue > 0))) {
+        return goldRows;
+      }
+
+      return trace.run("$queryRaw:dailyRevenueLive", () => prisma.$queryRaw`
+        SELECT
+          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+          SUM(pa."attributedValue")::float as revenue,
+          COUNT(*)::int as orders
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+          AND ${ordersValidWhere("o")}
+          AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
+        GROUP BY 1
+        ORDER BY 1
+      `) as Promise<DailyRevenueRow[]>;
+    };
 
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
@@ -714,47 +769,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // on every cold range change (Arredo 30d: ~11s for the Bronze query).
       // Order counts are filled from perDayCoverage below because a multi-touch
       // order can be present in more than one Gold channel bucket.
-      (useGoldChannel && !isTodayRange
-        ? trace.run("$queryRawUnsafe:dailyRevenueGoldChannel", () => prisma.$queryRawUnsafe(`
-            SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
-              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
-              0::int AS orders
-            FROM gold_attribution_channel
-            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
-            GROUP BY day
-            ORDER BY day
-          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; revenue: number; orders: number }>>
-      : useGoldSource && !isTodayRange
-        ? trace.run("$queryRawUnsafe:dailyRevenueGoldSource", () => prisma.$queryRawUnsafe(`
-            SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
-              ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
-              0::int AS orders
-            FROM gold_attribution_source
-            WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
-            GROUP BY day
-            ORDER BY day
-          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; revenue: number; orders: number }>>
-      : trace.run("$queryRaw:L766", () => prisma.$queryRaw`
-        SELECT
-          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          SUM(pa."attributedValue")::float as revenue,
-          COUNT(*)::int as orders
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY 1
-      `) as Promise<Array<{ day: string; revenue: number; orders: number }>>),
+      loadDailyRevenue(),
 
       // 18. Previous-period comparisons are loaded by /summary-tail after KPIs.
       Promise.resolve([]) as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
