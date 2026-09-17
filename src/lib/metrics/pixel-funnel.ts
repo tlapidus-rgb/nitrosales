@@ -51,8 +51,8 @@ export function shouldUseFunnelRollupOnly(
   minRollupDay: string | null,
   maxRollupDay: string | null
 ): boolean {
-  // A one-day range needs the live merge so "Hoy" can include events created
-  // after the last rollup refresh. For multi-day presets, yesterday is the last
+  // If the requested single day already exists in the rollup, return it without
+  // paying a raw-event scan. For multi-day presets, yesterday is the last
   // complete day we require from the daily rollup. The current day can be absent
   // or partial; on large tenants the live merge times out and already falls back
   // to exactly these rollup values, so attempting it only adds four seconds.
@@ -60,11 +60,9 @@ export function shouldUseFunnelRollupOnly(
   dayBeforeTo.setUTCDate(dayBeforeTo.getUTCDate() - 1);
   const lastCompleteDay = dayBeforeTo.toISOString().slice(0, 10);
 
-  return fromDay !== toDay
-    && !!minRollupDay
-    && !!maxRollupDay
-    && minRollupDay <= fromDay
-    && maxRollupDay >= lastCompleteDay;
+  if (!minRollupDay || !maxRollupDay || minRollupDay > fromDay) return false;
+  if (fromDay === toDay) return maxRollupDay >= toDay;
+  return maxRollupDay >= lastCompleteDay;
 }
 
 export function funnelLiveTimeoutMs(fromDay: string, toDay: string): number {

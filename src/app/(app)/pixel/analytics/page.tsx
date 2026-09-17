@@ -539,6 +539,7 @@ export default function AnalyticsPage() {
   // Component-local only: switching accounts performs a full reload. Never persist
   // business data in browser storage or share it between page instances.
   const rangeCache = useRef(new Map<string, { at: number; pixel: PixelData; disc: DiscrepancyData }>());
+  const pixelRangeCache = useRef(new Map<string, { at: number; pixel: PixelData }>());
   const [displayedRange, setDisplayedRange] = useState("");
   const reqIdRef = useRef(0);
   const fetchAll = useCallback(async (silent = false, force = false) => {
@@ -553,7 +554,10 @@ export default function AnalyticsPage() {
     else setIsRefetching(true);
     setError(null);
     const rangeKey = dateFrom + ":" + dateTo;
-    if (force) rangeCache.current.clear();
+    if (force) {
+      rangeCache.current.clear();
+      pixelRangeCache.current.clear();
+    }
     const saved = rangeCache.current.get(rangeKey);
     if (saved && Date.now() - saved.at < 60_000) {
       setPixelData(saved.pixel);
@@ -563,11 +567,18 @@ export default function AnalyticsPage() {
       setIsRefetching(false);
       return;
     }
+    const savedPixel = pixelRangeCache.current.get(rangeKey);
+    if (savedPixel && Date.now() - savedPixel.at < 60_000) {
+      setPixelData(savedPixel.pixel);
+      setDisplayedRange(rangeKey);
+      setLoading(false);
+    }
     setDiscrepancy(null);
-    let validPixel: PixelData | undefined;
+    let validPixel: PixelData | undefined = savedPixel?.pixel;
     let validDisc: DiscrepancyData | undefined;
 
     const loadPixel = async () => {
+      if (validPixel) return;
       try {
         // Fix 2026-07 (#5 config audit): sin ?model= los endpoints usan el modelo
         // configurado en /pixel/configuracion (antes NITRO hardcodeado acá → el
@@ -583,6 +594,9 @@ export default function AnalyticsPage() {
 
         if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
         validPixel = pixelJson;
+        pixelRangeCache.current.delete(rangeKey);
+        pixelRangeCache.current.set(rangeKey, { at: Date.now(), pixel: pixelJson });
+        if (pixelRangeCache.current.size > 8) pixelRangeCache.current.delete(pixelRangeCache.current.keys().next().value!);
         setPixelData(pixelJson);
         setDisplayedRange(rangeKey);
         // El contenido principal no espera a discrepancy para dejar de mostrar
@@ -790,10 +804,10 @@ export default function AnalyticsPage() {
     };
   }, [funnelChannel, dateFrom, dateTo, displayedRange, pixelData?.businessKpis?.ordersAttributed]);
 
-  // Reset funnel filter cuando cambia el rango de fechas (para evitar mostrar data stale)
+  // Resetear sólo el filtro. Conservamos el último funnel válido hasta que llegue
+  // el nuevo para que cambios rápidos no pinten cinco etapas en cero.
   useEffect(() => {
     setFunnelChannel("all");
-    setFunnelOverride(null);
   }, [dateFrom, dateTo]);
 
   // ── Count-up values ──
@@ -977,12 +991,10 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* STICKY SECTION NAVIGATOR                                */}
         {/* ═══════════════════════════════════════════════════════ */}
-        {(error || (displayedRange && displayedRange !== dateFrom + ":" + dateTo)) && (
+        {error && (
           <div role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-            {error || "Cargando el período seleccionado."}
-            {displayedRange && displayedRange !== dateFrom + ":" + dateTo &&
-              <span> Los indicadores visibles corresponden a {displayedRange.replace(":", " — ")}.</span>}
-            {error && <button className="ml-3 underline" onClick={() => fetchAll(true, true)}>Reintentar</button>}
+            {error}
+            <button className="ml-3 underline" onClick={() => fetchAll(true, true)}>Reintentar</button>
           </div>
         )}
         <SectionNav />

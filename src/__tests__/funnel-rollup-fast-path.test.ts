@@ -12,8 +12,13 @@ describe("funnel rollup fast path", () => {
       .toBe(true);
   });
 
-  it("keeps the live merge for a one-day range", () => {
+  it("uses an existing one-day rollup without scanning raw events", () => {
     expect(shouldUseFunnelRollupOnly("2026-09-17", "2026-09-17", "2026-06-01", "2026-09-17"))
+      .toBe(true);
+  });
+
+  it("keeps the live merge when the selected day is absent from the rollup", () => {
+    expect(shouldUseFunnelRollupOnly("2026-09-17", "2026-09-17", "2026-06-01", "2026-09-16"))
       .toBe(false);
   });
 

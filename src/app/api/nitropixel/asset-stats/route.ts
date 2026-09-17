@@ -16,9 +16,11 @@
 // Read-only — NO modifica ningún dato. Seguro para consultas frecuentes.
 // ══════════════════════════════════════════════════════════════
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getSharedCachedSWR, setSharedCacheWithTtl } from "@/lib/api-cache-shared";
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -74,12 +76,21 @@ function estimateAssetValue(events: number, identified: number, revenue: number)
   return Math.round(identifiedValue + revenueValue + behaviorValue);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const orgId = await getOrganizationId();
+    const { searchParams } = new URL(request.url);
+    const warmOrgId = searchParams.get("orgId");
+    const warmKey = searchParams.get("key");
+    const isWarmCall = !!warmOrgId && warmKey === ADMIN_API_KEY;
+    const orgId = isWarmCall
+      ? warmOrgId!
+      : await getOrganizationId();
     if (!orgId) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+
+    const cached = await getSharedCachedSWR<Record<string, unknown>>("nitropixel-asset-v2", orgId);
+    if (cached?.data && !(isWarmCall && cached.isStale)) return NextResponse.json(cached.data);
 
     const now = new Date();
     const ago30d = new Date(now.getTime() - 30 * MS_DAY);
@@ -142,10 +153,15 @@ export async function GET() {
         orderBy: { timestamp: "asc" },
         select: { timestamp: true },
       }),
-      prisma.pixelAttribution.aggregate({
-        where: { organizationId: orgId, model: "NITRO" },
-        _sum: { attributedValue: true },
-      }),
+      // El SUM histórico sobre pixel_attributions crecía sin límite. Gold ya
+      // contiene exactamente el mismo total por día/source; LAST_CLICK asigna
+      // cada orden a una sola source, por eso su suma no duplica journeys.
+      prisma.$queryRawUnsafe<Array<{ attributed_revenue: number }>>(
+        `SELECT COALESCE(SUM(last_click_revenue), 0)::float AS attributed_revenue
+         FROM gold_attribution_source
+         WHERE organization_id = $1`,
+        orgId
+      ),
       prisma.pixelEvent.findMany({
         where: { organizationId: orgId },
         orderBy: { timestamp: "desc" },
@@ -197,7 +213,7 @@ export async function GET() {
     const eventsLast24h = Number(windowAgg[0]?.last24h ?? 0);
     const eventsLast7d = Number(windowAgg[0]?.last7d ?? 0);
 
-    const attributedRevenue = Number(attributedAgg._sum.attributedValue ?? 0);
+    const attributedRevenue = Number(attributedAgg[0]?.attributed_revenue ?? 0);
 
     const daysAlive = firstEvent
       ? Math.max(1, Math.floor((now.getTime() - firstEvent.timestamp.getTime()) / MS_DAY))
@@ -225,7 +241,7 @@ export async function GET() {
       count: Number(r.count),
     }));
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       asset: {
         totalEvents,
@@ -252,7 +268,12 @@ export async function GET() {
       })),
       timeline,
       topSources,
-    });
+    };
+
+    // La página refresca cada 20s. Compartir la respuesta durante ese intervalo
+    // evita repetir siete lecturas al mismo tiempo en cada instancia fría.
+    await setSharedCacheWithTtl("nitropixel-asset-v2", payload, 20_000, 5 * 60_000, orgId);
+    return NextResponse.json(payload);
   } catch (err) {
     console.error("[nitropixel/asset-stats] error:", err);
     return NextResponse.json(

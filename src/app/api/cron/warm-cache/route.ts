@@ -232,6 +232,7 @@ export async function GET(req: NextRequest) {
     const endpoints = [
       "/api/metrics/pixel",
       "/api/metrics/pixel/rate-summary",
+      "/api/nitropixel/asset-stats",
       "/api/metrics/products",
     ];
 

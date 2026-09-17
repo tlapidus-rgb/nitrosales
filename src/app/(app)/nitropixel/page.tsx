@@ -74,7 +74,10 @@ export default function NitroPixelPage() {
   // Fetch initial + refresh every 20s
   useEffect(() => {
     let alive = true;
+    let inFlight = false;
     async function load() {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const r = await fetch("/api/nitropixel/asset-stats", { cache: "no-store" });
         const j = (await r.json()) as AssetStats;
@@ -86,6 +89,7 @@ export default function NitroPixelPage() {
         if (!alive) return;
         setError(e instanceof Error ? e.message : "Error desconocido");
       } finally {
+        inFlight = false;
         if (alive) setLoading(false);
       }
     }
@@ -120,6 +124,20 @@ export default function NitroPixelPage() {
       })
       .join(" ");
   }, [data]);
+
+  if (loading && !data) {
+    return (
+      <div className="relative w-full h-full overflow-y-auto" style={{ background: "#FBFAF7" }}>
+        <div className="max-w-6xl mx-auto px-6 lg:px-10 py-10 animate-pulse">
+          <div className="h-5 w-52 rounded bg-surface-2 mb-8" />
+          <div className="h-40 rounded-2xl bg-surface-2 mb-6" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 rounded-xl bg-surface-2" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

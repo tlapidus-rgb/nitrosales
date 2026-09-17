@@ -267,6 +267,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
     const goldDayFrom = arDayStr(dateFrom);
     const goldDayTo = arDayStr(dateTo);
+    const isTodayRange = goldDayFrom === arDayStr(now) && goldDayTo === arDayStr(now);
 
     // ── Pixel install date: first event ever for this org ──
     // Used as floor for CR queries (pixel visitors vs orders).
@@ -710,7 +711,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
       // on every cold range change (Arredo 30d: ~11s for the Bronze query).
       // Order counts are filled from perDayCoverage below because a multi-touch
       // order can be present in more than one Gold channel bucket.
-      (useGoldChannel
+      (useGoldChannel && !isTodayRange
         ? trace.run("$queryRawUnsafe:dailyRevenueGoldChannel", () => prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
@@ -720,7 +721,7 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
             GROUP BY day
             ORDER BY day
           `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; revenue: number; orders: number }>>
-      : useGoldSource
+      : useGoldSource && !isTodayRange
         ? trace.run("$queryRawUnsafe:dailyRevenueGoldSource", () => prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
@@ -1184,7 +1185,13 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         ? Math.round((kpisCurr.totalPageViews / kpisCurr.totalSessions) * 10) / 10
         : 0;
 
-    const totalEvents = eventCountResult[0]?.total || 0;
+    // El rollup del día actual puede todavía no existir. Nunca mostrar "0 eventos"
+    // si el status vivo ya contó actividad en la última hora; ese conteo indexado
+    // es un piso correcto hasta el próximo refresh del rollup.
+    const rolledUpEvents = eventCountResult[0]?.total || 0;
+    const totalEvents = isTodayRange
+      ? Math.max(rolledUpEvents, Number(ls?.lastHourEvents) || 0)
+      : rolledUpEvents;
 
     // Channel roles: gateway filter + fold fb → meta only (Role Map + Journey Intelligence).
     const channelRolesMerged = mergeChannelRolesByGroupKey(
