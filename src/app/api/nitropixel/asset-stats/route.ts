@@ -30,6 +30,7 @@ export const revalidate = 0;
 export const maxDuration = 30;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
+const ASSET_CACHE_PREFIX = "nitropixel-asset-v3";
 
 // ── Heurística de nivel: 0-100 ──
 function computeLevel(events: number, identified: number, revenue: number): number {
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const cached = await getSharedCachedSWR<Record<string, unknown>>("nitropixel-asset-v2", orgId);
+    const cached = await getSharedCachedSWR<Record<string, unknown>>(ASSET_CACHE_PREFIX, orgId);
     if (cached?.data && !(isWarmCall && cached.isStale)) return NextResponse.json(cached.data);
 
     const now = new Date();
@@ -300,7 +301,7 @@ export async function GET(request: NextRequest) {
 
     // La página refresca cada 20s. Compartir la respuesta durante ese intervalo
     // evita repetir siete lecturas al mismo tiempo en cada instancia fría.
-    await setSharedCacheWithTtl("nitropixel-asset-v2", payload, 20_000, 5 * 60_000, orgId);
+    await setSharedCacheWithTtl(ASSET_CACHE_PREFIX, payload, 20_000, 5 * 60_000, orgId);
     return NextResponse.json(payload);
   } catch (err) {
     console.error("[nitropixel/asset-stats] error:", err);
