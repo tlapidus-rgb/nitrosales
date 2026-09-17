@@ -67,6 +67,13 @@ export function shouldUseFunnelRollupOnly(
     && maxRollupDay >= lastCompleteDay;
 }
 
+export function funnelLiveTimeoutMs(fromDay: string, toDay: string): number {
+  // A long raw-event scan is optional enrichment: if it cannot finish quickly,
+  // the endpoint returns the same rollup fallback it used after four seconds.
+  // Keep a wider budget for one-day ranges, where live freshness matters most.
+  return fromDay === toDay ? 4000 : 500;
+}
+
 async function readRollupStages(
   orgId: string,
   fromDay: string,
@@ -133,12 +140,13 @@ export async function getFunnelStages(
   // de la noche AR caen en UTC del día siguiente). El filtro AR-date exacto recorta.
   const liveTsLo = new Date(`${liveFromDay}T00:00:00.000-03:00`);
   liveTsLo.setUTCDate(liveTsLo.getUTCDate() - 1);
+  const liveTimeoutMs = funnelLiveTimeoutMs(fromDay, toDay);
 
   try {
     rows = await trace.run("funnel.live_merge", () => prisma.$transaction(async (tx) => {
       // El merge vivo es una mejora de frescura, no puede bloquear todo Analytics.
       // Si el tramo reciente creció demasiado, usamos el rollup ya disponible.
-      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = 4000`);
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${liveTimeoutMs}`);
       return tx.$queryRawUnsafe<Array<FunnelStages>>(`
     WITH rollup_part AS (
       SELECT hll_union_agg(pv_visitors_hll)      AS pv,
@@ -182,7 +190,7 @@ export async function getFunnelStages(
       );
     }, { timeout: 6000, maxWait: 2000 }));
   } catch (error) {
-    console.warn("[funnel] live merge excedió 4s; usando rollup:", String(error).slice(0, 120));
+    console.warn(`[funnel] live merge excedió ${liveTimeoutMs}ms; usando rollup:`, String(error).slice(0, 120));
     rows = await readRollupStages(orgId, fromDay, toDay, trace, "funnel.rollup_fallback");
   }
 
