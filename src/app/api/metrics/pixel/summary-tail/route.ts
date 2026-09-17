@@ -54,13 +54,17 @@ export async function GET(request: NextRequest) {
         SELECT
           COUNT(*)::int as "ordersAttributed",
           SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${organizationId}
-          AND o."organizationId" = ${organizationId}
+        FROM orders o
+        JOIN LATERAL (
+          SELECT candidate."attributedValue"
+          FROM pixel_attributions candidate
+          WHERE candidate."orderId" = o.id
+            AND candidate.model = CAST(${selectedModel} AS "AttributionModel")
+          LIMIT 1
+        ) pa ON TRUE
+        WHERE o."organizationId" = ${organizationId}
           AND o."orderDate" >= ${prevFrom}
           AND o."orderDate" <= ${prevTo}
-          AND pa.model = CAST(${selectedModel} AS "AttributionModel")
           AND ${ordersValidWhere("o")}
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'

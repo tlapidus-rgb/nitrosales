@@ -189,11 +189,15 @@ export async function GET(req: NextRequest) {
         ) as Promise<Array<{ purchase: number }>>)
       : prisma.$queryRaw<Array<{ purchase: number }>>`
           SELECT COUNT(*)::int as purchase
-          FROM pixel_attributions pa
-          JOIN orders o ON o.id = pa."orderId"
-          WHERE pa."organizationId" = ${orgId}
-            AND o."organizationId" = ${orgId}
-            AND pa.model = CAST(${selectedModel} AS "AttributionModel")
+          FROM orders o
+          JOIN LATERAL (
+            SELECT 1
+            FROM pixel_attributions candidate
+            WHERE candidate."orderId" = o.id
+              AND candidate.model = CAST(${selectedModel} AS "AttributionModel")
+            LIMIT 1
+          ) pa ON TRUE
+          WHERE o."organizationId" = ${orgId}
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWebWhere("o")}

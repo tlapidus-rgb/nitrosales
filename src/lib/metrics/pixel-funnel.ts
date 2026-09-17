@@ -77,8 +77,13 @@ export async function getFunnelStages(
   const liveTsLo = new Date(`${liveFromDay}T00:00:00.000-03:00`);
   liveTsLo.setUTCDate(liveTsLo.getUTCDate() - 1);
 
-  const rows = await trace.run("funnel.live_merge", () => prisma.$queryRawUnsafe<Array<FunnelStages>>(
-    `
+  let rows: Array<FunnelStages>;
+  try {
+    rows = await trace.run("funnel.live_merge", () => prisma.$transaction(async (tx) => {
+      // El merge vivo es una mejora de frescura, no puede bloquear todo Analytics.
+      // Si el tramo reciente creció demasiado, usamos el rollup ya disponible.
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = 4000`);
+      return tx.$queryRawUnsafe<Array<FunnelStages>>(`
     WITH rollup_part AS (
       SELECT hll_union_agg(pv_visitors_hll)      AS pv,
              hll_union_agg(product_visitors_hll) AS prod,
@@ -117,8 +122,24 @@ export async function getFunnelStages(
     toDay,
     liveTsLo.toISOString(),
     dateTo.toISOString(),
-    liveFromDay
-  ));
+        liveFromDay
+      );
+    }, { timeout: 6000, maxWait: 2000 }));
+  } catch (error) {
+    console.warn("[funnel] live merge excedió 4s; usando rollup:", String(error).slice(0, 120));
+    rows = await trace.run("funnel.rollup_fallback", () => prisma.$queryRawUnsafe<Array<FunnelStages>>(
+      `SELECT
+         COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int AS "pageView",
+         COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int AS "viewProduct",
+         COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int AS "addToCart",
+         COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int AS "checkoutStart"
+       FROM pixel_daily_aggregates
+       WHERE "organizationId" = $1 AND day >= $2::date AND day <= $3::date`,
+      orgId,
+      fromDay,
+      toDay
+    ));
+  }
 
   const r = rows[0];
   return {
