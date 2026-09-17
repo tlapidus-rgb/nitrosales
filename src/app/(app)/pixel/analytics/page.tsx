@@ -528,6 +528,7 @@ export default function AnalyticsPage() {
   const discrepancyAbortRef = useRef<AbortController | null>(null);
   const funnelAbortRef = useRef<AbortController | null>(null);
   const conversionAbortRef = useRef<AbortController | null>(null);
+  const lagAbortRef = useRef<AbortController | null>(null);
   const summaryTailAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch analytics resources independently ──
@@ -636,6 +637,7 @@ export default function AnalyticsPage() {
     discrepancyAbortRef.current?.abort();
     funnelAbortRef.current?.abort();
     conversionAbortRef.current?.abort();
+    lagAbortRef.current?.abort();
     summaryTailAbortRef.current?.abort();
   }, []);
 
@@ -658,7 +660,6 @@ export default function AnalyticsPage() {
     const controller = new AbortController();
     conversionAbortRef.current = controller;
     setConversionSummaryLoading(true);
-    setLagSummaryLoading(true);
     fetch(`/api/metrics/pixel/rate-summary?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`Conversion summary: HTTP ${response.status}`);
@@ -669,22 +670,43 @@ export default function AnalyticsPage() {
           setConversionSummary({
             range,
             conversionRates: data.conversionRates,
-            conversionLag: Array.isArray(data.conversionLag) ? data.conversionLag : [],
             meta: data.meta || {},
           });
-          if (Array.isArray(data.conversionLag)) {
-            setLagSummary({ range, conversionLag: data.conversionLag });
-          }
         }
       })
       .catch((error: unknown) => {
         if (!isAbortError(error)) console.warn("Error cargando resumen de conversión:", error);
       })
       .finally(() => {
-        if (!controller.signal.aborted) {
-          setConversionSummaryLoading(false);
-          setLagSummaryLoading(false);
+        if (!controller.signal.aborted) setConversionSummaryLoading(false);
+      });
+    return () => controller.abort();
+  }, [dateFrom, dateTo, displayedRange]);
+
+  // Conversion speed stays independent from the conversion-rate cards. A slow
+  // attribution scan must not keep the already-rolled-up rate tables hidden.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
+    lagAbortRef.current?.abort();
+    const controller = new AbortController();
+    lagAbortRef.current = controller;
+    setLagSummaryLoading(true);
+    fetch(`/api/metrics/pixel/lag-summary?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Lag summary: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted && Array.isArray(data?.conversionLag)) {
+          setLagSummary({ range, conversionLag: data.conversionLag });
         }
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando velocidad de conversión:", error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLagSummaryLoading(false);
       });
     return () => controller.abort();
   }, [dateFrom, dateTo, displayedRange]);

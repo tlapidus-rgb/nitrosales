@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { ordersValidWhere } from "@/domains/orders";
+import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -32,8 +33,27 @@ export async function GET(request: NextRequest) {
       : "NITRO";
     const requestedModel = (searchParams.get("model") || settingsModel).toUpperCase();
     const selectedModel = validModels.includes(requestedModel) ? requestedModel : settingsModel;
+    const cacheKey = [organizationId, dateFrom.toISOString(), dateTo.toISOString(), selectedModel];
+    const cached = await getSharedCachedSWR<{ conversionLag: Array<{ bucket: string; orders: number; revenue: number }> }>(
+      "pixel-lag-summary-v2",
+      ...cacheKey
+    );
+    if (cached?.data) return NextResponse.json(cached.data);
 
     const conversionLag = await prisma.$queryRaw<Array<{ bucket: string; orders: number; revenue: number }>>`
+      WITH valid_orders AS MATERIALIZED (
+        SELECT o.id
+        FROM orders o
+        WHERE o."organizationId" = ${organizationId}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND ${ordersValidWhere("o")}
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
+      )
       SELECT
         CASE
           WHEN pa."conversionLag" IS NULL THEN 'unknown'
@@ -47,24 +67,16 @@ export async function GET(request: NextRequest) {
         COUNT(*)::int as orders,
         SUM(pa."attributedValue")::float as revenue
       FROM pixel_attributions pa
-      JOIN orders o ON o.id = pa."orderId"
+      JOIN valid_orders vo ON vo.id = pa."orderId"
       WHERE pa."organizationId" = ${organizationId}
-        AND o."organizationId" = ${organizationId}
-        AND o."orderDate" >= ${dateFrom}
-        AND o."orderDate" <= ${dateTo}
         AND pa.model = CAST(${selectedModel} AS "AttributionModel")
-        AND ${ordersValidWhere("o")}
-        AND o."totalValue" > 0
-        AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-        AND o.source IS DISTINCT FROM 'MELI'
-        AND o.channel IS DISTINCT FROM 'marketplace'
-        AND o."externalId" NOT LIKE 'FVG-%'
-        AND o."externalId" NOT LIKE 'BPR-%'
       GROUP BY 1
       ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
     `;
 
-    return NextResponse.json({ conversionLag });
+    const payload = { conversionLag };
+    await setSharedCache("pixel-lag-summary-v2", payload, ...cacheKey);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error("[pixel-lag-summary]", error);
     return NextResponse.json({ error: "No se pudo cargar la velocidad de conversión" }, { status: 500 });
