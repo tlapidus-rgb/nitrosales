@@ -333,7 +333,9 @@ function useCountUp(target: number, duration = 800): number {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [target, duration]);
 
-  return current;
+  // El efecto corre después del paint. Durante el primer render con datos,
+  // devolver el target evita que el navegador llegue a pintar un frame en cero.
+  return !receivedRealValue.current && target !== 0 ? target : current;
 }
 
 // ── Truth Score color logic ──
