@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
           SELECT candidate."attributedValue"
           FROM pixel_attributions candidate
           WHERE candidate."orderId" = o.id
+            AND candidate."organizationId" = ${organizationId}
             AND candidate.model = CAST(${selectedModel} AS "AttributionModel")
           LIMIT 1
         ) pa ON TRUE

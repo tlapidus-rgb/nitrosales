@@ -38,13 +38,16 @@ const expectedSql = sql(before)
   .map(query => query
     .replace(
       'SELECT MIN(timestamp) as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID}',
-      'SELECT timestamp as "installedAt" FROM pixel_events WHERE "organizationId" = ${ORG_ID} AND timestamp IS NOT NULL ORDER BY timestamp ASC LIMIT 1'
+      'SELECT MIN(day)::timestamp as "installedAt" FROM pixel_daily_aggregates WHERE "organizationId" = ${ORG_ID}'
     )
     .replace(
       'LEFT JOIN ( SELECT DISTINCT "orderId" FROM pixel_attributions WHERE "organizationId" = ${ORG_ID} AND model::text = ${selectedModel} ) pa ON pa."orderId" = o.id',
       'LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa."organizationId" = ${ORG_ID} AND pa.model = CAST(${selectedModel} AS "AttributionModel")'
     ))
   .map(query => query.replace('COUNT(*)::int as "totalOrders", COUNT(DISTINCT pa."orderId")', 'COUNT(DISTINCT o.id)::int as "totalOrders", COUNT(DISTINCT pa."orderId")'))
+  .map(query => query.includes('SUM(pa."attributedValue")::float as revenue, COUNT(*)::int as orders FROM pixel_attributions pa JOIN orders o')
+    ? 'prisma.$queryRaw` WITH selected_orders AS MATERIALIZED ( SELECT o.id, o."orderDate" FROM orders o WHERE o."organizationId" = ${ORG_ID} AND o."orderDate" >= ${dateFrom} AND o."orderDate" <= ${dateTo} AND ${ordersValidWhere("o")} AND o."totalValue" > 0 AND o."trafficSource" IS DISTINCT FROM \'Marketplace\' AND o.source IS DISTINCT FROM \'MELI\' AND o.channel IS DISTINCT FROM \'marketplace\' AND o."externalId" NOT LIKE \'FVG-%\' AND o."externalId" NOT LIKE \'BPR-%\' ) SELECT TO_CHAR(DATE(o."orderDate" AT TIME ZONE \'America/Argentina/Buenos_Aires\'), \'YYYY-MM-DD\') as day, SUM(pa."attributedValue")::float as revenue, COUNT(*)::int as orders FROM selected_orders o JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa.model::text = ${selectedModel} GROUP BY 1 ORDER BY 1 `'
+    : query)
   .sort();
 
 assert.deepEqual(sql(after), expectedSql, 'core SQL must match the approved deferred-query baseline');

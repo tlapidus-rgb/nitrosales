@@ -7,13 +7,16 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 
 const MS_PER_DAY = 86_400_000;
 
 export async function GET(request: NextRequest) {
   try {
-    const organizationId = await getOrganizationId();
     const { searchParams } = new URL(request.url);
+    const warmOrgId = searchParams.get("orgId");
+    const isWarmCall = !!warmOrgId && searchParams.get("key") === ADMIN_API_KEY;
+    const organizationId = isWarmCall ? warmOrgId! : await getOrganizationId();
     const now = new Date();
     const dateTo = searchParams.get("to")
       ? new Date(`${searchParams.get("to")}T23:59:59.999-03:00`)
@@ -41,7 +44,7 @@ export async function GET(request: NextRequest) {
     const crDateFrom = installedAt && installedAt > dateFrom ? installedAt : dateFrom;
     const cacheKey = [organizationId, dateFrom.toISOString(), dateTo.toISOString(), selectedModel];
     const cached = await getSharedCachedSWR<Record<string, unknown>>("pixel-rate-summary-v4", ...cacheKey);
-    if (cached?.data) return NextResponse.json(cached.data);
+    if (cached?.data && !(isWarmCall && cached.isStale)) return NextResponse.json(cached.data);
 
     // Traffic and first-touch attribution are already maintained as daily rollups.
     // Reading them here avoids revisiting every attribution whenever a date button

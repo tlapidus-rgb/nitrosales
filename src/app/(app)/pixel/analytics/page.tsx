@@ -584,13 +584,14 @@ export default function AnalyticsPage() {
       return;
     }
     const savedPixel = pixelRangeCache.current.get(rangeKey);
-    if (savedPixel && Date.now() - savedPixel.at < 60_000) {
+    const savedPixelIsFresh = !!savedPixel && Date.now() - savedPixel.at < 60_000;
+    if (savedPixelIsFresh) {
       setPixelData(savedPixel.pixel);
       setDisplayedRange(rangeKey);
       setLoading(false);
     }
     setDiscrepancy(null);
-    let validPixel: PixelData | undefined = savedPixel?.pixel;
+    let validPixel: PixelData | undefined = savedPixelIsFresh ? savedPixel.pixel : undefined;
     let validDisc: DiscrepancyData | undefined;
 
     const loadPixel = async () => {
