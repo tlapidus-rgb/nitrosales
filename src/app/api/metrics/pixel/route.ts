@@ -44,7 +44,7 @@ export const revalidate = 0;
 // 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
 export const maxDuration = 200;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PIXEL_CACHE_PREFIX = "pixel-v3";
+const PIXEL_CACHE_PREFIX = "pixel-v4";
 
 // ══════════════════════════════════════════════════════════════
 // Cache del conteo all-time de eventos por org (ROOT CAUSE del crash).
@@ -356,31 +356,35 @@ async function realHandler(request: NextRequest, trace: ReturnType<typeof create
         `, ORG_ID, goldDayFrom, goldDayTo)) as DailyRevenueRow[];
       }
 
-      // Para Hoy, Gold puede estar entre refreshes. Si ya tiene revenue sirve el
-      // camino rápido; si todavía no llegó el día actual, conservamos el fallback
-      // live que evita mostrar $0 con ventas reales.
-      if (goldRows && (!isTodayRange || goldRows.some((row) => row.revenue > 0))) {
+      // Gold puede estar parcial durante el día aunque ya tenga alguna fila. Para
+      // Hoy conservamos el cálculo live exacto; para rangos cerrados usamos Gold.
+      if (goldRows && !isTodayRange) {
         return goldRows;
       }
 
       return trace.run("$queryRaw:dailyRevenueLive", () => prisma.$queryRaw`
+        WITH selected_orders AS MATERIALIZED (
+          SELECT o.id, o."orderDate"
+          FROM orders o
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o."orderDate" >= ${dateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWhere("o")}
+            AND o."totalValue" > 0
+            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+            AND o.source IS DISTINCT FROM 'MELI'
+            AND o.channel IS DISTINCT FROM 'marketplace'
+            AND o."externalId" NOT LIKE 'FVG-%'
+            AND o."externalId" NOT LIKE 'BPR-%'
+        )
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           SUM(pa."attributedValue")::float as revenue,
           COUNT(*)::int as orders
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
+        FROM selected_orders o
+        JOIN pixel_attributions pa
+          ON pa."orderId" = o.id
           AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY 1
       `) as Promise<DailyRevenueRow[]>;
