@@ -60,7 +60,6 @@ const ALLOWLIST = new Set([
   "src/app/api/bondly/ltv-insights/route.ts",
   "src/app/api/bondly/pulse/route.ts",
   "src/app/api/bondly/senales/route.ts",
-  "src/app/api/nitropixel/asset-stats/route.ts",
   "src/app/api/nitropixel/data-quality-score/route.ts",
   "src/app/api/nitropixel/install-status/route.ts",
   "src/app/api/control/client/[id]/route.ts",

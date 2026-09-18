@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
+const root=require('node:path').resolve(__dirname,'..');const ts=require(root+'/node_modules/typescript');
+const source=fs.readFileSync(root+'/src/lib/pixel/preview-query-plan.ts','utf8');
+const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const logs=[],calls=[],output=[];const moduleExports={};const env={VERCEL_ENV:'preview'};
+const plan=[{Plan:{'Node Type':'Nested Loop','Filter':'secret tenant','Output':['email'],Plans:[{'Node Type':'Index Scan','Relation Name':'orders','Index Cond':'secret id','Plan Rows':42,'Total Cost':123}]}}];
+let fail=false;
+const prisma={$queryRaw:async q=>{calls.push(q);if(q.strings){if(fail)throw Error('secret db error');return [{'QUERY PLAN':plan}]}return output}};
+vm.runInNewContext(code,{exports:moduleExports,process:{env},console:{info:(_p,s)=>logs.push(JSON.parse(s))},require:n=>n==='@prisma/client'?{Prisma:{sql:(strings,...values)=>({strings,values})}}:{prisma}});
+(async()=>{
+ const query={private:'parameter'};
+ assert.equal(await moduleExports.queryWithPreviewPlan('source',query,true),output);
+ assert.equal(calls.length,2);assert(calls[0].strings.join('').includes('EXPLAIN (FORMAT JSON)'));
+ assert(!calls[0].strings.join('').includes('ANALYZE'));assert.equal(calls[0].values[0],query);assert.equal(calls[1],query);
+ assert(!JSON.stringify(logs).includes('secret'));assert(!JSON.stringify(logs).includes('email'));
+ await moduleExports.queryWithPreviewPlan('source',query,true);assert.equal(calls.length,3);
+ await moduleExports.queryWithPreviewPlan('small',query,false);assert.equal(calls.length,4);
+ env.VERCEL_ENV='production';await moduleExports.queryWithPreviewPlan('prod',query,true);assert.equal(calls.length,5);
+ env.VERCEL_ENV='preview';fail=true;assert.equal(await moduleExports.queryWithPreviewPlan('failed-plan',query,true),output);
+ assert.equal(logs.at(-1).unavailable,true);assert.equal(calls.length,7);
+ console.log('PASS: preview/wide-range gating, one plan per stage, no ANALYZE, unchanged parameterized query, redacted plan, fallback on plan failure.');
+})().catch(e=>{console.error(e);process.exitCode=1});

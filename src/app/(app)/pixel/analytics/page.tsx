@@ -39,6 +39,8 @@ const localYMD = (d: Date): string => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && error.name === "AbortError";
 const fmt = (n: number) => n.toLocaleString("es-AR");
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -272,12 +274,28 @@ interface DiscrepancyData {
   dailyTrend: Array<{ day: string; pixelRevenue: number; platformRevenue: number; spend: number; delta: number }>;
 }
 
+interface ConversionSummaryData {
+  range: string;
+  conversionRates: {
+    byChannel: Array<{ source: string; visitors: number; purchases: number; revenue: number; cr: number; channelsMerged?: number }>;
+    byDevice: Array<{ device: string; visitors: number; orders: number; revenue: number; cr: number }>;
+  };
+  conversionLag?: Array<{ bucket: string; orders: number; revenue: number }>;
+  meta: { pixelInstalledAt?: string | null; crDateFrom?: string; crDateAdjusted?: boolean };
+}
+
+interface LagSummaryData {
+  range: string;
+  conversionLag: Array<{ bucket: string; orders: number; revenue: number }>;
+}
+
 // NitroScoreData type removed — NitroScore lives in /pixel
 
 // ── Count-up hook ──
 function useCountUp(target: number, duration = 800): number {
   const [current, setCurrent] = useState(0);
   const prevTarget = useRef(0);
+  const receivedRealValue = useRef(false);
   const rafRef = useRef(0);
 
   useEffect(() => {
@@ -285,6 +303,15 @@ function useCountUp(target: number, duration = 800): number {
     const to = target;
     prevTarget.current = to;
     if (from === to) { setCurrent(to); return; }
+
+    // En la carga inicial, los datos ya llegaron: empezar una animación desde
+    // cero muestra por un instante KPIs falsos y parece una respuesta vacía.
+    // Los cambios posteriores entre rangos sí conservan el count-up.
+    if (!receivedRealValue.current && to !== 0) {
+      receivedRealValue.current = true;
+      setCurrent(to);
+      return;
+    }
 
     const start = performance.now();
     const ease = (t: number) => 1 - Math.pow(1 - t, 4); // easeOutQuart
@@ -306,7 +333,9 @@ function useCountUp(target: number, duration = 800): number {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [target, duration]);
 
-  return current;
+  // El efecto corre después del paint. Durante el primer render con datos,
+  // devolver el target evita que el navegador llegue a pintar un frame en cero.
+  return !receivedRealValue.current && target !== 0 ? target : current;
 }
 
 // ── Truth Score color logic ──
@@ -467,6 +496,10 @@ export default function AnalyticsPage() {
   // Data states
   const [pixelData, setPixelData] = useState<PixelData | null>(null);
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyData | null>(null);
+  const [conversionSummary, setConversionSummary] = useState<ConversionSummaryData | null>(null);
+  const [conversionSummaryLoading, setConversionSummaryLoading] = useState(false);
+  const [lagSummary, setLagSummary] = useState<LagSummaryData | null>(null);
+  const [lagSummaryLoading, setLagSummaryLoading] = useState(false);
   // NitroScore removed — belongs in /pixel, not analytics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -475,6 +508,10 @@ export default function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState(() => localYMD(new Date()));
   const [dateTo, setDateTo] = useState(() => localYMD(new Date()));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(null);
+  // Cada interacción del selector debe producir una carga, incluso si clicks
+  // muy rápidos vuelven al mismo rango antes de que React pinte los intermedios.
+  // Sin esta revisión, el botón podía quedar en "Hoy" mostrando todavía 7 días.
+  const [rangeRevision, setRangeRevision] = useState(0);
 
   // UI states
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
@@ -499,47 +536,141 @@ export default function AnalyticsPage() {
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
 
-  // ── Fetch all data in parallel ──
+  // Cada recurso tiene su propio controller: cambiar el rango cancela el
+  // trabajo de red que ya no puede pintar la pantalla actual. El guard de
+  // requestId sigue siendo necesario porque abortar una respuesta ya recibida
+  // no impide que una promesa pendiente termine en otro tick.
+  const pixelAbortRef = useRef<AbortController | null>(null);
+  const discrepancyAbortRef = useRef<AbortController | null>(null);
+  const funnelAbortRef = useRef<AbortController | null>(null);
+  const conversionAbortRef = useRef<AbortController | null>(null);
+  const lagAbortRef = useRef<AbortController | null>(null);
+  const summaryTailAbortRef = useRef<AbortController | null>(null);
+
+  // ── Fetch analytics resources independently ──
   // reqIdRef: guard anti-stale. Cada fetch incrementa el id; si al volver la
   // respuesta ya se disparó un fetch más nuevo (ej: cambiaste el rango rápido),
   // se descarta la vieja. Sin esto, una respuesta lenta (Arredo, más data)
   // pisaba a una más nueva → el gráfico quedaba mostrando datos parciales/viejos.
+  // Component-local only: switching accounts performs a full reload. Never persist
+  // business data in browser storage or share it between page instances.
+  const rangeCache = useRef(new Map<string, { at: number; pixel: PixelData; disc: DiscrepancyData }>());
+  const pixelRangeCache = useRef(new Map<string, { at: number; pixel: PixelData }>());
+  const [displayedRange, setDisplayedRange] = useState("");
   const reqIdRef = useRef(0);
-  const fetchAll = useCallback(async (silent = false) => {
+  const fetchAll = useCallback(async (silent = false, force = false) => {
     const reqId = ++reqIdRef.current;
+    pixelAbortRef.current?.abort();
+    discrepancyAbortRef.current?.abort();
+    const pixelController = new AbortController();
+    const discrepancyController = new AbortController();
+    pixelAbortRef.current = pixelController;
+    discrepancyAbortRef.current = discrepancyController;
     if (!silent) setLoading(true);
     else setIsRefetching(true);
     setError(null);
+    const rangeKey = dateFrom + ":" + dateTo;
+    if (force) {
+      rangeCache.current.clear();
+      pixelRangeCache.current.clear();
+    }
+    const saved = rangeCache.current.get(rangeKey);
+    if (saved && Date.now() - saved.at < 60_000) {
+      setPixelData(saved.pixel);
+      setDiscrepancy(saved.disc);
+      setDisplayedRange(rangeKey);
+      setLoading(false);
+      setIsRefetching(false);
+      return;
+    }
+    const savedPixel = pixelRangeCache.current.get(rangeKey);
+    const savedPixelIsFresh = !!savedPixel && Date.now() - savedPixel.at < 60_000;
+    if (savedPixelIsFresh) {
+      setPixelData(savedPixel.pixel);
+      setDisplayedRange(rangeKey);
+      setLoading(false);
+    }
+    setDiscrepancy(null);
+    let validPixel: PixelData | undefined = savedPixelIsFresh ? savedPixel.pixel : undefined;
+    let validDisc: DiscrepancyData | undefined;
 
-    try {
-      // Fix 2026-07 (#5 config audit): sin ?model= los endpoints usan el modelo
-      // configurado en /pixel/configuracion (antes NITRO hardcodeado acá → el
-      // selector de modelo de la config no tenía efecto en Analytics).
-      const [pixelRes, discRes] = await Promise.all([
-        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}`),
-        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}`),
-      ]);
+    const loadPixel = async () => {
+      if (validPixel) return;
+      try {
+        // Fix 2026-07 (#5 config audit): sin ?model= los endpoints usan el modelo
+        // configurado en /pixel/configuracion (antes NITRO hardcodeado acá → el
+        // selector de modelo de la config no tenía efecto en Analytics).
+        const pixelRes = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}`, {
+          signal: pixelController.signal,
+        });
+        if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
+        const pixelJson = await pixelRes.json();
+        if (pixelJson._demoMode || pixelJson._timeoutMs || pixelJson._error) {
+          throw new Error("Los datos todavía no están disponibles. Reintentá en unos segundos.");
+        }
 
-      if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
-
-      const [pixelJson, discJson] = await Promise.all([
-        pixelRes.json(),
-        discRes.ok ? discRes.json() : null,
-      ]);
-
-      if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
-      setPixelData(pixelJson);
-      setDiscrepancy(discJson);
-    } catch (e: any) {
-      if (reqId !== reqIdRef.current) return;
-      setError(e.message || "Error cargando datos");
-    } finally {
-      if (reqId === reqIdRef.current) {
+        if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
+        validPixel = pixelJson;
+        pixelRangeCache.current.delete(rangeKey);
+        pixelRangeCache.current.set(rangeKey, { at: Date.now(), pixel: pixelJson });
+        if (pixelRangeCache.current.size > 8) pixelRangeCache.current.delete(pixelRangeCache.current.keys().next().value!);
+        setPixelData(pixelJson);
+        setDisplayedRange(rangeKey);
+        // El contenido principal no espera a discrepancy para dejar de mostrar
+        // el skeleton. Los paneles secundarios se actualizan por separado.
         setLoading(false);
-        setIsRefetching(false);
+      } catch (e: unknown) {
+        if (isAbortError(e) || reqId !== reqIdRef.current) return;
+        setError(e instanceof Error ? e.message : "Error cargando datos");
+        setLoading(false);
       }
+    };
+
+    const loadDiscrepancy = async () => {
+      try {
+        const discRes = await fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}`, {
+          signal: discrepancyController.signal,
+        });
+        if (!discRes.ok) throw new Error(`Discrepancy: HTTP ${discRes.status}`);
+        const discJson = await discRes.json();
+        if (reqId !== reqIdRef.current) return; // respuesta stale → ignorar
+        if (discJson._demoMode || discJson._error || discJson._timeoutMs) return;
+        validDisc = discJson;
+        // Commit this panel only once Pixel for the same range succeeded.
+      } catch (e: unknown) {
+        if (isAbortError(e) || reqId !== reqIdRef.current) return;
+        // Discrepancy es un panel secundario: conservar la última respuesta
+        // válida y no bloquear los KPI si su consulta falla.
+        console.warn("Error cargando discrepancy:", e);
+      }
+    };
+
+    await loadPixel();
+    // Do not make the primary KPI query compete with another attribution scan.
+    // The discrepancy panel starts once the main response has painted.
+    if (validPixel && reqId === reqIdRef.current) await loadDiscrepancy();
+    if (reqId === reqIdRef.current) {
+      if (validPixel && validDisc) {
+        setDiscrepancy(validDisc);
+        rangeCache.current.delete(rangeKey);
+        rangeCache.current.set(rangeKey, { at: Date.now(), pixel: validPixel, disc: validDisc });
+        if (rangeCache.current.size > 8) rangeCache.current.delete(rangeCache.current.keys().next().value!);
+      }
+      setLoading(false);
+      setIsRefetching(false);
     }
   }, [dateFrom, dateTo]);
+
+  // No dejar requests vivos al abandonar Analytics.
+  useEffect(() => () => {
+    reqIdRef.current += 1;
+    pixelAbortRef.current?.abort();
+    discrepancyAbortRef.current?.abort();
+    funnelAbortRef.current?.abort();
+    conversionAbortRef.current?.abort();
+    lagAbortRef.current?.abort();
+    summaryTailAbortRef.current?.abort();
+  }, []);
 
   // Primera carga → no-silent (muestra el skeleton). Cambios de rango → silent
   // (mantiene los datos viejos visibles con el indicador de refetch en vez de
@@ -548,33 +679,153 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchAll(!firstLoadRef.current);
     firstLoadRef.current = false;
-  }, [fetchAll]);
+  }, [fetchAll, rangeRevision]);
+
+  // Las tasas salen de rollups/Silver y ya no compiten con scans de atribución.
+  // Arrancarlas con el cambio de rango evita sumar la latencia de los KPI antes
+  // de mostrar estas tablas. El `range` de la respuesta mantiene el guard stale.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    conversionAbortRef.current?.abort();
+    const controller = new AbortController();
+    conversionAbortRef.current = controller;
+    setConversionSummaryLoading(true);
+    fetch(`/api/metrics/pixel/rate-summary?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Conversion summary: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted && data?.conversionRates) {
+          setConversionSummary({
+            range,
+            conversionRates: data.conversionRates,
+            meta: data.meta || {},
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando resumen de conversión:", error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setConversionSummaryLoading(false);
+      });
+    return () => controller.abort();
+  }, [dateFrom, dateTo, rangeRevision]);
+
+  // Conversion speed stays independent from the conversion-rate cards. A slow
+  // attribution scan must not keep the already-rolled-up rate tables hidden.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
+    lagAbortRef.current?.abort();
+    const controller = new AbortController();
+    lagAbortRef.current = controller;
+    setLagSummaryLoading(true);
+    fetch(`/api/metrics/pixel/lag-summary?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Lag summary: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted && Array.isArray(data?.conversionLag)) {
+          setLagSummary({ range, conversionLag: data.conversionLag });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando velocidad de conversión:", error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLagSummaryLoading(false);
+      });
+    return () => controller.abort();
+  }, [dateFrom, dateTo, displayedRange, rangeRevision]);
+
+  // Top pages and previous-period comparisons are useful context, but both can
+  // take several seconds on large organizations. They must never delay the KPI
+  // strip for a newly selected range.
+  useEffect(() => {
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
+    summaryTailAbortRef.current?.abort();
+    const controller = new AbortController();
+    summaryTailAbortRef.current = controller;
+
+    fetch(`/api/metrics/pixel/summary-tail?from=${dateFrom}&to=${dateTo}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Summary tail: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setPixelData((current) => {
+          if (!current) return current;
+          const previousRevenue = Number(data?.previous?.revenue) || 0;
+          const previousOrders = Number(data?.previous?.ordersAttributed) || 0;
+          const pctChange = (value: number, previous: number) =>
+            previous === 0 ? (value > 0 ? 100 : 0) : Math.round(((value - previous) / previous) * 100);
+          const previousRoas = current.businessKpis.totalAdSpend > 0
+            ? previousRevenue / current.businessKpis.totalAdSpend
+            : 0;
+          const updated: PixelData = {
+            ...current,
+            popularPages: Array.isArray(data?.popularPages) ? data.popularPages : [],
+            businessKpis: {
+              ...current.businessKpis,
+              changes: {
+                pixelRevenue: pctChange(current.businessKpis.pixelRevenue, previousRevenue),
+                ordersAttributed: pctChange(current.businessKpis.ordersAttributed, previousOrders),
+                pixelRoas: pctChange(current.businessKpis.pixelRoas * 100, previousRoas * 100),
+              },
+            },
+          };
+          const cached = rangeCache.current.get(range);
+          if (cached) cached.pixel = updated;
+          return updated;
+        });
+      })
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) console.warn("Error cargando detalle secundario:", error);
+      });
+
+    return () => controller.abort();
+  }, [dateFrom, dateTo, displayedRange, rangeRevision]);
 
   // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
   useEffect(() => {
-    if (funnelChannel === "all") {
-      // Sin filtro: usar el funnel del fetch principal, no override
-      setFunnelOverride(null);
-      return;
-    }
+    const range = `${dateFrom}:${dateTo}`;
+    if (displayedRange !== range) return;
     let cancelled = false;
+    funnelAbortRef.current?.abort();
+    const controller = new AbortController();
+    funnelAbortRef.current = controller;
     setFunnelLoading(true);
-    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}`)
+    const stagesOnly = funnelChannel === "all";
+    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}&stagesOnly=${stagesOnly ? "1" : "0"}`, {
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        if (data.ok && data.funnel) setFunnelOverride(data.funnel);
+        if (data.ok && data.funnel) {
+          setFunnelOverride(stagesOnly
+            ? { ...data.funnel, purchase: Number(pixelData?.businessKpis?.ordersAttributed) || 0 }
+            : data.funnel);
+        }
       })
-      .catch(() => {})
+      .catch((e: unknown) => { if (!isAbortError(e)) console.warn("Error cargando funnel:", e); })
       .finally(() => { if (!cancelled) setFunnelLoading(false); });
-    return () => { cancelled = true; };
-  }, [funnelChannel, dateFrom, dateTo]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [funnelChannel, dateFrom, dateTo, displayedRange, pixelData?.businessKpis?.ordersAttributed, rangeRevision]);
 
-  // Reset funnel filter cuando cambia el rango de fechas (para evitar mostrar data stale)
+  // Resetear sólo el filtro. Conservamos el último funnel válido hasta que llegue
+  // el nuevo para que cambios rápidos no pinten cinco etapas en cero.
   useEffect(() => {
     setFunnelChannel("all");
-    setFunnelOverride(null);
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, rangeRevision]);
 
   // ── Count-up values ──
   const revCountUp = useCountUp(pixelData?.businessKpis?.pixelRevenue || 0);
@@ -667,7 +918,6 @@ export default function AnalyticsPage() {
   }
   const channels = Array.from(mergedMap.values()).sort((a, b) => b.pixelRevenue - a.pixelRevenue);
 
-  const funnel = pixelData?.funnel;
   const journeys = pixelData?.recentJourneys || [];
   const dailyTrend = discrepancy?.dailyTrend || [];
   const dailyChannels = pixelData?.dailyChannelBreakdown || [];
@@ -738,6 +988,7 @@ export default function AnalyticsPage() {
                 if (type === "from") setDateFrom(value);
                 else setDateTo(value);
                 setActiveQuickRange(null);
+                setRangeRevision((revision) => revision + 1);
               }}
               quickRanges={[
                 { label: "7 días", days: 7 },
@@ -750,6 +1001,7 @@ export default function AnalyticsPage() {
                 const to = new Date(); const from = new Date(Date.now() - days * MS_PER_DAY);
                 setDateFrom(localYMD(from));
                 setDateTo(localYMD(to));
+                setRangeRevision((revision) => revision + 1);
               }}
             />
           </div>
@@ -758,6 +1010,12 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* STICKY SECTION NAVIGATOR                                */}
         {/* ═══════════════════════════════════════════════════════ */}
+        {error && (
+          <div role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            {error}
+            <button className="ml-3 underline" onClick={() => fetchAll(true, true)}>Reintentar</button>
+          </div>
+        )}
         <SectionNav />
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -1169,8 +1427,12 @@ export default function AnalyticsPage() {
               />
             </div>
             {(() => {
-              const f = funnelOverride || funnel;
-              if (!f) return null;
+              const f = funnelOverride;
+              if (!f) return (
+                <div className="py-10 text-center text-sm text-ink-60" aria-busy={funnelLoading}>
+                  Cargando funnel…
+                </div>
+              );
               // Secuencial monocromo: se oscurece hacia la conversión; Compra = accent (el objetivo)
               const steps = [
                 { label: "Visitas", value: f.pageView, color: "#57544C" },
@@ -1425,12 +1687,17 @@ export default function AnalyticsPage() {
         <div id="sec-velocidad" className="scroll-mt-20" />
         {(() => {
           try {
-          const lagData = (pixelData?.attribution?.conversionLag || []).map(d => ({
+          const range = `${dateFrom}:${dateTo}`;
+          const lagData = (lagSummary?.range === range ? lagSummary.conversionLag : []).map(d => ({
             bucket: d.bucket || "unknown",
             orders: Number(d.orders) || 0,
             revenue: Number(d.revenue) || 0,
           }));
-          if (lagData.length === 0) return null;
+          if (lagData.length === 0) return lagSummaryLoading ? (
+            <div className={`${cardStyle} p-6 text-center text-sm text-ink-60`} style={cardShadow} aria-busy>
+              Cargando velocidad de conversión…
+            </div>
+          ) : null;
 
           const totalOrders = lagData.reduce((s, d) => s + d.orders, 0) || 1;
           const maxOrders = lagData.length > 0 ? Math.max(...lagData.map(d => d.orders)) : 1;
@@ -1991,11 +2258,17 @@ export default function AnalyticsPage() {
         <div id="sec-conversion" className="scroll-mt-20" />
         {(() => {
           try {
-          const cr = pixelData?.conversionRates;
-          if (!cr) return null;
+          const range = `${dateFrom}:${dateTo}`;
+          const currentSummary = conversionSummary?.range === range ? conversionSummary : null;
+          const cr = currentSummary?.conversionRates;
+          if (!cr) return (
+            <div className={`${cardStyle} p-6 text-center text-sm text-ink-60`} style={cardShadow} aria-busy={conversionSummaryLoading}>
+              Cargando tasas de conversión…
+            </div>
+          );
 
           // Pixel coverage metadata
-          const meta = pixelData?.meta;
+          const meta = currentSummary.meta;
           const crDateAdjusted = meta?.crDateAdjusted || false;
           const crDateFrom = meta?.crDateFrom ? new Date(meta.crDateFrom) : null;
           const pixelInstallDate = meta?.pixelInstalledAt ? new Date(meta.pixelInstalledAt) : null;
@@ -2182,7 +2455,7 @@ export default function AnalyticsPage() {
             onClose={() => setManualSpendModal(null)}
             onSaved={() => {
               setManualSpendModal(null);
-              fetchAll(true);
+              fetchAll(true, true);
             }}
           />
         )}

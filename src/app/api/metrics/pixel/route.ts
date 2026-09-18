@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 // Timezone: Argentina (UTC-3)
 // ══════════════════════════════════════════════════════════════
 
+import { Prisma } from "@prisma/client";
+import { createPixelTrace } from "@/lib/pixel/performance-trace";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -22,24 +24,15 @@ import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
 import { ordersValidWhere } from "@/domains/orders";
-import { getFunnelStages } from "@/lib/metrics/pixel-funnel";
 import { goldModelRevenueSql } from "@/lib/pixel/gold-attribution-sql";
 import { touchpointSourceSql } from "@/lib/pixel/touchpoint-source-sql";
 import { touchpointChannelSql } from "@/lib/pixel/touchpoint-channel-sql";
 import { LOAD_CHANNEL_RULES_SQL, rowToChannelRule, type ChannelRuleRow } from "@/lib/pixel/channel-rules-store";
 import type { ChannelRule } from "@/lib/pixel/channel-rules";
-import {
-  loadProductSkuMap,
-  foldPurchasesToProductGrain,
-  type PurchaseRow,
-} from "@/lib/pixel/product-id-map";
-import { loadCategoryLabels } from "@/lib/products/category-label";
-import { crPct } from "@/lib/pixel/cr-rate";
 import { buildPixelCacheKey } from "@/lib/pixel/cache-key";
 import {
   filterMarketingTouchpoints,
   isNonMarketingChannelSource,
-  canonicalMarketingSource,
   mergeChannelRolesByGroupKey,
 } from "@/lib/pixel/source-classification";
 
@@ -51,6 +44,7 @@ export const revalidate = 0;
 // 30d) sin que Vercel la mate. 90 < 300 (cap del proyecto) → se respeta.
 export const maxDuration = 200;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PIXEL_CACHE_PREFIX = "pixel-v4";
 
 // ══════════════════════════════════════════════════════════════
 // Cache del conteo all-time de eventos por org (ROOT CAUSE del crash).
@@ -89,7 +83,6 @@ const GLOBAL_TIMEOUT_MS = 85000;
 // que en metrics/conversion (las dos pantallas tienen que coincidir). Estaba en
 // 500 y recortaba en silencio: Arredo tiene 848 productos visitados en 30 días,
 // así que la tabla mostraba 499 y parecía completa mientras tiraba 348.
-const PRODUCT_UNIVERSE_CAP = 20000;
 
 // IMPORTANTE: este mock debe tener la MISMA FORMA que la respuesta real de
 // realHandler(), pero en cero. Se devuelve en el cold-cache/timeout (primera
@@ -136,8 +129,8 @@ function buildEmptyMockResponse() {
     _demoMode: true,
   };
 }
-
 export async function GET(request: NextRequest) {
+  const trace = createPixelTrace();
   // Warm-cache: SIN race (BP-PIXEL-TIMEOUT, 2026-08-18). El cron warm-cache pre-siembra
   // el shared cache llamando este endpoint por cada org/rango, SECUENCIALMENTE. Si lo
   // raceáramos a 85s, para las orgs grandes (compute >85s) devolvería el mock y —peor—
@@ -153,16 +146,25 @@ export async function GET(request: NextRequest) {
   // Red de seguridad: corre el handler contra un timeout global; si el handler no
   // responde a tiempo, devuelve un mock vacío en vez de colgar (nunca 500/cuelgue).
   if (!isWarm && GLOBAL_TIMEOUT_MS > 0) {
-    const realPromise = (async () => realHandler(request))();
+    const realPromise = (async () => realHandler(request, trace))();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<NextResponse>((resolve) =>
-      setTimeout(() => resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: GLOBAL_TIMEOUT_MS })), GLOBAL_TIMEOUT_MS)
+      timer = setTimeout(() => {
+        trace.snapshot("response_timeout");
+        resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: GLOBAL_TIMEOUT_MS }));
+      }, GLOBAL_TIMEOUT_MS)
     );
-    return Promise.race([realPromise, timeoutPromise]);
+    try {
+      return await Promise.race([realPromise, timeoutPromise]);
+    } finally {
+      clearTimeout(timer);
+      trace.snapshot("response_finished");
+    }
   }
-  return realHandler(request);
+  return realHandler(request, trace);
 }
 
-async function realHandler(request: NextRequest): Promise<NextResponse> {
+async function realHandler(request: NextRequest, trace: ReturnType<typeof createPixelTrace>): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
 
@@ -174,7 +176,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     if (queryOrgId && queryKey === WARM_CACHE_KEY) {
       orgId = queryOrgId;
     } else {
-      orgId = await getOrganizationId();
+      orgId = await trace.run("getOrganizationId:L177", () => getOrganizationId());
     }
     const ORG_ID = orgId;
 
@@ -232,10 +234,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     const daysInPeriod = Math.max(1, Math.round(periodMs / MS_PER_DAY));
 
     // ── Org settings (model, weights, windows) ──
-    const org = await prisma.organization.findUnique({
+    const org = await trace.run("organization.findUnique:L235", () => prisma.organization.findUnique({
       where: { id: ORG_ID },
-      select: { settings: true },
-    });
+      select: { settings: true, createdAt: true },
+    }));
     const orgSettings = (org?.settings as Record<string, any>) || {};
     const nitroWeights = orgSettings.nitroWeights || { first: 30, last: 40, middle: 30 };
     const VALID_WINDOWS = [7, 14, 30, 60];
@@ -266,16 +268,22 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
     const goldDayFrom = arDayStr(dateFrom);
     const goldDayTo = arDayStr(dateTo);
+    const isTodayRange = goldDayFrom === arDayStr(now) && goldDayTo === arDayStr(now);
 
-    // ── Pixel install date: first event ever for this org ──
-    // Used as floor for CR queries (pixel visitors vs orders).
-    // Without this, orgs with orders pre-pixel would show 0 visitors for old sales.
-    const pixelInstallResult = await prisma.$queryRaw`
-      SELECT MIN(timestamp) as "installedAt"
-      FROM pixel_events
+    // ── Pixel install date: first rollup day for this org ──
+    // pixel_events no tiene índice (organizationId, timestamp). El ORDER BY que
+    // vivía acá ordenaba millones de filas antes de empezar las demás queries
+    // (Arredo Hoy: ~9,5s hasta pintar datos). El rollup tiene PK por org/día y
+    // representa el mismo inicio útil para las métricas de conversión.
+    const pixelInstallResult = await trace.run("$queryRaw:L273", () => prisma.$queryRaw`
+      SELECT MIN(day)::timestamp as "installedAt"
+      FROM pixel_daily_aggregates
       WHERE "organizationId" = ${ORG_ID}
-    ` as Array<{ installedAt: Date | null }>;
-    const pixelInstalledAt = pixelInstallResult[0]?.installedAt || null;
+    `) as Array<{ installedAt: Date | null }>;
+    const rollupInstalledAt = pixelInstallResult[0]?.installedAt || null;
+    const pixelInstalledAt = rollupInstalledAt && org?.createdAt && rollupInstalledAt < org.createdAt
+      ? org.createdAt
+      : rollupInstalledAt;
 
     // crDateFrom = effective start for Conversion Rate queries
     // MAX(user-selected dateFrom, pixel install date) — so we never compare
@@ -295,7 +303,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     let channelRules: ChannelRule[] = [];
     if (usePixelChannels) {
       try {
-        const rows = (await prisma.$queryRawUnsafe(LOAD_CHANNEL_RULES_SQL, ORG_ID)) as ChannelRuleRow[];
+        const rows = (await trace.run("$queryRawUnsafe:L301", () => prisma.$queryRawUnsafe(LOAD_CHANNEL_RULES_SQL, ORG_ID))) as ChannelRuleRow[];
         channelRules = rows.map(rowToChannelRule);
       } catch {
         channelRules = []; // tabla ausente → passthrough, no rompe el serve
@@ -322,6 +330,65 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // leer una tabla vacía. Cuando esté todo, `PIXEL_USE_GOLD_CHANNEL=true`.
     const useGoldChannel =
       usePixelGold && usePixelChannels && process.env.PIXEL_USE_GOLD_CHANNEL === "true";
+
+    type DailyRevenueRow = { day: string; revenue: number; orders: number };
+    const loadDailyRevenue = async (): Promise<DailyRevenueRow[]> => {
+      let goldRows: DailyRevenueRow[] | null = null;
+      if (useGoldChannel) {
+        goldRows = await trace.run("$queryRawUnsafe:dailyRevenueGoldChannel", () => prisma.$queryRawUnsafe(`
+          SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
+            ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
+            0::int AS orders
+          FROM gold_attribution_channel
+          WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+          GROUP BY day
+          ORDER BY day
+        `, ORG_ID, goldDayFrom, goldDayTo)) as DailyRevenueRow[];
+      } else if (useGoldSource) {
+        goldRows = await trace.run("$queryRawUnsafe:dailyRevenueGoldSource", () => prisma.$queryRawUnsafe(`
+          SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
+            ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float AS revenue,
+            0::int AS orders
+          FROM gold_attribution_source
+          WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
+          GROUP BY day
+          ORDER BY day
+        `, ORG_ID, goldDayFrom, goldDayTo)) as DailyRevenueRow[];
+      }
+
+      // Gold puede estar parcial durante el día aunque ya tenga alguna fila. Para
+      // Hoy conservamos el cálculo live exacto; para rangos cerrados usamos Gold.
+      if (goldRows && !isTodayRange) {
+        return goldRows;
+      }
+
+      return trace.run("$queryRaw:dailyRevenueLive", () => prisma.$queryRaw`
+        WITH selected_orders AS MATERIALIZED (
+          SELECT o.id, o."orderDate"
+          FROM orders o
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o."orderDate" >= ${dateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWhere("o")}
+            AND o."totalValue" > 0
+            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+            AND o.source IS DISTINCT FROM 'MELI'
+            AND o.channel IS DISTINCT FROM 'marketplace'
+            AND o."externalId" NOT LIKE 'FVG-%'
+            AND o."externalId" NOT LIKE 'BPR-%'
+        )
+        SELECT
+          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+          SUM(pa."attributedValue")::float as revenue,
+          COUNT(*)::int as orders
+        FROM selected_orders o
+        JOIN pixel_attributions pa
+          ON pa."orderId" = o.id
+          AND pa.model::text = ${selectedModel}
+        GROUP BY 1
+        ORDER BY 1
+      `) as Promise<DailyRevenueRow[]>;
+    };
 
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
@@ -353,7 +420,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       dailyChannelSpendResult,
       // ── Channel role breakdown (first/assist/last touch per source) ──
       channelRolesResult,
-      // ── Conversion Rates queries ──
+      // ── Deferred dashboard queries ──
       visitorsBySourceResult,
       ordersByDeviceResult,
       productViewersResult,
@@ -368,17 +435,17 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       //    - lastHourEvents: index-range sobre la última hora = barato (no escanea toda la historia).
       //    El COUNT(*) all-time se removió de acá (contaba 11M+ filas = ~60s/request, root
       //    cause del crash). Ahora viene del cache _allTimeEventsCount (ver abajo).
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L374", () => prisma.$queryRaw`
         SELECT
           (SELECT MAX(timestamp) FROM pixel_events WHERE "organizationId" = ${ORG_ID}) as "lastEventAt",
           (SELECT COUNT(*)::int FROM pixel_events WHERE "organizationId" = ${ORG_ID} AND timestamp > NOW() - INTERVAL '1 hour') as "lastHourEvents"
-      ` as Promise<Array<{ lastEventAt: Date | null; lastHourEvents: number }>>,
+      `) as Promise<Array<{ lastEventAt: Date | null; lastHourEvents: number }>>,
 
       // 2. Visitor KPIs (current period) — FASE 2: lee del rollup pixel_daily_aggregates
       //    (HLL ~0.8% error, pageviews exacto). Antes: COUNT(DISTINCT) sobre millones (~73s).
       //    Nota: el rollup es webhook-filtrado (humanos), así que estos KPIs ahora excluyen
       //    eventos de webhook (mejora de correctitud vs la versión cruda).
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L384", () => prisma.$queryRaw`
         SELECT
           COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as "totalVisitors",
           COALESCE(hll_cardinality(hll_union_agg(sessions_hll)), 0)::int as "totalSessions",
@@ -390,13 +457,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = ${ORG_ID}
           AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-      ` as Promise<Array<{
+      `) as Promise<Array<{
         totalVisitors: number; totalSessions: number; totalPageViews: number;
         identifiedVisitors: number; cartVisitors: number; purchaseVisitors: number;
       }>>,
 
       // 3. Previous period KPIs (for comparison) — FASE 2: rollup
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L402", () => prisma.$queryRaw`
         SELECT
           COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as "totalVisitors",
           COALESCE(hll_cardinality(hll_union_agg(sessions_hll)), 0)::int as "totalSessions",
@@ -405,10 +472,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = ${ORG_ID}
           AND day >= (${prevFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
           AND day <= (${prevTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-      ` as Promise<Array<{ totalVisitors: number; totalSessions: number; totalPageViews: number }>>,
+      `) as Promise<Array<{ totalVisitors: number; totalSessions: number; totalPageViews: number }>>,
 
       // 4. Daily visitors trend — FASE 2: rollup (una fila por día, sin merge)
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L414", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(day, 'YYYY-MM-DD') as day,
           hll_cardinality(visitors_hll)::int as visitors,
@@ -419,10 +486,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         ORDER BY 1
-      ` as Promise<Array<{ day: string; visitors: number; sessions: number; pageViews: number }>>,
+      `) as Promise<Array<{ day: string; visitors: number; sessions: number; pageViews: number }>>,
 
       // 5. Device breakdown — rollup pixel_daily_device (HLL de visitantes por device).
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L428", () => prisma.$queryRaw`
         SELECT device, COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as count
         FROM pixel_daily_device
         WHERE "organizationId" = ${ORG_ID}
@@ -430,10 +497,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY count DESC
-      ` as Promise<Array<{ device: string; count: number }>>,
+      `) as Promise<Array<{ device: string; count: number }>>,
 
       // 6. Event types breakdown — rollup pixel_daily_type (count aditivo exacto + HLL visitantes).
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L439", () => prisma.$queryRaw`
         SELECT
           type,
           COALESCE(SUM(event_count), 0)::int as count,
@@ -444,47 +511,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
         GROUP BY 1
         ORDER BY count DESC
-      ` as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
+      `) as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
 
-      // 7. Popular pages — rollup pixel_daily_page (path limpio sin query params, excluye
-      //    checkout; pageViews aditivo exacto + HLL visitantes). LIMIT 10 por visitantes.
-      prisma.$queryRaw`
-        SELECT
-          url,
-          COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int as visitors,
-          COALESCE(SUM(page_views), 0)::int as "pageViews"
-        FROM pixel_daily_page
-        WHERE "organizationId" = ${ORG_ID}
-          AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY 1
-        ORDER BY visitors DESC
-        LIMIT 10
-      ` as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
+      // 7. Popular pages are loaded by /summary-tail after the KPI response.
+      Promise.resolve([]) as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
 
-      // 8. Attribution by model
-      prisma.$queryRaw`
-        SELECT
-          pa.model,
-          COUNT(*)::int as "ordersAttributed",
-          SUM(pa."attributedValue")::float as revenue,
-          AVG(pa."attributedValue")::float as "avgValue",
-          AVG(pa."touchpointCount")::float as "avgTouchpoints"
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY revenue DESC
-      ` as Promise<Array<{
+      // 8. Attribution by model used to scan the same attributed orders again.
+      // Analytics only needs the selected model for its KPI strip, which is derived
+      // below from dailyRevenueResult (same contract, already in this batch).
+      Promise.resolve([]) as Promise<Array<{
         model: string; ordersAttributed: number; revenue: number;
         avgValue: number; avgTouchpoints: number;
       }>>,
@@ -492,7 +527,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // 9. Attribution by source (weighted for NITRO, simple for others)
       // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
       (useGoldChannel
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L498", () => prisma.$queryRawUnsafe(`
             SELECT channel AS source,
               SUM(orders)::int as orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float as revenue
@@ -501,9 +536,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             GROUP BY channel
             ORDER BY revenue DESC
             LIMIT 10
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; orders: number; revenue: number }>>
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ source: string; orders: number; revenue: number }>>
       : useGoldSource
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L509", () => prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(orders)::int as orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => `SUM(${n})`)}::float as revenue
@@ -512,9 +547,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             GROUP BY source
             ORDER BY revenue DESC
             LIMIT 10
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; orders: number; revenue: number }>>
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ source: string; orders: number; revenue: number }>>
       : selectedModel === "NITRO"
-        ? prisma.$queryRaw`
+        ? trace.run("$queryRaw:L520", () => prisma.$queryRaw`
             SELECT
               ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
@@ -544,9 +579,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
-          `
+          `)
         : selectedModel === "LAST_CLICK"
-        ? prisma.$queryRaw`
+        ? trace.run("$queryRaw:L552", () => prisma.$queryRaw`
             SELECT
               ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
@@ -567,9 +602,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
-          `
+          `)
         : selectedModel === "FIRST_CLICK"
-        ? prisma.$queryRaw`
+        ? trace.run("$queryRaw:L575", () => prisma.$queryRaw`
             SELECT
               ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
@@ -590,8 +625,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
-          `
-        : prisma.$queryRaw`
+          `)
+        : trace.run("$queryRaw:L597", () => prisma.$queryRaw`
             SELECT
               ${tpSourceOrChannel("tp")} as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
@@ -612,42 +647,15 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
-          `
+          `)
       ) as Promise<Array<{ source: string; orders: number; revenue: number }>>,
 
-      // 10. Conversion lag distribution
+      // 10. Conversion lag is loaded after the KPI response from /lag-summary.
       // Negative lags are treated as 0 (same-session: pixel fires after VTEX order)
-      prisma.$queryRaw`
-        SELECT
-          CASE
-            WHEN pa."conversionLag" IS NULL THEN 'unknown'
-            WHEN pa."conversionLag" <= 0 THEN 'Mismo día'
-            WHEN pa."conversionLag" BETWEEN 1 AND 3 THEN '1-3 días'
-            WHEN pa."conversionLag" BETWEEN 4 AND 7 THEN '4-7 días'
-            WHEN pa."conversionLag" BETWEEN 8 AND 14 THEN '8-14 días'
-            WHEN pa."conversionLag" BETWEEN 15 AND 30 THEN '15-30 días'
-            ELSE '30+ días'
-          END as bucket,
-          COUNT(*)::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
-      ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
+      Promise.resolve([]) as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
 
       // 11. Recent events
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L653", () => prisma.$queryRaw`
         SELECT
           pe.id,
           pe.type,
@@ -663,19 +671,19 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         ORDER BY pe.timestamp DESC
         LIMIT ${pageSize}
         OFFSET ${offset}
-      ` as Promise<Array<{
+      `) as Promise<Array<{
         id: string; type: string; visitorId: string; pageUrl: string | null;
         deviceType: string | null; timestamp: Date; sessionId: string;
       }>>,
 
       // 12. Total event count for pagination — rollup (SUM aditivo exacto).
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L675", () => prisma.$queryRaw`
         SELECT COALESCE(SUM(total_events), 0)::int as total
         FROM pixel_daily_aggregates
         WHERE "organizationId" = ${ORG_ID}
           AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-      ` as Promise<Array<{ total: number }>>,
+      `) as Promise<Array<{ total: number }>>,
 
       // ── NEW QUERIES FOR REDESIGNED DASHBOARD ──
 
@@ -684,7 +692,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Marketplace orders cannot be tracked by the pixel (checkout happens on ML)
       // NOTE: Marketplace detection uses trafficSource='Marketplace' OR source='MELI' OR channel='marketplace'
       //        because MELI-synced orders don't always have trafficSource set
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L690", () => prisma.$queryRaw`
         SELECT
           COUNT(*)::int as total,
           COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace' OR "externalId" LIKE 'FVG-%' OR "externalId" LIKE 'BPR-%')::int as "marketplaceOrders",
@@ -697,10 +705,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND "orderDate" <= ${dateTo}
           AND ${ordersValidWhere("")}
           AND "totalValue" > 0
-      ` as Promise<Array<{ total: number; marketplaceOrders: number; marketplaceRevenue: number; webOrders: number; webRevenue: number }>>,
+      `) as Promise<Array<{ total: number; marketplaceOrders: number; marketplaceRevenue: number; webOrders: number; webRevenue: number }>>,
 
       // 14. Ad spend + platform metrics grouped by source (META/GOOGLE)
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L706", () => prisma.$queryRaw`
         SELECT
           LOWER(amd.platform::text) as source,
           SUM(amd.spend)::float as spend,
@@ -711,12 +719,12 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND amd.date >= ${dateFrom}::date
           AND amd.date <= ${dateTo}::date
         GROUP BY 1
-      ` as Promise<Array<{ source: string; spend: number; platformConversions: number; platformRevenue: number }>>,
+      `) as Promise<Array<{ source: string; spend: number; platformConversions: number; platformRevenue: number }>>,
 
       // 15. Recent journeys (all orders — LEFT JOIN attribution so unmatched orders also appear)
       // S60 EXT: agregar filtro de prefijos VTEX marketplace (FVG-, BPR-) que escapan
       // a los flags channel/trafficSource si el enrichment no los marco.
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L722", () => prisma.$queryRaw`
         SELECT
           o.id as "orderId",
           o."externalId" as "orderExternalId",
@@ -741,7 +749,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."externalId" NOT LIKE 'BPR-%'
         ORDER BY o."orderDate" DESC, o."createdAt" DESC, o.id DESC
         LIMIT 50
-      ` as Promise<Array<{
+      `) as Promise<Array<{
         orderId: string; orderExternalId: string; revenue: number;
         touchpointCount: number; conversionLag: number | null;
         touchpoints: any; orderDate: Date; orderStatus: string;
@@ -749,7 +757,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       }>>,
 
       // 16. Click ID coverage (pixel health) — rollup (SUM aditivo exacto de events_with_clickid).
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L755", () => prisma.$queryRaw`
         SELECT
           COALESCE(SUM(events_with_clickid), 0)::int as "withClickId",
           COALESCE(SUM(total_events), 0)::int as total
@@ -757,49 +765,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         WHERE "organizationId" = ${ORG_ID}
           AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
           AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-      ` as Promise<Array<{ withClickId: number; total: number }>>,
+      `) as Promise<Array<{ withClickId: number; total: number }>>,
 
-      // 17. Daily revenue from attributions (for revenue chart)
-      prisma.$queryRaw`
-        SELECT
-          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          SUM(pa."attributedValue")::float as revenue,
-          COUNT(*)::int as orders
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY 1
-      ` as Promise<Array<{ day: string; revenue: number; orders: number }>>,
+      // 17. Daily revenue from attributions (for revenue chart + KPI strip).
+      // Gold already contains the same model components at org/day/channel grain.
+      // Reading those few rows avoids re-joining the full attribution/order history
+      // on every cold range change (Arredo 30d: ~11s for the Bronze query).
+      // Order counts are filled from perDayCoverage below because a multi-touch
+      // order can be present in more than one Gold channel bucket.
+      loadDailyRevenue(),
 
-      // 18. Previous period attribution revenue (for business KPI changes)
-      prisma.$queryRaw`
-        SELECT
-          COUNT(*)::int as "ordersAttributed",
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${prevFrom}
-          AND o."orderDate" <= ${prevTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-      ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
+      // 18. Previous-period comparisons are loaded by /summary-tail after KPIs.
+      Promise.resolve([]) as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
 
       // 19. Per-day coverage: total orders vs attributed orders per day
       //     Used for accurate ROAS scaling instead of uniform coverage ratio
@@ -808,18 +785,16 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       //       - Marketplace flag (channel/trafficSource)
       //       - VTEX marketplaces que el seller publica via VTEX (Fravega, Banco Provincia)
       //         se identifican por prefijo en externalId (FVG-, BPR-)
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L814", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          COUNT(*)::int as "totalOrders",
+          COUNT(DISTINCT o.id)::int as "totalOrders",
           COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
         FROM orders o
-        LEFT JOIN (
-          SELECT DISTINCT "orderId"
-          FROM pixel_attributions
-          WHERE "organizationId" = ${ORG_ID}
-            AND model::text = ${selectedModel}
-        ) pa ON pa."orderId" = o.id
+        LEFT JOIN pixel_attributions pa
+          ON pa."orderId" = o.id
+         AND pa."organizationId" = ${ORG_ID}
+         AND pa.model = CAST(${selectedModel} AS "AttributionModel")
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
@@ -832,7 +807,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY 1
-      ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
+      `) as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
 
       // 20. Per-day per-source pixel revenue (for daily trend table)
       // S60 EXT-2 BIS++: respeta el modelo seleccionado distribuyendo el revenue
@@ -840,22 +815,22 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
       // la tarjeta de revenue por canal por dia.
       (useGoldChannel
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L846", () => prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, channel AS source, orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
             FROM gold_attribution_channel
             WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
             ORDER BY day DESC, revenue DESC
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
       : useGoldSource
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L854", () => prisma.$queryRawUnsafe(`
             SELECT TO_CHAR(day, 'YYYY-MM-DD') as day, source, orders,
               ${goldModelRevenueSql(selectedModel, wFirst, wMiddle, wLast, (n) => n)}::float as revenue
             FROM gold_attribution_source
             WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
             ORDER BY day DESC, revenue DESC
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
-      : prisma.$queryRaw`
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>
+      : trace.run("$queryRaw:L861", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           ${tpSourceOrChannel("tp")} as source,
@@ -898,10 +873,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1, 2
         ORDER BY 1 DESC, revenue DESC
-      ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>),
+      `) as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>),
 
       // 21. Per-day per-platform ad spend (for daily trend table)
-      prisma.$queryRaw`
+      trace.run("$queryRaw:L907", () => prisma.$queryRaw`
         SELECT
           TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
           LOWER(amd.platform::text) as source,
@@ -911,11 +886,11 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND amd.date >= ${dateFrom}::date
           AND amd.date <= ${dateTo}::date
         GROUP BY 1, 2
-      ` as Promise<Array<{ day: string; source: string; spend: number }>>,
+      `) as Promise<Array<{ day: string; source: string; spend: number }>>,
 
       // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
       (useGoldChannel
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L921", () => prisma.$queryRawUnsafe(`
             SELECT channel AS source,
               SUM(first_touch_count)::int as "firstTouch",
               SUM(assist_touch_count)::int as "assistTouch",
@@ -925,9 +900,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
             GROUP BY channel
             ORDER BY "firstTouch" DESC
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
       : useGoldSource
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L933", () => prisma.$queryRawUnsafe(`
             SELECT source,
               SUM(first_touch_count)::int as "firstTouch",
               SUM(assist_touch_count)::int as "assistTouch",
@@ -937,8 +912,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             WHERE organization_id = $1 AND day >= $2::date AND day <= $3::date
             GROUP BY source
             ORDER BY "firstTouch" DESC
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
-      : prisma.$queryRaw`
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>
+      : trace.run("$queryRaw:L944", () => prisma.$queryRaw`
         SELECT
           ${tpSourceOrChannel("tp")} as source,
           COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
@@ -960,7 +935,7 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY "firstTouch" DESC
-      ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>),
+      `) as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>),
 
       // 23. Visitors + Purchases per source — S60 EXT-2 BIS+++++++ FIX:
       // ANTES: purchases = distinct visitors con event PURCHASE → contaba eventos
@@ -973,74 +948,10 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // visitantes con PAGE_VIEW cuyo first_touch GLOBAL = source, en la ventana; sin
       // sobre-conteo). purchases desde pixel_attributions (tabla chica) cruzado contra
       // la dimensión pixel_visitor_first_source (first_source inmutable por visitante).
-      prisma.$queryRaw`
-        WITH visitor_to_orders AS (
-          SELECT DISTINCT pa."visitorId" as pv_id, o.id as order_id
-          FROM orders o
-          JOIN pixel_attributions pa ON pa."orderId" = o.id
-          WHERE pa."organizationId" = ${ORG_ID}
-            AND pa.model::text = ${selectedModel}
-            AND o."orderDate" >= ${dateFrom}
-            AND o."orderDate" <= ${dateTo}
-            AND ${ordersValidWhere("o")}
-            AND o."totalValue" > 0
-            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-            AND o.source IS DISTINCT FROM 'MELI'
-            AND o.channel IS DISTINCT FROM 'marketplace'
-            AND o."externalId" NOT LIKE 'FVG-%'
-            AND o."externalId" NOT LIKE 'BPR-%'
-        ),
-        src_visitors AS (
-          SELECT first_source as source,
-            hll_cardinality(hll_union_agg(pv_visitors_hll))::int as visitors
-          FROM pixel_daily_source
-          WHERE "organizationId" = ${ORG_ID}
-            AND day >= (${dateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-            AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          GROUP BY 1
-        ),
-        src_purchases AS (
-          -- ⚠️ LEFT JOIN, no INNER. Es el MISMO bug que se arregló en
-          -- rollup-backfill.ts (ver el comentario largo de su rollup #6), que
-          -- acá seguía vivo en el otro camino: el rollup ya mandaba a los
-          -- visitantes sin canal a 'sin_clasificar' vía COALESCE, pero este
-          -- CTE los descartaba.
-          --
-          -- Resultado medido el 2026-07-22: el bucket mostraba 21.139 VISITAS y
-          -- CERO COMPRAS. No es que no compren — es que sus compras se caían de
-          -- la tabla. Y un canal con visitas y sin ventas se lee como basura,
-          -- que es justo lo que hizo que el bucket pareciera peor de lo que es.
-          --
-          -- ⚠️ Limitación conocida que este fix NO cierra: src_visitors lee el
-          -- rollup MATERIALIZADO y esto lee la dimensión EN VIVO. Un visitante
-          -- resuelto después del último rollup tiene sus visitas en el bucket y
-          -- sus compras ya en su canal real. El desvío se achica con cada
-          -- corrida del cron; no se elimina.
-          SELECT COALESCE(d.first_source, 'sin_clasificar') as source,
-                 COUNT(DISTINCT vto.order_id)::int as purchases
-          FROM visitor_to_orders vto
-          LEFT JOIN pixel_visitor_first_source d
-            ON d."organizationId" = ${ORG_ID} AND d."visitorId" = vto.pv_id
-          GROUP BY 1
-        )
-        SELECT
-          COALESCE(sv.source, sp.source) as source,
-          COALESCE(sv.visitors, 0)::int as visitors,
-          COALESCE(sp.purchases, 0)::int as purchases
-        FROM src_visitors sv
-        FULL OUTER JOIN src_purchases sp ON sv.source = sp.source
-        ORDER BY visitors DESC
-        -- ⚠️ NO cortar en 10 acá (bug encontrado con TeVe Compras, 2026-07-21).
-        -- El plegado de alias (fb→meta, adwords→google) ocurre DESPUÉS, en JS. Con
-        -- LIMIT 10 sobre los sources CRUDOS, un canal partido en variantes que
-        -- individualmente rankean 12º-30º no entraba nunca, aunque plegado fuera
-        -- el segundo. Y lo que quedaba afuera desaparecía sin dejar rastro: la
-        -- columna "Visitantes" no sumaba el total y nada en la UI lo decía.
-        -- El corte para mostrar se hace al final, con un bucket "otros" que
-        -- conserva el resto (ver más abajo). El 200 es sólo un tope de seguridad:
-        -- la cardinalidad real es ~26 sources por org.
-        LIMIT 200
-      ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
+      // Se carga después del dashboard desde /api/metrics/pixel/rate-summary.
+      // En 30 días este join tardaba 75s y bloqueaba todos los KPI aunque la tabla
+      // de conversión está al final de la página.
+      Promise.resolve([]) as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — device del visitante atribuido.
       // CRITICAL: pa."visitorId" guarda pv.id (cuid Prisma), NO pv.visitorId (UUID cookie).
@@ -1050,104 +961,28 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // → superaba el timeout de 25s y la página crasheaba en 30 días. Ahora usa
       // pv."deviceTypes"[1] (el device del visitante, que ya estaba como fallback) →
       // simple JOIN+agregación, sub-segundo. Uses crDateFrom (piso de cobertura del pixel).
-      prisma.$queryRaw`
-        SELECT
-          COALESCE(pv."deviceTypes"[1], 'unknown') as device,
-          COUNT(DISTINCT pa."orderId")::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa
-        JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."totalValue" > 0
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-          AND o.channel IS DISTINCT FROM 'marketplace'
-          AND o."externalId" NOT LIKE 'FVG-%'
-          AND o."externalId" NOT LIKE 'BPR-%'
-        GROUP BY 1
-        ORDER BY orders DESC
-      ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
+      Promise.resolve([]) as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
-      // 25. Product viewers — rollup pixel_daily_product (HLL de visitantes por producto).
-      // Usa crDateFrom (piso de cobertura del pixel) como límite inferior del rango.
-      prisma.$queryRaw`
-        SELECT
-          product_id as "productExternalId",
-          COALESCE(hll_cardinality(hll_union_agg(viewers_hll)), 0)::int as viewers
-        FROM pixel_daily_product
-        WHERE "organizationId" = ${ORG_ID}
-          AND day >= (${crDateFrom} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-          AND day <= (${dateTo} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
-        GROUP BY 1
-        ORDER BY viewers DESC
-        LIMIT ${PRODUCT_UNIVERSE_CAP}
-      ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
+      // Product conversion has its own endpoint (/api/metrics/conversion).
+      Promise.resolve([]) as Promise<Array<{ productExternalId: string; viewers: number }>>,
 
       // (26. Product purchases se movió DESPUÉS del batch: ahora depende del
       //  mapa skuId⇄productId, que a su vez depende de los viewers. Ver abajo.)
 
       // ── Journey Intelligence queries (use crDateFrom for pixel coverage) ──
 
-      // 27. Journey complexity distribution (touchpoint count → journeys, revenue, AOV)
-      prisma.$queryRaw`
-        SELECT
-          CASE
-            WHEN pa."touchpointCount" = 1 THEN 1
-            WHEN pa."touchpointCount" = 2 THEN 2
-            WHEN pa."touchpointCount" = 3 THEN 3
-            WHEN pa."touchpointCount" BETWEEN 4 AND 6 THEN 4
-            ELSE 5
-          END as bucket,
-          COUNT(*)::int as journeys,
-          SUM(pa."attributedValue")::float as revenue,
-          AVG(pa."attributedValue")::float as aov
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-        GROUP BY 1
-        ORDER BY 1
-      ` as Promise<Array<{ bucket: number; journeys: number; revenue: number; aov: number }>>,
+      // Journey Intelligence is disabled in the UI; do not pay two full JSONB scans.
+      Promise.resolve([]) as Promise<Array<{ bucket: number; journeys: number; revenue: number; aov: number }>>,
 
       // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
-      prisma.$queryRaw`
-        SELECT
-          ${tpSourceOrChannel("pa.touchpoints::jsonb->0")} as first_channel,
-          ${tpSourceOrChannel("pa.touchpoints::jsonb->(-1)")} as last_channel,
-          COUNT(*)::int as journeys,
-          SUM(pa."attributedValue")::float as revenue,
-          AVG(pa."attributedValue")::float as aov
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${crDateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
-          AND pa."touchpointCount" >= 2
-          AND ${ordersValidWhere("o")}
-          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-          AND o.source IS DISTINCT FROM 'MELI'
-        GROUP BY 1, 2
-        ORDER BY revenue DESC
-        LIMIT 10
-      ` as Promise<Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>>,
+      Promise.resolve([]) as Promise<Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>>,
 
       // 29. Revenue por (modelo, canal) — para tarjeta "Comparacion de modelos"
       // Una sola pasada: descompone cada attribution en touchpoints y aplica
       // la formula de cada modelo para repartir el attributedValue por canal.
       // GROUP BY (model, source) → ~4 modelos × N canales rows.
       (useGoldChannel
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L1153", () => prisma.$queryRawUnsafe(`
             WITH src AS (
               SELECT channel AS source,
                 SUM(nitro_single) nitro_single, SUM(nitro_first2) nitro_first2,
@@ -1173,9 +1008,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             ) t
             WHERE revenue > 0
             ORDER BY model, revenue DESC
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ model: string; source: string; revenue: number }>>
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ model: string; source: string; revenue: number }>>
       : useGoldSource
-        ? prisma.$queryRawUnsafe(`
+        ? trace.run("$queryRawUnsafe:L1181", () => prisma.$queryRawUnsafe(`
             WITH src AS (
               SELECT source,
                 SUM(nitro_single) nitro_single, SUM(nitro_first2) nitro_first2,
@@ -1201,8 +1036,8 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
             ) t
             WHERE revenue > 0
             ORDER BY model, revenue DESC
-          `, ORG_ID, goldDayFrom, goldDayTo) as Promise<Array<{ model: string; source: string; revenue: number }>>
-      : prisma.$queryRaw`
+          `, ORG_ID, goldDayFrom, goldDayTo)) as Promise<Array<{ model: string; source: string; revenue: number }>>
+      : trace.run("$queryRaw:L1208", () => prisma.$queryRaw`
         SELECT
           pa.model::text as model,
           ${tpSourceOrChannel("tp")} as source,
@@ -1266,64 +1101,36 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
           )
         ) > 0
         ORDER BY 1, 3 DESC
-      ` as Promise<Array<{ model: string; source: string; revenue: number }>>),
+      `) as Promise<Array<{ model: string; source: string; revenue: number }>>),
     ]);
 
-    // ══════════════════════════════════════════════════════════
-    // 26. Product purchases — DESPUÉS del batch, acotado y verificado
-    // ══════════════════════════════════════════════════════════
-    // Dos bugs corregidos acá (mismos que en metrics/conversion, 2026-07-18):
-    //
-    // A) DOBLE LIMIT DESALINEADO: viewers y purchases corrían en paralelo, cada
-    //    uno con LIMIT 500 pero ordenados por criterios DISTINTOS (más visitados
-    //    vs más facturación). Recortaban subconjuntos disjuntos del catálogo: en
-    //    Arredo la intersección daba CERO. Ahora el universo lo define el lado
-    //    VISTO y las compras se piden solo para esos productos.
-    //
-    // B) CRUCE POR EL ID EQUIVOCADO: el pixel emite el productId del PADRE y
-    //    products."externalId" guarda el skuId de la VARIANTE. Un ~24% colisiona
-    //    por azar → mostrábamos el CR de otro producto. Ahora pasa por la
-    //    dimensión vtex_sku_product; sin mapa no se atribuye nada.
-    const pixelViewedIds = (
-      productViewersResult as Array<{ productExternalId: string; viewers: number }>
-    ).map((v) => v.productExternalId);
-    const skuMap = await loadProductSkuMap(ORG_ID, pixelViewedIds);
-    const purchasableSkuIds = [...skuMap.productIdBySkuId.keys()];
-
-    const productPurchasesResult = purchasableSkuIds.length
-      ? ((await prisma.$queryRaw`
+    // Secondary panels use dedicated endpoints. Keep only the two reads required
+    // to assemble the KPI response after the main parallel batch.
+    const [manualSpends, dailySpendResult] = await Promise.all([
+      (async () => {
+        const manualSpends = await trace.run("manualChannelSpend.findMany:L1337", () => prisma.manualChannelSpend.findMany({
+          where: {
+            organizationId: ORG_ID,
+            fromDate: { lte: dateTo },
+            toDate: { gte: dateFrom },
+          },
+        }));
+        return manualSpends;
+      })(),
+      (async () => {
+        const dailySpendResult = await trace.run("$queryRaw:L1348", () => prisma.$queryRaw`
           SELECT
-            COALESCE(p."externalId", oi."productId") as "productExternalId",
-            COALESCE(p.name, 'Producto desconocido') as "productName",
-            COALESCE(p.category, 'Sin categoría') as category,
-            COALESCE(p.brand, 'Sin marca') as brand,
-            COUNT(DISTINCT oi."orderId")::int as orders,
-            SUM(oi.quantity)::int as units,
-            SUM(oi."totalPrice")::float as revenue
-          FROM order_items oi
-          JOIN orders o ON o.id = oi."orderId"
-          LEFT JOIN products p ON p.id = oi."productId"
-          WHERE o."organizationId" = ${ORG_ID}
-            AND o."orderDate" >= ${crDateFrom}
-            AND o."orderDate" <= ${dateTo}
-            AND ${ordersValidWhere("o")}
-            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
-            AND o.source IS DISTINCT FROM 'MELI'
-            AND o.channel IS DISTINCT FROM 'marketplace'
-            AND o."externalId" NOT LIKE 'FVG-%'
-            AND o."externalId" NOT LIKE 'BPR-%'
-            AND COALESCE(p."externalId", oi."productId") = ANY(${purchasableSkuIds})
-          GROUP BY 1, 2, 3, 4
-        `) as PurchaseRow[])
-      : [];
-
-    // Etiquetas legibles de categoría: products.category guarda IDs ("/1/11/"),
-    // no nombres. Se resuelve acá (async) para poder usarse sincrónicamente
-    // dentro del armado de la respuesta.
-    const categoryLabels = await loadCategoryLabels(
-      ORG_ID,
-      [...new Set(productPurchasesResult.map((p) => p.category))]
-    );
+            TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
+            SUM(amd.spend)::float as spend
+          FROM ad_metrics_daily amd
+          WHERE amd."organizationId" = ${ORG_ID}
+            AND amd.date >= ${dateFrom}::date
+            AND amd.date <= ${dateTo}::date
+          GROUP BY 1
+        `) as Array<{ day: string; spend: number }>;
+        return dailySpendResult;
+      })(),
+    ]);
 
     // ══════════════════════════════════════════════════════════
     // PROCESS RESULTS
@@ -1355,12 +1162,12 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       // NO corre (el guard queda trabado). waitUntil mantiene viva la función hasta
       // que la promesa resuelve. Patrón ya usado en otros endpoints del repo.
       waitUntil(
-        prisma.$queryRaw<Array<{ c: number }>>`
+        trace.run("allTimeEventsCount", () => prisma.$queryRaw<Array<{ c: number }>>`
           SELECT COUNT(*)::int as c FROM pixel_events WHERE "organizationId" = ${ORG_ID}
         `
           .then((r) => { _allTimeEventsCount.set(ORG_ID, { count: r[0]?.c ?? 0, at: Date.now() }); })
           .catch(() => { /* no romper el dashboard si el refresh falla */ })
-          .finally(() => { _allTimeRefreshing.delete(ORG_ID); })
+          .finally(() => { _allTimeRefreshing.delete(ORG_ID); }))
       );
     }
     const totalEventsAllTime = allTimeCached?.count ?? (eventCountResult[0]?.total || 0);
@@ -1400,7 +1207,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
         ? Math.round((kpisCurr.totalPageViews / kpisCurr.totalSessions) * 10) / 10
         : 0;
 
-    const totalEvents = eventCountResult[0]?.total || 0;
+    // El rollup del día actual puede todavía no existir. Nunca mostrar "0 eventos"
+    // si el status vivo ya contó actividad en la última hora; ese conteo indexado
+    // es un piso correcto hasta el próximo refresh del rollup.
+    const rolledUpEvents = eventCountResult[0]?.total || 0;
+    const totalEvents = isTodayRange
+      ? Math.max(rolledUpEvents, Number(ls?.lastHourEvents) || 0)
+      : rolledUpEvents;
 
     // Channel roles: gateway filter + fold fb → meta only (Role Map + Journey Intelligence).
     const channelRolesMerged = mergeChannelRolesByGroupKey(
@@ -1414,9 +1227,24 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     );
 
     // ── NEW: Process business KPIs ──
-    const selectedModelData = attributionByModelResult.find((m) => m.model === selectedModel);
-    const pixelRevenue = selectedModelData?.revenue || 0;
-    const ordersAttributed = selectedModelData?.ordersAttributed || 0;
+    // Gold is at day/channel grain, so its `orders` values are participations and
+    // cannot be added across channels. Coverage has the exact distinct order count
+    // at day grain; merge that count into the revenue series before computing KPIs.
+    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
+    const attributedOrdersByDay = new Map(perDayCoverage.map((d) => [d.day, d.attributedOrders]));
+    const dailyRevenueRows = dailyRevenueResult.map((row) => ({
+      ...row,
+      orders: attributedOrdersByDay.get(row.day) ?? row.orders,
+    }));
+    const pixelRevenue = dailyRevenueRows.reduce((sum, row) => sum + (row.revenue || 0), 0);
+    const ordersAttributed = perDayCoverage.reduce((sum, row) => sum + (row.attributedOrders || 0), 0);
+    const attributionByModel = [{
+      model: selectedModel,
+      ordersAttributed,
+      revenue: pixelRevenue,
+      avgValue: ordersAttributed > 0 ? pixelRevenue / ordersAttributed : 0,
+      avgTouchpoints: 0,
+    }];
     const totalOrders = totalOrdersResult[0]?.total || 0;
     const webOrders = totalOrdersResult[0]?.webOrders || 0;
     const webRevenue = totalOrdersResult[0]?.webRevenue || 0;
@@ -1432,7 +1260,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // days have 0% and others 98% coverage), we compute an "effective coverage"
     // using only days where the pixel was active (attributedOrders > 0).
     // This avoids pre-pixel-deployment days from dragging down the ratio.
-    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
     const activeDays = perDayCoverage.filter(d => d.attributedOrders > 0);
     const effectiveTotalOrders = activeDays.reduce((s, d) => s + d.totalOrders, 0);
     const effectiveAttributedOrders = activeDays.reduce((s, d) => s + d.attributedOrders, 0);
@@ -1450,13 +1277,6 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // Para canales sin integracion (TV, omnichannel, etc) el cliente puede
     // cargar inversion manual con un rango fromDate/toDate. Aca prorrateamos
     // el monto segun el overlap con el rango query del dashboard.
-    const manualSpends = await prisma.manualChannelSpend.findMany({
-      where: {
-        organizationId: ORG_ID,
-        fromDate: { lte: dateTo },
-        toDate: { gte: dateFrom },
-      },
-    });
     const manualSpendByChannel = new Map<string, number>();
     for (const ms of manualSpends) {
       const totalDur = ms.toDate.getTime() - ms.fromDate.getTime();
@@ -1496,44 +1316,18 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       };
     });
 
-    // ── Funnel from NitroPixel (S60 EXT — decision producto) ──
-    // Steps 1–4: visitors UNICOS por etapa desde rollup HLL (webhook-filtrado).
-    //   Visitas       → PAGE_VIEW
-    //   Vio Producto  → VIEW_PRODUCT
-    //   Carrito       → ADD_TO_CART
-    //   Checkout      → INITIATE_CHECKOUT o CHECKOUT_SHIPPING
-    // Compra: órdenes web atribuidas (misma métrica que businessKpis.ordersAttributed).
-    // Ver DATA_COHERENCE.md Regla 5 — nunca eventos PURCHASE sueltos en el último step.
-    // PERF + FIX "Hoy" (2026-06-17): las etapas del funnel salían SOLO del rollup
-    // `pixel_daily_aggregates`, que queda stale/parcial para el/los día(s) reciente(s)
-    // (el cron de refresh corre cada 2h y el día AR en curso es SIEMPRE parcial).
-    // Resultado: al filtrar por "Hoy" las etapas daban 0 mientras la compra (órdenes
-    // web atribuidas, en vivo) daba >0 → "el funnel muestra solo las compras". El
-    // endpoint dedicado /api/metrics/pixel/funnel ya usaba getFunnelStages (live-merge
-    // rollup+crudo); este card (NitroPixel "Activo Vivo" + dashboard) había quedado
-    // afuera. Ahora usa el MISMO helper → números coherentes entre ambas vistas.
-    const fRow = await getFunnelStages(ORG_ID, dateFrom, dateTo);
+    // The funnel has a dedicated endpoint and is loaded after the KPI response.
     const funnel = {
-      pageView: fRow.pageView || 0,
-      viewProduct: fRow.viewProduct || 0,
-      addToCart: fRow.addToCart || 0,
-      checkoutStart: fRow.checkoutStart || 0,
+      pageView: 0,
+      viewProduct: 0,
+      addToCart: 0,
+      checkoutStart: 0,
       purchase: ordersAttributed,
     };
 
     // ── NEW: Daily revenue merged with daily spend ──
-    const dailySpendResult = await prisma.$queryRaw`
-      SELECT
-        TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
-        SUM(amd.spend)::float as spend
-      FROM ad_metrics_daily amd
-      WHERE amd."organizationId" = ${ORG_ID}
-        AND amd.date >= ${dateFrom}::date
-        AND amd.date <= ${dateTo}::date
-      GROUP BY 1
-    ` as Array<{ day: string; spend: number }>;
     const spendByDay = new Map(dailySpendResult.map((d) => [d.day, d.spend]));
-    const dailyRevenue = dailyRevenueResult.map((d) => {
+    const dailyRevenue = dailyRevenueRows.map((d) => {
       const daySpend = spendByDay.get(d.day) || 0;
       return {
         ...d,
@@ -1688,184 +1482,11 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
       eventTypes,
       popularPages: popularPagesResult,
 
-      // ── Conversion Rates data (100% NitroPixel + VTEX orders) ──
-      conversionRates: (() => {
-        // CR by Channel — UNIFICADO con funnel (S60 EXT-2): same query, same first-touch logic.
-        // S60 EXT-2 BIS: normalizar source canonical en ambos lados (CTE + attributionBySource)
-        // para que el JOIN funcione. Filtrar sources con caracteres invalidos (clickIds mal).
-
-        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
-
-        const isValidConversionSource = (s: string): boolean => {
-          if (!s || s.length === 0) return false;
-          return /^[a-z0-9_\-\.]+$/i.test(s);
-        };
-
-        // Construir attrMap con keys canonicalizadas — sumar revenue si hay aliases
-        const attrMap = new Map<string, { revenue: number; orders: number }>();
-        for (const ch of attributionBySource) {
-          const key = canonicalMarketingSource(ch.source);
-          const existing = attrMap.get(key);
-          attrMap.set(key, {
-            revenue: (existing?.revenue || 0) + (ch.revenue || 0),
-            orders: (existing?.orders || 0) + (ch.orders || 0),
-          });
-        }
-
-        // ── Plegado de canales (reescrito 2026-07-21) ──────────────────────────
-        // Antes: se descartaban en silencio los sources con ≤5 visitantes, los que
-        // no matcheaban el regex, y todo lo que caía fuera del top-10 del SQL. El
-        // resultado era una tabla cuya columna "Visitantes" no sumaba el total y
-        // no lo aclaraba en ningún lado — con TeVe Compras daba 6.682 contra los
-        // 66.723 del panel de dispositivo, que cuenta el universo completo.
-        //
-        // Ahora no se descarta NADA. Lo chico termina agregado en `otros`, así el
-        // total siempre cierra.
-        //
-        // ⚠️ ACÁ SE EXCLUÍAN LAS PASARELAS DE PAGO (quitado 2026-07-22):
-        //
-        //     if (isNonMarketingChannelSource(vs.source)) continue;
-        //     if (isNonMarketingChannelSource(key)) continue;
-        //
-        // La intención era correcta —el viaje de ida y vuelta al pago no es
-        // adquisición— pero el filtro miraba sólo el NOMBRE del source, y
-        // GoCuotas, MODO, Naranja, Ualá y Mercado Pago además MANDAN TRÁFICO a la
-        // tienda. Un visitante que entra por `/?utm_source=gocuotas`, navega y
-        // compra es una adquisición real de GoCuotas, y acá se borraba.
-        //
-        // Medido el 2026-07-22: 8.751 visitantes entre las tres orgs, el 85% de
-        // todos los marcados "sin canal". En EMDJ además se perdía la atribución
-        // de $174M.
-        //
-        // La discriminación ahora la hace la dimensión: FIRST_SOURCE_MARKETING_CASE
-        // sólo anula la pasarela cuando hay evidencia de RETORNO (referrer de la
-        // pasarela o URL de checkout). Entonces un 'gocuotas' que llega hasta acá
-        // ya es una llegada legítima, y volver a filtrarlo por nombre lo mataba.
-        //
-        // Es seguro para el histórico: con la regla vieja un source de pasarela
-        // NUNCA se escribía en la dimensión, así que no hay filas viejas que este
-        // cambio pueda dejar entrar de más.
-        const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
-        for (const vs of pixelVisitorsBySource) {
-          const key = canonicalMarketingSource(vs.source);
-          const existing = channelMap.get(key);
-          const attr = attrMap.get(key);
-          // Sumar visitors+purchases si hay aliases (ej: fb + meta → meta)
-          if (existing) {
-            existing.visitors += vs.visitors;
-            existing.purchases += vs.purchases;
-          } else {
-            channelMap.set(key, {
-              source: key,
-              visitors: vs.visitors,
-              purchases: vs.purchases,
-              revenue: attr?.revenue || 0,
-            });
-          }
-        }
-        const withCr = (ch: { source: string; visitors: number; purchases: number; revenue: number }) => ({
-          ...ch,
-          cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0,
-        });
-        const foldedChannels = Array.from(channelMap.values()).sort(
-          (a, b) => b.visitors - a.visitors
-        );
-        // Se muestran los N más grandes; el resto se agrega en `otros` en vez de
-        // desaparecer. Los que no pasan el regex de nombre (basura de UTM) van
-        // directo a `otros`: se cuentan, pero no se les da una fila propia.
-        const CHANNEL_DISPLAY_LIMIT = 12;
-        const named = foldedChannels.filter((c) => isValidConversionSource(c.source));
-        const unnamed = foldedChannels.filter((c) => !isValidConversionSource(c.source));
-        const head = named.slice(0, CHANNEL_DISPLAY_LIMIT);
-        const tail = [...named.slice(CHANNEL_DISPLAY_LIMIT), ...unnamed];
-        const byChannel = head.map(withCr);
-        if (tail.length > 0) {
-          const agg = tail.reduce(
-            (acc, c) => ({
-              source: "otros",
-              visitors: acc.visitors + c.visitors,
-              purchases: acc.purchases + c.purchases,
-              revenue: acc.revenue + c.revenue,
-            }),
-            { source: "otros", visitors: 0, purchases: 0, revenue: 0 }
-          );
-          byChannel.push({ ...withCr(agg), channelsMerged: tail.length } as any);
-        }
-
-        // CR by Device: pixel visitors (deviceBreakdown from query #5) + pixel-attributed orders by device (query #24)
-        // Both use the same device naming from pixel (Mobile, Desktop, etc.)
-        const deviceVisitorMap = new Map(deviceBreakdown.map(d => [(d as any).device?.toLowerCase(), (d as any).count || 0]));
-        const byDevice = (ordersByDeviceResult as Array<{ device: string; orders: number; revenue: number }>).map(d => {
-          const visitors = deviceVisitorMap.get(d.device?.toLowerCase()) || 0;
-          return {
-            device: d.device,
-            visitors,
-            orders: d.orders,
-            revenue: d.revenue || 0,
-            cr: visitors > 0 ? Math.round((d.orders / visitors) * 10000) / 100 : 0,
-          };
-        });
-
-        // Merge viewers (pixel, grano PRODUCTO) + purchases (VTEX, grano SKU).
-        // Las compras se pliegan al grano producto sumando todas las variantes:
-        // sin ese plegado, un producto con 4 colores multiplicaría su revenue x4.
-        const viewers = productViewersResult as Array<{ productExternalId: string; viewers: number }>;
-        const purchases = [
-          ...foldPurchasesToProductGrain(
-            productPurchasesResult,
-            skuMap.productIdBySkuId
-          ).values(),
-        ];
-        const viewerMap = new Map(viewers.map(v => [v.productExternalId, v.viewers]));
-
-        // Sesion 22: excluir productos con 0 visitantes del pixel.
-        // Si un producto tiene ventas pero 0 vistas del pixel, significa
-        // que la compra vino de un canal no trackeado (directo al checkout,
-        // link externo, etc.) — el ratio 0 visits / 1 sale es incoherente
-        // como CR y distorsiona el promedio por categoria/marca.
-        const products = purchases
-          .map(p => {
-            const pViewers = viewerMap.get(p.productExternalId) || 0;
-            return {
-              ...p,
-              category: categoryLabels.get(p.category) ?? p.category,
-              viewers: pViewers,
-              cr: crPct(p.orders, pViewers),
-            };
-          })
-          .filter(p => p.viewers > 0);
-
-        // Aggregate by category
-        const catMap = new Map<string, { category: string; viewers: number; buyers: number; revenue: number }>();
-        for (const p of products) {
-          const existing = catMap.get(p.category) || { category: p.category, viewers: 0, buyers: 0, revenue: 0 };
-          existing.viewers += p.viewers;
-          existing.buyers += p.orders;
-          existing.revenue += p.revenue || 0;
-          catMap.set(p.category, existing);
-        }
-        const byCategory = Array.from(catMap.values())
-          .map(c => ({ ...c, cr: crPct(c.buyers, c.viewers) }))
-          .sort((a, b) => b.revenue - a.revenue);
-
-        // Aggregate by brand
-        const brandMap = new Map<string, { brand: string; viewers: number; buyers: number; revenue: number }>();
-        for (const p of products) {
-          const existing = brandMap.get(p.brand) || { brand: p.brand, viewers: 0, buyers: 0, revenue: 0 };
-          existing.viewers += p.viewers;
-          existing.buyers += p.orders;
-          existing.revenue += p.revenue || 0;
-          brandMap.set(p.brand, existing);
-        }
-        const byBrand = Array.from(brandMap.values())
-          .map(b => ({ ...b, cr: crPct(b.buyers, b.viewers) }))
-          .sort((a, b) => b.revenue - a.revenue);
-
-        return { byChannel, byDevice, byCategory, byBrand, byProduct: products };
-      })(),
+      // Heavy conversion tables are fetched independently after the KPI response.
+      conversionRates: { byChannel: [], byDevice: [], byCategory: [], byBrand: [], byProduct: [] },
 
       attribution: {
-        byModel: attributionByModelResult,
+        byModel: attributionByModel,
         bySource: attributionBySource,
         byModelChannel: attributionByModelChannelResult,
         conversionLag: conversionLagResult,
@@ -1937,7 +1558,9 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // Escribe en memoria Y en el caché compartido de Postgres. Sin esto, el
     // warm-cache calienta una instancia y el usuario cae en otra: la primera
     // carga del día paga los ~25s completos. Ver src/lib/api-cache-shared.ts.
-    setSharedCache("pixel", response, ...cacheKey);
+    // Keep the seed promise alive until the shared write finishes, including
+    // when waitUntil continues this computation after the request timeout.
+    await trace.run("setSharedCache:L1959", () => setSharedCache(PIXEL_CACHE_PREFIX, response, ...cacheKey));
     return response;
     }; // ── fin computeAndCache ──
 
@@ -1948,13 +1571,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm cae al compute SÍNCRONO de abajo (isWarm ⇒ sin race) y mantiene su
     // secuencialidad. Usuarios: SWR normal (sirve stale al toque + refresh en bg).
     const isWarmCall = !!queryOrgId && queryKey === WARM_CACHE_KEY;
-    const cached = await getSharedCachedSWR("pixel", ...cacheKey);
+    const cached = await trace.run("getSharedCachedSWR:L1970", () => getSharedCachedSWR(PIXEL_CACHE_PREFIX, ...cacheKey));
     if (cached?.data && !(isWarmCall && cached.isStale)) {
-      if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
+      if (cached.isStale && tryAcquireRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey)) {
         waitUntil(
           computeAndCache()
             .catch((e) => { console.error("[pixel] background refresh failed:", e); })
-            .finally(() => releaseRefreshLock("pixel", ...cacheKey))
+            .finally(() => releaseRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey))
         );
       }
       return NextResponse.json(cached.data);
@@ -1972,13 +1595,13 @@ async function realHandler(request: NextRequest): Promise<NextResponse> {
     // warm-cache) leen data real instantánea. En orgs chicas (compute <85s) el
     // `await` devuelve data real directo, como antes. El lock evita thundering-herd:
     // si otro request ya está sembrando esta key, este devuelve el mock sin recomputar.
-    if (tryAcquireRefreshLock("pixel", ...cacheKey)) {
+    if (tryAcquireRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey)) {
       const missCompute = computeAndCache()
         .catch((e) => {
           console.error("[pixel] cache-miss seed failed:", e);
           return buildEmptyMockResponse();
         })
-        .finally(() => releaseRefreshLock("pixel", ...cacheKey));
+        .finally(() => releaseRefreshLock(PIXEL_CACHE_PREFIX, ...cacheKey));
       waitUntil(missCompute);
       const freshResponse = await missCompute;
       return NextResponse.json(freshResponse);

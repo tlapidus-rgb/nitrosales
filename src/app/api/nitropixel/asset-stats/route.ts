@@ -16,9 +16,11 @@
 // Read-only — NO modifica ningún dato. Seguro para consultas frecuentes.
 // ══════════════════════════════════════════════════════════════
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getSharedCachedSWR, setSharedCacheWithTtl } from "@/lib/api-cache-shared";
+import { ADMIN_API_KEY } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,6 +30,7 @@ export const revalidate = 0;
 export const maxDuration = 30;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
+const ASSET_CACHE_PREFIX = "nitropixel-asset-v4";
 
 // ── Heurística de nivel: 0-100 ──
 function computeLevel(events: number, identified: number, revenue: number): number {
@@ -74,12 +77,21 @@ function estimateAssetValue(events: number, identified: number, revenue: number)
   return Math.round(identifiedValue + revenueValue + behaviorValue);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const orgId = await getOrganizationId();
+    const { searchParams } = new URL(request.url);
+    const warmOrgId = searchParams.get("orgId");
+    const warmKey = searchParams.get("key");
+    const isWarmCall = !!warmOrgId && warmKey === ADMIN_API_KEY;
+    const orgId = isWarmCall
+      ? warmOrgId!
+      : await getOrganizationId();
     if (!orgId) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+
+    const cached = await getSharedCachedSWR<Record<string, unknown>>(ASSET_CACHE_PREFIX, orgId);
+    if (cached?.data && !(isWarmCall && cached.isStale)) return NextResponse.json(cached.data);
 
     const now = new Date();
     const ago30d = new Date(now.getTime() - 30 * MS_DAY);
@@ -98,9 +110,7 @@ export async function GET() {
     const [
       rollupAgg,
       windowAgg,
-      firstEvent,
       attributedAgg,
-      last10Events,
       timelineRows,
       topSourcesRows,
     ] = await Promise.all([
@@ -111,11 +121,12 @@ export async function GET() {
       // de ~decenas de filas en vez de millones. Bonus: usa los MISMOS rollups que el
       // dashboard /pixel → los números quedan CONSISTENTES entre páginas. Excluye eventos
       // sintéticos de webhook (mejora de correctitud, igual que la Fase 2 del pixel route).
-      prisma.$queryRaw<Array<{ total_events: bigint; visitors: number; identified: number }>>`
+      prisma.$queryRaw<Array<{ total_events: bigint; visitors: number; identified: number; first_day: Date | null }>>`
         SELECT
           COALESCE(SUM(total_events), 0)::bigint AS total_events,
           COALESCE(hll_cardinality(hll_union_agg(visitors_hll)), 0)::int AS visitors,
-          COALESCE(hll_cardinality(hll_union_agg(identify_visitors_hll)), 0)::int AS identified
+          COALESCE(hll_cardinality(hll_union_agg(identify_visitors_hll)), 0)::int AS identified,
+          MIN(day)::timestamp AS first_day
         FROM pixel_daily_aggregates
         WHERE "organizationId" = ${orgId}
       `,
@@ -137,28 +148,15 @@ export async function GET() {
         WHERE "organizationId" = ${orgId}
           AND day >= ((${now} AT TIME ZONE 'America/Argentina/Buenos_Aires')::date - INTERVAL '6 days')
       `,
-      prisma.pixelEvent.findFirst({
-        where: { organizationId: orgId, timestamp: { gte: pixelFloor } },
-        orderBy: { timestamp: "asc" },
-        select: { timestamp: true },
-      }),
-      prisma.pixelAttribution.aggregate({
-        where: { organizationId: orgId, model: "NITRO" },
-        _sum: { attributedValue: true },
-      }),
-      prisma.pixelEvent.findMany({
-        where: { organizationId: orgId },
-        orderBy: { timestamp: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          type: true,
-          pageUrl: true,
-          timestamp: true,
-          country: true,
-          deviceType: true,
-        },
-      }),
+      // El SUM histórico sobre pixel_attributions crecía sin límite. Gold ya
+      // contiene exactamente el mismo total por día/source; LAST_CLICK asigna
+      // cada orden a una sola source, por eso su suma no duplica journeys.
+      prisma.$queryRawUnsafe<Array<{ attributed_revenue: number }>>(
+        `SELECT COALESCE(SUM(last_click_revenue), 0)::float AS attributed_revenue
+         FROM gold_attribution_source
+         WHERE organization_id = $1`,
+        orgId
+      ),
       // Eventos por día últimos 30 días — PERF (2026-06-12): desde el rollup
       // `pixel_daily_aggregates` (day, total_events) en vez de date_trunc+COUNT sobre
       // ~1-2M eventos crudos (2,6s → ~10ms). Grano diario AR, consistente con los totales.
@@ -197,10 +195,16 @@ export async function GET() {
     const eventsLast24h = Number(windowAgg[0]?.last24h ?? 0);
     const eventsLast7d = Number(windowAgg[0]?.last7d ?? 0);
 
-    const attributedRevenue = Number(attributedAgg._sum.attributedValue ?? 0);
+    const attributedRevenue = Number(attributedAgg[0]?.attributed_revenue ?? 0);
 
-    const daysAlive = firstEvent
-      ? Math.max(1, Math.floor((now.getTime() - firstEvent.timestamp.getTime()) / MS_DAY))
+    // El primer día del rollup evita otro ORDER BY sobre pixel_events sin índice
+    // (organizationId, timestamp). Conservamos el piso de creación de la org.
+    const rollupFirstDay = rollupAgg[0]?.first_day ?? null;
+    const firstSeenAt = rollupFirstDay && rollupFirstDay >= pixelFloor
+      ? rollupFirstDay
+      : pixelFloor;
+    const daysAlive = rollupFirstDay
+      ? Math.max(1, Math.floor((now.getTime() - firstSeenAt.getTime()) / MS_DAY))
       : 0;
 
     const level = computeLevel(totalEvents, identifiedVisitors, attributedRevenue);
@@ -225,7 +229,7 @@ export async function GET() {
       count: Number(r.count),
     }));
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       asset: {
         totalEvents,
@@ -238,21 +242,19 @@ export async function GET() {
         level,
         stage,
         estimatedAssetValueUsd,
-        firstSeenAt: firstEvent?.timestamp ?? null,
+        firstSeenAt: rollupFirstDay ? firstSeenAt : null,
       },
-      last10Events: last10Events.map((e) => ({
-        id: e.id,
-        type: e.type,
-        pageUrl: e.pageUrl,
-        // Mantiene la key `receivedAt` del response (el frontend la usa en timeAgo);
-        // ahora la alimenta `timestamp` (indexado). Mismo significado práctico.
-        receivedAt: e.timestamp,
-        country: e.country,
-        deviceType: e.deviceType,
-      })),
+      // El stream se carga por separado desde /api/me/nitropixel-recent-events.
+      // No debe retrasar las métricas principales del activo.
+      last10Events: [],
       timeline,
       topSources,
-    });
+    };
+
+    // La página refresca cada 20s. Compartir la respuesta durante ese intervalo
+    // evita repetir siete lecturas al mismo tiempo en cada instancia fría.
+    await setSharedCacheWithTtl(ASSET_CACHE_PREFIX, payload, 20_000, 5 * 60_000, orgId);
+    return NextResponse.json(payload);
   } catch (err) {
     console.error("[nitropixel/asset-stats] error:", err);
     return NextResponse.json(

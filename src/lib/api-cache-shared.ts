@@ -26,7 +26,7 @@ import { prisma } from "@/lib/db/client";
 import { getCachedSWR, setCache } from "@/lib/api-cache";
 
 const DEFAULT_TTL_MS = 5 * 60_000; // fresco 5 min (igual que el caché en memoria)
-const STALE_GRACE_MS = 25 * 60_000; // + 25 min servible como stale
+const STALE_GRACE_MS = 6 * 60 * 60_000; // + 6h servible como stale; refresh en background
 
 function buildKey(prefix: string, keyParts: unknown[]): string {
   return `${prefix}:${keyParts.map(String).join(":")}`;
@@ -81,21 +81,33 @@ export async function getSharedCachedSWR<T = unknown>(
 }
 
 /**
- * Escribe en los dos niveles. El write a Postgres NO se espera: el caller ya
- * tiene la respuesta lista y no tiene por qué pagar la latencia de guardarla.
+ * Escribe en memoria inmediatamente y devuelve la promesa del write compartido.
+ * Los callers que siembran el cache deben esperarla o registrarla en waitUntil
+ * para mantener la persistencia viva después de enviar la respuesta.
  */
-export function setSharedCache(
+export async function setSharedCache(
   prefix: string,
   data: unknown,
   ...keyParts: unknown[]
-): void {
-  setCache(prefix, data, ...keyParts); // nivel 1, sincrónico
+): Promise<void> {
+  return setSharedCacheWithTtl(prefix, data, DEFAULT_TTL_MS, STALE_GRACE_MS, ...keyParts);
+}
+
+/** Variante para pantallas con una cadencia distinta al dashboard principal. */
+export async function setSharedCacheWithTtl(
+  prefix: string,
+  data: unknown,
+  ttlMs: number,
+  staleGraceMs: number,
+  ...keyParts: unknown[]
+): Promise<void> {
+  setCache(prefix, data, ttlMs, ...keyParts); // nivel 1, sincrónico
 
   const key = buildKey(prefix, keyParts);
-  const freshUntil = new Date(Date.now() + DEFAULT_TTL_MS);
-  const staleUntil = new Date(Date.now() + DEFAULT_TTL_MS + STALE_GRACE_MS);
+  const freshUntil = new Date(Date.now() + ttlMs);
+  const staleUntil = new Date(Date.now() + ttlMs + staleGraceMs);
 
-  void prisma
+  await prisma
     .$executeRaw`
       INSERT INTO api_cache (cache_key, payload, fresh_until, stale_until, updated_at)
       VALUES (${key}, ${JSON.stringify(data)}::jsonb, ${freshUntil}, ${staleUntil}, now())
