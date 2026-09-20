@@ -8,7 +8,7 @@
 > esfuerzo.
 
 > **Hay una versión de esto escrita para Tomy**, en castellano llano y sin jerga:
-> `docs/PARA-TOMY-DECISIONES.md`. Las dos listas cubren lo mismo; esta tiene el detalle
+> `docs/revision-2026-09/05-DECISIONES-PARA-TOMY.md`. Las dos listas cubren lo mismo; esta tiene el detalle
 > técnico y los `archivo:línea`, aquélla tiene el escenario de negocio.
 
 ---

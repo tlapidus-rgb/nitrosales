@@ -101,15 +101,15 @@ real: el camino de excepción no reprogramaba la cola.
 
 ### Lo que NO se hizo
 
-**11 decisiones** que cambian lo que ve o recibe un cliente: `docs/DECISIONES-PENDIENTES.md`
-(versión técnica) y `docs/PARA-TOMY-DECISIONES.md` (en castellano llano).
+**11 decisiones** que cambian lo que ve o recibe un cliente: `docs/revision-2026-09/04-DECISIONES-TECNICAS.md`
+(versión técnica) y `docs/revision-2026-09/05-DECISIONES-PARA-TOMY.md` (en castellano llano).
 
 **R-09 pausado**: su arreglo depende de qué se decida sobre `wipe-account`. Corregirlo ahora
 y borrarlo mañana es trabajo tirado.
 
 ### Trece errores propios, documentados
 
-`docs/BITACORA-DE-ERRORES.md`. Escritos en el momento, no al final. Tres del mismo tipo en
+`docs/revision-2026-09/06-ERRORES-COMETIDOS.md`. Escritos en el momento, no al final. Tres del mismo tipo en
 un día —un chequeo que lee el texto que yo mismo acababa de insertar— y uno que casi deja
 una página de finanzas rota en runtime, con `tsc` en verde porque ese archivo tiene
 `@ts-nocheck`.
@@ -120,7 +120,7 @@ tranquilidad de haberlos cerrado.
 
 ---
 
-## La revisión multiagente (2026-09-14) — `docs/REVISION-MULTIAGENTE-2026-09-14.md`
+## La revisión multiagente (2026-09-14) — `docs/revision-2026-09/02-HALLAZGOS.md`
 
 Nueve revisiones independientes, con los 127 archivos no-test repartidos en lotes **disjuntos y
 exhaustivos** (cobertura demostrada con un script: 127/127, cero sin asignar). **37 hallazgos

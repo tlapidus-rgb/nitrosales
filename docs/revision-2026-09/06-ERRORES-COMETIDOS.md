@@ -1,7 +1,7 @@
 # Bitácora de errores — tanda de arreglos post-revisión
 
 > **Qué es esto.** Un registro **vivo** de los errores que cometo mientras arreglo los
-> hallazgos de `docs/REVISION-MULTIAGENTE-2026-09-14.md`. Se escribe en el momento, no al
+> hallazgos de `docs/revision-2026-09/02-HALLAZGOS.md`. Se escribe en el momento, no al
 > final: un error que se documenta tres horas después ya perdió el detalle que lo hacía
 > útil.
 >

@@ -10,7 +10,7 @@
 >
 > **Última actualización**: 2026-09-14 — Revisión multiagente de `fix/expansion-gate-e0`. Agregado
 > **BP-REVISION-0914** con los 37 hallazgos que la revisión dejó abiertos (detalle completo en
-> `docs/REVISION-MULTIAGENTE-2026-09-14.md`). **R-01 es lo único que puede estar afectando
+> `docs/revision-2026-09/02-HALLAZGOS.md`). **R-01 es lo único que puede estar afectando
 > producción hoy** y necesita que alguien mire si `SYNC_KEY` existe en Vercel.
 >
 > _(Anterior: 2026-07-02 — Sesión Arredo/Pixel. Agregados **BP-PIXEL-CHANNEL-ROLLUP**
@@ -35,12 +35,12 @@
 Nueve revisiones independientes sobre `fix/expansion-gate-e0`, con los 127 archivos no-test
 repartidos en lotes disjuntos (cobertura demostrada: 127/127). El detalle completo, con
 `archivo:línea` y el escenario de falla de cada hallazgo, está en
-**`docs/REVISION-MULTIAGENTE-2026-09-14.md`**. Acá queda lo que **no se arregló**, para que no se
+**`docs/revision-2026-09/02-HALLAZGOS.md`**. Acá queda lo que **no se arregló**, para que no se
 pierda.
 
 > **Estado al 2026-09-15: 24 de 37 resueltos** (`540cf21e`, `30e9b2ff`). Los resueltos
 > quedan tachados con su commit. Lo que **no** se arregló está en
-> `docs/DECISIONES-PENDIENTES.md`, separado entre lo que espera una decisión tuya y lo
+> `docs/revision-2026-09/04-DECISIONES-TECNICAS.md`, separado entre lo que espera una decisión tuya y lo
 > que es trabajo pendiente sin bloqueo.
 
 ### 🔴 Afecta producción HOY (no es de la branch)
