@@ -336,47 +336,28 @@ export const RECLAMAR_PROXIMO_JOB_SQL = `UPDATE "backfill_jobs" j
       RETURNING j.*`;
 
 /**
- * Reclama el proximo job **si hay cupo**.
- *
- * ── EL CUPO SE VERIFICA ADENTRO, NO AFUERA (R-20, 2026-09-15) ───────────
- *
- * El runner hacia `contarJobsActivos()` → `decidirAdmision()` → `reclamar`,
- * en tres pasos sin nada en el medio. `FOR UPDATE SKIP LOCKED` garantiza que
- * dos invocaciones no se lleven **el mismo** job — pero hace lo contrario de
- * lo que hace falta para el cupo: la segunda **saltea** la fila lockeada y se
- * lleva OTRA.
- *
- * Con el cron cada minuto mas el disparo inmediato de `approve-backfill` por
- * `waitUntil`, dos invocaciones que arrancan en el mismo segundo ven ambas
- * `jobsActivos = 0`, las dos son admitidas, y salen con **dos backfills
- * corriendo en paralelo** contra Neon — con `maxConcurrentes = 1`.
- *
- * Es el escenario que `admision.ts` describe como el que E-08 vino a cerrar:
- * *"con varios jobs encolados, cada invocacion tomaba uno distinto y los
- * corria en paralelo"*. El claim atomico cerraba la mitad (mismo job) y
- * dejaba abierta la otra (cupo).
- *
- * Ahora el cupo es parte de la MISMA sentencia: el `WHERE` no matchea nada si
- * ya hay `$2` jobs activos. Dos invocaciones simultaneas ejecutan el mismo
- * UPDATE; la primera toma el job, y la segunda —que evalua su subquery
- * despues, porque el UPDATE toma el lock de fila— ya cuenta 1 y no reclama.
- *
- * Los RUNNING pasados de cooldown NO cuentan contra el cupo: estan colgados,
- * y excluirlos es lo que permite que el reaper los recupere en vez de quedar
- * trabado contra su propio tope.
- *
- * @param cooldownMs cuanto tiene que estar quieto un RUNNING para re-reclamarse
- * @param maxConcurrentes tope de jobs corriendo a la vez
+ * Serialize admission across workers before taking a fresh Read Committed
+ * snapshot for the count + claim. SKIP LOCKED alone only protects each row.
+ * The transaction-scoped lock is compatible with transaction pooling; release
+ * happens at commit/rollback, never while a provider request is running.
  */
+export const BLOQUEAR_ADMISION_SQL = "SELECT pg_advisory_xact_lock(160021, 1)::text";
+
 export async function reclamarProximoJob(
   cooldownMs: number,
   maxConcurrentes = 1,
 ): Promise<any | null> {
-  const corte = new Date(Date.now() - cooldownMs);
-  const rows = await prisma.$queryRawUnsafe<Array<any>>(
-    RECLAMAR_PROXIMO_JOB_SQL,
-    corte,
-    maxConcurrentes,
-  );
-  return rows[0] || null;
+  if (!Number.isFinite(cooldownMs) || cooldownMs <= 0 ||
+      !Number.isInteger(maxConcurrentes) || maxConcurrentes < 1) {
+    throw new Error("Invalid backfill admission limits");
+  }
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe(BLOQUEAR_ADMISION_SQL);
+    // Calculate the cutoff after acquiring the lock, not before waiting.
+    const corte = new Date(Date.now() - cooldownMs);
+    const rows = await tx.$queryRawUnsafe<Array<any>>(
+      RECLAMAR_PROXIMO_JOB_SQL, corte, maxConcurrentes,
+    );
+    return rows[0] || null;
+  }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 10000 });
 }

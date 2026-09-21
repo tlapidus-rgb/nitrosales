@@ -59,11 +59,15 @@ import {
   maxConcurrentes,
   latenciaMaxMs,
   COOLDOWN_JOB_MS,
+  RUNNER_MAX_DURATION_SECONDS,
 } from "@/lib/backfill/admision";
 // (onboardingActivationEmail ya no se usa aca — se manda en /activate)
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+// Keep this literal statically analyzable by Next.js and aligned with the lease.
+if (maxDuration !== RUNNER_MAX_DURATION_SECONDS) throw new Error("Backfill runtime/lease mismatch");
 
 const CRON_KEY = ADMIN_API_KEY;
 
@@ -108,7 +112,8 @@ export async function GET(req: NextRequest) {
     // Loop: procesar chunks hasta agotar tiempo o no quedar jobs.
     //
     // FIX (post-deploy inicial): el loop reusa el MISMO job mientras no complete,
-    // en vez de re-pickear cada iteracion. pickNextJob tiene cooldown de 2 min
+    // en vez de re-pickear cada iteracion. La admision tiene un cooldown mayor
+    // que la duracion maxima del worker
     // (proteccion anti race conditions entre cron + waitUntil) que bloqueaba
     // que el loop interno avance — el job recien procesado quedaba "bloqueado"
     // por su propio lastChunkAt fresco.
@@ -186,7 +191,7 @@ export async function GET(req: NextRequest) {
         // Refrescar el job desde DB para tener cursor/processedCount actualizados
         // (los acabamos de updatear nosotros mismos en la iter anterior).
         const fresh = await getJob(currentJob.id);
-        if (!fresh) break; // safety — no deberia pasar
+        if (!fresh || fresh.status !== "RUNNING") break;
         currentJob = fresh;
       }
 

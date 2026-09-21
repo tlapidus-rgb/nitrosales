@@ -41,8 +41,11 @@ export const MAX_CONCURRENTES_DEFAULT = 1;
  */
 export const LATENCIA_MAX_MS_DEFAULT = 2_000;
 
-/** Un job RUNNING con `lastChunkAt` más viejo que esto se considera abandonado. */
-export const COOLDOWN_JOB_MS = 2 * 60 * 1000;
+/** Vercel must terminate an invocation before another worker can reclaim it. */
+export const RUNNER_MAX_DURATION_SECONDS = 300;
+// updatedAt is the claim/progress clock. A two-minute lease expired while the
+// five-minute invocation was still alive. Include one minute of safety margin.
+export const COOLDOWN_JOB_MS = (RUNNER_MAX_DURATION_SECONDS + 60) * 1000;
 
 export function maxConcurrentes(env: NodeJS.ProcessEnv = process.env): number {
   const n = parseInt(env.BACKFILL_MAX_CONCURRENTES || "", 10);
