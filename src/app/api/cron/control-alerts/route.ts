@@ -14,6 +14,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { registrarLatido } from "@/lib/cron/latido";
+import { coberturaDeLatidos } from "@/lib/cron/schedules";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -95,10 +96,12 @@ export async function GET(req: NextRequest) {
 
     // Si no hay issues y no es force, skip el email
     if (totalIssues === 0 && !force) {
+      await registrarLatido("control-alerts", true);
       return NextResponse.json({
         ok: true,
         sent: false,
         reason: "no-issues",
+        monitoreoCrons: coberturaDeLatidos(),
         totalIssues: 0,
       });
     }
@@ -110,10 +113,11 @@ export async function GET(req: NextRequest) {
       html,
     });
 
-    await registrarLatido("control-alerts", true);
+    await registrarLatido("control-alerts", result.ok, result.ok ? undefined : "Falló el envío del correo de control");
     return NextResponse.json({
-      ok: true,
+      ok: result.ok,
       sent: result.ok,
+      monitoreoCrons: coberturaDeLatidos(),
       emailId: result.id,
       error: result.error,
       counts: {
@@ -123,7 +127,7 @@ export async function GET(req: NextRequest) {
         inactiveClients: inactiveClients.length,
         total: totalIssues,
       },
-    });
+    }, { status: result.ok ? 200 : 502 });
   } catch (error: any) {
     await registrarLatido("control-alerts", false, String((error as any)?.message ?? "error"));
     console.error("[cron/control-alerts] error:", error);

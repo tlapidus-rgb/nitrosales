@@ -106,9 +106,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    await registrarLatido("alerts-scheduler", true);
+    const completo = errors === 0 && !budgetHit;
+    // A normal budget cutoff leaves pending work but is not a failed run.
+    await registrarLatido("alerts-scheduler", errors === 0,
+      errors === 0 ? undefined : `${errors} reglas fallidas; ${pending.length - evaluadas} pendientes`);
     return NextResponse.json({
-      ok: true,
+      ok: errors === 0,
+      completo,
+      estado: errors > 0 ? "fallo-parcial" : budgetHit ? "pendiente" : "completo",
       durationMs: Date.now() - startedAt,
       // `rulesEvaluated` es cuantas estaban pendientes; `evaluadas` cuantas se
       // llegaron a mirar. Si difieren, el presupuesto corto y las que faltan

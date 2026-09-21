@@ -75,3 +75,10 @@ Salida: candidato de integración local validado; todavía no es autorización d
 - Validación del primer arreglo: los cuatro casos de regresión fallaron antes del cambio y pasan después; junto con los tests del mapeo ML son 14 casos aprobados. API y persistencia simuladas, sin llamadas reales a MercadoLibre o Neon.
 - Límite operativo: esto no repara históricos ya completados con el algoritmo anterior. Antes de desplegar debe identificarse qué jobs requieren reiniciarse desde su rango original. No se modificaron cursores ni datos existentes.
 - Las decisiones de producto (planes, nuevas plataformas, retención, suspensión) y cambios externos se separan de los defectos técnicos para que no bloqueen los arreglos independientes.
+
+### Monitoreo de crons (2026-09-21)
+
+- Alertas de clientes y control registran fallos de HTTP, JSON y entrega de correo; un envío rechazado ya no informa clientes avisados. El scheduler distingue errores de reglas de un corte normal por presupuesto: este último deja trabajo pendiente sin generar una falsa alarma de ejecución fallida.
+- El control usa un inventario explícito de siete crons instrumentados y expone cuáles siguen sin latido. Se conservan todas las frecuencias cuando un cron tiene varias programaciones y se evalúa la más frecuente.
+- Validación local: suite completa con 1509 aprobados y 7 omitidos, TypeScript, guards, dependencias y build aprobados. Después del ajuste final de presupuesto del scheduler se repitieron los 34 casos afectados, todos aprobados. No se hicieron envíos reales ni cambios de infraestructura.
+- Pendientes: fallos parciales de digest/anomalies/ads-utm-audit, semántica de warm-cache, fallos de lectura de la tabla de latidos y errores que el motor de reglas absorbe internamente. El inventario explícito no equivale a monitoreo completo de todos los crons. No requiere migración y no habilita merge.

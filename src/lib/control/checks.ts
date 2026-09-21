@@ -8,7 +8,7 @@
 import { leerLatidos, cronesAtrasados } from "@/lib/cron/latido";
 import type { CronAtrasado } from "@/lib/cron/latido";
 export type { CronAtrasado };
-import { schedulesDeVercel } from "@/lib/cron/schedules";
+import { schedulesConLatido } from "@/lib/cron/schedules";
 import { prisma } from "@/lib/db/client";
 
 export type HealthLevel = "ok" | "warn" | "error" | "pending";
@@ -383,7 +383,7 @@ function formatMins(mins: number): string {
 // cliente: digest, anomalies, ads-utm-audit, control-alerts, alertas-clientes.
 export async function checkCronesCaidos(): Promise<CronAtrasado[]> {
   try {
-    const [latidos, schedules] = [await leerLatidos(), schedulesDeVercel()];
+    const [latidos, schedules] = [await leerLatidos(), schedulesConLatido()];
     // Hasta que la migración corra, `leerLatidos` devuelve vacío y todos salen
     // como "nunca latió". Eso es ruido inútil, así que sin ningún latido
     // registrado el check se calla: no sabe nada todavía.

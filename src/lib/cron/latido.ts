@@ -111,14 +111,17 @@ export function cadaCuantosMinutos(expr: string): number | null {
 export function cronesAtrasados(
   latidos: readonly Latido[],
   /** cron → expresión de `vercel.json`. */
-  schedules: Readonly<Record<string, string>>,
+  schedules: Readonly<Record<string, string | string[]>>,
   ahora: Date = new Date(),
 ): CronAtrasado[] {
   const out: CronAtrasado[] = [];
   const porNombre = new Map(latidos.map((l) => [l.cron, l]));
 
   for (const [cron, expr] of Object.entries(schedules)) {
-    const cadaMin = cadaCuantosMinutos(expr);
+    // Multiple schedules for one heartbeat must not overwrite the faster one.
+    const cadencias = (Array.isArray(expr) ? expr : [expr]).map(cadaCuantosMinutos)
+      .filter((n): n is number => n !== null);
+    const cadaMin = cadencias.length ? Math.min(...cadencias) : null;
     if (cadaMin === null) continue; // expresión que no entendemos: no inventamos
 
     const l = porNombre.get(cron);

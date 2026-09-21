@@ -92,12 +92,14 @@ export async function GET(req: NextRequest) {
     try {
       json = JSON.parse(crudo);
     } catch {
+      await registrarLatido("alertas-clientes", false, `Respuesta no-JSON (HTTP ${r.status})`);
       return NextResponse.json(
         { ok: false, error: `respuesta no-JSON de /api/admin/alertas (HTTP ${r.status})` },
         { status: 502 },
       );
     }
-    if (!json?.ok) {
+    if (!r.ok || !json?.ok) {
+      await registrarLatido("alertas-clientes", false, `Chequeo fallido (HTTP ${r.status})`);
       return NextResponse.json(
         { ok: false, error: json?.error || `HTTP ${r.status}` },
         { status: 502 },
@@ -109,16 +111,20 @@ export async function GET(req: NextRequest) {
 
     if (accionables.length > 0) {
       try {
-        await sendEmail({
+        const enviado = await sendEmail({
           to: destinatariosDeAlertas(),
           subject: `${json.summary.critical > 0 ? "🚨" : "⚠️"} NitroSales: ${accionables.length} cliente(s) con problemas`,
           html: html(accionables),
           context: "alertas-clientes",
         });
+        if (!enviado.ok) throw new Error("El proveedor no aceptó el correo de alertas");
       } catch (e: any) {
-        // Que falle el mail no puede tumbar el cron: el resultado igual queda
-        // en la respuesta y en los logs.
+        // Preserve the check summary without claiming delivery succeeded.
         console.error("[alertas-clientes] no se pudo mandar el mail:", e?.message);
+        await registrarLatido("alertas-clientes", false, "Falló el envío del correo de alertas");
+        return NextResponse.json({ ok: false, sent: false, avisadas: 0,
+          pendientesDeAvisar: accionables.length, summary: json.summary,
+          error: "Falló el envío del correo de alertas" }, { status: 502 });
       }
     }
 

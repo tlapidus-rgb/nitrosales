@@ -14,13 +14,32 @@
 import vercel from "../../../vercel.json";
 
 /** Nombre del cron (el último segmento de su path) → expresión cron. */
-export function schedulesDeVercel(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const c of (vercel as any).crons ?? []) {
+export type CronSchedules = Record<string, string | string[]>;
+export const CRONES_CON_LATIDO = ["alertas-clientes", "ads-utm-audit", "alerts-scheduler",
+  "anomalies", "control-alerts", "digest", "warm-cache"] as const;
+
+export function schedulesDeVercel(crons: readonly { path: string; schedule: string }[] = vercel.crons): CronSchedules {
+  const out: CronSchedules = {};
+  for (const c of crons) {
     const nombre = nombreDeCron(String(c.path ?? ""));
-    if (nombre && c.schedule) out[nombre] = String(c.schedule);
+    if (nombre && c.schedule) {
+      const previous = out[nombre];
+      out[nombre] = previous ? [...(Array.isArray(previous) ? previous : [previous]), c.schedule] : c.schedule;
+    }
   }
   return out;
+}
+
+/** Only instrumented routes can be expected to emit a heartbeat. */
+export function schedulesConLatido(): CronSchedules {
+  return Object.fromEntries(Object.entries(schedulesDeVercel()).filter(([name]) =>
+    (CRONES_CON_LATIDO as readonly string[]).includes(name)));
+}
+
+export function coberturaDeLatidos() {
+  const schedules = schedulesDeVercel();
+  const conLatido = Object.keys(schedulesConLatido());
+  return { conLatido, sinLatido: Object.keys(schedules).filter(name => !conLatido.includes(name)) };
 }
 
 /**
