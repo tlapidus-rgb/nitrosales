@@ -1,0 +1,2 @@
+# The emitted pixel JavaScript uses LF; preserve the strict byte snapshot on Windows.
+src/__tests__/snapshots/pixel-script.js.txt text eol=lf
