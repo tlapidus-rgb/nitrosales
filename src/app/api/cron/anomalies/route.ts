@@ -312,7 +312,8 @@ export async function GET(req: NextRequest) {
         const { subject, html } = anomalyAlertEmail(org.name, emailAnomalies);
         const recipients = org.users.map(u => u.email);
         const result = await sendEmail({ to: recipients, subject, html });
-        emailed = result.ok;
+        if (!result.ok) throw new Error("No se pudo entregar la alerta de anomalías");
+        emailed = true;
       }
 
       results.push({
@@ -333,9 +334,12 @@ export async function GET(req: NextRequest) {
     if (persisteCursor) {
       await guardarCorte(CRON, i, ids);
     }
-    await registrarLatido("anomalies", true);
+    await registrarLatido("anomalies", failures.length === 0,
+      failures.length ? `${failures.length} organizaciones con fallos` : undefined);
     return NextResponse.json({
       ok: !todasFallaron,
+      completo: failures.length === 0 && !cortoPorReloj,
+      estado: failures.length ? "fallo-parcial" : cortoPorReloj ? "pendiente" : "completo",
       timestamp: new Date().toISOString(),
       organizations: results,
       totalAnomalies: results.reduce((s, r) => s + r.anomalies, 0),

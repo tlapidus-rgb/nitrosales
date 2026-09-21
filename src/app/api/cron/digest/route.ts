@@ -278,7 +278,8 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
       const recipients = org.users.map(u => u.email);
       const emailResult = await sendEmail({ to: recipients, subject, html });
 
-      results.push({ orgId: ORG_ID, orgName: org.name, emailed: emailResult.ok });
+      if (!emailResult.ok) throw new Error("No se pudo entregar el digest");
+      results.push({ orgId: ORG_ID, orgName: org.name, emailed: true });
       } catch (e: any) {
         // La org que falla se anota y se sigue con la siguiente.
         console.error(`[cron/digest] org ${org.name} (${ORG_ID}) falló:`, e?.message);
@@ -295,9 +296,12 @@ Top producto: ${topProds[0]?.name || "N/A"}`,
     if (persisteCursor) {
       await guardarCorte(CRON, i, ids);
     }
-    await registrarLatido("digest", true);
+    await registrarLatido("digest", failures.length === 0,
+      failures.length ? `${failures.length} organizaciones con fallos` : undefined);
     return NextResponse.json({
       ok: !todasFallaron,
+      completo: failures.length === 0 && !cortoPorReloj,
+      estado: failures.length ? "fallo-parcial" : cortoPorReloj ? "pendiente" : "completo",
       timestamp: new Date().toISOString(),
       digests: results,
       // Con datos = esos clientes NO recibieron su digest, aunque ok sea true.

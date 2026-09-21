@@ -190,6 +190,7 @@ export async function GET(req: NextRequest) {
           insightCreated = true;
         } catch (e) {
           console.error(`[ads-utm-audit] failed to persist insight for org ${org.id}:`, e);
+          failures.push({ orgId: org.id, orgName: org.name, error: "No se pudo guardar el insight" });
         }
       }
 
@@ -212,9 +213,12 @@ export async function GET(req: NextRequest) {
     if (persisteCursor) {
       await guardarCorte(CRON, i, ids);
     }
-    await registrarLatido("ads-utm-audit", true);
+    await registrarLatido("ads-utm-audit", failures.length === 0,
+      failures.length ? `${failures.length} organizaciones con fallos` : undefined);
     return NextResponse.json({
       ok: !todasFallaron,
+      completo: failures.length === 0 && !cortoPorReloj,
+      estado: failures.length ? "fallo-parcial" : cortoPorReloj ? "pendiente" : "completo",
       since: since.toISOString(),
       results,
       // Con datos = a esos clientes NO se les auditaron las UTMs, aunque ok sea true.
