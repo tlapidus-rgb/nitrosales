@@ -212,10 +212,8 @@ export default function PublicInfluencerDashboard() {
 
   // ── Fetch dashboard data ──
   const fetchDashboard = useCallback(() => {
-    const url = authenticatedPassword
-      ? `/api/public/influencers/${slug}/${code}?password=${encodeURIComponent(authenticatedPassword)}`
-      : `/api/public/influencers/${slug}/${code}`;
-    fetch(url)
+    const url = `/api/public/influencers/${slug}/${code}`;
+    fetch(url, { headers: authenticatedPassword ? { "x-creator-password": encodeURIComponent(authenticatedPassword) } : {} })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((d) => {
         if (d.needsPasswordSetup) {
@@ -246,8 +244,9 @@ export default function PublicInfluencerDashboard() {
 
   // ── Fetch content data (lazy — only when tab is activated) ──
   const fetchContent = useCallback(() => {
-    const passQs = authenticatedPassword ? `?password=${encodeURIComponent(authenticatedPassword)}` : "";
-    fetch(`/api/public/influencers/${slug}/${code}/content${passQs}`)
+    fetch(`/api/public/influencers/${slug}/${code}/content`, {
+      headers: authenticatedPassword ? { "x-creator-password": encodeURIComponent(authenticatedPassword) } : {},
+    })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((d) => {
         setBriefings(d.briefings || []);

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { crearLimitador, limiteDeClaveDeCreador } from "./rate-limit";
+import { crearLimitador } from "./rate-limit";
 
 // ══════════════════════════════════════════════════════════════════════════
-// R-04 — el limitador que corta la fuerza bruta contra la clave del creador
+// Utilidad local en memoria; la admisión de creadores se prueba por separado.
 // ══════════════════════════════════════════════════════════════════════════
 // El reloj se inyecta en todas las llamadas, así que no hace falta `vi.useFakeTimers`
 // ni esperar: la ventana se recorre moviendo el número.
@@ -72,21 +72,5 @@ describe("crearLimitador", () => {
     // Muy después de la ventana: la entrada de `a` ya no debería contar.
     expect(lim.superado("b", 999_999)).toBe(false);
     expect(lim.restantes("a", 999_999)).toBe(1);
-  });
-});
-
-describe("el limitador de claves de creador", () => {
-  it("es de 5 por minuto, no de 1 por segundo", () => {
-    // El archivo de al lado tiene uno de 1 request/segundo por IP. Para servir
-    // una página alcanza; para un oráculo de contraseña son 86.400 intentos por
-    // día. Este test fija la diferencia, que es la razón de existir del módulo.
-    const id = "test-" + Math.random();
-    const t = 5_000_000;
-    for (let i = 0; i < 5; i++) {
-      expect(limiteDeClaveDeCreador.superado(id, t + i)).toBe(false);
-    }
-    expect(limiteDeClaveDeCreador.superado(id, t + 6)).toBe(true);
-    // Y a 1 req/seg habría dejado pasar los 60 de ese minuto.
-    expect(limiteDeClaveDeCreador.superado(id, t + 59_000)).toBe(true);
   });
 });

@@ -1,40 +1,5 @@
-// ══════════════════════════════════════════════════════════════════════════
-// src/lib/rate-limit.ts — cuántos intentos se permiten, y cada cuánto
-// ══════════════════════════════════════════════════════════════════════════
-// R-04. El endpoint que verifica la contraseña del dashboard de un creador
-// (`/api/public/influencers/{slug}/{code}/verify`) es un POST **público, sin
-// sesión y sin ningún límite**, que devuelve `{valid: true|false}`.
-//
-// O sea: un oráculo de fuerza bruta. Y lo que protege no es poca cosa — con esa
-// clave se ve la facturación, las comisiones y las órdenes atribuidas a ese
-// creador. El `slug` y el `code` son públicos (el link del dashboard es
-// `/i/<orgSlug>/<code>`), la clave la elige el creador, y el hash es SHA-256 sin
-// sal, así que una clave recuperada rompe también la de cualquier otro creador
-// que use la misma.
-//
-// ── POR QUÉ NO SE COPIÓ EL LIMITADOR DEL ARCHIVO DE AL LADO ──────────────
-// El hermano (`[code]/route.ts`) tiene uno de **1 request por segundo por IP**.
-// Para servir una página está bien. Para un oráculo de contraseña no: son 86.400
-// intentos por día desde una sola IP, y un PIN de cuatro dígitos se agota en dos
-// horas.
-//
-// ── EL CRITERIO ──────────────────────────────────────────────────────────
-// Se cuentan los intentos **por identidad**, no por request, y la identidad
-// incluye lo que se está atacando (el código del creador) además de quién
-// ataca (la IP). Sin eso, rotar IPs —que es gratis— evade el límite entero.
-//
-// El presupuesto no se renueva de a poco: la ventana es fija y al agotarse hay
-// que esperarla completa. Es más duro que un token bucket y es lo que se quiere
-// acá, porque no hay ningún caso legítimo en que alguien tipee mal su clave
-// veinte veces seguidas.
-//
-// ── LO QUE ESTO NO ES ────────────────────────────────────────────────────
-// Es un `Map` en memoria del proceso. En Vercel cada lambda tiene el suyo, así
-// que el límite real es por instancia y un atacante con suerte consigue algunos
-// intentos de más. **Sigue bajando el techo en varios órdenes de magnitud** y no
-// necesita infraestructura nueva. El límite de verdad —compartido entre
-// instancias— necesita Redis o una tabla, y es una decisión aparte.
-// ══════════════════════════════════════════════════════════════════════════
+// Limitador local en memoria. No provee limites compartidos entre instancias.
+// La autenticacion de creadores usa creator-password.ts y PostgreSQL.
 
 type Intento = { desde: number; cuenta: number };
 
@@ -105,13 +70,3 @@ export function crearLimitador(
     },
   };
 }
-
-/**
- * El limitador de los intentos de contraseña del dashboard de creadores.
- *
- * 5 intentos por minuto. Un creador que tipea mal su clave dos o tres veces no
- * se entera de que existe; una fuerza bruta pasa de 86.400 intentos diarios a
- * 7.200 **por instancia de lambda y por código atacado**, y eso contra un
- * espacio de claves que el creador eligió.
- */
-export const limiteDeClaveDeCreador = crearLimitador(5, 60_000);

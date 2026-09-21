@@ -9,11 +9,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { createHash } from "crypto";
-
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password).digest("hex");
-}
+import { creatorPasswordFromRequest, creatorPasswordMatches, limitCreatorPassword } from "@/lib/creator-password";
 
 async function verifyInfluencer(slug: string, code: string, password: string | null) {
   const org = await prisma.organization.findFirst({
@@ -35,8 +31,7 @@ async function verifyInfluencer(slug: string, code: string, password: string | n
   // definir su clave con el link de set-password primero.
   if (!influencer.dashboardPassword) return null;
   if (!password) return null;
-  const hashed = hashPassword(password);
-  if (hashed !== influencer.dashboardPassword) return null;
+  if (!creatorPasswordMatches(password, influencer.dashboardPassword)) return null;
 
   return { org, influencer };
 }
@@ -46,13 +41,15 @@ export async function GET(
   { params }: { params: { slug: string; code: string } }
 ) {
   try {
-    const { searchParams } = new URL(req.url);
-    const password = searchParams.get("password");
+    const password = creatorPasswordFromRequest(req);
+    const limited = await limitCreatorPassword(req, params.slug, params.code);
+    if (limited.blocked) return limited.blocked;
 
     const result = await verifyInfluencer(params.slug, params.code, password);
     if (!result) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await limited.success();
     const { org, influencer } = result;
 
     // Get active briefings for this influencer (assigned to them OR to all)
@@ -104,10 +101,11 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ briefings, submissions, seedings });
+    return NextResponse.json({ briefings, submissions, seedings },
+      { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
     console.error("[Public Content GET]", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
 
@@ -117,10 +115,13 @@ export async function POST(
 ) {
   try {
     const body = await req.json();
+    const limited = await limitCreatorPassword(req, params.slug, params.code);
+    if (limited.blocked) return limited.blocked;
     const result = await verifyInfluencer(params.slug, params.code, body.password || null);
     if (!result) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await limited.success();
     const { org, influencer } = result;
 
     if (!body.contentUrl) {
@@ -145,6 +146,6 @@ export async function POST(
     return NextResponse.json({ submission }, { status: 201 });
   } catch (error: any) {
     console.error("[Public Content POST]", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

@@ -7,18 +7,14 @@ export const dynamic = "force-dynamic";
 //       dashboard. No PII, no customer data.
 //
 // URL: /api/public/influencers/[org_slug]/[influencer_code]
-// Cache: 30 seconds
+// Password-protected data must never enter a shared response cache.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
-import { createHash } from "crypto";
+import { creatorPasswordFromRequest, creatorPasswordMatches, limitCreatorPassword } from "@/lib/creator-password";
 import { getStoreUrl } from "@/lib/org-store-url";
-
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password).digest("hex");
-}
 
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, number>();
@@ -53,6 +49,10 @@ export async function GET(
     }
 
     const { slug, code } = params;
+    // Query fallback supports already-open clients; new clients use the header.
+    const password = creatorPasswordFromRequest(req);
+    const limited = password !== null ? await limitCreatorPassword(req, slug, code) : null;
+    if (limited?.blocked) return limited.blocked;
 
     // Find organization by slug
     const org = await prisma.organization.findUnique({
@@ -87,9 +87,7 @@ export async function GET(
 
     // Password protection check
     {
-      const url = new URL(req.url);
-      const password = url.searchParams.get("password");
-      if (!password || hashPassword(password) !== influencer.dashboardPassword) {
+      if (!creatorPasswordMatches(password, influencer.dashboardPassword)) {
         return NextResponse.json({
           requiresPassword: true,
           influencer: {
@@ -101,6 +99,7 @@ export async function GET(
       }
     }
 
+    await limited?.success();
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -414,7 +413,7 @@ export async function GET(
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (error: any) {

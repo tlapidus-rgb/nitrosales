@@ -680,6 +680,15 @@ enum InsightPriority {
 // ─────────────────────────────────────────────
 // AURUM USAGE LOG — Telemetria del motor de razonamiento
 // ─────────────────────────────────────────────
+model CreatorPasswordAttempt {
+  key       String   @id
+  attempts  Int
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  @@index([expiresAt], map: "creator_password_attempts_expiry_idx")
+  @@map("creator_password_attempts")
+}
+
 model AurumUsageLog {
   id             String   @id @default(cuid())
   organizationId String
