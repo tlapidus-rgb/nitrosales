@@ -51,7 +51,12 @@
 // El endpoint de debug detectaba el primero y **no el segundo**.
 // ══════════════════════════════════════════════════════════════════════════
 
+import { esClaveDeWebhookValida } from "@/lib/webhook-key";
+
 export type VeredictoDelHook =
+  | "url-invalida"
+  | "ruta-incorrecta"
+  | "clave-invalida"
   /** Configurado, apunta a nosotros y con el org correcto. */
   | "ok"
   /** No hay ningún hook configurado en esa cuenta de VTEX. */
@@ -73,14 +78,26 @@ export type AnalisisDelHook = {
   queHacer: string;
 };
 
-/** Los dominios que son nuestros. Un hook que no apunte acá no nos llega. */
-const DOMINIOS_PROPIOS = /nitrosales|99media/i;
+function parseHook(value: string): URL | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port ? url : null;
+  } catch { return null; }
+}
+
+/** Exact origins only. An old/custom domain must be explicitly configured. */
+function esOrigenPropio(url: URL): boolean {
+  const origins = new Set(["https://app.nitrosales.ai", "https://nitrosales.vercel.app"]);
+  const configured = process.env.NEXTAUTH_URL && parseHook(process.env.NEXTAUTH_URL);
+  if (configured) origins.add(configured.origin);
+  return origins.has(url.origin);
+}
 
 /**
  * Decide si el hook configurado en VTEX sirve para esta organización.
  *
- * Es puro a propósito: el criterio es la parte que hay que poder probar, y la
- * llamada a VTEX es la parte que no se puede.
+ * No hace llamadas externas: comprueba estructura y credenciales contra la
+ * configuración del deployment. No demuestra la entrega de una orden real.
  *
  * @param urlConfigurada la URL que VTEX tiene guardada, o `null` si no hay hook
  * @param orgIdEsperado  el id de la organización que estamos verificando
@@ -100,19 +117,25 @@ export function analizarHook(
     };
   }
 
-  if (!DOMINIOS_PROPIOS.test(urlConfigurada)) {
+  const url = parseHook(urlConfigurada);
+  if (!url) return {
+    veredicto: "url-invalida", registrado: false, orgEnLaUrl: null,
+    queHacer: "El hook debe ser una URL HTTPS válida, sin usuario, contraseña ni puerto alternativo.",
+  };
+
+  if (!esOrigenPropio(url)) {
     return {
       veredicto: "dominio-ajeno",
       registrado: false,
       orgEnLaUrl: null,
       queHacer:
-        `El hook apunta a ${recortar(urlConfigurada)}, que no es nuestro. Las órdenes ` +
+        `El hook apunta a ${recortar(url.origin)}, que no es nuestro. Las órdenes ` +
         "se están yendo a otro lado. Revisá con el cliente antes de pisarlo: VTEX " +
         "guarda un solo hook por cuenta y configurarlo borra el que está.",
     };
   }
 
-  const orgEnLaUrl = orgDeLaUrl(urlConfigurada);
+  const orgEnLaUrl = url.searchParams.get("org");
 
   if (!orgEnLaUrl) {
     return {
@@ -138,6 +161,16 @@ export function analizarHook(
     };
   }
 
+  if (url.pathname !== "/api/webhooks/vtex/orders") return {
+    veredicto: "ruta-incorrecta", registrado: false, orgEnLaUrl,
+    queHacer: "El hook debe apuntar a /api/webhooks/vtex/orders.",
+  };
+  if (url.searchParams.getAll("org").length !== 1 || url.searchParams.getAll("key").length !== 1 ||
+      !esClaveDeWebhookValida(url.searchParams.get("key"))) return {
+    veredicto: "clave-invalida", registrado: false, orgEnLaUrl,
+    queHacer: "Revisá la clave del webhook y los parámetros duplicados. La configuración no autenticaría correctamente.",
+  };
+
   return {
     veredicto: "ok",
     registrado: true,
@@ -146,16 +179,6 @@ export function analizarHook(
   };
 }
 
-/** El `org` de la query string, si la URL trae uno. */
-function orgDeLaUrl(url: string): string | null {
-  const m = url.match(/[?&]org=([^&#\s]+)/);
-  if (!m) return null;
-  try {
-    return decodeURIComponent(m[1]) || null;
-  } catch {
-    return m[1] || null;
-  }
-}
 
 function recortar(s: string): string {
   return s.length > 80 ? `${s.slice(0, 77)}…` : s;
@@ -244,7 +267,10 @@ export function afiliadoNuestro(
   // primero: tener dos apuntándonos ya es una anomalía que se ve igual en el
   // análisis del que elijamos.
   const nuestro = afiliados.find(
-    (a) => typeof a?.hookUrl === "string" && DOMINIOS_PROPIOS.test(a.hookUrl),
+    (a) => {
+      const url = typeof a?.hookUrl === "string" ? parseHook(a.hookUrl) : null;
+      return url !== null && esOrigenPropio(url);
+    },
   );
   return nuestro ?? null;
 }

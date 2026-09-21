@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+beforeEach(() => { vi.stubEnv("NEXTAUTH_SECRET", "xxx"); vi.stubEnv("NEXTAUTH_SECRET_ANTERIOR", ""); vi.stubEnv("NEXTAUTH_URL", "https://app.nitrosales.ai"); });
+afterEach(() => vi.unstubAllEnvs());
 import { analizarHook, afiliadoNuestro } from "./hooks";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -26,7 +28,7 @@ describe("el camino feliz", () => {
   });
 
   it("el orden de los parámetros no importa", () => {
-    expect(analizarHook(`https://app.nitrosales.ai/h?key=x&org=${ORG}`, ORG).registrado).toBe(true);
+    expect(analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${ORG}`, ORG).registrado).toBe(true);
   });
 });
 
@@ -54,12 +56,12 @@ describe("EL CASO TEVE COMPRAS: hook sin ?org=", () => {
   });
 
   it("un `org=` vacío tampoco cuenta", () => {
-    expect(analizarHook("https://app.nitrosales.ai/h?org=&key=x", ORG).veredicto).toBe("sin-org");
+    expect(analizarHook("https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=", ORG).veredicto).toBe("sin-org");
   });
 
   it("y `organization=` no es `org=`", () => {
     // Un parámetro parecido no alcanza: el webhook lee `org`.
-    expect(analizarHook(`https://app.nitrosales.ai/h?organization=${ORG}`, ORG).veredicto).toBe(
+    expect(analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?organization=${ORG}`, ORG).veredicto).toBe(
       "sin-org",
     );
   });
@@ -70,14 +72,14 @@ describe("EL CASO QUE NADIE MIRABA: hook con el org de otro cliente", () => {
   // correcto. Es el que se vuelve probable justo cuando entran clientes:
   // alcanza con copiar el curl del alta anterior y olvidarse de cambiar el id.
   it("las órdenes de este cliente se están contando como del otro", () => {
-    const r = analizarHook(`https://app.nitrosales.ai/h?org=${OTRA}&key=x`, ORG);
+    const r = analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${OTRA}`, ORG);
     expect(r.veredicto).toBe("org-ajena");
     expect(r.registrado).toBe(false);
     expect(r.orgEnLaUrl).toBe(OTRA);
   });
 
   it("dice de quién son las órdenes ahora, que es lo que hay que ir a arreglar", () => {
-    const r = analizarHook(`https://app.nitrosales.ai/h?org=${OTRA}`, ORG);
+    const r = analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${OTRA}`, ORG);
     expect(r.queHacer).toContain(OTRA);
     // Lo que importa es que diga que hay DOS clientes con los números mal, no
     // sólo el que estamos mirando. `toContain` era sensible a mayúsculas y el
@@ -108,24 +110,25 @@ describe("hook que apunta a otro lado", () => {
 });
 
 describe("detalles que muerden", () => {
-  it("acepta nuestro otro dominio", () => {
-    expect(analizarHook(`https://algo.99media.com.ar/h?org=${ORG}`, ORG).registrado).toBe(true);
+  it("acepta un dominio alternativo configurado explícitamente", () => {
+    vi.stubEnv("NEXTAUTH_URL", "https://algo.99media.com.ar");
+    expect(analizarHook(`https://algo.99media.com.ar/api/webhooks/vtex/orders?key=xxx&org=${ORG}`, ORG).registrado).toBe(true);
   });
 
   it("un org url-encodeado se compara decodificado", () => {
-    expect(analizarHook(`https://app.nitrosales.ai/h?org=${encodeURIComponent(ORG)}`, ORG).registrado).toBe(
+    expect(analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${encodeURIComponent(ORG)}`, ORG).registrado).toBe(
       true,
     );
   });
 
   it("no se confunde con un org que empieza igual", () => {
     // Sin el corte en `&`, un prefijo podría dar un falso OK.
-    const r = analizarHook(`https://app.nitrosales.ai/h?org=${ORG}xyz`, ORG);
+    const r = analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${ORG}xyz`, ORG);
     expect(r.veredicto).toBe("org-ajena");
   });
 
   it("el fragmento no se come el org", () => {
-    expect(analizarHook(`https://app.nitrosales.ai/h?org=${ORG}#algo`, ORG).registrado).toBe(true);
+    expect(analizarHook(`https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${ORG}#algo`, ORG).registrado).toBe(true);
   });
 });
 
@@ -137,7 +140,7 @@ describe("detalles que muerden", () => {
 // y no es problema nuestro, asi que primero hay que elegir cuál mirar.
 
 describe("afiliadoNuestro", () => {
-  const NUESTRO = { id: "NIT", name: "NitroSales", hookUrl: `https://app.nitrosales.ai/h?org=${ORG}` };
+  const NUESTRO = { id: "NIT", name: "NitroSales", hookUrl: `https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${ORG}` };
   const AJENO = { id: "ERP", name: "ERP del cliente", hookUrl: "https://erp.cliente.com/vtex" };
 
   it("de una lista mezclada, elige el que apunta a nosotros", () => {
@@ -163,8 +166,36 @@ describe("afiliadoNuestro", () => {
   it("y el elegido se analiza con el MISMO criterio que el broadcaster", () => {
     // Es el punto de reusar `analizarHook`: el modo de falla es idéntico —
     // que exista no alcanza, tiene que llevar el org correcto.
-    const conOrgAjena = { id: "NIT", hookUrl: `https://app.nitrosales.ai/h?org=${OTRA}` };
+    const conOrgAjena = { id: "NIT", hookUrl: `https://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=${OTRA}` };
     const elegido = afiliadoNuestro([conOrgAjena])!;
     expect(analizarHook(elegido.hookUrl, ORG).veredicto).toBe("org-ajena");
+  });
+});
+
+describe("rejects misleading destinations and unusable authentication", () => {
+  it.each([
+    "https://example.invalid/receiver?brand=nitrosales&org=" + ORG,
+    "https://nitrosales.evil.invalid/api/webhooks/vtex/orders?key=xxx&org=" + ORG,
+    "https://app.nitrosales.ai/login?key=xxx&org=" + ORG,
+    "http://app.nitrosales.ai/api/webhooks/vtex/orders?key=xxx&org=" + ORG,
+    "https://app.nitrosales.ai/api/webhooks/vtex/orders?org=" + ORG,
+    "https://app.nitrosales.ai/api/webhooks/vtex/orders?key=wrong&org=" + ORG,
+    BUENA + "&org=" + ORG,
+    BUENA + "&key=xxx",
+  ])("rejects %s", url => {
+    const result = analizarHook(url, ORG);
+    expect(result.registrado).toBe(false);
+    expect(result.veredicto).not.toBe("ok");
+    expect(result.queHacer).not.toBe("");
+    expect(result.queHacer).not.toContain("key=");
+  });
+  it("accepts the previous key only during a configured rotation", () => {
+    vi.stubEnv("NEXTAUTH_SECRET_ANTERIOR", "previous");
+    expect(analizarHook(BUENA.replace("key=xxx", "key=previous"), ORG).registrado).toBe(true);
+    vi.stubEnv("NEXTAUTH_SECRET_ANTERIOR", "");
+    expect(analizarHook(BUENA.replace("key=xxx", "key=previous"), ORG).registrado).toBe(false);
+  });
+  it("does not select an affiliate based on a brand string in its query", () => {
+    expect(afiliadoNuestro([{ hookUrl: "https://example.invalid/?brand=nitrosales" }])).toBeNull();
   });
 });
