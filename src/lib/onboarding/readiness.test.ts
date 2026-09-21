@@ -110,22 +110,25 @@ describe("lo que NO bloquea pero tiene que verse", () => {
     expect(item(r, "pixel").queHacer).toContain("no verifica nada");
   });
 
-  it("conexiones sin probar avisan", () => {
+  it("conexiones sin probar dejan el alta inconclusa", () => {
     const r = evaluarReadiness({
       ...todoBien,
       conexiones: [{ plataforma: "VTEX", credencialesOk: null }],
     });
     expect(item(r, "credenciales").estado).toBe("atencion");
-    expect(r.listo).toBe(true);
+    expect(r.listo).toBe(false);
+    expect(r.estado).toBe("inconcluso");
+    expect(r.sinVerificar).toBe(1);
   });
 
-  it("el backfill en curso avisa, no bloquea", () => {
+  it("el backfill en curso impide declarar el alta lista", () => {
     const r = evaluarReadiness({
       ...todoBien,
       jobs: { total: 3, completos: 1, fallados: 0, pendientes: 2 },
     });
     expect(item(r, "backfill").estado).toBe("atencion");
-    expect(r.listo).toBe(true);
+    expect(r.listo).toBe(false);
+    expect(r.estado).toBe("pendiente");
   });
 });
 
@@ -294,6 +297,9 @@ describe("cuando no se pudo consultar algo, se dice", () => {
     const r = evaluarReadiness({ ...todoBien, eventosDePixel: null, ordenes: null });
     expect(item(r, "pixel").estado).toBe("atencion");
     expect(item(r, "ordenes").estado).toBe("atencion");
+    expect(r.listo).toBe(false);
+    expect(r.estado).toBe("inconcluso");
+    expect(r.sinVerificar).toBe(1);
   });
 });
 

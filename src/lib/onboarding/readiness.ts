@@ -87,6 +87,8 @@ export type InsumosDeReadiness = {
 
 export type Readiness = {
   listo: boolean;
+  estado: "listo" | "pendiente" | "inconcluso";
+  sinVerificar: number;
   /** Cuántos items hay que resolver antes de habilitar. */
   bloqueantes: number;
   items: ItemDeReadiness[];
@@ -377,8 +379,11 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
   }
 
   const bloqueantes = items.filter(
-    (it) => it.estado === "falta" && BLOQUEANTES.has(it.clave),
+    (it) => BLOQUEANTES.has(it.clave) &&
+      (it.estado === "falta" || (it.clave === "backfill" && it.estado === "atencion")),
   ).length;
 
-  return { listo: bloqueantes === 0, bloqueantes, items };
+  const sinVerificar = Number(i.conexiones.some(c => c.credencialesOk === null)) + Number(i.ordenes === null);
+  const estado = bloqueantes > 0 ? "pendiente" : sinVerificar > 0 ? "inconcluso" : "listo";
+  return { listo: estado === "listo", estado, sinVerificar, bloqueantes, items };
 }
