@@ -8,8 +8,8 @@ import { executeToolCall } from "@/lib/intelligence/handlers";
 import { ALERT_TOOLS, ALERT_TOOLS_PROMPT, isAlertToolName } from "@/lib/alerts/aurum-tools";
 import { executeAlertTool } from "@/lib/alerts/aurum-handlers";
 import { getSessionUserId } from "@/lib/alerts/get-user-id";
-import { evaluarCuota, limitesDeAurum } from "@/lib/aurum/cuota";
-import { consumoActualDe } from "@/lib/aurum/consumo-actual";
+import { admitirAurum, MODELO_USO_INCIERTO } from "@/lib/aurum/admision";
+
 
 export const dynamic = "force-dynamic";
 
@@ -258,7 +258,9 @@ async function buildMemoryContext(orgId: string): Promise<string> {
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  let orgIdForLog: string | null = null;
+  let reservationId: string | null = null;
+  let providerInFlight = false;
+  let usageUncertain = false;
   let userIdForLog: string | null = null;
   let modeForLog: ReasoningMode = "CORE";
   let modelForLog: string = MODE_CONFIG.CORE.model;
@@ -281,28 +283,15 @@ export async function POST(req: Request) {
     const modoPedido = normalizeMode(rawMode);
 
     const org = await getOrganization();
-    orgIdForLog = org.id;
-
-    // ── E-23: cuota y freno de loop ─────────────────────────────────────────
-    // Aurum es el único componente con costo variable, y el modo DEEP (Opus, 8
-    // rondas) lo elige el cliente desde la UI. Sin esto, el único techo del
-    // gasto es la buena fe del que usa el producto.
-    //
-    // Degrada, no bloquea: pasado el tope se contesta en FLASH y se le DICE.
-    // La única puerta que cierra de verdad es el rate limit, porque a 20+
-    // consultas por minuto no hay nadie escribiendo — hay código en loop.
-    //
-    // Todo esto es fail-open: si el consumo no se puede medir, pasa. Ver
-    // src/lib/aurum/cuota.ts para el razonamiento y para lo que cuesta.
-    const cuota = evaluarCuota({
-      modoPedido,
-      consumo: await consumoActualDe(org.id).catch(() => ({
-        usdDelMes: null,
-        consultasUltimoMinuto: null,
-      })),
-      limites: limitesDeAurum(),
-    });
-
+    let admission;
+    try {
+      admission = await admitirAurum(org.id, modoPedido);
+    } catch {
+      return NextResponse.json({ error: "No se pudo verificar el cupo de Aurum. Intentá nuevamente." },
+        { status: 503 });
+    }
+    const cuota = admission.cuota;
+    reservationId = admission.id;
     if (!cuota.permitido) {
       return NextResponse.json({ error: cuota.motivo, cuota }, { status: 429 });
     }
@@ -350,6 +339,7 @@ export async function POST(req: Request) {
 
     for (let round = 0; round < cfg.maxToolRounds; round++) {
       toolRoundsRun = round + 1;
+      providerInFlight = true;
       const response = await anthropic.messages.create({
         model: cfg.model,
         max_tokens: cfg.maxTokens,
@@ -358,8 +348,16 @@ export async function POST(req: Request) {
         messages: currentMessages,
       });
 
-      inputTokensTotal += response.usage?.input_tokens || 0;
-      outputTokensTotal += response.usage?.output_tokens || 0;
+      providerInFlight = false;
+      const measuredInput = response.usage?.input_tokens;
+      const measuredOutput = response.usage?.output_tokens;
+      if (Number.isFinite(measuredInput) && measuredInput >= 0 &&
+          Number.isFinite(measuredOutput) && measuredOutput >= 0) {
+        inputTokensTotal += measuredInput;
+        outputTokensTotal += measuredOutput;
+      } else {
+        usageUncertain = true;
+      }
       stopReasonFinal = response.stop_reason || stopReasonFinal;
 
       // Check if Claude wants to use tools
@@ -430,6 +428,7 @@ export async function POST(req: Request) {
         degradado: cuota.degradado,
         cercaDelTope: cuota.cercaDelTope,
         aviso: cuota.motivo,
+        medicionDisponible: cuota.medicionDisponible,
       },
     });
   } catch (e: any) {
@@ -438,16 +437,17 @@ export async function POST(req: Request) {
     console.error("[Aurum Error]", errorMessage);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   } finally {
-    // ── Fire-and-forget telemetry log ──
-    if (orgIdForLog) {
+    // Finalize the already-counted admission before the invocation ends.
+    if (reservationId) {
       const latencyMs = Date.now() - startedAt;
-      prisma.aurumUsageLog
-        .create({
+      await prisma.aurumUsageLog
+        .update({
+          where: { id: reservationId },
           data: {
-            organizationId: orgIdForLog,
+
             userId: userIdForLog,
             mode: modeForLog,
-            model: modelForLog,
+            model: providerInFlight || usageUncertain ? MODELO_USO_INCIERTO : modelForLog,
             inputTokens: inputTokensTotal,
             outputTokens: outputTokensTotal,
             totalTokens: inputTokensTotal + outputTokensTotal,

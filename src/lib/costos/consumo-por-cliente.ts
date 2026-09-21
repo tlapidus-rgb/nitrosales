@@ -157,9 +157,13 @@ export function avisosDelReporte(args: {
 
   const sinPrecio = new Set<string>();
   for (const c of args.clientes) for (const m of c.aurum?.modelosSinPrecio ?? []) sinPrecio.add(m.modelo);
-  if (sinPrecio.size > 0) {
+  const modelosReales = [...sinPrecio].filter(m => !m.startsWith("__aurum_"));
+  if (modelosReales.length !== sinPrecio.size) {
+    avisos.push("Hay solicitudes de IA pendientes o con consumo sin confirmar. El total es incompleto hasta conciliar ese uso; no corresponde asignarles un precio cero.");
+  }
+  if (modelosReales.length > 0) {
     avisos.push(
-      `Hay llamadas de modelos sin precio en la tabla (${[...sinPrecio].join(", ")}). ` +
+      `Hay llamadas de modelos sin precio en la tabla (${modelosReales.join(", ")}). ` +
         `Su costo NO está sumado en el total. Agregalos con PRECIOS_MODELOS_JSON.`,
     );
   }

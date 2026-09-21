@@ -98,6 +98,8 @@ export function costoDeLaLlamada(
   tokensSalida: number,
   env: NodeJS.ProcessEnv = process.env,
 ): CostoDeLaLlamada {
+  // Internal markers are unsettled usage, never configurable free models.
+  if (modelo.startsWith("__aurum_")) return { usd: null, conocido: false };
   const precio = tablaDePrecios(env)[modelo];
   if (!precio) return { usd: null, conocido: false };
 

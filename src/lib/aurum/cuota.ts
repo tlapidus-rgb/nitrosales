@@ -25,15 +25,8 @@
 // arreglando toda la branch: el usuario vería respuestas peores sin saber por
 // qué, y culparía al producto en vez de al tope.
 //
-// ── FAIL-OPEN, A PROPÓSITO Y CON INCOMODIDAD ─────────────────────────────
-// Si no se puede medir el consumo, se deja pasar. Bloquear el producto porque
-// una query de telemetría falló es peor que el gasto que evita, y es la misma
-// regla que E-13 ya fijó para la validación de credenciales.
-//
-// El costo de esta decisión hay que decirlo: una caída de la base es, también,
-// gasto sin techo. Por eso `medicionDisponible: false` sale en la respuesta —
-// es una condición que hay que poder ver, no una que se asume benigna.
-// ══════════════════════════════════════════════════════════════════════════
+// La admision se reserva en PostgreSQL antes del proveedor. Sin contador, 503.
+// Consumo pendiente o sin precio: FLASH con aviso hasta reconciliarlo.
 
 export type ModoDeAurum = "FLASH" | "CORE" | "DEEP";
 
@@ -141,13 +134,14 @@ export function evaluarCuota(args: {
     };
   }
 
-  // ── Sin medición, se deja pasar ─────────────────────────────────────────
+  // Pending/unknown spend permits FLASH only; an unreadable admission counter
+  // fails before reaching this policy in admitirAurum.
   if (consumo.usdDelMes === null) {
     return {
       permitido: true,
-      modoEfectivo: modoPedido,
-      degradado: false,
-      motivo: null,
+      modoEfectivo: "FLASH",
+      degradado: modoPedido !== "FLASH",
+      motivo: "Hay consumo pendiente o sin precio confirmado. Esta respuesta usa el modo rápido hasta completar la medición.",
       cercaDelTope: false,
       medicionDisponible: false,
     };

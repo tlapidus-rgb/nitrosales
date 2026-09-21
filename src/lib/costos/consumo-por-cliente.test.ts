@@ -171,6 +171,16 @@ describe("los avisos: cuando el numero NO se puede facturar tal cual", () => {
     expect(r.avisos.some((a) => a.includes("2026-09-12"))).toBe(true);
   });
 
+  it("el uso pendiente requiere conciliacion, no agregar un precio ficticio", () => {
+    const r = avisosDelReporte({ ...args, clientes: [sano({
+      aurum: costoDeAurum([llamada({ model: "__aurum_pending__" })], vacio),
+    })] });
+    expect(r.completo).toBe(false);
+    expect(r.avisos.some(a => a.includes("conciliar"))).toBe(true);
+    expect(r.avisos.join(" ")).not.toContain("PRECIOS_MODELOS_JSON");
+    expect(r.avisos.join(" ")).not.toContain("__aurum_");
+  });
+
   it("EL AVISO QUE EVITA FACTURAR DE MENOS: filas truncadas", () => {
     // Si el query de Aurum toco su techo, el costo esta SUBESTIMADO. Facturar
     // de menos es el error que el cliente no reclama nunca.

@@ -132,14 +132,14 @@ describe("el freno del loop va primero que el tope", () => {
   });
 });
 
-describe("fail-open: sin medicion se deja pasar", () => {
-  it("usd en null no degrada nada", () => {
+describe("sin precio confirmado se limita al modo rapido", () => {
+  it("usd en null degrada a FLASH con aviso", () => {
     // Bloquear el producto porque una query de telemetria fallo es peor que el
     // gasto que evita. Misma regla que E-13 para las credenciales.
     const r = evaluar("DEEP", null);
     expect(r.permitido).toBe(true);
-    expect(r.modoEfectivo).toBe("DEEP");
-    expect(r.motivo).toBeNull();
+    expect(r.modoEfectivo).toBe("FLASH");
+    expect(r.motivo).toBeTruthy();
   });
 
   it("pero lo MARCA, porque una caida de la base tambien es gasto sin techo", () => {
