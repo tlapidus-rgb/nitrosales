@@ -52,6 +52,16 @@ Salida: candidato de integración local validado; todavía no es autorización d
 
 ## Seguimiento
 
+### Bloque local de correcciones (2026-09-21)
+
+- Admisión de backfills: el conteo y claim se ejecutan después de adquirir un advisory lock transaccional global, con aislamiento Read Committed. El cooldown es de seis minutos, superior al máximo declarado de cinco minutos del runner. Pruebas locales verifican orden de bloqueo/claim, rollback y límites inválidos; 73 tests del módulo pasan. **Pendiente:** prueba con dos sesiones PostgreSQL reales y recuperación de un worker lento/muerto. Esto no constituye una prueba de concurrencia real ni un lease con token de propietario.
+- Consumo: una consulta de uso IA fallida conserva `null`, no inventa cero; un conjunto truncado no se declara completo. Los 25 tests de helper y handler pasan.
+- VTEX: validación de origen exacto, HTTPS, ruta, organización única y clave actual/anterior válida; no basta que una URL contenga el nombre de NitroSales. Las claves no se incluyen en mensajes de diagnóstico. Los 46 tests de hooks y autenticación de webhook pasan. El resultado comprueba configuración, no entrega real.
+- Readiness: credenciales u órdenes desconocidas producen estado inconcluso; backfill en curso impide declarar listo. Los 31 tests pasan. **Pendiente:** contrato de plataformas y conexión de este criterio al flujo de aprobación.
+- Snapshot del píxel: comprobado que la copia Windows sólo difería por 1555 CRLF. Se restaura el contenido exacto ya versionado y se fija `eol=lf` con `.gitattributes`; se conserva la comparación estricta. Sus 13 tests pasan, sin cambiar el script ni regenerar el snapshot.
+- Suite completa antes de corregir el checkout del snapshot: 1460 aprobados, 7 omitidos y ese único fallo de CRLF. Reejecución del archivo afectado: 13/13. TypeScript, guards de órdenes/Gold/ts-nocheck, dependency-cruiser y build Next.js aprobados. Build ejecutado directamente, sin regenerar Prisma sobre las dependencias compartidas. La validación operativa sigue pendiente.
+- Siguen abiertos los demás puntos de las fases 1–5: estos cambios no habilitan merge ni despliegue. No se modificaron servicios externos o datos de clientes.
+
 - Rama aislada creada desde el commit auditado; checkout de Claude preservado.
 - Primer arreglo implementado: MercadoLibre divide primero hacia la mitad reciente y luego continúa hacia atrás, sin omitir la mitad superior. Subdivide también picos dentro de un día y reporta error si no puede separar más el intervalo.
 - Validación del primer arreglo: los cuatro casos de regresión fallaron antes del cambio y pasan después; junto con los tests del mapeo ML son 14 casos aprobados. API y persistencia simuladas, sin llamadas reales a MercadoLibre o Neon.
