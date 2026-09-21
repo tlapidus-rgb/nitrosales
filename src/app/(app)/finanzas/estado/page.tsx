@@ -16,6 +16,7 @@ import ExportMenu from "@/components/finanzas/ExportMenu";
 import { exportPnLToExcel, ExportRow, ExportManualCost } from "@/lib/finanzas/export";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 import { confianzaDelMargen } from "@/lib/finanzas/confianza-del-margen";
+import PnlCoverageGate from "@/components/finanzas/PnlCoverageGate";
 
 /* ── Types ──────────────────────────────────── */
 interface PnlSummary {
@@ -1312,6 +1313,7 @@ export default function FinanzasPage() {
             <p className="text-sm text-ink-40 mt-0.5">P&L — Estado de Resultados</p>
           </div>
           {/* View Mode Toggle */}
+          {confianzaDelMargen(summary.cogsCoverage) !== "sin-datos" && (
           <div className="flex bg-surface-2 rounded-lg p-0.5 print:hidden">
             <button
               onClick={() => setViewMode("executive")}
@@ -1334,6 +1336,7 @@ export default function FinanzasPage() {
               Detallado
             </button>
           </div>
+          )}
         </div>
         <div className="print:hidden">
           <DateRangeFilter
@@ -1361,6 +1364,10 @@ export default function FinanzasPage() {
       </div>
 
       {/* Bridge Strip (Fase 6e) — CAC / LTV / Payback leido de /api/metrics/ltv */}
+      <PnlCoverageGate summary={summary} bySource={bySource} categories={categories}
+        brands={brands} manualCosts={manualCosts.map(mc => ({ ...mc,
+          category: COST_CATEGORIES.find(c => c.key === mc.category)?.label ?? mc.category,
+        }))} midDate={midDate}>
       <div className="mb-4 print:hidden">
         <BridgeStrip dateFrom={dateFrom} dateTo={dateTo} />
       </div>
@@ -1393,6 +1400,7 @@ export default function FinanzasPage() {
       )}
 
       {/* Sub-fase 2e — estilos @media print globales para exportar el P&L como PDF */}
+      </PnlCoverageGate>
       <style jsx global>{`
         @media print {
           /* Ocultar sidebar del layout (app) */

@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 import path from "path";
 
 export default defineConfig({
+  // Next preserves JSX for its own compiler; component tests need executable JSX.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     globals: true,
     environment: "node",
