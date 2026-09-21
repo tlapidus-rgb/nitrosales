@@ -214,7 +214,7 @@ export async function registrarLatido(
   }
 }
 
-/** Todos los latidos registrados. Lista vacía si la tabla no existe todavía. */
+/** Todos los latidos registrados. Una lectura fallida nunca equivale a una lista vacía. */
 export async function leerLatidos(): Promise<Latido[]> {
   try {
     const filas = await prisma.$queryRawUnsafe<Array<any>>(
@@ -230,6 +230,8 @@ export async function leerLatidos(): Promise<Latido[]> {
     if (!esTablaAusente(e)) {
       console.error("[latido] no se pudieron leer los latidos:", e);
     }
-    return [];
+    throw new Error(esTablaAusente(e)
+      ? "Monitoreo de crons no disponible: falta la tabla de latidos."
+      : "Monitoreo de crons no disponible: no se pudieron leer los latidos.");
   }
 }

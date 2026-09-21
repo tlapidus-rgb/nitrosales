@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
       checkCronesCaidos(),
     ]);
 
+    const monitoreoDisponible = !cronesCaidos.some(c => c.motivo === "monitoreo-no-disponible");
     const errorCount = connectionIssues.filter((i) => i.level === "error").length;
     const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
     const totalIssues =
@@ -113,11 +114,14 @@ export async function GET(req: NextRequest) {
       html,
     });
 
-    await registrarLatido("control-alerts", result.ok, result.ok ? undefined : "Falló el envío del correo de control");
+    const completo = result.ok && monitoreoDisponible;
+    await registrarLatido("control-alerts", completo, !result.ok
+      ? "Falló el envío del correo de control"
+      : !monitoreoDisponible ? "No se pudo verificar el monitoreo de crons" : undefined);
     return NextResponse.json({
-      ok: result.ok,
+      ok: completo,
       sent: result.ok,
-      monitoreoCrons: coberturaDeLatidos(),
+      monitoreoCrons: { ...coberturaDeLatidos(), disponible: monitoreoDisponible },
       emailId: result.id,
       error: result.error,
       counts: {
@@ -127,7 +131,7 @@ export async function GET(req: NextRequest) {
         inactiveClients: inactiveClients.length,
         total: totalIssues,
       },
-    }, { status: result.ok ? 200 : 502 });
+    }, { status: !result.ok ? 502 : !monitoreoDisponible ? 503 : 200 });
   } catch (error: any) {
     await registrarLatido("control-alerts", false, String((error as any)?.message ?? "error"));
     console.error("[cron/control-alerts] error:", error);

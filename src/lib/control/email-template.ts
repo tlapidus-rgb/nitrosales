@@ -6,7 +6,7 @@ import type {
   ConnectionIssue,
   StuckOnboarding,
   InactiveClient,
-  CronAtrasado, JobDeBackfillAtascado,
+  IncidenciaCron, JobDeBackfillAtascado,
 } from "./checks";
 
 interface BuildAlertEmailArgs {
@@ -14,7 +14,7 @@ interface BuildAlertEmailArgs {
   stuckOnboardings: StuckOnboarding[];
   jobsAtascados: JobDeBackfillAtascado[];
   /** E-20: crons que dejaron de correr. Opcional para no romper callers viejos. */
-  cronesCaidos?: CronAtrasado[];
+  cronesCaidos?: IncidenciaCron[];
   inactiveClients: InactiveClient[];
   appUrl: string;
 }
@@ -128,7 +128,7 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
       </div>
     </td></tr>`).join("")) : ""}
 
-  ${cronesCount > 0 ? renderSection("⏱️ Crons que dejaron de correr", "#EF4444", cronesCaidos.map(c => `
+  ${cronesCount > 0 ? renderSection("⏱️ Ejecución y monitoreo de crons", "#EF4444", cronesCaidos.map(c => `
     <tr><td style="padding:12px 14px; border-bottom:1px solid #1F1F23;">
       <div style="color:#fff; font-size:13px; font-weight:600;">${escapeHtml(c.cron)}</div>
       <div style="color:#A1A1AA; font-size:11px; margin-top:3px;">${escapeHtml(c.detalle)}</div>

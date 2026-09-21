@@ -79,3 +79,14 @@ it.each([control, clients, scheduler])("rejects unauthorized calls without heart
   expect((await handler(new NextRequest("https://test.invalid/api"))).status).toBeGreaterThanOrEqual(400);
   expect(m.heartbeat).not.toHaveBeenCalled(); expect(m.email).not.toHaveBeenCalled();
 });
+
+it("reports unavailable monitoring even when its warning email was delivered", async () => {
+ // The first four checks succeed; only the heartbeat check is unavailable.
+ m.check.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+  .mockResolvedValueOnce([{ cron: "monitoreo-de-crons", motivo: "monitoreo-no-disponible", detalle: "No se pudo verificar" }]);
+ const response = await control(request());
+ expect(response.status).toBe(503);
+ expect(await response.json()).toMatchObject({ ok: false, sent: true, monitoreoCrons: { disponible: false } });
+ expect(m.email).toHaveBeenCalledTimes(1);
+ expect(m.heartbeat).toHaveBeenCalledWith("control-alerts", false, "No se pudo verificar el monitoreo de crons");
+});

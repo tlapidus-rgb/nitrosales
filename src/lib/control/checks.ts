@@ -8,6 +8,11 @@
 import { leerLatidos, cronesAtrasados } from "@/lib/cron/latido";
 import type { CronAtrasado } from "@/lib/cron/latido";
 export type { CronAtrasado };
+export type IncidenciaCron = CronAtrasado | {
+  cron: "monitoreo-de-crons";
+  motivo: "monitoreo-no-disponible";
+  detalle: string;
+};
 import { schedulesConLatido } from "@/lib/cron/schedules";
 import { prisma } from "@/lib/db/client";
 
@@ -381,16 +386,14 @@ function formatMins(mins: number): string {
 // tablas se quedaron viejas) y por eso deja afuera a todos los crons cuyo
 // trabajo no termina en una tabla vigilada — que son justo los que le hablan al
 // cliente: digest, anomalies, ads-utm-audit, control-alerts, alertas-clientes.
-export async function checkCronesCaidos(): Promise<CronAtrasado[]> {
+export async function checkCronesCaidos(): Promise<IncidenciaCron[]> {
   try {
     const [latidos, schedules] = [await leerLatidos(), schedulesConLatido()];
-    // Hasta que la migración corra, `leerLatidos` devuelve vacío y todos salen
-    // como "nunca latió". Eso es ruido inútil, así que sin ningún latido
-    // registrado el check se calla: no sabe nada todavía.
-    if (latidos.length === 0) return [];
+    // Una tabla vacía significa que todavía no hay evidencia de ejecuciones.
     return cronesAtrasados(latidos, schedules);
   } catch (e) {
-    console.error("[checks] checkCronesCaidos falló, se reporta vacío:", e);
-    return [];
+    console.error("[checks] checkCronesCaidos no disponible:", e);
+    return [{ cron: "monitoreo-de-crons", motivo: "monitoreo-no-disponible",
+      detalle: "No se pudo verificar la ejecución de los crons. Revisar la conexión y la tabla de latidos." }];
   }
 }
