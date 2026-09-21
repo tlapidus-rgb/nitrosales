@@ -100,6 +100,12 @@ const base = {
 };
 
 describe("null no es cero", () => {
+  it("IA no consultada queda desconocida y hace incompleto el reporte", () => {
+    const cliente = armarConsumo({ ...base, aurum: null });
+    expect(cliente.aurum).toBeNull();
+    expect(cliente.sinMedir).toContain("uso de IA");
+    expect(avisosDelReporte({ clientes: [cliente], preciosVerificadosEl: "2026-09-21", convieneRevisarPrecios: false, filasDeAurumTruncadas: false }).completo).toBe(false);
+  });
   it("con todo medido, no hay nada faltante", () => {
     expect(armarConsumo(base).sinMedir).toEqual([]);
   });
@@ -169,6 +175,7 @@ describe("los avisos: cuando el numero NO se puede facturar tal cual", () => {
     // Si el query de Aurum toco su techo, el costo esta SUBESTIMADO. Facturar
     // de menos es el error que el cliente no reclama nunca.
     const r = avisosDelReporte({ ...args, filasDeAurumTruncadas: true });
+    expect(r.completo).toBe(false);
     expect(r.avisos.some((a) => /SUBESTIMADO/i.test(a))).toBe(true);
   });
 });

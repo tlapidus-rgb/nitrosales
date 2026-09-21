@@ -109,7 +109,7 @@ export type ConsumoDeUnCliente = {
   integracionesActivas: number | null;
   eventosPixelDelPeriodo: number | null;
   usuarios: number | null;
-  aurum: CostoDeAurum;
+  aurum: CostoDeAurum | null;
   /** Nombres de las dimensiones que no se pudieron medir, para mostrar arriba. */
   sinMedir: string[];
 };
@@ -128,6 +128,7 @@ export function armarConsumo(
   const sinMedir = Object.keys(NOMBRES).filter(
     (k) => (base as unknown as Record<string, number | null>)[k] === null,
   ).map((k) => NOMBRES[k]);
+  if (base.aurum === null) sinMedir.push("uso de IA");
   return { ...base, sinMedir };
 }
 
@@ -155,7 +156,7 @@ export function avisosDelReporte(args: {
   }
 
   const sinPrecio = new Set<string>();
-  for (const c of args.clientes) for (const m of c.aurum.modelosSinPrecio) sinPrecio.add(m.modelo);
+  for (const c of args.clientes) for (const m of c.aurum?.modelosSinPrecio ?? []) sinPrecio.add(m.modelo);
   if (sinPrecio.size > 0) {
     avisos.push(
       `Hay llamadas de modelos sin precio en la tabla (${[...sinPrecio].join(", ")}). ` +
@@ -184,5 +185,5 @@ export function avisosDelReporte(args: {
       `no incluye Neon, Vercel ni storage, que hoy no son atribuibles por organización.`,
   );
 
-  return { avisos, completo: conFaltantes.length === 0 && sinPrecio.size === 0 };
+  return { avisos, completo: conFaltantes.length === 0 && sinPrecio.size === 0 && !args.filasDeAurumTruncadas };
 }

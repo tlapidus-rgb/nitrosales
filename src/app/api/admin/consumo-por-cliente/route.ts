@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
       integracionesActivas: leer(integraciones, o.id),
       eventosPixelDelPeriodo: leer(eventos, o.id),
       usuarios: leer(usuarios, o.id),
-      aurum: costoDeAurum(aurumPorOrg.get(o.id) ?? []),
+      aurum: gruposDeAurum === null ? null : costoDeAurum(aurumPorOrg.get(o.id) ?? []),
     }),
   );
 
