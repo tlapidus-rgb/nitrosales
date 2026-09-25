@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════
 // Anomaly Detector — Claude-powered + rule-based
 // ══════════════════════════════════════════════
-// Combines statistical rules (fast, no API cost) with
+// Combines business heuristics (fast, no API cost) with
 // Claude analysis (contextual, understands business logic).
 //
 // Types of anomalies detected:
@@ -58,7 +58,7 @@ const THRESHOLDS = {
 };
 
 function pctChange(current: number, previous: number): number | null {
-  if (previous === 0) return current > 0 ? 100 : null;
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || current < 0 || previous <= 0) return null;
   return Math.round(((current - previous) / Math.abs(previous)) * 100);
 }
 
@@ -68,16 +68,7 @@ export function detectRuleBasedAnomalies(
 ): AnomalyResult[] {
   const anomalies: AnomalyResult[] = [];
 
-  // ⚠️ EL VOLUMEN QUE SOSTIENE TODOS LOS PORCENTAJES (E-24, 2026-09-08).
-  //
-  // Todas las reglas de abajo son porcentuales, y un porcentaje sobre una base
-  // chica es ruido: con `n` órdenes la variación esperada sólo por azar es
-  // `1/√n`, o sea que con 7 órdenes el umbral de -30 % dispara SOBRE NADA.
-  //
-  // Se toma el período con MÁS órdenes de los dos a propósito: lo que se está
-  // midiendo es si la muestra alcanza para que el porcentaje signifique algo, y
-  // una caída real a cero no puede silenciarse a sí misma por haber quedado sin
-  // volumen. Ver `piso-de-volumen.ts` para la cuenta completa.
+  // Volumen usado como filtro heurístico; no prueba significancia estadística.
   const base = Math.max(current.orders, previous.orders);
 
   const revChange = pctChange(current.revenue, previous.revenue);
@@ -117,14 +108,10 @@ export function detectRuleBasedAnomalies(
 
   // Ad spend spike without revenue growth
   //
-  // Ésta es la ÚNICA regla que no pasa por `esCambioCreible`, y es a
-  // propósito: el gasto es plata, no un conteo, así que no tiene el ruido de
-  // Poisson que justifica subir la vara con poco volumen. Atarla a `base`
-  // —las órdenes— hacía que con menos de 5 órdenes no disparara nunca, y
-  // "gasté 3× más y vendí 2 unidades" es justamente el caso de bajo volumen.
+  // El aumento de gasto usa el umbral de negocio aunque haya pocas ventas.
   if (
     esSubaDeGastoCreible(adSpendChange, THRESHOLDS.adSpendSpike, previous.adSpend) &&
-    (revChange === null || revChange < 10)
+    (revChange !== null ? revChange < 10 : current.revenue === 0 && previous.revenue === 0)
   ) {
     anomalies.push({
       type: "ALERT",
@@ -139,7 +126,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // ROAS drop
-  if (esCambioCreible(roasChange, THRESHOLDS.roasDrop, base)) {
+  if (Number.isFinite(current.adSpend) && current.adSpend > 0 && Number.isFinite(previous.adSpend) && previous.adSpend > 0 && esCambioCreible(roasChange, THRESHOLDS.roasDrop, base)) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -154,7 +141,7 @@ export function detectRuleBasedAnomalies(
 
   // CPA spike
   const cpaChange = pctChange(current.cpa, previous.cpa);
-  if (esCambioCreible(cpaChange, THRESHOLDS.cpaSpikeHigh, base)) {
+  if (current.adSpend > 0 && previous.adSpend > 0 && esCambioCreible(cpaChange, THRESHOLDS.cpaSpikeHigh, base)) {
     anomalies.push({
       type: "ALERT",
       priority: "MEDIUM",
@@ -168,7 +155,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // AOV drop
-  if (esCambioCreible(aovChange, THRESHOLDS.aovDrop, base)) {
+  if (current.orders > 0 && previous.orders > 0 && esCambioCreible(aovChange, THRESHOLDS.aovDrop, base)) {
     anomalies.push({
       type: "TREND",
       priority: "MEDIUM",

@@ -216,3 +216,38 @@ describe("suba de gasto publicitario", () => {
     expect(esSubaDeGastoCreible(300, 40, 1)).toBe(true);
   });
 });
+
+// Regression cases for undefined percentages and denominators.
+describe("comparaciones definidas por métrica", () => {
+ it("no inventa crecimiento porcentual desde facturación cero", () => {
+  const previous = snap({ orders: 100, revenue: 0 });
+  const current = snap({ orders: 100, revenue: 10000 });
+  expect(detectRuleBasedAnomalies(current, previous).some(a => a.metric === "revenue")).toBe(false);
+ });
+ it("sin pedidos no interpreta AOV cero como una caída del ticket", () => {
+  const previous = snap({ orders: 100, revenue: 10000, aov: 100 });
+  const current = snap({ orders: 0, revenue: 0, aov: 0 });
+  const results = detectRuleBasedAnomalies(current, previous);
+  expect(results.some(a => a.metric === "aov")).toBe(false);
+  expect(results.some(a => a.metric === "orders")).toBe(true);
+ });
+ it("sin inversión actual no interpreta ROAS cero como menor eficiencia", () => {
+  const previous = snap({ orders: 100, adSpend: 1000, roas: 5 });
+  const current = snap({ orders: 100, adSpend: 0, roas: 0 });
+  expect(detectRuleBasedAnomalies(current, previous).some(a => a.metric === "roas")).toBe(false);
+ });
+ it("con inversión y volumen mantiene la alerta de ROAS", () => {
+  const previous = snap({ orders: 100, adSpend: 1000, roas: 5 });
+  const current = snap({ orders: 100, adSpend: 1000, roas: 1 });
+  expect(detectRuleBasedAnomalies(current, previous).some(a => a.metric === "roas")).toBe(true);
+ });
+ it.each([NaN, Infinity, -1])("no calcula caída porcentual con facturación inválida %s", revenue => {
+  expect(detectRuleBasedAnomalies(snap({ orders: 100, revenue }), snap({ orders: 100, revenue: 1000 })).some(a => a.metric === "revenue")).toBe(false);
+ });
+ it("no afirma que revenue no acompaña cuando su medición no está disponible", () => {
+  expect(detectRuleBasedAnomalies(snap({ orders: 100, revenue: NaN, adSpend: 3000 }), snap({ orders: 100, revenue: 1000, adSpend: 1000 })).some(a => a.metric === "adSpend")).toBe(false);
+ });
+ it("con cero ventas medido en ambos períodos mantiene alerta de gasto", () => {
+  expect(detectRuleBasedAnomalies(snap({ adSpend: 3000 }), snap({ adSpend: 1000 })).some(a => a.metric === "adSpend")).toBe(true);
+ });
+});
