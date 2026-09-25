@@ -15,6 +15,7 @@ interface BuildAlertEmailArgs {
   jobsAtascados: JobDeBackfillAtascado[];
   /** E-20: crons que dejaron de correr. Opcional para no romper callers viejos. */
   cronesCaidos?: IncidenciaCron[];
+  checksNoDisponibles?: string[];
   inactiveClients: InactiveClient[];
   appUrl: string;
 }
@@ -25,6 +26,7 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
 } {
   const { connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados, appUrl } = args;
   const cronesCaidos = args.cronesCaidos ?? [];
+  const checksNoDisponibles = args.checksNoDisponibles ?? [];
 
   const errorCount = connectionIssues.filter((i) => i.level === "error").length;
   const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
@@ -38,14 +40,14 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
   // sumaba bien (por eso el mail se mandaba) y el template hacia su propia
   // cuenta aparte, de la que salen el asunto y el titular.
   const totalIssues =
-    errorCount + warnCount + stuckCount + inactiveCount + atascadosCount + cronesCount;
+    errorCount + warnCount + stuckCount + inactiveCount + atascadosCount + cronesCount + checksNoDisponibles.length;
 
   // Un cron que dejo de correr pinta ROJO, no amarillo: `refresh-pixel-
   // first-source` estuvo cinco semanas desagendado sin que nadie se
   // enterara. Se suma al tono, no a `errorCount`, para no ensuciar el
   // numero que el asunto reporta como "alertas criticas".
   const headlineTone =
-    errorCount > 0 || cronesCount > 0 ? "#EF4444" : warnCount > 0 ? "#F59E0B" : "#22C55E";
+    errorCount > 0 || cronesCount > 0 || checksNoDisponibles.length > 0 ? "#EF4444" : warnCount > 0 ? "#F59E0B" : "#22C55E";
   const headlineLabel =
     errorCount > 0
       ? `${errorCount} problema${errorCount > 1 ? "s" : ""} crítico${errorCount > 1 ? "s" : ""}`
@@ -127,6 +129,9 @@ export function buildAlertEmailHtml(args: BuildAlertEmailArgs): {
         org ${escapeHtml(j.organizationId)}${j.lastError ? " — " + escapeHtml(j.lastError.slice(0, 120)) : ""}
       </div>
     </td></tr>`).join("")) : ""}
+
+  ${checksNoDisponibles.length > 0 ? renderSection("Chequeos no disponibles", "#EF4444", checksNoDisponibles.map(nombre => `
+    <tr><td style="padding:12px 14px;">No se pudo verificar: ${escapeHtml(nombre)}. El reporte está incompleto.</td></tr>`).join("")) : ""}
 
   ${cronesCount > 0 ? renderSection("⏱️ Ejecución y monitoreo de crons", "#EF4444", cronesCaidos.map(c => `
     <tr><td style="padding:12px 14px; border-bottom:1px solid #1F1F23;">

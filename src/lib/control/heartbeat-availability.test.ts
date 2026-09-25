@@ -30,3 +30,21 @@ it("a recent failed run remains visible", async () => {
  m.query.mockResolvedValue([{ name: "digest", last_run_at: new Date(), last_ok: false, last_error: "test failure" }]);
  expect(await checkCronesCaidos()).toEqual([expect.objectContaining({ cron: "digest", motivo: "ultima-fallo" })]);
 });
+it.each(["42P01 table missing", "statement timeout"])("backfill read failure is explicit: %s", async message => {
+ m.query.mockRejectedValue(new Error(message));
+ const { checkJobsDeBackfillAtascados } = await import("@/lib/control/checks");
+ await expect(checkJobsDeBackfillAtascados()).rejects.toThrow("No se pudo verificar el estado de los backfills");
+});
+it("an empty successful backfill query still means no stuck jobs", async () => {
+ m.query.mockResolvedValue([]);
+ const { checkJobsDeBackfillAtascados } = await import("@/lib/control/checks");
+ await expect(checkJobsDeBackfillAtascados()).resolves.toEqual([]);
+});
+it("an unavailable check makes the email incomplete, without inventing a stuck job", () => {
+ const mail = buildAlertEmailHtml({ connectionIssues: [], stuckOnboardings: [], inactiveClients: [], jobsAtascados: [], checksNoDisponibles: ["Backfills <test>"], appUrl: "https://example.invalid" });
+ expect(mail.subject).not.toContain("Todo OK");
+ expect(mail.html).toContain("El reporte está incompleto");
+ expect(mail.html).toContain("Backfills &lt;test&gt;");
+ expect(mail.html).not.toContain("Todos los clientes OK");
+ expect(mail.html).not.toContain("Backfills trabados");
+});

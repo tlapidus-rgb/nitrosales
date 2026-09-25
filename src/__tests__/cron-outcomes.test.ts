@@ -90,3 +90,22 @@ it("reports unavailable monitoring even when its warning email was delivered", a
  expect(m.email).toHaveBeenCalledTimes(1);
  expect(m.heartbeat).toHaveBeenCalledWith("control-alerts", false, "No se pudo verificar el monitoreo de crons");
 });
+it.each([[0, "Conexiones"], [1, "Altas"], [2, "Actividad de clientes"], [3, "Backfills"], [4, "Latidos de crons"]] as const)("preserves the control report when check %s fails", async (index, name) => {
+ for (let i = 0; i < 5; i++) {
+  if (i === index) m.check.mockRejectedValueOnce(new Error("private DB detail"));
+  else m.check.mockResolvedValueOnce([]);
+ }
+ const response = await control(request());
+ expect(response.status).toBe(503);
+ const body = await response.json();
+ expect(body).toMatchObject({ ok: false, sent: true, checksCompletos: false, checksNoDisponibles: [name] });
+ expect(JSON.stringify(body)).not.toContain("private DB detail");
+ expect(m.email).toHaveBeenCalledTimes(1);
+ expect(m.heartbeat).toHaveBeenCalledWith("control-alerts", false, expect.any(String));
+});
+it("keeps successful findings when the backfill query fails", async () => {
+ m.check.mockResolvedValueOnce([{ level: "error" }]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+  .mockRejectedValueOnce(new Error("timeout")).mockResolvedValueOnce([]);
+ const response = await control(request());
+ expect(await response.json()).toMatchObject({ checksNoDisponibles: ["Backfills"], counts: { connectionErrors: 1, total: 2 } });
+});

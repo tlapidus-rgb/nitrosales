@@ -239,8 +239,7 @@ export async function checkStuckOnboardings(): Promise<StuckOnboarding[]> {
  * ventana horaria, el limite de concurrencia o el freno por latencia cortan, asi
  * que Vercel ve verde y ningun monitor de status lo nota.
  *
- * Resiliente: si la tabla no existe, devuelve vacio en vez de romper el resto
- * del reporte.
+ * Si no se puede consultar, el caller debe informar chequeo no disponible.
  */
 /** El SQL, exportado para correrlo contra Postgres de verdad en los tests. */
 export const JOBS_ATASCADOS_SQL = `SELECT j."id", j."organizationId", j."platform", j."status", j."lastError",
@@ -294,14 +293,8 @@ export async function checkJobsDeBackfillAtascados(): Promise<JobDeBackfillAtasc
       lastError: r.lastError ?? null,
     }));
   } catch (e) {
-    // Devolver `[]` es correcto —un check que no puede correr no puede inventar
-    // hallazgos— pero callarse no: para el cron, `[]` es indistinguible de "no
-    // hay problemas", y este check es el único que ve un job de backfill
-    // reteniendo un alta. Es el mismo agujero que tenía `checkPipelineFreshness`
-    // con su `catch {}`, donde un `statement_timeout` salía por la puerta de
-    // "todo bien".
-    console.error("[checks] checkJobsDeBackfillAtascados falló, se reporta vacío:", e);
-    return [];
+    console.error("[checks] checkJobsDeBackfillAtascados no disponible:", e);
+    throw new Error("No se pudo verificar el estado de los backfills");
   }
 }
 

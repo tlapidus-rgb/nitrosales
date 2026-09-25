@@ -54,28 +54,39 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Corre checks en paralelo
+    // Conserva los resultados disponibles e informa cada chequeo que falló.
+    const checksNoDisponibles: string[] = [];
+    async function verificar<T>(nombre: string, check: () => Promise<T[]>): Promise<T[]> {
+      try { return await check(); }
+      catch (error) {
+        console.error(`[control-alerts] chequeo no disponible: ${nombre}`, error);
+        checksNoDisponibles.push(nombre);
+        return [];
+      }
+    }
     const [connectionIssues, stuckOnboardings, inactiveClients, jobsAtascados, cronesCaidos] = await Promise.all([
-      checkConnectionIssues(),
-      checkStuckOnboardings(),
-      checkInactiveClients(),
+      verificar("Conexiones", checkConnectionIssues),
+      verificar("Altas", checkStuckOnboardings),
+      verificar("Actividad de clientes", checkInactiveClients),
       // E-11 bis: el unico aviso de que el control de admision del backfill esta
       // frenando un alta. El runner devuelve HTTP 200 con admitido:false, asi
       // que sin esto nadie se entera nunca.
-      checkJobsDeBackfillAtascados(),
+      verificar("Backfills", checkJobsDeBackfillAtascados),
       // E-20: el modo de falla mas caro de la historia de este producto —
       // `refresh-pixel-first-source` estuvo CINCO SEMANAS desagendado y nadie
       // se entero. El chequeo de frescura lo detecta de rebote y deja afuera a
       // los crons cuyo trabajo no termina en una tabla vigilada.
-      checkCronesCaidos(),
+      verificar("Latidos de crons", checkCronesCaidos),
     ]);
 
-    const monitoreoDisponible = !cronesCaidos.some(c => c.motivo === "monitoreo-no-disponible");
+    const monitoreoDisponible = !checksNoDisponibles.includes("Latidos de crons")
+      && !cronesCaidos.some(c => c.motivo === "monitoreo-no-disponible");
+    const checksCompletos = monitoreoDisponible && checksNoDisponibles.length === 0;
     const errorCount = connectionIssues.filter((i) => i.level === "error").length;
     const warnCount = connectionIssues.filter((i) => i.level === "warn").length;
     const totalIssues =
       errorCount + warnCount + stuckOnboardings.length + inactiveClients.length +
-      jobsAtascados.length + cronesCaidos.length;
+      jobsAtascados.length + cronesCaidos.length + checksNoDisponibles.length;
 
     const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const { subject, html } = buildAlertEmailHtml({
@@ -84,6 +95,7 @@ export async function GET(req: NextRequest) {
       inactiveClients,
       jobsAtascados,
       cronesCaidos,
+      checksNoDisponibles,
       appUrl,
     });
 
@@ -100,6 +112,7 @@ export async function GET(req: NextRequest) {
       await registrarLatido("control-alerts", true);
       return NextResponse.json({
         ok: true,
+        checksCompletos: true,
         sent: false,
         reason: "no-issues",
         monitoreoCrons: coberturaDeLatidos(),
@@ -114,12 +127,15 @@ export async function GET(req: NextRequest) {
       html,
     });
 
-    const completo = result.ok && monitoreoDisponible;
+    const completo = result.ok && checksCompletos;
     await registrarLatido("control-alerts", completo, !result.ok
       ? "Falló el envío del correo de control"
-      : !monitoreoDisponible ? "No se pudo verificar el monitoreo de crons" : undefined);
+      : !monitoreoDisponible ? "No se pudo verificar el monitoreo de crons"
+      : !checksCompletos ? "No se pudieron completar los chequeos de control" : undefined);
     return NextResponse.json({
       ok: completo,
+      checksCompletos,
+      checksNoDisponibles,
       sent: result.ok,
       monitoreoCrons: { ...coberturaDeLatidos(), disponible: monitoreoDisponible },
       emailId: result.id,
@@ -131,7 +147,7 @@ export async function GET(req: NextRequest) {
         inactiveClients: inactiveClients.length,
         total: totalIssues,
       },
-    }, { status: !result.ok ? 502 : !monitoreoDisponible ? 503 : 200 });
+    }, { status: !result.ok ? 502 : !checksCompletos ? 503 : 200 });
   } catch (error: any) {
     await registrarLatido("control-alerts", false, String((error as any)?.message ?? "error"));
     console.error("[cron/control-alerts] error:", error);
