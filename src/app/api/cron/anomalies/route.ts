@@ -126,13 +126,11 @@ export async function GET(req: NextRequest) {
 
       // Current period
       const [curRevResult, curCogsResult, curAdResult] = await Promise.all([
-        prisma.$queryRaw<[{ revenue: string; orders: string; units: string }]>`
+        prisma.$queryRaw<[{ revenue: string; orders: string }]>`
           SELECT
             COALESCE(SUM(o."totalValue"), 0)::text as revenue,
-            COUNT(DISTINCT o.id)::text as orders,
-            COALESCE(SUM(oi.quantity), 0)::text as units
+            COUNT(*)::text as orders
           FROM orders o
-          LEFT JOIN order_items oi ON o.id = oi."orderId"
           WHERE o."organizationId" = ${ORG_ID}
             AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCurrent}
@@ -166,13 +164,11 @@ export async function GET(req: NextRequest) {
 
       // Previous period
       const [prevRevResult, prevCogsResult, prevAdResult] = await Promise.all([
-        prisma.$queryRaw<[{ revenue: string; orders: string; units: string }]>`
+        prisma.$queryRaw<[{ revenue: string; orders: string }]>`
           SELECT
             COALESCE(SUM(o."totalValue"), 0)::text as revenue,
-            COUNT(DISTINCT o.id)::text as orders,
-            COALESCE(SUM(oi.quantity), 0)::text as units
+            COUNT(*)::text as orders
           FROM orders o
-          LEFT JOIN order_items oi ON o.id = oi."orderId"
           WHERE o."organizationId" = ${ORG_ID}
             AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromPrev}
