@@ -22,6 +22,8 @@
 // Educativo: cada concepto difícil con tooltip explicativo.
 // ══════════════════════════════════════════════════════════════════════
 
+import { leerRespuestaContextual } from "@/lib/aurum/respuesta-contextual";
+import { AurumQuotaNotice } from "@/components/aurum/AurumQuotaNotice";
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -480,6 +482,7 @@ function AurumSectionCard({
   const [initialInsight, setInitialInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(true);
   const [insightError, setInsightError] = useState<string | null>(null);
+  const [avisoCuota, setAvisoCuota] = useState<string | null>(null);
   const [messages, setMessages] = useState<AurumMsg[]>([]);
   const [input, setInput] = useState("");
   const [asking, setAsking] = useState(false);
@@ -507,6 +510,7 @@ function AurumSectionCard({
     setInsightLoading(true);
     setInsightError(null);
     setInitialInsight(null);
+    setAvisoCuota(null);
     setMessages([]);
     setExpanded(false);
     setOpen(false);
@@ -519,10 +523,10 @@ function AurumSectionCard({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ section, contextLabel, contextData }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await leerRespuestaContextual(res);
         if (!cancelled) {
           setInitialInsight(data.reply || "");
+          setAvisoCuota(data.aviso);
           setInsightLoading(false);
         }
       } catch (e: any) {
@@ -561,8 +565,8 @@ function AurumSectionCard({
           history: currentHistory,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await leerRespuestaContextual(res);
+      setAvisoCuota(data.aviso);
       setMessages([...newHistory, { role: "assistant", content: data.reply || "No pude responder." }]);
     } catch (e: any) {
       setMessages([
@@ -781,6 +785,7 @@ function AurumSectionCard({
           </button>
         </div>
 
+        <AurumQuotaNotice aviso={avisoCuota} />
         <div className="mt-4 min-h-[60px]">
           {insightLoading ? (
             <div className="space-y-2">
@@ -790,7 +795,7 @@ function AurumSectionCard({
             </div>
           ) : insightError ? (
             <div className="text-[12px] text-rose-300/80">
-              No pude leer esta tab ahora. Probá de nuevo en unos segundos.
+              {insightError}
             </div>
           ) : (
             <div

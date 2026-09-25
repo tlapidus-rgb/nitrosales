@@ -1,6 +1,8 @@
 "use client";
 // @ts-nocheck
 
+import { leerRespuestaContextual } from "@/lib/aurum/respuesta-contextual";
+import { AurumQuotaNotice } from "@/components/aurum/AurumQuotaNotice";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sparkles, X, ChevronRight, RefreshCw } from "lucide-react";
@@ -206,6 +208,7 @@ export default function FloatingAurum() {
   const [initialInsight, setInitialInsight] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightError, setInsightError] = useState<string | null>(null);
+  const [avisoCuota, setAvisoCuota] = useState<string | null>(null);
   const [messages, setMessages] = useState<AurumMsg[]>([]);
   const [input, setInput] = useState("");
   const [asking, setAsking] = useState(false);
@@ -226,6 +229,7 @@ export default function FloatingAurum() {
   useEffect(() => {
     setMessages([]);
     setInitialInsight(null);
+    setAvisoCuota(null);
     setInsightError(null);
     // El dot verde "data lista" aparece solo cuando la página publicó
     // su contexto específico, no con el fallback genérico.
@@ -252,10 +256,10 @@ export default function FloatingAurum() {
             contextData: ctx.contextData,
           }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await leerRespuestaContextual(res);
         if (!cancelled) {
           setInitialInsight(data.reply || "");
+          setAvisoCuota(data.aviso);
           setInsightLoading(false);
         }
       } catch (e: any) {
@@ -316,8 +320,8 @@ export default function FloatingAurum() {
           history: currentHistory,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await leerRespuestaContextual(res);
+      setAvisoCuota(data.aviso);
       setMessages([...newHistory, { role: "assistant", content: data.reply || "No pude responder." }]);
     } catch (e: any) {
       setMessages([
@@ -553,12 +557,14 @@ export default function FloatingAurum() {
               </div>
             )}
 
+            <AurumQuotaNotice aviso={avisoCuota} />
             {ctx && insightError && (
               <div className="text-[12px] text-rose-300/80 flex items-center gap-2">
-                No pude leer esta sección.
+                {insightError}
                 <button
                   onClick={() => {
                     setInitialInsight(null);
+                    setAvisoCuota(null);
                     setInsightError(null);
                   }}
                   className="underline inline-flex items-center gap-1"
