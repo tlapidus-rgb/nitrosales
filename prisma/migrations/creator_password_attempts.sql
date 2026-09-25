@@ -6,8 +6,5 @@ CREATE TABLE IF NOT EXISTS creator_password_attempts (
 );
 CREATE INDEX IF NOT EXISTS creator_password_attempts_expiry_idx
   ON creator_password_attempts (expires_at);
--- Periodic retention, in bounded batches:
--- DELETE FROM creator_password_attempts WHERE key IN (
---   SELECT key FROM creator_password_attempts WHERE expires_at < now() - interval '1 day'
---   ORDER BY expires_at LIMIT 10000
--- );
+-- Periodic bounded cleanup is implemented in src/lib/creator-password-cleanup.ts.
+-- Called by warm-cache when its time budget permits. Validate DELETE permissions.

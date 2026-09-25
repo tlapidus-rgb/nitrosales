@@ -32,6 +32,7 @@ import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
 import { planDeWarm } from "@/lib/cache/warm-plan";
 import { purgeExpiredSharedCache } from "@/lib/api-cache-shared";
+import { purgeCreatorPasswordAttempts } from "@/lib/creator-password-cleanup";
 import { sendEmail } from "@/lib/email/send";
 import {
   checkPipelineFreshness,
@@ -422,7 +423,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const creatorAttemptsPurged = Date.now() - startedAt < 260_000
+      ? await purgeCreatorPasswordAttempts() : null;
+
     const fallos = [
+      ...(creatorAttemptsPurged !== null && creatorAttemptsPurged < 0 ? ["Falló la limpieza de contadores de creadores"] : []),
       ...(totalFail > 0 ? [`${totalFail} requests de warm fallidos`] : []),
       ...(freshnessStatus === "fallo" ? ["Falló el chequeo de frescura"] : []),
       ...(alertaStatus === "fallo" ? ["Falló el correo de frescura"] : []),
@@ -430,7 +435,7 @@ export async function GET(req: NextRequest) {
     ];
     const ok = fallos.length === 0;
     const completo = ok && !budgetHit && freshnessStatus === "completo"
-      && alertaStatus !== "pendiente" && cachePurged !== null;
+      && alertaStatus !== "pendiente" && cachePurged !== null && creatorAttemptsPurged !== null;
     await registrarLatido("warm-cache", ok, ok ? undefined : fallos.join("; "));
     return NextResponse.json({
       ok,
@@ -440,6 +445,7 @@ export async function GET(req: NextRequest) {
       freshnessStatus,
       alertaStatus,
       cachePurged,
+      creatorAttemptsPurged,
       // Frescura de TODO el pipeline. `stale` lista sólo las atrasadas para que
       // se lea de un vistazo; `freshness` trae la foto completa (incluidas las
       // que todavía no existen, marcadas `missing`).

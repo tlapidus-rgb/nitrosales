@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ query: vi.fn(), fetch: vi.fn(), freshness: vi.fn(), purge: vi.fn(), email: vi.fn(), heartbeat: vi.fn(), wait: vi.fn() }));
+const m = vi.hoisted(() => ({ query: vi.fn(), fetch: vi.fn(), freshness: vi.fn(), purge: vi.fn(), cleanup: vi.fn(), email: vi.fn(), heartbeat: vi.fn(), wait: vi.fn() }));
 vi.mock("@/lib/db/client", () => ({ prisma: { $queryRawUnsafe: m.query } }));
 vi.mock("@/lib/admin-key", () => ({ ADMIN_API_KEY: "test-key" }));
 vi.mock("@/lib/cron/latido", () => ({ registrarLatido: m.heartbeat }));
@@ -9,6 +9,7 @@ vi.mock("@/lib/api-cache-shared", () => ({ purgeExpiredSharedCache: m.purge }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.email }));
 vi.mock("@/lib/alertas/destinatarios", () => ({ destinatariosDeAlertas: () => ["test@example.invalid"] }));
 vi.mock("@/lib/pipeline/freshness", () => ({ checkPipelineFreshness: m.freshness, formatStaleSummary: () => "stale", PIPELINE_FRESHNESS_TARGETS: [{ table: "gold_test" }] }));
+vi.mock("@/lib/creator-password-cleanup", () => ({ purgeCreatorPasswordAttempts: m.cleanup }));
 const fresh = { table: "gold_test", refreshedBy: "test-cron", stale: false, missing: false, hoursStale: 0, lastRefresh: null };
 let GET: typeof import("@/app/api/cron/warm-cache/route").GET;
 const run = async () => (await GET(new NextRequest("https://test.invalid/api/cron/warm-cache?key=test-key"))).json();
@@ -17,7 +18,7 @@ beforeEach(async () => {
  vi.spyOn(console, "error").mockImplementation(() => {}); vi.spyOn(console, "log").mockImplementation(() => {});
  m.query.mockResolvedValue([{ id: "a", name: "A", attribution_model: "NITRO" }, { id: "b", name: "B", attribution_model: "CUSTOM" }]);
  m.fetch.mockResolvedValue({ ok: true, status: 200 }); m.freshness.mockResolvedValue([fresh]);
- m.purge.mockResolvedValue(0); m.email.mockResolvedValue({ ok: true });
+ m.purge.mockResolvedValue(0); m.cleanup.mockResolvedValue(0); m.email.mockResolvedValue({ ok: true });
  ({ GET } = await import("@/app/api/cron/warm-cache/route"));
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -79,4 +80,9 @@ it("a concurrent invocation reports pending delivery without sending twice", asy
  expect(m.email).toHaveBeenCalledTimes(1);
  release({ ok: true });
  expect(await first).toMatchObject({ alertaStatus: "enviada", completo: true });
+});
+it("reports creator counter cleanup failures", async () => {
+ m.cleanup.mockResolvedValue(-1);
+ expect(await run()).toMatchObject({ ok: false, completo: false, creatorAttemptsPurged: -1 });
+ expect(m.heartbeat).toHaveBeenCalledWith("warm-cache", false, expect.stringContaining("contadores"));
 });
