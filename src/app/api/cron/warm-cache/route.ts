@@ -37,6 +37,7 @@ import {
   checkPipelineFreshness,
   formatStaleSummary,
   type FreshnessRow,
+  PIPELINE_FRESHNESS_TARGETS,
 } from "@/lib/pipeline/freshness";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
@@ -61,6 +62,7 @@ const ALERT_COOLDOWN_H = 6;
 // práctica evita el spam cada 5 min. Si rotan instancias podría mandar algún
 // mail extra dentro de la ventana — aceptable para una alerta de respaldo rara.
 let lastRollupAlertSent = 0;
+let rollupAlertInFlight = false;
 
 /**
  * Alerta de tablas del pipeline sin refrescar.
@@ -76,9 +78,10 @@ let lastRollupAlertSent = 0;
  * nada avisara.
  */
 async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
-  if (stale.length === 0) return;
-  if (Date.now() - lastRollupAlertSent < ALERT_COOLDOWN_H * 3600_000) return; // cooldown
-  lastRollupAlertSent = Date.now(); // marcar ANTES del await (evita doble envío en carrera)
+  if (stale.length === 0) return "sin-alertas";
+  if (rollupAlertInFlight) return "pendiente";
+  if (lastRollupAlertSent > 0 && Date.now() - lastRollupAlertSent < ALERT_COOLDOWN_H * 3600_000) return "cooldown";
+
   const lines = stale
     .map((r) => {
       // E-19: desde que el chequeo agrupa por organización, se puede decir QUÉ
@@ -102,8 +105,9 @@ async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
     })
     .join("");
   const crons = Array.from(new Set(stale.map((r) => r.refreshedBy)));
+  rollupAlertInFlight = true;
   try {
-    await sendEmail({
+    const result = await sendEmail({
       to: destinatariosDeAlertas(),
       subject: `⚠️ NitroSales: ${stale.length} tabla(s) del pipeline sin refrescar`,
       html: `<p>Estas tablas dejaron de actualizarse:</p><ul>${lines}</ul>
@@ -113,8 +117,14 @@ async function maybeAlertPipelineStale(stale: FreshnessRow[]) {
 <p>Acción: revisar <b>Vercel → Cron Jobs</b> y confirmar que sigan agendados. Los rollups son idempotentes: en cuanto vuelvan a correr, tapan el hueco solos.</p>`,
       context: "pipeline-stale-alert",
     });
+    if (!result.ok) return "fallo";
+    lastRollupAlertSent = Date.now();
+    return "enviada";
   } catch (e: any) {
     console.error("[warm-cache] alert pipeline stale falló:", e?.message);
+    return "fallo";
+  } finally {
+    rollupAlertInFlight = false;
   }
 }
 
@@ -343,6 +353,8 @@ export async function GET(req: NextRequest) {
     // Antes sólo se miraba pixel_daily_aggregates. Ver src/lib/pipeline/freshness.ts.
     let freshness: FreshnessRow[] = [];
     let staleTables: FreshnessRow[] = [];
+    let freshnessStatus: "completo" | "pendiente" | "fallo" = "pendiente";
+    let alertaStatus = "sin-alertas";
     try {
       // El warm ya se comió hasta 220 s de los 300 de `maxDuration`. Lo que
       // sobra tiene que alcanzar para la frescura, el mail y la purga — y el
@@ -356,6 +368,10 @@ export async function GET(req: NextRequest) {
       freshness = await checkPipelineFreshness(undefined, {
         presupuestoMs: Math.max(5_000, restanMs - 20_000), // 20 s para el mail
       });
+      const medidas = new Set(freshness.map(r => r.table));
+      freshnessStatus = freshness.some(r => r.error) ? "fallo"
+        : freshness.some(r => r.missing) || PIPELINE_FRESHNESS_TARGETS.some(t => !medidas.has(t.table))
+          ? "pendiente" : "completo";
       staleTables = freshness.filter((r) => r.stale);
       // Watchdog: recuperación PROACTIVA de rollups atrasados ANTES de que crucen
       // el umbral de alerta (8h) — desacopla la recuperación del schedule de Vercel.
@@ -368,10 +384,13 @@ export async function GET(req: NextRequest) {
         // puede empujar la función sobre el maxDuration. Si no hay tiempo, se saltea
         // (el próximo run cada 5 min lo reintenta).
         if (Date.now() - startedAt < 260_000) {
-          await maybeAlertPipelineStale(staleTables);
+          alertaStatus = await maybeAlertPipelineStale(staleTables);
+        } else {
+          alertaStatus = "pendiente";
         }
       }
     } catch (e: any) {
+      freshnessStatus = "fallo";
       console.error("[warm-cache] check rollup stale falló:", e?.message);
     }
 
@@ -386,7 +405,7 @@ export async function GET(req: NextRequest) {
     // mail: si no queda tiempo, se saltea y la próxima corrida (5 min) lo hace.
     // La purga es acotada (ver PURGE_BATCH) pero igual no vale la pena arriesgar
     // el retorno de la función por limpiar caché.
-    let cachePurged = 0;
+    let cachePurged: number | null = null;
     if (Date.now() - startedAt < 260_000) {
       // `purgeExpiredSharedCache` no tira nunca: es fail-soft a propósito,
       // porque limpiar caché no puede tumbar al cron. Así que este `try` era
@@ -403,9 +422,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    await registrarLatido("warm-cache", true);
+    const fallos = [
+      ...(totalFail > 0 ? [`${totalFail} requests de warm fallidos`] : []),
+      ...(freshnessStatus === "fallo" ? ["Falló el chequeo de frescura"] : []),
+      ...(alertaStatus === "fallo" ? ["Falló el correo de frescura"] : []),
+      ...(cachePurged !== null && cachePurged < 0 ? ["Falló la purga de caché"] : []),
+    ];
+    const ok = fallos.length === 0;
+    const completo = ok && !budgetHit && freshnessStatus === "completo"
+      && alertaStatus !== "pendiente" && cachePurged !== null;
+    await registrarLatido("warm-cache", ok, ok ? undefined : fallos.join("; "));
     return NextResponse.json({
-      ok: true,
+      ok,
+      completo,
+      estado: !ok ? "fallo-parcial" : completo ? "completo" : "pendiente",
+      fallos,
+      freshnessStatus,
+      alertaStatus,
       cachePurged,
       // Frescura de TODO el pipeline. `stale` lista sólo las atrasadas para que
       // se lea de un vistazo; `freshness` trae la foto completa (incluidas las
@@ -416,7 +449,10 @@ export async function GET(req: NextRequest) {
         refreshedBy: r.refreshedBy,
       })),
       freshness,
-      orgsWarmed: activeOrgs.length,
+      orgsPlanned: activeOrgs.length,
+      orgsWarmed: new Set(results.filter(r => r.ok).map(r => r.orgId)).size,
+      orgsFullyWarmed: activeOrgs.filter(org =>
+        results.filter(r => r.orgId === org.id && r.ok).length === ranges.length * endpoints.length).length,
       rangesWarmed: ranges.length,
       endpointsWarmed: endpoints.length,
       totalRequests: results.length,
