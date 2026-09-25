@@ -5,11 +5,14 @@ import { getOrganization } from "@/lib/auth-guard";
 import { ALERT_TOOLS, ALERT_TOOLS_PROMPT, isAlertToolName } from "@/lib/alerts/aurum-tools";
 import { executeAlertTool } from "@/lib/alerts/aurum-handlers";
 import { getSessionUserId } from "@/lib/alerts/get-user-id";
+import { admitirAurum, MODELO_USO_INCIERTO } from "@/lib/aurum/admision";
+import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MAX_TOOL_ROUNDS = 5;
+const MODEL = "claude-haiku-4-5-20251001";
 // 1500 (vs 600 original) deja margen para que Haiku pueda generar el mensaje
 // de confirmación después de ejecutar las alert tools sin cortarse por max_tokens.
 const MAX_TOKENS_WITH_TOOLS = 1500;
@@ -20,7 +23,7 @@ const MAX_TOKENS_WITH_TOOLS = 1500;
  * Aurum contextual — analiza UNA tab/sección específica de la app.
  * A diferencia de /api/chat (full Aurum con tools), este endpoint:
  *   - Recibe la data ya cruda en el body (contextData)
- *   - No usa tools — la data la provee el caller
+ *   - Usa tools sólo para alertas; la data analítica la provee el caller
  *   - Respuestas cortas, concretas, solo sobre la data provista
  *   - Modelo haiku para latencia baja y bajo costo
  *
@@ -89,6 +92,18 @@ ${dataStr}
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  let reservationId: string | null = null;
+  let userId: string | null = null;
+  let providerInFlight = false;
+  let usageUncertain = false;
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let rounds = 0;
+  let stopReason: string | null = null;
+  const toolsUsed = new Set<string>();
+  let success = false;
+  let errorMessage: string | null = null;
   try {
     const session = await getServerSession();
     if (!session) {
@@ -97,6 +112,7 @@ export async function POST(req: Request) {
 
     const org = await getOrganization();
     const resolvedUserId = await getSessionUserId().catch(() => null);
+    userId = resolvedUserId;
 
     const body = await req.json();
     const {
@@ -113,7 +129,8 @@ export async function POST(req: Request) {
       history?: { role: "user" | "assistant"; content: string }[];
     } = body;
 
-    if (!section || !contextData) {
+    if (typeof section !== "string" || !section || !contextData ||
+        (question !== undefined && typeof question !== "string")) {
       return NextResponse.json({ error: "Faltan section o contextData" }, { status: 400 });
     }
 
@@ -137,28 +154,47 @@ export async function POST(req: Request) {
           : question!.trim(),
     });
 
+    let admission;
+    try {
+      admission = await admitirAurum(org.id, "FLASH");
+    } catch {
+      return NextResponse.json({ error: "No se pudo verificar el cupo de Aurum. Intentá nuevamente." }, { status: 503 });
+    }
+    if (!admission.cuota.permitido) {
+      return NextResponse.json({ error: admission.cuota.motivo, cuota: admission.cuota }, { status: 429 });
+    }
+    reservationId = admission.id;
+
     // Tool-use loop — solo se activa si Aurum llama a las ALERT_TOOLS
     // (creación de reglas). En la mayoría de los casos (insight inicial /
     // pregunta puntual sobre la tab) sale en la 1° ronda sin usar tools.
     let currentMessages = [...messages];
     let finalReply = "";
-    let tokensIn = 0;
-    let tokensOut = 0;
     // Tracking del último tool exitoso para fallback inteligente si el modelo
     // se queda sin tokens y no genera el mensaje de cierre.
     let lastSuccessfulAlertTool: { name: string; resultText: string } | null = null;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      rounds = round + 1;
+      providerInFlight = true;
       const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL,
         max_tokens: MAX_TOKENS_WITH_TOOLS,
         system: systemPrompt,
         tools: ALERT_TOOLS,
         messages: currentMessages,
       });
 
-      tokensIn += response.usage?.input_tokens || 0;
-      tokensOut += response.usage?.output_tokens || 0;
+      providerInFlight = false;
+      const input = response.usage?.input_tokens;
+      const output = response.usage?.output_tokens;
+      if (Number.isFinite(input) && input >= 0 && Number.isFinite(output) && output >= 0) {
+        tokensIn += input;
+        tokensOut += output;
+      } else {
+        usageUncertain = true;
+      }
+      stopReason = response.stop_reason || stopReason;
 
       const toolUseBlocks = response.content.filter(
         (b): b is Anthropic.ContentBlock & { type: "tool_use" } => b.type === "tool_use"
@@ -172,6 +208,7 @@ export async function POST(req: Request) {
 
       const toolResults = await Promise.all(
         toolUseBlocks.map(async (toolBlock) => {
+          toolsUsed.add(toolBlock.name);
           let result: string;
           if (isAlertToolName(toolBlock.name)) {
             result = await executeAlertTool(
@@ -225,14 +262,35 @@ export async function POST(req: Request) {
       finalReply = "No pude generar una respuesta. Probá de nuevo.";
     }
 
+    success = true;
     return NextResponse.json({
       reply: finalReply,
       mode,
       tokensIn,
       tokensOut,
+      cuota: {
+        aviso: admission.cuota.motivo,
+        cercaDelTope: admission.cuota.cercaDelTope,
+        medicionDisponible: admission.cuota.medicionDisponible,
+      },
     });
   } catch (e: any) {
+    errorMessage = e?.message || "Error";
     console.error("[aurum/section-insight]", e?.message || e);
     return NextResponse.json({ error: e?.message || "Error" }, { status: 500 });
+  } finally {
+    if (reservationId) {
+      // Settle the same reservation; a failed write leaves its pending marker intact.
+      await prisma.aurumUsageLog.update({
+        where: { id: reservationId },
+        data: {
+          userId, mode: "FLASH",
+          model: providerInFlight || usageUncertain ? MODELO_USO_INCIERTO : MODEL,
+          inputTokens: tokensIn, outputTokens: tokensOut, totalTokens: tokensIn + tokensOut,
+          latencyMs: Date.now() - startedAt, toolRounds: rounds,
+          toolsUsed: Array.from(toolsUsed), stopReason, success, errorMessage,
+        },
+      }).catch(error => console.error("[aurum/section-insight] No se pudo registrar consumo:", error?.message));
+    }
   }
 }
