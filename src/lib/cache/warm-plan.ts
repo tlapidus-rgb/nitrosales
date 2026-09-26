@@ -26,7 +26,7 @@
 // levantar el cron ni pegarle a la base.
 // ══════════════════════════════════════════════════════════════════════════
 
-export type OrgAWarmear = { id: string; name: string; attribution_model: string | null };
+export type OrgAWarmear = { id: string; name: string; attribution_model?: string | null };
 export type RangoAWarmear = { label: string; from: string; to: string };
 
 export type TrabajoDeWarm = {

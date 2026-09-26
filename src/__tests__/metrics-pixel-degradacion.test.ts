@@ -97,8 +97,8 @@ describe("E-06 — guards sobre la ruta", () => {
 
   it("el batch grande ya no usa Promise.all", () => {
     expect(src).toContain("] = await degradadoDelBatch([");
-    // El `Promise.all` del batch de 28 no debe volver.
-    expect(src).not.toContain("] = await Promise.all([");
+    // Otros reads independientes usan Promise.all; este guard protege el batch degradable.
+    expect(src).toContain("], degradedQueries);");
   });
 
   it("la route sigue pasando por el helper compartido", () => {
@@ -132,7 +132,7 @@ describe("E-06 — una respuesta degradada no se propaga por el caché compartid
     // se lo sirve a TODA la organización hasta el próximo TTL: un fallo de
     // segundos se convierte en media hora de números mal para todos.
     expect(src).toMatch(
-      /if \(degradedQueries\.length === 0\) \{\s*\n\s*setSharedCache\("pixel", response, \.\.\.cacheKey\);/
+      /if \(degradedQueries\.length === 0\) \{\s*await trace\.run\("setSharedCache", \(\) => setSharedCache\(PIXEL_CACHE_PREFIX, response, \.\.\.cacheKey\)\);/
     );
   });
 

@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
     const toParam = url.searchParams.get("to");
     const channelRaw = (url.searchParams.get("channel") || "").trim().toLowerCase();
     const channel = channelRaw && channelRaw !== "all" ? channelRaw : null;
+    const stagesOnly = url.searchParams.get("stagesOnly") === "1" && !channel;
 
     const now = new Date();
     const dateTo = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
@@ -164,13 +165,16 @@ export async function GET(req: NextRequest) {
     let funnelRow: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
 
     // Compra = órdenes web atribuidas (misma definición que businessKpis.ordersAttributed).
-    const purchasePromise = channel
+    const purchasePromise = stagesOnly
+      ? Promise.resolve([{ purchase: 0 }])
+      : channel
       ? (prisma.$queryRawUnsafe(
           `SELECT COUNT(DISTINCT o.id)::int as purchase
            FROM orders o
            JOIN pixel_attributions pa ON pa."orderId" = o.id
            WHERE pa."organizationId" = $1
-             AND pa.model::text = $2
+             AND o."organizationId" = $1
+             AND pa.model = CAST($2 AS "AttributionModel")
              AND o."orderDate" >= $3::timestamptz
              AND o."orderDate" <= $4::timestamptz
              AND ${ordersValidWebSql("o")}
@@ -188,10 +192,15 @@ export async function GET(req: NextRequest) {
         ) as Promise<Array<{ purchase: number }>>)
       : prisma.$queryRaw<Array<{ purchase: number }>>`
           SELECT COUNT(*)::int as purchase
-          FROM pixel_attributions pa
-          JOIN orders o ON o.id = pa."orderId"
-          WHERE pa."organizationId" = ${orgId}
-            AND pa.model::text = ${selectedModel}
+          FROM orders o
+          JOIN LATERAL (
+            SELECT 1
+            FROM pixel_attributions candidate
+            WHERE candidate."orderId" = o.id
+              AND candidate.model = CAST(${selectedModel} AS "AttributionModel")
+            LIMIT 1
+          ) pa ON TRUE
+          WHERE o."organizationId" = ${orgId}
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
             AND ${ordersValidWebWhere("o")}
@@ -227,6 +236,7 @@ export async function GET(req: NextRequest) {
       to: dateTo.toISOString(),
       channel: channel || "all",
       model: selectedModel,
+      stagesOnly,
       funnel: {
         pageView: funnelRow.pageView || 0,
         viewProduct: funnelRow.viewProduct || 0,

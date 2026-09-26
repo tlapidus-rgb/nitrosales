@@ -24,6 +24,7 @@
 // y queda solo el rollup (comportamiento original, rápido).
 // ══════════════════════════════════════════════════════════════════════════
 
+import { createPixelTrace } from "@/lib/pixel/performance-trace";
 import { prisma } from "@/lib/db/client";
 import { CHECKOUT_URL_REGEX } from "@/lib/pixel/first-source-sql";
 
@@ -44,6 +45,54 @@ function arDay(d: Date): string {
   }).format(d);
 }
 
+export function shouldUseFunnelRollupOnly(
+  fromDay: string,
+  toDay: string,
+  minRollupDay: string | null,
+  maxRollupDay: string | null
+): boolean {
+  // If the requested single day already exists in the rollup, return it without
+  // paying a raw-event scan. For multi-day presets, yesterday is the last
+  // complete day we require from the daily rollup. The current day can be absent
+  // or partial; on large tenants the live merge times out and already falls back
+  // to exactly these rollup values, so attempting it only adds four seconds.
+  const dayBeforeTo = new Date(`${toDay}T00:00:00.000Z`);
+  dayBeforeTo.setUTCDate(dayBeforeTo.getUTCDate() - 1);
+  const lastCompleteDay = dayBeforeTo.toISOString().slice(0, 10);
+
+  if (!minRollupDay || !maxRollupDay || minRollupDay > fromDay) return false;
+  if (fromDay === toDay) return maxRollupDay >= toDay;
+  return maxRollupDay >= lastCompleteDay;
+}
+
+export function funnelLiveTimeoutMs(fromDay: string, toDay: string): number {
+  // A long raw-event scan is optional enrichment: if it cannot finish quickly,
+  // the endpoint returns the same rollup fallback it used after four seconds.
+  // Keep a wider budget for one-day ranges, where live freshness matters most.
+  return fromDay === toDay ? 4000 : 100;
+}
+
+async function readRollupStages(
+  orgId: string,
+  fromDay: string,
+  toDay: string,
+  trace: ReturnType<typeof createPixelTrace>,
+  stage: "funnel.rollup_fast" | "funnel.rollup_fallback"
+): Promise<Array<FunnelStages>> {
+  return trace.run(stage, () => prisma.$queryRawUnsafe<Array<FunnelStages>>(
+    `SELECT
+       COALESCE(hll_cardinality(hll_union_agg(pv_visitors_hll)), 0)::int AS "pageView",
+       COALESCE(hll_cardinality(hll_union_agg(product_visitors_hll)), 0)::int AS "viewProduct",
+       COALESCE(hll_cardinality(hll_union_agg(cart_visitors_hll)), 0)::int AS "addToCart",
+       COALESCE(hll_cardinality(hll_union_agg(checkout_visitors_hll)), 0)::int AS "checkoutStart"
+     FROM pixel_daily_aggregates
+     WHERE "organizationId" = $1 AND day >= $2::date AND day <= $3::date`,
+    orgId,
+    fromDay,
+    toDay
+  ));
+}
+
 /**
  * Devuelve las 4 etapas del funnel (visitantes únicos por etapa, dedup HLL) para
  * el rango [dateFrom, dateTo], mergeando el rollup con un tramo vivo para los días
@@ -53,17 +102,32 @@ function arDay(d: Date): string {
 export async function getFunnelStages(
   orgId: string,
   dateFrom: Date,
-  dateTo: Date
+  dateTo: Date,
+  trace = createPixelTrace()
 ): Promise<FunnelStages> {
   const fromDay = arDay(dateFrom);
   const toDay = arDay(dateTo);
 
   // Último día presente en el rollup (PK chica → instantáneo).
-  const mr = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
-    `SELECT MAX(day)::text AS d FROM pixel_daily_aggregates WHERE "organizationId" = $1`,
+  const mr = await trace.run("funnel.rollup_watermark", () => prisma.$queryRawUnsafe<Array<{ minDay: string | null; maxDay: string | null }>>(
+    `SELECT MIN(day)::text AS "minDay", MAX(day)::text AS "maxDay"
+     FROM pixel_daily_aggregates WHERE "organizationId" = $1`,
     orgId
-  );
-  const maxRoll = mr[0]?.d || null;
+  ));
+  const minRoll = mr[0]?.minDay || null;
+  const maxRoll = mr[0]?.maxDay || null;
+
+  let rows: Array<FunnelStages>;
+  if (shouldUseFunnelRollupOnly(fromDay, toDay, minRoll, maxRoll)) {
+    rows = await readRollupStages(orgId, fromDay, toDay, trace, "funnel.rollup_fast");
+    const r = rows[0];
+    return {
+      pageView: r?.pageView || 0,
+      viewProduct: r?.viewProduct || 0,
+      addToCart: r?.addToCart || 0,
+      checkoutStart: r?.checkoutStart || 0,
+    };
+  }
 
   // Desde qué día AR calculamos en vivo: el último día del rollup (parcial) en
   // adelante. Si el rollup no tiene nada o arranca después del rango, vivo = todo.
@@ -74,9 +138,14 @@ export async function getFunnelStages(
   // de la noche AR caen en UTC del día siguiente). El filtro AR-date exacto recorta.
   const liveTsLo = new Date(`${liveFromDay}T00:00:00.000-03:00`);
   liveTsLo.setUTCDate(liveTsLo.getUTCDate() - 1);
+  const liveTimeoutMs = funnelLiveTimeoutMs(fromDay, toDay);
 
-  const rows = await prisma.$queryRawUnsafe<Array<FunnelStages>>(
-    `
+  try {
+    rows = await trace.run("funnel.live_merge", () => prisma.$transaction(async (tx) => {
+      // El merge vivo es una mejora de frescura, no puede bloquear todo Analytics.
+      // Si el tramo reciente creció demasiado, usamos el rollup ya disponible.
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${liveTimeoutMs}`);
+      return tx.$queryRawUnsafe<Array<FunnelStages>>(`
     WITH rollup_part AS (
       SELECT hll_union_agg(pv_visitors_hll)      AS pv,
              hll_union_agg(product_visitors_hll) AS prod,
@@ -97,8 +166,11 @@ export async function getFunnelStages(
       WHERE "organizationId" = $1
         AND timestamp >= $4::timestamptz
         AND timestamp <= $5::timestamptz
-        AND (timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= $6::date
-        AND (timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <= $3::date
+        -- Convert bounds once instead of converting each event timestamp.
+        AND timestamp >= ($6::date::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')
+        AND timestamp < (($3::date + 1)::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')
+        -- Other event types contribute to none of the four HLL aggregates.
+        AND type IN ('PAGE_VIEW', 'VIEW_PRODUCT', 'ADD_TO_CART', 'INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING')
         AND ("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')
     )
     SELECT
@@ -112,8 +184,13 @@ export async function getFunnelStages(
     toDay,
     liveTsLo.toISOString(),
     dateTo.toISOString(),
-    liveFromDay
-  );
+        liveFromDay
+      );
+    }, { timeout: 6000, maxWait: 2000 }));
+  } catch (error) {
+    console.warn(`[funnel] live merge excedió ${liveTimeoutMs}ms; usando rollup:`, String(error).slice(0, 120));
+    rows = await readRollupStages(orgId, fromDay, toDay, trace, "funnel.rollup_fallback");
+  }
 
   const r = rows[0];
   return {

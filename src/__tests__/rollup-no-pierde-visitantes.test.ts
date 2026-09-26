@@ -28,18 +28,18 @@ const SRC = readFileSync(
   "utf8"
 );
 
-// ⚠️ EL SERVE TAMBIÉN (agregado 2026-07-22).
+// ⚠️ EL SERVE TAMBIÉN (agregado 2026-07-22, actualizado 2026-09-17).
 //
 // Este guard existía y NO atrapó el bug gemelo porque sólo leía el rollup. El
-// mismo INNER JOIN seguía vivo en `metrics/pixel` q23, en el CTE `src_purchases`:
-// el rollup mandaba a los visitantes sin canal a 'sin_clasificar', y el serve
-// los descartaba al contar compras. El cliente veía 21.139 visitas y CERO
-// compras en ese bucket.
+// El cálculo de CR vive ahora en `metrics/pixel/rate-summary` y lee dos datasets
+// Gold ya agregados. Ya no necesita cruzar visitantes con la dimensión en vivo,
+// pero ambos lados deben normalizar una fuente nula al mismo bucket antes de
+// combinarlos; de otro modo visitas o compras vuelven a desaparecer de la tabla.
 //
 // La lección no es "faltaba un test": es que un guard que cubre UN archivo de
 // una invariante que vive en DOS da una sensación de protección que no tiene.
 const SERVE = readFileSync(
-  join(process.cwd(), "src/app/api/metrics/pixel/route.ts"),
+  join(process.cwd(), "src/app/api/metrics/pixel/rate-summary/route.ts"),
   "utf8"
 );
 
@@ -81,21 +81,19 @@ describe("rollups por canal — ningún visitante puede quedar afuera", () => {
 // ══════════════════════════════════════════════════════════════════════════
 // El SERVE tampoco puede perder visitantes
 // ══════════════════════════════════════════════════════════════════════════
-describe("metrics/pixel — el desglose por canal no descarta al bucket sin canal", () => {
+describe("metrics/pixel/rate-summary — el desglose no descarta fuentes sin canal", () => {
   const body = code(SERVE);
 
-  it("el cruce con la dimensión de first-source es LEFT JOIN, nunca INNER", () => {
-    // Con INNER, las COMPRAS de los visitantes sin canal desaparecen mientras
-    // sus VISITAS siguen apareciendo vía el COALESCE del rollup. El bucket
-    // queda con tráfico y sin ventas, y se lee como basura.
-    expect(body).not.toMatch(/\n\s*JOIN pixel_visitor_first_source/);
-    expect(body).toMatch(/LEFT JOIN pixel_visitor_first_source/);
+  it("lee los dos lados agregados sin volver a cruzar la dimensión en vivo", () => {
+    expect(body).toContain("FROM pixel_daily_source");
+    expect(body).toContain("FROM gold_attribution_source");
+    expect(body).not.toContain("pixel_visitor_first_source");
   });
 
-  it("los visitantes sin canal caen en el mismo bucket que usa el rollup", () => {
-    // Tiene que ser la MISMA cadena que rollup-backfill: si el serve dijera
-    // 'otros' y el rollup 'sin_clasificar', el FULL OUTER JOIN de q23 los
-    // mostraría como dos filas distintas — visitas en una, compras en la otra.
-    expect(body).toMatch(/COALESCE\(d\.first_source, 'sin_clasificar'\)/);
+  it("visitas y compras nulas caen en el mismo bucket antes de combinarse", () => {
+    const fallbacks = body.match(/row\.source \|\| "sin_clasificar"/g) ?? [];
+    expect(fallbacks).toHaveLength(2);
+    expect(body).toContain("channelMap.get(source)");
+    expect(body).toContain("channelMap.set(source, current)");
   });
 });

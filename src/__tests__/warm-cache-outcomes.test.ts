@@ -23,7 +23,7 @@ beforeEach(async () => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 it("reports successful coverage for all planned organizations", async () => {
- expect(await run()).toMatchObject({ ok: true, completo: true, estado: "completo", orgsPlanned: 2, orgsWarmed: 2, orgsFullyWarmed: 2, totalRequests: 16, freshnessStatus: "completo", cachePurged: 0 });
+ expect(await run()).toMatchObject({ ok: true, completo: true, estado: "completo", orgsPlanned: 2, orgsWarmed: 2, orgsFullyWarmed: 2, totalRequests: 40, freshnessStatus: "completo", cachePurged: 0 });
  expect(m.heartbeat).toHaveBeenCalledWith("warm-cache", true, undefined);
 });
 it.each(["http", "exception"])("keeps processing other organizations after %s failure", async (kind) => {
@@ -31,7 +31,7 @@ it.each(["http", "exception"])("keeps processing other organizations after %s fa
   if (url.includes("orgId=a")) { if (kind === "exception") throw new Error("timeout"); return { ok: false, status: 503 }; }
   return { ok: true, status: 200 };
  });
- expect(await run()).toMatchObject({ ok: false, completo: false, estado: "fallo-parcial", orgsWarmed: 1, orgsFullyWarmed: 1, fail_count: 8, ok_count: 8 });
+ expect(await run()).toMatchObject({ ok: false, completo: false, estado: "fallo-parcial", orgsWarmed: 1, orgsFullyWarmed: 1, fail_count: 20, ok_count: 20 });
  expect(m.heartbeat).toHaveBeenCalledWith("warm-cache", false, expect.any(String));
 });
 it.each(["throw", "row-error"])("reports freshness failure: %s", async kind => {

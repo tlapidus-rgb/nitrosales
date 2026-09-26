@@ -9,36 +9,42 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions as any);
-    const orgId = (session as any)?.user?.organizationId;
+    const orgId = await getOrganizationId();
     if (!orgId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
-    // PERF: ordenar por `timestamp` (indexado) en vez de `receivedAt` (SIN índice).
-    // Sobre orgs con millones de eventos, orderBy receivedAt hace full scan+sort (~60-76s)
-    // y cuelga la tabla de eventos recientes. timestamp usa el índice. Mismo fix que
-    // install-status / asset-stats (commit c8bfb3d). La key `receivedAt` del response se
-    // mantiene (el frontend la usa); ahora la alimenta `timestamp` (mismo significado práctico).
-    const events = await prisma.pixelEvent.findMany({
-      // lte: now → no flota al tope un evento con `timestamp` futuro basura (data corrupta conocida).
-      where: { organizationId: orgId, timestamp: { lte: new Date() } },
-      orderBy: { timestamp: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        type: true,
-        pageUrl: true,
-        deviceType: true,
-        country: true,
-        timestamp: true,
-      },
-    });
+    // No existe un índice (organizationId, timestamp). Tomar los últimos eventos
+    // por cada tipo usa (organizationId, type, timestamp) y sólo ordena el conjunto
+    // pequeño resultante. getOrganizationId también respeta la organización vista
+    // por un admin, a diferencia de leer organizationId directo de la sesión.
+    const events = await prisma.$queryRaw<Array<{
+      id: string; type: string; pageUrl: string | null; deviceType: string | null;
+      country: string | null; timestamp: Date;
+    }>>`
+      SELECT recent.id, recent.type, recent."pageUrl", recent."deviceType",
+             recent.country, recent.timestamp
+      FROM (
+        SELECT DISTINCT type
+        FROM pixel_daily_type
+        WHERE "organizationId" = ${orgId}
+      ) known_type
+      CROSS JOIN LATERAL (
+        SELECT pe.id, pe.type, pe."pageUrl", pe."deviceType", pe.country, pe.timestamp
+        FROM pixel_events pe
+        WHERE pe."organizationId" = ${orgId}
+          AND pe.type = known_type.type
+          AND pe.timestamp <= now()
+        ORDER BY pe.timestamp DESC
+        LIMIT 10
+      ) recent
+      ORDER BY recent.timestamp DESC
+      LIMIT 10
+    `;
 
     return NextResponse.json({
       ok: true,

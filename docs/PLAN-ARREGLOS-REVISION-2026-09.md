@@ -137,3 +137,9 @@ Salida: candidato de integración local validado; todavía no es autorización d
 - Se reprodujo el fallo ejecutando el SQL real del handler en PGlite: el período actual devolvía 300 en vez de 200 y el anterior 320 en vez de 160. El caso incluye múltiples items, pedidos de igual importe, pedidos sin items, otra organización y cancelados. Tras el arreglo, revenue, pedidos, AOV y beneficio derivados coinciden con los esperados (COGS simulado).
 - Validación conjunta: 51 pruebas aprobadas; TypeScript, guards y dependencias aprobados. Build aprobado con 106 páginas estáticas. No se repitió la suite completa. No se recalcularon insights históricos ni se consultaron datos reales.
 - Siguen pendientes períodos comparables, cobertura de costos de ambos períodos, denominadores publicitarios y validación de IA. Esta corrección no completa todo el bloque de anomalías.
+### Integración local de Analytics/NitroPixel (2026-09-26)
+
+- Incorporada la referencia local origin/main 39d93a20 a la rama de correcciones. Se conserva la degradación parcial sin cachear y la persistencia esperada con el prefijo de main. Sin modificar main ni publicar cambios.
+- Warm-cache conserva rotación, estados y limpieza con los cinco rangos/cuatro endpoints integrados. Se ajustaron cinco aserciones antiguas y el tipo del plan para organizaciones sin modelo explícito.
+- Suite completa inicial: 1598 aprobadas, cinco fallos de contratos antiguos y siete omitidas. Tras ajustes, las 41 pruebas afectadas pasan. Los seis scripts de regresión de Analytics pasan, incluidos 20 casos SQL del funnel. TypeScript, guards de órdenes/Gold y build (106 páginas) aprobados.
+- Pendiente comprobar actualización del remoto y E2E con infraestructura aislada. Registro consolidado: PENDIENTES-ACCESOS-EXPANSION.md. La integración no cierra los otros cinco frentes.
