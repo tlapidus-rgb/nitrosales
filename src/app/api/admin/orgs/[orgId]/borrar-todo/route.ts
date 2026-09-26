@@ -141,16 +141,20 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
   const body = await req.json().catch(() => ({}) as Record<string, unknown>);
 
-  const org = await prisma.organization
-    .findUnique({ where: { id: orgId }, select: { name: true } })
-    .catch(() => null);
-
-  const tablas = (await prisma.$queryRawUnsafe<Array<{ tabla: string }>>(TABLAS_CON_ORG)).map(
-    (r) => r.tabla,
-  );
-  const dependencias = await prisma
-    .$queryRawUnsafe<Dependencia[]>(DEPENDENCIAS)
-    .catch(() => [] as Dependencia[]);
+  let org: { name: string } | null;
+  let tablas: string[];
+  let dependencias: Dependencia[];
+  try {
+    org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
+    if (!org) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
+    tablas = (await prisma.$queryRawUnsafe<Array<{ tabla: string }>>(TABLAS_CON_ORG)).map(r => r.tabla);
+    dependencias = await prisma.$queryRawUnsafe<Dependencia[]>(DEPENDENCIAS);
+    // Missing catalog visibility must never turn into an empty successful wipe.
+    if (tablas.length === 0) throw new Error("No se pudo determinar el alcance del borrado");
+  } catch {
+    return NextResponse.json({ ok: false, completo: false,
+      error: "No se pudo verificar la organización o sus dependencias. No se inició el borrado." }, { status: 503 });
+  }
 
   // Las que NO tienen `organizationId` pero cuelgan de una que sí.
   //
@@ -181,6 +185,8 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   }
 
   const comun = {
+    alcance: "Tablas con organizationId y dependencias directas descubiertas",
+    borradoTotalVerificado: false,
     organizationId: orgId,
     nombre: org?.name ?? null,
     existe: org !== null,
@@ -197,6 +203,7 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   if (!ejecutar) {
     return NextResponse.json({
       simulacro: true,
+      completo: antes.sinPoderContar.length === 0,
       ...comun,
       loQueSePuedeAfirmar: loQueSePuedeAfirmar(antes),
       paraEjecutarDeVerdad:
@@ -206,6 +213,10 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   }
 
   // ── Ejecución ────────────────────────────────────────────────────────────
+  if (antes.sinPoderContar.length > 0) {
+    return NextResponse.json({ ...comun, ok: false, completo: false,
+      error: "No se pudo completar la auditoría previa. No se inició el borrado." }, { status: 503 });
+  }
   const esperado = `BORRAR-${orgId}`;
   if (body?.confirm !== esperado) {
     return NextResponse.json(
@@ -264,7 +275,8 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   ]);
 
   return NextResponse.json({
-    ok: true,
+    ok: despues.limpio,
+    completo: despues.limpio,
     simulacro: false,
     ...comun,
     duracionMs: Date.now() - arrancoEn,

@@ -143,3 +143,19 @@ Salida: candidato de integración local validado; todavía no es autorización d
 - Warm-cache conserva rotación, estados y limpieza con los cinco rangos/cuatro endpoints integrados. Se ajustaron cinco aserciones antiguas y el tipo del plan para organizaciones sin modelo explícito.
 - Suite completa inicial: 1598 aprobadas, cinco fallos de contratos antiguos y siete omitidas. Tras ajustes, las 41 pruebas afectadas pasan. Los seis scripts de regresión de Analytics pasan, incluidos 20 casos SQL del funnel. TypeScript, guards de órdenes/Gold y build (106 páginas) aprobados.
 - Pendiente comprobar actualización del remoto y E2E con infraestructura aislada. Registro consolidado: PENDIENTES-ACCESOS-EXPANSION.md. La integración no cierra los otros cinco frentes.
+
+### Períodos, costos y salida de IA en anomalías (2026-09-26)
+
+- Dos semanas consecutivas de siete días completos de Argentina, excluyendo hoy. Límites superiores exclusivos también en ads, con claves de fecha explícitas para evitar depender de la zona horaria de PostgreSQL. Incluye timestamps con microsegundos antes del límite.
+- Cobertura de costos de ambos períodos sin redondear a 100%; pedidos sin items y costos inválidos no cuentan como completos. Margen sólo se compara con cobertura completa, revenue positivo y valores finitos en ambos períodos. No se envían ganancias/márgenes incompletos al proveedor.
+- CPA y ROAS usan volumen de conversiones publicitarias en lugar de órdenes de la tienda; se conservan conversiones fraccionarias. CPA sin conversiones no se presenta como observado. Sigue siendo una heurística, no una prueba estadística.
+- JSON de IA validado por tipos, campos, tamaños y métricas permitidas, hasta tres métricas distintas. La evidencia numérica se calcula desde los snapshots; se rechazan métricas sin denominador/cobertura. El texto libre del modelo aún puede ser incorrecto. Fallos del proveedor continúan devolviendo [] y falta representar su disponibilidad por separado.
+- Pruebas focalizadas: 87 aprobadas más dos del proveedor simulado. SQL real en PGlite cubre límites, zona horaria, ausencia de items y aislamiento. TypeScript, guards, dependencias y build aprobados. Suite completa en ejecución; no se contactó un proveedor real ni se corrigieron insights históricos.
+
+### Auditoría previa de borrado (2026-09-26)
+
+- Fallos al leer organización, catálogo o dependencias ya no se interpretan como ausencia de datos. Ejecución bloqueada con 503 si faltan metadatos o conteos previos; organización inexistente devuelve 404. Un catálogo vacío no permite declarar una limpieza exitosa.
+- Simulacro expone si la auditoría está completa; la respuesta explicita alcance y borradoTotalVerificado:false. Después de ejecutar, ok/completo dependen de la auditoría del alcance revisado, sin afirmar borrado total de todos los datos del cliente.
+- Ocho pruebas del handler y 27 del módulo pasan. Sólo dobles locales: ninguna transacción destructiva real. Siguen abiertos dependencias transitivas/propietarios alternativos, retención, concurrencia con ingesta y validación de rollback en PostgreSQL aislado. Exportación/suspensión no quedan cerradas por este arreglo.
+
+Validación conjunta final del bloque (2026-09-26): suite completa con **1649 aprobadas, 7 omitidas, 0 fallos**; 133 archivos aprobados y uno omitido. Build aprobado con 106 páginas. La prueba SQL es PGlite de una sesión, no una validación de concurrencia real.

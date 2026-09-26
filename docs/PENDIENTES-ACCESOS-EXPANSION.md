@@ -13,11 +13,11 @@ Trabajo exclusivo en codex/expansion-review-fixes. No merge a main, push, despli
 
 ## Alcance de los seis frentes
 
-1. Integración local de main: resolución y validación en curso, conservando caché/degradación parcial y optimizaciones.
+1. Integración local de main: integración 1f12e598 validada localmente, conservando caché/degradación parcial y optimizaciones.
 2. Backfill: admisión local corregida; ownership y prueba multisesión todavía abiertos.
 3. Onboarding: readiness corregido parcialmente; aprobación/plataformas y recorrido completo abiertos.
 4. Ciclo de organización: exportación, borrado y suspensión requieren cerrar hallazgos de código y validación aislada.
 5. Migraciones/E2E: preparar y verificar localmente todo lo posible; ejecución PostgreSQL y preview pendientes.
-6. Anomalías: facturación y bases cero corregidas; períodos, cobertura de costos y salida IA en curso.
+6. Anomalías: facturación y bases cero corregidas; períodos comparables, cobertura de ambos períodos, denominadores publicitarios y contrato IA corregidos localmente; calibración, disponibilidad del proveedor y factualidad del texto pendientes.
 
 Este registro no declara los seis frentes terminados ni habilita producción.

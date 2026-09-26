@@ -1,3 +1,4 @@
+import { anomalyPeriods } from "@/lib/anomaly/periods";
 import { registrarLatido } from "@/lib/cron/latido";
 import { NextRequest, NextResponse } from "next/server";
 import { ultimoProcesado, arranqueDeLaVuelta, guardarCorte } from "@/lib/cron/cursor-store";
@@ -98,31 +99,31 @@ export async function GET(req: NextRequest) {
       try {
 
       // ── Build metric snapshots ──
-      const now = new Date();
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const { fromCurrent, toCurrent, fromPrev, toPrev,
+        currentDateFrom, currentDateTo, previousDateFrom, previousDateTo } = anomalyPeriods(new Date(arrancoEn));
 
-      const fromCurrent = new Date(`${sevenDaysAgo.toISOString().split("T")[0]}T00:00:00.000-03:00`);
-      const toCurrent = new Date(`${now.toISOString().split("T")[0]}T23:59:59.999-03:00`);
-      const fromPrev = new Date(`${fourteenDaysAgo.toISOString().split("T")[0]}T00:00:00.000-03:00`);
-      const toPrev = new Date(`${sevenDaysAgo.toISOString().split("T")[0]}T00:00:00.000-03:00`);
-
-      // Check COGS data coverage (what % of order items have cost data)
+      // Both periods must have known costs before comparing profitability.
+      const coverage = async (from: Date, to: Date) => {
       const cogsCoverageResult = await prisma.$queryRaw<[{ total: string; with_cost: string }]>`
         SELECT
           COUNT(*)::text as total,
-          COUNT(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL THEN 1 END)::text as with_cost
-        FROM order_items oi
-        INNER JOIN orders o ON oi."orderId" = o.id
+          COUNT(CASE WHEN oi.quantity > 0 AND COALESCE(oi."costPrice", p."costPrice") >= 0 THEN 1 END)::text as with_cost
+        FROM orders o
+        LEFT JOIN order_items oi ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
           AND ${ordersValidWhere("o")}
-          AND o."orderDate" >= ${fromCurrent}
-          AND o."orderDate" <= ${toCurrent}
+          AND o."orderDate" >= ${from}
+          AND o."orderDate" < ${to}
       `;
       const totalItems = parseInt(cogsCoverageResult[0].total) || 0;
       const itemsWithCost = parseInt(cogsCoverageResult[0].with_cost) || 0;
-      const cogsCoverage = totalItems > 0 ? Math.round((itemsWithCost / totalItems) * 100) : 0;
+      return totalItems > 0 && itemsWithCost >= 0 && itemsWithCost <= totalItems
+        ? (itemsWithCost / totalItems) * 100 : 0;
+      };
+      const [cogsCoverage, previousCogsCoverage] = await Promise.all([
+        coverage(fromCurrent, toCurrent), coverage(fromPrev, toPrev),
+      ]);
 
       // Current period
       const [curRevResult, curCogsResult, curAdResult] = await Promise.all([
@@ -134,7 +135,7 @@ export async function GET(req: NextRequest) {
           WHERE o."organizationId" = ${ORG_ID}
             AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCurrent}
-            AND o."orderDate" <= ${toCurrent}
+            AND o."orderDate" < ${toCurrent}
         `,
         prisma.$queryRaw<[{ cogs: string }]>`
           SELECT COALESCE(SUM(
@@ -146,7 +147,7 @@ export async function GET(req: NextRequest) {
           WHERE o."organizationId" = ${ORG_ID}
             AND ${ordersValidWhere("o")}
             AND o."orderDate" >= ${fromCurrent}
-            AND o."orderDate" <= ${toCurrent}
+            AND o."orderDate" < ${toCurrent}
         `,
         prisma.$queryRaw<[{ spend: string; meta_spend: string; google_spend: string; conversions: string; conversion_value: string }]>`
           SELECT
@@ -157,8 +158,8 @@ export async function GET(req: NextRequest) {
             COALESCE(SUM(m."conversionValue"), 0)::text as conversion_value
           FROM ad_metrics_daily m
           WHERE m."organizationId" = ${ORG_ID}
-            AND m.date >= ${fromCurrent}::date
-            AND m.date <= ${toCurrent}::date
+            AND m.date >= ${currentDateFrom}::date
+            AND m.date < ${currentDateTo}::date
         `,
       ]);
 
@@ -195,8 +196,8 @@ export async function GET(req: NextRequest) {
             COALESCE(SUM(m."conversionValue"), 0)::text as conversion_value
           FROM ad_metrics_daily m
           WHERE m."organizationId" = ${ORG_ID}
-            AND m.date >= ${fromPrev}::date
-            AND m.date < ${toPrev}::date
+            AND m.date >= ${previousDateFrom}::date
+            AND m.date < ${previousDateTo}::date
         `,
       ]);
 
@@ -205,7 +206,7 @@ export async function GET(req: NextRequest) {
       const curOrders = parseInt(curRevResult[0].orders);
       const curCogs = parseFloat(curCogsResult[0].cogs);
       const curAdSpend = parseFloat(curAdResult[0].spend);
-      const curConversions = parseInt(curAdResult[0].conversions);
+      const curConversions = parseFloat(curAdResult[0].conversions);
       const curConvValue = parseFloat(curAdResult[0].conversion_value);
 
       const current: MetricSnapshot = {
@@ -220,6 +221,7 @@ export async function GET(req: NextRequest) {
         cpa: curConversions > 0 ? Math.round((curAdSpend / curConversions) * 100) / 100 : 0,
         aov: curOrders > 0 ? Math.round(curRevenue / curOrders) : 0,
         cogsCoverage,
+        adConversions: curConversions,
       };
 
       // Parse previous
@@ -227,7 +229,7 @@ export async function GET(req: NextRequest) {
       const prevOrders = parseInt(prevRevResult[0].orders);
       const prevCogs = parseFloat(prevCogsResult[0].cogs);
       const prevAdSpend = parseFloat(prevAdResult[0].spend);
-      const prevConversions = parseInt(prevAdResult[0].conversions);
+      const prevConversions = parseFloat(prevAdResult[0].conversions);
       const prevConvValue = parseFloat(prevAdResult[0].conversion_value);
 
       const previous: MetricSnapshot = {
@@ -241,6 +243,8 @@ export async function GET(req: NextRequest) {
         roas: prevAdSpend > 0 ? Math.round((prevConvValue / prevAdSpend) * 100) / 100 : 0,
         cpa: prevConversions > 0 ? Math.round((prevAdSpend / prevConversions) * 100) / 100 : 0,
         aov: prevOrders > 0 ? Math.round(prevRevenue / prevOrders) : 0,
+        cogsCoverage: previousCogsCoverage,
+        adConversions: prevConversions,
       };
 
       // ── Detect anomalies ──

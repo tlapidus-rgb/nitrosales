@@ -164,9 +164,9 @@ describe("detectRuleBasedAnomalies con un cliente grande", () => {
 
   it("el margen sólo se evalúa si hay costos cargados, como ya era", () => {
     const base = { orders: 300, revenue: 3_000_000, aov: 10_000 };
-    const anterior = snap({ ...base, grossMargin: 40 });
+    const anterior = snap({ ...base, grossMargin: 40, cogsCoverage: 100 });
     const sinCostos = snap({ ...base, grossMargin: 10, cogsCoverage: 0 });
-    const conCostos = snap({ ...base, grossMargin: 10, cogsCoverage: 80 });
+    const conCostos = snap({ ...base, grossMargin: 10, cogsCoverage: 100 });
 
     expect(detectRuleBasedAnomalies(sinCostos, anterior).some((a) => a.metric === "grossMargin")).toBe(false);
     expect(detectRuleBasedAnomalies(conCostos, anterior).some((a) => a.metric === "grossMargin")).toBe(true);
@@ -232,13 +232,13 @@ describe("comparaciones definidas por métrica", () => {
   expect(results.some(a => a.metric === "orders")).toBe(true);
  });
  it("sin inversión actual no interpreta ROAS cero como menor eficiencia", () => {
-  const previous = snap({ orders: 100, adSpend: 1000, roas: 5 });
+  const previous = snap({ orders: 100, adConversions: 100, adSpend: 1000, roas: 5 });
   const current = snap({ orders: 100, adSpend: 0, roas: 0 });
   expect(detectRuleBasedAnomalies(current, previous).some(a => a.metric === "roas")).toBe(false);
  });
  it("con inversión y volumen mantiene la alerta de ROAS", () => {
-  const previous = snap({ orders: 100, adSpend: 1000, roas: 5 });
-  const current = snap({ orders: 100, adSpend: 1000, roas: 1 });
+  const previous = snap({ orders: 100, adConversions: 100, adSpend: 1000, roas: 5 });
+  const current = snap({ orders: 100, adConversions: 100, adSpend: 1000, roas: 1 });
   expect(detectRuleBasedAnomalies(current, previous).some(a => a.metric === "roas")).toBe(true);
  });
  it.each([NaN, Infinity, -1])("no calcula caída porcentual con facturación inválida %s", revenue => {

@@ -26,6 +26,7 @@ export interface MetricSnapshot {
   googleSpend: number;
   roas: number;
   cpa: number;
+  adConversions?: number; // Provider-attributed conversions, not store orders.
   aov: number;
   sessions?: number;
   conversionRate?: number;
@@ -62,6 +63,13 @@ function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / Math.abs(previous)) * 100);
 }
 
+// A missing cost is currently summed as zero. Partial coverage therefore cannot
+// establish a change in profitability, even when both percentages look similar.
+export function comparableCosts(current: MetricSnapshot, previous: MetricSnapshot): boolean {
+  return [current, previous].every(s => s.cogsCoverage === 100 && s.revenue > 0 &&
+    Number.isFinite(s.revenue) && Number.isFinite(s.grossProfit) && Number.isFinite(s.grossMargin));
+}
+
 export function detectRuleBasedAnomalies(
   current: MetricSnapshot,
   previous: MetricSnapshot
@@ -70,6 +78,8 @@ export function detectRuleBasedAnomalies(
 
   // Volumen usado como filtro heurístico; no prueba significancia estadística.
   const base = Math.max(current.orders, previous.orders);
+  const adBase = [current.adConversions, previous.adConversions].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0)
+    ? Math.max(current.adConversions!, previous.adConversions!) : 0;
 
   const revChange = pctChange(current.revenue, previous.revenue);
   const ordersChange = pctChange(current.orders, previous.orders);
@@ -126,7 +136,7 @@ export function detectRuleBasedAnomalies(
   }
 
   // ROAS drop
-  if (Number.isFinite(current.adSpend) && current.adSpend > 0 && Number.isFinite(previous.adSpend) && previous.adSpend > 0 && esCambioCreible(roasChange, THRESHOLDS.roasDrop, base)) {
+  if (Number.isFinite(current.adSpend) && current.adSpend > 0 && Number.isFinite(previous.adSpend) && previous.adSpend > 0 && esCambioCreible(roasChange, THRESHOLDS.roasDrop, adBase)) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -141,7 +151,7 @@ export function detectRuleBasedAnomalies(
 
   // CPA spike
   const cpaChange = pctChange(current.cpa, previous.cpa);
-  if (current.adSpend > 0 && previous.adSpend > 0 && esCambioCreible(cpaChange, THRESHOLDS.cpaSpikeHigh, base)) {
+  if (current.adSpend > 0 && previous.adSpend > 0 && (current.adConversions ?? 0) > 0 && (previous.adConversions ?? 0) > 0 && esCambioCreible(cpaChange, THRESHOLDS.cpaSpikeHigh, adBase)) {
     anomalies.push({
       type: "ALERT",
       priority: "MEDIUM",
@@ -168,8 +178,8 @@ export function detectRuleBasedAnomalies(
     });
   }
 
-  // Gross margin compression — solo si hay datos de costo cargados (>20% coverage)
-  const hasCostData = (current.cogsCoverage ?? 0) > 20;
+  // Missing costs must not produce an apparent improvement/drop in profit.
+  const hasCostData = comparableCosts(current, previous);
   if (hasCostData && base >= VOLUMEN_MINIMO && marginDiff <= THRESHOLDS.grossMarginDrop) {
     anomalies.push({
       type: "ALERT",
@@ -202,6 +212,44 @@ export function detectRuleBasedAnomalies(
 
 // ── Claude-based contextual analysis ──────────
 
+/** Treat provider JSON as untrusted data. Numeric evidence comes from the
+ * measured snapshots, never from model-generated amounts or percentages.
+ */
+export function validateAnomalies(input: unknown, current: MetricSnapshot, previous: MetricSnapshot): AnomalyResult[] {
+  if (!input || typeof input !== "object" || !Array.isArray((input as { anomalies?: unknown }).anomalies)) return [];
+  const rows = (input as { anomalies: unknown[] }).anomalies;
+  const types = new Set(["ALERT", "OPPORTUNITY", "TREND", "RECOMMENDATION"]);
+  const priorities = new Set(["HIGH", "MEDIUM", "LOW"]);
+  const metrics = new Set(["revenue", "orders", "adSpend", "metaSpend", "googleSpend", "roas", "cpa", "aov", "grossMargin", "grossProfit"]);
+  const result: AnomalyResult[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const a = row as Record<string, unknown>;
+    if (typeof a.type !== "string" || !types.has(a.type) || typeof a.priority !== "string" || !priorities.has(a.priority)) continue;
+    if (typeof a.metric !== "string" || !metrics.has(a.metric) || seen.has(a.metric)) continue;
+    const validText = (field: unknown, max: number): field is string => typeof field === "string" && field.trim().length > 0 && field.length <= max;
+    if (!validText(a.title, 200) || !validText(a.description, 1500) || !validText(a.action, 500)) continue;
+    if (typeof a.metricValue !== "number" || !Number.isFinite(a.metricValue) ||
+      (a.metricDelta !== null && (typeof a.metricDelta !== "number" || !Number.isFinite(a.metricDelta)))) continue;
+    if ((a.metric === "grossMargin" || a.metric === "grossProfit") && !comparableCosts(current, previous)) continue;
+    if ((a.metric === "roas" || a.metric === "cpa") && !(current.adSpend > 0 && previous.adSpend > 0)) continue;
+    if (a.metric === "cpa" && !((current.adConversions ?? 0) > 0 && (previous.adConversions ?? 0) > 0)) continue;
+    if (a.metric === "aov" && !(current.orders > 0 && previous.orders > 0)) continue;
+    const metric = a.metric as keyof MetricSnapshot;
+    const value = current[metric], before = previous[metric];
+    if (typeof value !== "number" || typeof before !== "number" || !Number.isFinite(value) || !Number.isFinite(before)) continue;
+    const delta = metric === "grossMargin" ? Math.round(value - before) : pctChange(value, before);
+    if (delta !== null && !Number.isFinite(delta)) continue;
+    result.push({ type: a.type as AnomalyResult["type"], priority: a.priority as AnomalyResult["priority"],
+      title: a.title.trim(), description: a.description.trim(), action: a.action.trim(),
+      metric, metricValue: value, metricDelta: delta });
+    seen.add(metric);
+    if (result.length === 3) break;
+  }
+  return result;
+}
+
 export async function detectClaudeAnomalies(
   current: MetricSnapshot,
   previous: MetricSnapshot,
@@ -213,34 +261,37 @@ export async function detectClaudeAnomalies(
 
   const anthropic = new Anthropic({ apiKey });
 
+  const profitLine = (s: MetricSnapshot) => comparableCosts(current, previous)
+    ? `Ganancia Bruta: $${Math.round(s.grossProfit).toLocaleString("es-AR")} (margen: ${s.grossMargin}%)`
+    : "Ganancia y margen: no disponibles para comparar; costos incompletos en uno o ambos períodos.";
   const prompt = `Analiza estos KPIs de "${orgName}" (ecommerce Argentina, moneda ARS) y detecta anomalias o patrones interesantes que un sistema de reglas NO detectaria.
 
-PERIODO ACTUAL (ultimos 7 dias):
+PERIODO ACTUAL (ultimos 7 dias completos, hora Argentina):
 - Facturacion: $${Math.round(current.revenue).toLocaleString("es-AR")}
 - Pedidos: ${current.orders}
-- Ganancia Bruta: $${Math.round(current.grossProfit).toLocaleString("es-AR")} (margen: ${current.grossMargin}%)
+- ${profitLine(current)}
 - Inversion Ads: $${Math.round(current.adSpend).toLocaleString("es-AR")} (Meta: $${Math.round(current.metaSpend).toLocaleString("es-AR")}, Google: $${Math.round(current.googleSpend).toLocaleString("es-AR")})
 - ROAS: ${current.roas}x
-- CPA: $${Math.round(current.cpa).toLocaleString("es-AR")}
+- CPA: ${current.adConversions && current.adConversions > 0 ? "$" + Math.round(current.cpa).toLocaleString("es-AR") : "no disponible (sin conversiones medidas)"}
 - AOV: $${Math.round(current.aov).toLocaleString("es-AR")}
 
 PERIODO ANTERIOR (7 dias previos):
 - Facturacion: $${Math.round(previous.revenue).toLocaleString("es-AR")}
 - Pedidos: ${previous.orders}
-- Ganancia Bruta: $${Math.round(previous.grossProfit).toLocaleString("es-AR")} (margen: ${previous.grossMargin}%)
+- ${profitLine(previous)}
 - Inversion Ads: $${Math.round(previous.adSpend).toLocaleString("es-AR")}
 - ROAS: ${previous.roas}x
-- CPA: $${Math.round(previous.cpa).toLocaleString("es-AR")}
+- CPA: ${previous.adConversions && previous.adConversions > 0 ? "$" + Math.round(previous.cpa).toLocaleString("es-AR") : "no disponible (sin conversiones medidas)"}
 - AOV: $${Math.round(previous.aov).toLocaleString("es-AR")}
 
 ${additionalContext ? `CONTEXTO ADICIONAL:\n${additionalContext}` : ""}
 
-COBERTURA DE DATOS DE COSTO: ${current.cogsCoverage ?? 0}% de los items tienen precio de costo cargado.
+COBERTURA DE DATOS DE COSTO: actual ${current.cogsCoverage ?? 0}%, anterior ${previous.cogsCoverage ?? 0}%.
 
 INSTRUCCIONES:
 - Busca patrones que reglas fijas NO detectarian: correlaciones entre metricas, contexto estacional (feriados argentinos, dia del nino, Black Friday, Hot Sale), tendencias graduales peligrosas, oportunidades ocultas.
 - NO repitas lo que detectarian reglas simples (ej: "revenue bajo X%"). Eso ya lo cubrimos.
-- IMPORTANTE: Si la cobertura de datos de costo es baja (<50%), NO generes alertas sobre margen bruto, ganancia bruta o COGS. Esos numeros no son confiables porque faltan datos de costo. No menciones el margen 100% como anomalia.
+- IMPORTANTE: Si la cobertura de costos no es 100% en AMBOS períodos, NO generes insights sobre margen, ganancia o COGS ni los infieras de otras métricas.
 - Solo genera insights si HAY algo genuinamente interesante. Si todo es normal, devuelve array vacio.
 - Maximo 3 insights.
 - Responde SOLO con JSON valido, sin markdown ni backticks.
@@ -265,16 +316,7 @@ Formato:
       parsed = match ? JSON.parse(match[0]) : { anomalies: [] };
     }
 
-    return (parsed.anomalies || []).map((a: any) => ({
-      type: a.type || "TREND",
-      priority: a.priority || "LOW",
-      title: a.title || "",
-      description: a.description || "",
-      action: a.action || "",
-      metric: a.metric || "",
-      metricValue: a.metricValue || 0,
-      metricDelta: a.metricDelta ?? null,
-    }));
+    return validateAnomalies(parsed, current, previous);
   } catch (error: any) {
     console.error("[anomaly] Claude analysis failed:", error.message);
     return [];
