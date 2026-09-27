@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ orgs: vi.fn(), query: vi.fn(), events: vi.fn(), insight: vi.fn(), email: vi.fn(), heartbeat: vi.fn(), save: vi.fn(), detect: vi.fn() }));
+const m = vi.hoisted(() => ({ orgs: vi.fn(), query: vi.fn(), events: vi.fn(), insight: vi.fn(), email: vi.fn(), heartbeat: vi.fn(), save: vi.fn(), detect: vi.fn(), contextual: vi.fn() }));
 vi.mock("@/lib/db/client", () => ({ prisma: { organization: { findMany: m.orgs }, $queryRaw: m.query, pixelEvent: { findMany: m.events }, insight: { create: m.insight } } }));
 vi.mock("@/lib/cron/latido", () => ({ registrarLatido: m.heartbeat }));
 vi.mock("@/lib/cron/cursor-store", () => ({ ultimoProcesado: async () => null, arranqueDeLaVuelta: () => ({ desde: 0, persiste: true }), guardarCorte: m.save }));
@@ -8,7 +8,7 @@ vi.mock("@/lib/admin-key", () => ({ isValidAdminKey: (key: string) => key === "t
 vi.mock("@/domains/orders", () => ({ ordersValidWhere: () => "TRUE" }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.email }));
 vi.mock("@/lib/email/templates", () => ({ weeklyDigestEmail: () => ({ subject: "test", html: "test" }), anomalyAlertEmail: () => ({ subject: "test", html: "test" }) }));
-vi.mock("@/lib/anomaly/detector", () => ({ detectRuleBasedAnomalies: m.detect, detectClaudeAnomalies: async () => [] }));
+vi.mock("@/lib/anomaly/detector", () => ({ detectRuleBasedAnomalies: m.detect, detectClaudeAnomalies: m.contextual }));
 vi.mock("@anthropic-ai/sdk", () => ({ default: class { constructor() { throw new Error("No provider calls allowed"); } } }));
 import { GET as digest } from "@/app/api/cron/digest/route";
 import { GET as anomalies } from "@/app/api/cron/anomalies/route";
@@ -24,7 +24,7 @@ beforeEach(() => {
   return [{ revenue: "10", orders: "1", units: "1", cogs: "2", spend: "1", conversions: "1", conversion_value: "10", meta_spend: "1", google_spend: "0", total: "1", with_cost: "1", name: "test" }];
  });
  m.events.mockImplementation(async ({ where }) => { if (where.organizationId === "a") throw new Error("query failed"); return []; });
- m.email.mockResolvedValue({ ok: true }); m.detect.mockReturnValue([]);
+ m.contextual.mockResolvedValue([]); m.email.mockResolvedValue({ ok: true }); m.detect.mockReturnValue([]);
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 it.each(routes)("$name preserves the next organization and records partial failure", async ({name, run, field}) => {
@@ -66,4 +66,14 @@ it.each(routes)("$name treats budget cutoff as pending, not failed", async ({nam
  const body = await (await run(request())).json();
  expect(body).toMatchObject({ completo: false, estado: "pendiente", cortoPorReloj: true, failures: [] });
  expect(m.email).not.toHaveBeenCalled(); expect(m.heartbeat).toHaveBeenCalledWith(name, true, undefined);
+});
+it("preserves rule findings while marking contextual provider failure incomplete", async () => {
+ m.orgs.mockResolvedValue([{ id: "b", name: "B", users: [] }]);
+ m.detect.mockReturnValue([{ priority: "HIGH", type: "ALERT", metric: "revenue", title: "Measured drop" }]);
+ m.contextual.mockRejectedValue(new Error("provider offline"));
+ const body = await (await anomalies(request())).json();
+ expect(body).toMatchObject({ completo: false, estado: "fallo-parcial", totalAnomalies: 1 });
+ expect(body.failures).toEqual([expect.objectContaining({ orgId: "b", error: "Análisis contextual no disponible" })]);
+ expect(m.insight).toHaveBeenCalledTimes(1);
+ expect(m.heartbeat).toHaveBeenCalledWith("anomalies", false, expect.any(String));
 });

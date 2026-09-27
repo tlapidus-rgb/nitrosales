@@ -249,7 +249,14 @@ export async function GET(req: NextRequest) {
 
       // ── Detect anomalies ──
       const ruleAnomalies = detectRuleBasedAnomalies(current, previous);
-      const claudeAnomalies = await detectClaudeAnomalies(current, previous, org.name);
+      let claudeAnomalies: Awaited<ReturnType<typeof detectClaudeAnomalies>> = [];
+      try {
+        claudeAnomalies = await detectClaudeAnomalies(current, previous, org.name);
+      } catch {
+        // Keep measured rule-based findings, but never report a failed analysis
+        // as a successful run with zero contextual anomalies.
+        failures.push({ orgId: ORG_ID, orgName: org.name, error: "Análisis contextual no disponible" });
+      }
 
       // Merge and deduplicate (prefer rule-based for same metric)
       const allAnomalies = [...ruleAnomalies];

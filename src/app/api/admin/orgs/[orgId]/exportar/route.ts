@@ -81,103 +81,79 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
     .catch(() => null);
   if (!org) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
 
-  // Se cuenta ANTES de empezar a mandar: el manifiesto tiene que poder prometer
-  // un número, y para eso hay que saberlo antes de la primera línea.
-  const conteos: Array<{ tabla: string; filas: number | null }> = [];
-  for (const { tabla } of SE_EXPORTA) {
-    try {
-      const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-        `SELECT COUNT(*)::float8 AS n FROM "${tabla}" WHERE ${filtroDe(tabla)}`,
-        orgId,
-      );
-      conteos.push({ tabla, filas: Number(r[0]?.n ?? 0) });
-    } catch {
-      // `null` = no se pudo contar. Hace que el total del manifiesto también
-      // sea `null`: un número que parece completo y no lo es es peor que nada.
-      conteos.push({ tabla, filas: null });
-    }
-  }
-
-  const manifiesto = armarManifiesto({
-    organizationId: orgId,
-    organizacion: org.name,
-    conteos,
-  });
-
-  const codificador = new TextEncoder();
-
-  const cuerpo = new ReadableStream({
-    async start(control) {
-      const linea = (o: unknown) => control.enqueue(codificador.encode(JSON.stringify(o) + "\n"));
-
-      linea({ manifiesto });
-
-      let escritas = 0;
-      const problemas: Array<{ tabla: string; error: string }> = [];
-      // Qué columnas se quitaron. Va en el cierre: sacar datos en silencio es
-      // el mismo bug que exportarlos de más, sólo que al revés.
-      const columnasQuitadas = new Set<string>();
-
-      for (const { tabla } of SE_EXPORTA) {
-        let saltear = 0;
-        for (;;) {
-          let filas: Array<Record<string, unknown>>;
-          try {
-            filas = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-              // El orden por `id` hace que la paginación sea estable: sin un
-              // orden fijo, dos vueltas pueden traer la misma fila o saltearla.
-              `SELECT * FROM "${tabla}" WHERE ${filtroDe(tabla)} ORDER BY id LIMIT ${LOTE} OFFSET ${saltear}`,
-              orgId,
-            );
-          } catch (e: any) {
-            // Una tabla que falla NO corta la exportación: se anota y se sigue.
-            // Cortar dejaría al cliente sin las tablas siguientes, que quizás
-            // andaban bien.
-            problemas.push({ tabla, error: e?.message ?? String(e) });
-            break;
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  let resume: (() => void) | undefined;
+  const cuerpo = new ReadableStream<Uint8Array>({
+    start(control) {
+      void (async () => {
+      let written = 0;
+      let expected: number | null = null;
+      const removed = new Set<string>();
+      const emit = async (value: unknown) => {
+        if (cancelled) throw new Error("Export cancelled");
+        control.enqueue(encoder.encode(JSON.stringify(value) + "\n"));
+        if ((control.desiredSize ?? 0) <= 0) await new Promise<void>(resolve => { resume = resolve; });
+        if (cancelled) throw new Error("Export cancelled");
+      };
+      try {
+        // Counts and all pages share one snapshot. Keyset pagination avoids
+        // repeatedly scanning growing OFFSETs. No row writes are allowed.
+        await prisma.$transaction(async tx => {
+          await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+          const counts: Array<{ tabla: string; filas: number }> = [];
+          for (const { tabla } of SE_EXPORTA) {
+            const rows = await tx.$queryRawUnsafe<Array<{ n: number }>>(
+              `SELECT COUNT(*)::float8 AS n FROM "${tabla}" WHERE ${filtroDe(tabla)}`, orgId);
+            const n = Number(rows[0]?.n);
+            if (!Number.isFinite(n) || n < 0) throw new Error("Invalid export count");
+            counts.push({ tabla, filas: n });
           }
-
-          if (filas.length === 0) break;
-          for (const fila of filas) {
-            // `SELECT *` traía `influencers.dashboardPasswordPlain` — la
-            // contraseña del creador SIN HASHEAR. Ver el módulo.
-            const { limpia, quitadas } = limpiarFila(fila);
-            for (const q of quitadas) columnasQuitadas.add(`${tabla}.${q}`);
-            linea({ tabla, fila: limpia });
-            escritas++;
+          const manifiesto = armarManifiesto({ organizationId: orgId, organizacion: org.name, conteos: counts });
+          expected = manifiesto.filasEsperadas;
+          await emit({ manifiesto, consistencia: "snapshot-repeatable-read" });
+          for (const { tabla } of SE_EXPORTA) {
+            let cursor: string | null = null;
+            for (;;) {
+              if (cancelled) throw new Error("Export cancelled");
+              const rows: Array<Record<string, unknown>> = await tx.$queryRawUnsafe(
+                `SELECT * FROM "${tabla}" WHERE ${filtroDe(tabla)} ${cursor === null ? "" : 'AND "id" > $2'} ORDER BY "id" LIMIT ${LOTE}`,
+                ...cursor === null ? [orgId] : [orgId, cursor],
+              );
+              if (rows.length === 0) break;
+              for (const row of rows) {
+                const { limpia, quitadas } = limpiarFila(row);
+                for (const column of quitadas) removed.add(`${tabla}.${column}`);
+                await emit({ tabla, fila: limpia });
+                written++;
+              }
+              const next = rows[rows.length - 1].id;
+              if (typeof next !== "string" || next === cursor) throw new Error("Invalid export cursor");
+              cursor = next;
+              if (rows.length < LOTE) break;
+            }
           }
-          if (filas.length < LOTE) break;
-          saltear += LOTE;
-        }
+        }, { isolationLevel: "RepeatableRead", timeout: 780_000, maxWait: 5000 });
+        // Emit a successful footer only after the transaction completed.
+        await emit({ cierre: { filasEsperadas: expected, filasEscritas: written,
+          completa: estaCompleta(expected, written), consistencia: "snapshot-repeatable-read",
+          problemas: [], columnasQuitadasPorSeguridad: [...removed].sort(), terminadoEn: new Date().toISOString() } });
+      } catch {
+        if (!cancelled) await emit({ cierre: { filasEsperadas: expected, filasEscritas: written, completa: false,
+          problemas: [{ error: "No se pudo completar la lectura consistente. Volvé a descargar el archivo." }],
+          columnasQuitadasPorSeguridad: [...removed].sort(), terminadoEn: new Date().toISOString() } });
+      } finally {
+        if (!cancelled) control.close();
       }
-
-      // El cierre. Si `completa` viene en false, el archivo está incompleto
-      // aunque la descarga haya terminado bien.
-      linea({
-        cierre: {
-          filasEsperadas: manifiesto.filasEsperadas,
-          filasEscritas: escritas,
-          completa: estaCompleta(manifiesto.filasEsperadas, escritas) && problemas.length === 0,
-          problemas,
-          columnasQuitadasPorSeguridad: [...columnasQuitadas].sort(),
-          terminadoEn: new Date().toISOString(),
-        },
-      });
-
-      control.close();
+      })().catch(() => { if (!cancelled) control.error(new Error("Export unavailable")); });
     },
+    pull() { const notify = resume; resume = undefined; notify?.(); },
+    cancel() { cancelled = true; const notify = resume; resume = undefined; notify?.(); },
   });
-
-  const nombre = `nitrosales-${org.name.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}-${
-    new Date().toISOString().slice(0, 10)
-  }.ndjson`;
-
-  return new NextResponse(cuerpo, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${nombre}"`,
-      // Nunca cachear: son datos de un cliente.
-      "Cache-Control": "no-store",
-    },
-  });
+  const nombre = `nitrosales-${org.name.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.ndjson`;
+  return new NextResponse(cuerpo, { headers: {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${nombre}"`,
+    "Cache-Control": "no-store",
+  } });
 }

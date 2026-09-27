@@ -257,7 +257,7 @@ export async function detectClaudeAnomalies(
   additionalContext?: string
 ): Promise<AnomalyResult[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) throw new Error("Análisis contextual no disponible: proveedor sin configurar");
 
   const anthropic = new Anthropic({ apiKey });
 
@@ -313,12 +313,13 @@ Formato:
       parsed = JSON.parse(text);
     } catch {
       const match = text.match(/\{[\s\S]*\}/);
-      parsed = match ? JSON.parse(match[0]) : { anomalies: [] };
+      if (!match) throw new Error("Respuesta contextual inválida");
+      parsed = JSON.parse(match[0]);
     }
-
+    if (!parsed || !Array.isArray(parsed.anomalies)) throw new Error("Respuesta contextual inválida");
     return validateAnomalies(parsed, current, previous);
   } catch (error: any) {
     console.error("[anomaly] Claude analysis failed:", error.message);
-    return [];
+    throw new Error("No se pudo completar el análisis contextual de anomalías");
   }
 }

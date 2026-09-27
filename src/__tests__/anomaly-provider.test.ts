@@ -18,3 +18,13 @@ it("validates parsed provider rows and replaces invented numeric evidence", asyn
  m.create.mockResolvedValue({ content: [{ type: "text", text: JSON.stringify({ anomalies: [{ type: "TREND", priority: "LOW", title: "Ingresos", description: "Cambio", action: "Revisar", metric: "revenue", metricValue: 999, metricDelta: 99 }] }) }] });
  expect(await detectClaudeAnomalies(snapshot, snapshot, "Test")).toEqual([expect.objectContaining({ metricValue: 100, metricDelta: 0 })]);
 });
+it.each(["network", "invalid-json", "invalid-envelope"])("reports unavailable analysis on %s", async kind => {
+ if (kind === "network") m.create.mockRejectedValue(new Error("offline"));
+ else m.create.mockResolvedValue({ content: [{ type: "text", text: kind === "invalid-json" ? "not JSON" : '{"anomalies":{}}' }] });
+ await expect(detectClaudeAnomalies(snapshot, snapshot, "Test")).rejects.toThrow("No se pudo completar");
+});
+it("reports a missing provider instead of a successful empty analysis", async () => {
+ vi.stubEnv("ANTHROPIC_API_KEY", "");
+ await expect(detectClaudeAnomalies(snapshot, snapshot, "Test")).rejects.toThrow("sin configurar");
+ expect(m.create).not.toHaveBeenCalled();
+});
