@@ -39,12 +39,13 @@ export type InsumosDeReadiness = {
   estadoOnboarding: string;
   /** Conexiones cargadas por el cliente y si su test de credenciales pasó. */
   conexiones: Array<{ plataforma: string; credencialesOk: boolean | null; detalle?: string }>;
+  conexionesDisponibles?: boolean;
   /** Eventos de pixel en las últimas 48 h. `null` = no se pudo consultar. */
   eventosDePixel: number | null;
   /** Órdenes cargadas para la organización. `null` = no se pudo consultar. */
   ordenes: number | null;
   /** Jobs de backfill del alta, por estado. */
-  jobs: { total: number; completos: number; fallados: number; pendientes: number };
+  jobs: { total: number; completos: number; fallados: number; pendientes: number } | null;
   /** Si el webhook de órdenes de VTEX está registrado. `null` = no verificado. */
   webhookVtexRegistrado: boolean | null;
   /**
@@ -101,7 +102,10 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
   const items: ItemDeReadiness[] = [];
 
   // ── Credenciales ────────────────────────────────────────────────────────
-  if (i.conexiones.length === 0) {
+  if (i.conexionesDisponibles === false) {
+    items.push({ clave: "credenciales", titulo: "Conexiones", estado: "atencion",
+      detalle: "No se pudo consultar las conexiones.", queHacer: "Reintentar la verificación antes de activar." });
+  } else if (i.conexiones.length === 0) {
     items.push({
       clave: "credenciales",
       titulo: "Conexiones",
@@ -260,7 +264,10 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
   }
 
   // ── Backfill ────────────────────────────────────────────────────────────
-  if (i.jobs.total === 0) {
+  if (i.jobs === null) {
+    items.push({ clave: "backfill", titulo: "Backfill", estado: "atencion",
+      detalle: "No se pudo verificar los jobs.", queHacer: "Reintentar la consulta antes de activar." });
+  } else if (i.jobs.total === 0) {
     items.push({
       clave: "backfill",
       titulo: "Backfill",
@@ -383,7 +390,7 @@ export function evaluarReadiness(i: InsumosDeReadiness): Readiness {
       (it.estado === "falta" || (it.clave === "backfill" && it.estado === "atencion")),
   ).length;
 
-  const sinVerificar = Number(i.conexiones.some(c => c.credencialesOk === null)) + Number(i.ordenes === null);
+  const sinVerificar = Number(i.conexionesDisponibles === false || i.conexiones.some(c => c.credencialesOk === null)) + Number(i.ordenes === null) + Number(i.jobs === null);
   const estado = bloqueantes > 0 ? "pendiente" : sinVerificar > 0 ? "inconcluso" : "listo";
   return { listo: estado === "listo", estado, sinVerificar, bloqueantes, items };
 }

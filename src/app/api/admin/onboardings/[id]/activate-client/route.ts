@@ -12,6 +12,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { collectReadiness } from "@/lib/onboarding/collect-readiness";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -48,23 +49,29 @@ export async function POST(
       });
     }
 
-    // Permitimos activar desde READY_FOR_REVIEW (caso normal) o IN_PROGRESS
-    // (override manual del admin si hace falta).
-    if (ob.status !== "READY_FOR_REVIEW" && ob.status !== "IN_PROGRESS" && ob.status !== "BACKFILLING") {
+    if (ob.status !== "READY_FOR_REVIEW" || !ob.createdOrgId) {
       return NextResponse.json({
         error: `Estado actual ${ob.status} no permite activación. Esperá que llegue a READY_FOR_REVIEW (backfill terminado).`,
       }, { status: 400 });
     }
 
+    const { readiness } = await collectReadiness(ob, true);
+    if (!readiness.listo) {
+      return NextResponse.json({ error: "El cliente todavía no está listo para habilitarse.", readiness }, { status: 409 });
+    }
+
     // Marcar ACTIVE
-    await prisma.$executeRawUnsafe(
+    const activated = await prisma.$executeRawUnsafe(
       `UPDATE "onboarding_requests"
        SET "status" = 'ACTIVE'::"OnboardingStatus",
            "progressStage" = 'completed',
            "updatedAt" = NOW()
-       WHERE "id" = $1`,
-      id,
+       WHERE "id" = $1 AND "status" = 'READY_FOR_REVIEW'::"OnboardingStatus" AND "createdOrgId" = $2
+         AND EXISTS (SELECT 1 FROM "backfill_jobs" WHERE "onboardingRequestId" = $1)
+         AND NOT EXISTS (SELECT 1 FROM "backfill_jobs" WHERE "onboardingRequestId" = $1 AND "status" <> 'COMPLETED')`,
+      id, ob.createdOrgId,
     );
+    if (activated !== 1) return NextResponse.json({ error: "El estado cambió durante la verificación. Volvé a revisar el alta." }, { status: 409 });
 
     // ══════════════════════════════════════════════════════════════
     // AUTO-CONFIGURAR Orders Broadcaster VTEX (multi-tenant fix)
@@ -110,7 +117,6 @@ export async function POST(
             ok: r.ok,
             status: r.status,
             account,
-            hookUrl,
           };
           console.log(`[activate-client] Orders Broadcaster setup for ${account}: status=${r.status}`);
         } else {
@@ -130,13 +136,13 @@ export async function POST(
           contactName: ob.contactName,
           companyName: ob.companyName,
         });
-        await sendEmail({
+        const delivery = await sendEmail({
           to: ob.contactEmail,
           subject: tpl.subject,
           html: tpl.html,
           context: { orgId: ob.createdOrgId, kind: "data_ready_manual_activation" },
         });
-        emailSent = true;
+        emailSent = delivery.ok;
       } catch (err: any) {
         console.error(`[activate-client] email fallo:`, err.message);
       }

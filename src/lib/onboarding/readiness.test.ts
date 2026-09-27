@@ -29,6 +29,16 @@ const todoBien: InsumosDeReadiness = {
 const item = (r: ReturnType<typeof evaluarReadiness>, clave: string) =>
   r.items.find((i) => i.clave === clave)!;
 
+it("never claims readiness when job lookup failed", () => {
+ const r = evaluarReadiness({ ...todoBien, jobs: null });
+ expect(r.listo).toBe(false); expect(r.sinVerificar).toBe(1);
+ expect(item(r, "backfill").detalle).toContain("No se pudo verificar");
+});
+it("distinguishes connection lookup failure from no connections", () => {
+ const r = evaluarReadiness({ ...todoBien, conexiones: [], conexionesDisponibles: false });
+ expect(r).toMatchObject({ listo: false, estado: "inconcluso", sinVerificar: 1 });
+});
+
 describe("el caso feliz", () => {
   it("un alta completa da listo", () => {
     const r = evaluarReadiness(todoBien);
