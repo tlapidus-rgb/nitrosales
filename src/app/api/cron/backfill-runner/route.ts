@@ -191,7 +191,10 @@ export async function GET(req: NextRequest) {
         // Refrescar el job desde DB para tener cursor/processedCount actualizados
         // (los acabamos de updatear nosotros mismos en la iter anterior).
         const fresh = await getJob(currentJob.id);
-        if (!fresh || fresh.status !== "RUNNING") break;
+        if (!fresh || fresh.status !== "RUNNING" || !currentJob.leaseToken || fresh.leaseToken !== currentJob.leaseToken) {
+          frenado = "propiedad-del-job-perdida";
+          break;
+        }
         currentJob = fresh;
       }
 
@@ -211,27 +214,27 @@ export async function GET(req: NextRequest) {
       const total = result.totalEstimate || currentJob.totalEstimate || 0;
       const pct = total > 0 ? Math.round((newProcessed / total) * 100) : (result.isComplete ? 100 : 0);
 
-      await updateJobProgress(
+      const retained = await updateJobProgress(
         currentJob.id,
         {
           cursor: result.newCursor,
           processedCount: newProcessed,
           totalEstimate: result.totalEstimate || Number(currentJob.totalEstimate) || undefined,
           progressPct: pct,
+          lastError: result.error ?? null,
         },
         // Si el chunk fallo NO se toca el latido: un job roto tiene que dejar de
         // parecer vivo, si no bloquea el limite de concurrencia para todos.
-        { tocarLatido: !result.error }
+        { leaseToken: currentJob.leaseToken, tocarLatido: !result.error }
       );
+      if (!retained) {
+        frenado = "propiedad-del-job-perdida";
+        break;
+      }
 
       if (result.error) {
         // Error en chunk: marcar lastError pero no failimos inmediatamente.
         // El job queda RUNNING con el cursor donde fallo; el proximo tick retoma.
-        await prisma.$executeRawUnsafe(
-          `UPDATE "backfill_jobs" SET "lastError" = $2, "updatedAt" = NOW() WHERE "id" = $1`,
-          currentJob.id,
-          result.error.slice(0, 2000)
-        );
         iterations.push({ jobId: currentJob.id, platform: currentJob.platform, items: result.itemsProcessed, error: result.error });
         // En caso de error, soltar el job y salir del loop (no machacar al provider).
         // El cursor quedo guardado, proxima invocacion retoma despues del cooldown.
@@ -248,7 +251,11 @@ export async function GET(req: NextRequest) {
       });
 
       if (result.isComplete) {
-        await completeJob(currentJob.id);
+        if (!(await completeJob(currentJob.id, currentJob.leaseToken))) {
+          iterations[iterations.length - 1].complete = false;
+          frenado = "propiedad-del-job-perdida";
+          break;
+        }
 
         // Si era parte de un onboarding y ya terminaron TODOS los jobs:
         //   - dispara post-backfill-finalize (catalog-refresh + recompute aggregates +

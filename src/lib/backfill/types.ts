@@ -8,6 +8,7 @@ export type BackfillPlatform = "VTEX" | "MERCADOLIBRE" | "META_ADS" | "GOOGLE_AD
 
 export interface BackfillJob {
   id: string;
+  leaseToken: string | null;
   organizationId: string;
   platform: BackfillPlatform;
   status: BackfillStatus;

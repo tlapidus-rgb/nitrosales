@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import {
-  completeJob,
+  forceCompleteJob,
   contarJobsDelOnboarding,
   esAltaCompleta,
 } from "@/lib/backfill/job-manager";
@@ -74,7 +74,9 @@ export async function POST(
       return NextResponse.json({ error: "Job ya esta completado" }, { status: 409 });
     }
 
-    await completeJob(job.id);
+    if (!(await forceCompleteJob(job.id, onboardingId))) {
+      return NextResponse.json({ error: "El job cambió mientras se procesaba la solicitud. Recargá su estado." }, { status: 409 });
+    }
 
     // Si es el ultimo job pendiente del onboarding → triggerear finalize
     let triggeredFinalize = false;

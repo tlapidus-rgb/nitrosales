@@ -22,6 +22,7 @@ import { RECLAMAR_PROXIMO_JOB_SQL } from "./job-manager";
 
 const ESQUEMA = `CREATE TABLE "backfill_jobs" (
   "id" TEXT PRIMARY KEY,
+  "leaseToken" TEXT,
   "organizationId" TEXT NOT NULL,
   "platform" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'QUEUED',

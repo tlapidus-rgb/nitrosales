@@ -43,11 +43,17 @@ export async function POST(
     // Si viene → solo crea jobs para las plataformas listadas.
     let selectedPlatforms: Set<string> | null = null;
     try {
-      const body = await req.json().catch(() => ({}));
-      if (Array.isArray(body?.platforms) && body.platforms.length > 0) {
-        selectedPlatforms = new Set(body.platforms.map((p: string) => p.toUpperCase()));
+      const text = await req.text();
+      const body = text.trim() ? JSON.parse(text) : {};
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid body");
+      if (body.platforms !== undefined) {
+        if (!Array.isArray(body.platforms) || body.platforms.length === 0 ||
+            !body.platforms.every((p: unknown) => typeof p === "string" && p.trim())) throw new Error("Invalid selection");
+        selectedPlatforms = new Set(body.platforms.map((p: string) => p.trim().toUpperCase()));
       }
-    } catch {}
+    } catch {
+      return NextResponse.json({ error: "Selección inválida. Indicá al menos una plataforma, o omití platforms para seleccionar todas." }, { status: 400 });
+    }
 
     const rows = await prisma.$queryRawUnsafe<Array<any>>(
       `SELECT * FROM "onboarding_requests" WHERE "id" = $1 LIMIT 1`,
@@ -84,6 +90,9 @@ export async function POST(
         { status: 400 }
       );
     }
+    if (selectedPlatforms && [...selectedPlatforms].some(p => !connections.some(c => c.platform === p))) {
+      return NextResponse.json({ error: "La selección incluye una plataforma sin conexión configurada." }, { status: 400 });
+    }
 
     // Marcar connections como ACTIVE si están listas para sincronizar.
     // Para OAuth (ML/Google Ads): ACTIVE solo si ya hay tokens (accessToken/mlUserId).
@@ -111,7 +120,7 @@ export async function POST(
       (!selectedPlatforms || selectedPlatforms.has("MERCADOLIBRE")) &&
       Number(ob.historyMlMonths) > 0 &&
       connections.some(
-        (c) => c.platform === "MERCADOLIBRE" && !(c.credentials as any)?.needsSetup,
+        (c) => c.platform === "MERCADOLIBRE" && !(c.credentials as any)?.needsSetup && (c.credentials as any)?.accessToken && (c.credentials as any)?.mlUserId,
       );
 
     if (!hayVtexParaBackfill && !hayMlParaBackfill) {
@@ -129,9 +138,15 @@ export async function POST(
       );
     }
 
+    // Serialize approvals for the organization and commit connections, jobs
+    // and onboarding together. A rejected/failed approval leaves no enrollment.
+    const createdJobs = await prisma.$transaction(async tx => {
+      const orgLock = await tx.$queryRawUnsafe('SELECT id FROM organizations WHERE id = $1 FOR UPDATE', ob.createdOrgId);
+      const locked = await tx.$queryRawUnsafe('SELECT status, "createdOrgId" FROM onboarding_requests WHERE id = $1 FOR UPDATE', ob.id);
+      if (!orgLock.length || locked[0]?.status !== "NEEDS_INFO" || locked[0]?.createdOrgId !== ob.createdOrgId) throw Object.assign(new Error("El onboarding cambió durante la aprobación"), { status: 409 });
     for (const c of connections) {
       const creds = (c.credentials as any) || {};
-      if (creds.needsSetup) continue;
+      if (creds.needsSetup || (selectedPlatforms && !selectedPlatforms.has(c.platform))) continue;
 
       let newStatus: "ACTIVE" | "PENDING" = "ACTIVE";
       if (c.platform === "MERCADOLIBRE") {
@@ -141,7 +156,7 @@ export async function POST(
         newStatus = creds.accessToken ? "ACTIVE" : "PENDING";
       }
 
-      await prisma.connection.update({
+      await tx.connection.update({
         where: { id: c.id },
         data: { status: newStatus as any, lastSyncError: null },
       });
@@ -153,9 +168,9 @@ export async function POST(
     const vtexConn = connections.find((c) => c.platform === "VTEX");
     const vtexMonths = Number(ob.historyVtexMonths) || 0;
     const includeVtex = !selectedPlatforms || selectedPlatforms.has("VTEX");
-    if (vtexConn && vtexMonths > 0 && includeVtex) {
+    if (vtexConn && hayVtexParaBackfill) {
       // Verificar que no haya un job activo
-      const existing = await prisma.$queryRawUnsafe<Array<any>>(
+      const existing = await tx.$queryRawUnsafe<Array<any>>(
         `SELECT "id" FROM "backfill_jobs"
          WHERE "organizationId" = $1 AND "platform" = 'VTEX'
            AND "status" IN ('QUEUED', 'RUNNING') LIMIT 1`,
@@ -167,7 +182,7 @@ export async function POST(
           platform: "VTEX",
           monthsRequested: vtexMonths,
           onboardingRequestId: ob.id,
-        });
+        }, tx);
         createdJobs.push(`VTEX:${jobId}`);
       }
     }
@@ -175,8 +190,8 @@ export async function POST(
     const mlConn = connections.find((c) => c.platform === "MERCADOLIBRE");
     const mlMonths = Number(ob.historyMlMonths) || 0;
     const includeMl = !selectedPlatforms || selectedPlatforms.has("MERCADOLIBRE");
-    if (mlConn && mlMonths > 0 && includeMl) {
-      const existing = await prisma.$queryRawUnsafe<Array<any>>(
+    if (mlConn && hayMlParaBackfill) {
+      const existing = await tx.$queryRawUnsafe<Array<any>>(
         `SELECT "id" FROM "backfill_jobs"
          WHERE "organizationId" = $1 AND "platform" = 'MERCADOLIBRE'
            AND "status" IN ('QUEUED', 'RUNNING') LIMIT 1`,
@@ -188,7 +203,7 @@ export async function POST(
           platform: "MERCADOLIBRE",
           monthsRequested: mlMonths,
           onboardingRequestId: ob.id,
-        });
+        }, tx);
         createdJobs.push(`ML:${jobId}`);
       }
     }
@@ -208,22 +223,12 @@ export async function POST(
     // cliente esperando algo que no existe.
     // Red de seguridad. El caso normal ya se atajó arriba, ANTES de escribir
     // nada; si se llega acá es porque `createBackfillJob` falló o porque
-    // había un job vivo para las dos plataformas. Las conexiones ya quedaron
-    // en ACTIVE, así que la nota de abajo dice la verdad y no la de arriba.
-    if (createdJobs.length === 0) {
-      return NextResponse.json(
-        {
-          error: "No se creó ningún job de backfill.",
-          detalle:
-            "El cliente no tiene una conexión activa de VTEX ni de MercadoLibre, o los meses de historia quedaron en 0. Revisá las credenciales y la selección de plataformas antes de aprobar.",
-          onboardingId: ob.id,
-        },
-        { status: 409 }
-      );
-    }
+    // había un job vivo para las dos plataformas. Lanzar revierte también
+    // las conexiones: ningún rechazo deja una aprobación parcial.
+    if (createdJobs.length === 0) throw Object.assign(new Error("No se creó ningún job de backfill. Revisá los jobs activos de VTEX y MercadoLibre, la selección y los meses de historia. No se modificó ninguna conexión."), { status: 409 });
 
     // Status onboarding → BACKFILLING
-    await prisma.$executeRawUnsafe(
+    await tx.$executeRawUnsafe(
       `UPDATE "onboarding_requests"
        SET "status" = 'BACKFILLING'::"OnboardingStatus",
            "progressStage" = 'backfilling',
@@ -231,6 +236,11 @@ export async function POST(
        WHERE "id" = $1`,
       ob.id
     );
+
+      return createdJobs;
+    }, { isolationLevel: "ReadCommitted", timeout: 15000, maxWait: 5000 });
+    const mlConn = connections.find(c => c.platform === "MERCADOLIBRE");
+    const includeMl = !selectedPlatforms || selectedPlatforms.has("MERCADOLIBRE");
 
     // Email al cliente
     const tpl = await backfillStartedEmailActive({
@@ -290,6 +300,6 @@ export async function POST(
     });
   } catch (error: any) {
     console.error("[admin/onboardings/approve-backfill] error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status === 409 ? 409 : 500 });
   }
 }

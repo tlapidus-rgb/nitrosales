@@ -16,13 +16,13 @@ export async function createBackfillJob(args: {
   platform: BackfillPlatform;
   monthsRequested: number;
   onboardingRequestId?: string | null;
-}): Promise<string> {
+}, client = prisma): Promise<string> {
   const id = randomUUID();
   const toDate = new Date();
   const fromDate = new Date();
   fromDate.setMonth(fromDate.getMonth() - args.monthsRequested);
 
-  await prisma.$executeRawUnsafe(
+  await client.$executeRawUnsafe(
     `INSERT INTO "backfill_jobs"
       ("id", "organizationId", "platform", "status", "monthsRequested", "fromDate", "toDate", "onboardingRequestId")
      VALUES ($1, $2, $3, 'QUEUED', $4, $5, $6, $7)`,
@@ -81,6 +81,7 @@ export async function updateJobProgress(
     processedCount?: number;
     totalEstimate?: number;
     progressPct?: number;
+    lastError?: string | null;
   },
   // `lastChunkAt` es el LATIDO del job: dice "esto todavia esta AVANZANDO", y
   // su unico consumidor es el reaper (`matarJobsSinProgreso`).
@@ -92,8 +93,9 @@ export async function updateJobProgress(
   //
   // Por eso un chunk que FALLA no toca `lastChunkAt`: si lo tocara, un job roto
   // seguiria pareciendo que avanza y el reaper no lo mataria nunca.
-  opts: { tocarLatido?: boolean } = {}
-): Promise<void> {
+  opts: { leaseToken: string; tocarLatido?: boolean }
+): Promise<boolean> {
+  if (!opts.leaseToken) return false;
   const tocarLatido = opts.tocarLatido !== false;
   const sets: string[] = tocarLatido
     ? [`"lastChunkAt" = NOW()`, `"updatedAt" = NOW()`]
@@ -117,36 +119,58 @@ export async function updateJobProgress(
     sets.push(`"progressPct" = $${idx++}`);
     values.push(Math.min(100, Math.max(0, Math.round(args.progressPct))));
   }
+  if (args.lastError !== undefined) {
+    sets.push(`"lastError" = $${idx++}`);
+    values.push(args.lastError?.slice(0, 2000) ?? null);
+  }
+  values.push(opts.leaseToken);
 
-  await prisma.$executeRawUnsafe(
-    `UPDATE "backfill_jobs" SET ${sets.join(", ")} WHERE "id" = $1`,
+  const updated = await prisma.$executeRawUnsafe(
+    `UPDATE "backfill_jobs" SET ${sets.join(", ")} WHERE "id" = $1 AND "status" = 'RUNNING' AND "leaseToken" = $${idx}`,
     ...values
   );
+  return updated === 1;
 }
 
-export async function completeJob(id: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
+export async function completeJob(id: string, leaseToken: string): Promise<boolean> {
+  if (!leaseToken) return false;
+  const updated = await prisma.$executeRawUnsafe(
     `UPDATE "backfill_jobs"
      SET "status" = 'COMPLETED',
          "progressPct" = 100,
          "completedAt" = NOW(),
          "updatedAt" = NOW(),
-         "lastError" = NULL
-     WHERE "id" = $1`,
-    id
+         "lastError" = NULL,
+         "leaseToken" = NULL
+     WHERE "id" = $1 AND "status" = 'RUNNING' AND "leaseToken" = $2`,
+    id, leaseToken
   );
+  return updated === 1;
 }
 
-export async function failJob(id: string, error: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
+/** Explicit staff override, scoped again at the write to its onboarding. */
+export async function forceCompleteJob(id: string, onboardingId: string): Promise<boolean> {
+  const updated = await prisma.$executeRawUnsafe(
+    `UPDATE "backfill_jobs" SET "status" = 'COMPLETED', "progressPct" = 100,
+      "completedAt" = NOW(), "updatedAt" = NOW(), "lastError" = NULL, "leaseToken" = NULL
+     WHERE "id" = $1 AND "onboardingRequestId" = $2 AND "status" IN ('QUEUED','RUNNING','FAILED')`,
+    id, onboardingId,
+  );
+  return updated === 1;
+}
+
+export async function failJob(id: string, error: string, leaseToken: string): Promise<boolean> {
+  if (!leaseToken) return false;
+  const updated = await prisma.$executeRawUnsafe(
     `UPDATE "backfill_jobs"
      SET "status" = 'FAILED',
          "lastError" = $2,
-         "updatedAt" = NOW()
-     WHERE "id" = $1`,
+         "updatedAt" = NOW(), "leaseToken" = NULL
+     WHERE "id" = $1 AND "status" = 'RUNNING' AND "leaseToken" = $3`,
     id,
-    error.slice(0, 2000)
+    error.slice(0, 2000), leaseToken
   );
+  return updated === 1;
 }
 
 // Todos los jobs de un onboarding estan completos?
@@ -315,6 +339,7 @@ export async function matarJobsSinProgreso(sinProgresoMs: number): Promise<strin
  */
 export const RECLAMAR_PROXIMO_JOB_SQL = `UPDATE "backfill_jobs" j
         SET "status" = 'RUNNING',
+            "leaseToken" = gen_random_uuid()::text,
             "startedAt" = COALESCE(j."startedAt", NOW()),
             "updatedAt" = NOW()
       WHERE j."id" = (
