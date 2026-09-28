@@ -28,11 +28,7 @@ export async function collectReadiness(ob: { id: string; companyName: string; st
     ),
     testNitroPixel(orgId, prisma)
       .then((r) => {
-        // `testNitroPixel` devuelve el conteo dentro del texto; lo que importa
-        // acá es sí/no, así que se traduce a 0 o a un positivo.
-        if (!r.ok) return 0;
-        const m = /([\d.]+) eventos/.exec(r.detail ?? "");
-        return m ? Number(m[1].replace(/\./g, "")) : 1;
+        return r.unavailable ? null : r.eventCount ?? null;
       })
       .catch(() => null),
     prisma.order.count({ where: { organizationId: orgId } }).catch(() => null),

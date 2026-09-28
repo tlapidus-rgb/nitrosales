@@ -24,6 +24,9 @@ export type AreaCheck = {
 
 export type TestResult = {
   ok: boolean;
+  /** The check could not establish a result; distinct from a verified empty dataset. */
+  unavailable?: boolean;
+  eventCount?: number;
   detail: string;
   hint?: string;
   areas?: AreaCheck[];
@@ -98,7 +101,8 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
     }
     if (listRes.error) return { area: "Ventas", ok: false, detail: listRes.error };
     const list = listRes.data?.list;
-    if (!Array.isArray(list) || list.length === 0) {
+    if (!Array.isArray(list)) return { area: "Ventas", ok: false, detail: "Respuesta de órdenes inválida" };
+    if (list.length === 0) {
       return { area: "Ventas", ok: true, detail: "cuenta sin ventas todavía (no se pudo validar detalle)" };
     }
     const firstOrderId = list[0]?.orderId;
@@ -164,7 +168,9 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
     if (search.status === 401 || search.status === 403) {
       return { area: "Catálogo", ok: false, detail: `sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
-    if (!Array.isArray(search.data) || search.data.length === 0) {
+    if (search.error) return { area: "Catálogo", ok: false, detail: search.error };
+    if (!Array.isArray(search.data)) return { area: "Catálogo", ok: false, detail: "Respuesta de catálogo inválida" };
+    if (search.data.length === 0) {
       return { area: "Catálogo", ok: true, detail: "sin productos cargados todavía" };
     }
     const prods = search.data;
@@ -348,7 +354,8 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
       return { area: "Stock / depósitos", ok: false, detail: `sin permiso (${whRes.status})`, hint: "App Key necesita permiso Logistics - Read" };
     }
     if (whRes.error) return { area: "Stock / depósitos", ok: false, detail: whRes.error };
-    const list = Array.isArray(whRes.data) ? whRes.data : (whRes.data?.items || []);
+    const list = Array.isArray(whRes.data) ? whRes.data : whRes.data?.items;
+    if (!Array.isArray(list)) return { area: "Stock / depósitos", ok: false, detail: "Respuesta de depósitos inválida" };
     if (list.length === 0) {
       return { area: "Stock / depósitos", ok: true, detail: "cuenta sin depósitos configurados" };
     }
@@ -374,7 +381,8 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
       return { area: "Tarifas de envío", ok: false, detail: `sin permiso (${r.status})`, hint: "App Key necesita permiso Logistics - Read" };
     }
     if (r.error) return { area: "Tarifas de envío", ok: false, detail: r.error };
-    const list = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+    const list = Array.isArray(r.data) ? r.data : r.data?.items;
+    if (!Array.isArray(list)) return { area: "Tarifas de envío", ok: false, detail: "Respuesta de envíos inválida" };
     if (list.length === 0) {
       return { area: "Tarifas de envío", ok: true, detail: "sin políticas de envío configuradas" };
     }
@@ -399,7 +407,8 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
       return { area: "Marcas", ok: false, detail: `sin permiso (${r.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
     if (r.error) return { area: "Marcas", ok: false, detail: r.error };
-    const list = Array.isArray(r.data) ? r.data : [];
+    const list = r.data;
+    if (!Array.isArray(list)) return { area: "Marcas", ok: false, detail: "Respuesta de marcas inválida" };
     if (list.length === 0) return { area: "Marcas", ok: true, detail: "sin marcas cargadas" };
     const brand = list[0];
     const checks: SubCheck[] = [
@@ -1055,17 +1064,19 @@ export async function testNitroPixel(orgId: string, prismaClient: any): Promise<
       orgId,
       since
     );
-    const count = Number(rows?.[0]?.c || 0);
+    const count = Number(rows?.[0]?.c);
+    if (!Number.isSafeInteger(count) || count < 0) throw new Error("Conteo inválido");
     if (count === 0) {
       return {
         ok: false,
+        eventCount: 0,
         detail: "Sin eventos en las últimas 48hs",
         hint: "Verificar que el snippet esté instalado en el <head> del sitio.",
       };
     }
-    return { ok: true, detail: `${count.toLocaleString("es-AR")} eventos detectados últimas 48hs` };
+    return { ok: true, eventCount: count, detail: `${count.toLocaleString("es-AR")} eventos detectados últimas 48hs` };
   } catch (err: any) {
-    return { ok: false, detail: err?.message || "Error consultando DB" };
+    return { ok: false, unavailable: true, detail: "No se pudo consultar el estado del pixel" };
   }
 }
 

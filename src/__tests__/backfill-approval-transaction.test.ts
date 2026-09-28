@@ -15,7 +15,7 @@ beforeAll(async () => {
  await db.exec(`CREATE TYPE "OnboardingStatus" AS ENUM ('NEEDS_INFO','BACKFILLING');
  CREATE TABLE organizations (id text PRIMARY KEY);
  CREATE TABLE onboarding_requests (id text PRIMARY KEY, "createdOrgId" text, status "OnboardingStatus", "historyVtexMonths" int, "historyMlMonths" int, "progressStage" text, "updatedAt" timestamptz);
- CREATE TABLE connections (id text PRIMARY KEY, platform text, status text, credentials jsonb);
+ CREATE TABLE connections (id text PRIMARY KEY, platform text, status text, credentials jsonb, "organizationId" text DEFAULT 'org');
  CREATE TABLE backfill_jobs (id text PRIMARY KEY, "organizationId" text, platform text, status text, "monthsRequested" int, "fromDate" timestamptz, "toDate" timestamptz, "onboardingRequestId" text);`);
 });
 afterAll(async () => db.close());
@@ -24,7 +24,7 @@ beforeEach(async () => {
  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 200 })); m.email.mockResolvedValue({ ok: true });
  await db.exec(`TRUNCATE organizations,onboarding_requests,connections,backfill_jobs;
  INSERT INTO organizations VALUES ('org'); INSERT INTO onboarding_requests (id,"createdOrgId",status,"historyVtexMonths","historyMlMonths") VALUES ('onboarding','org','NEEDS_INFO',12,12);
- INSERT INTO connections VALUES ('vtex','VTEX','PENDING','{}'), ('ml','MERCADOLIBRE','PENDING','{"accessToken":"fake","mlUserId":"123"}');`);
+ INSERT INTO connections (id,platform,status,credentials) VALUES ('vtex','VTEX','PENDING','{"accountName":"test","appKey":"fake","appToken":"fake"}'), ('ml','MERCADOLIBRE','PENDING','{"accessToken":"fake","mlUserId":"123"}');`);
  m.query.mockImplementation(async (sql: string, ...args: unknown[]) => (await db.query(sql, args)).rows);
  m.connections.mockImplementation(async () => (await db.query("SELECT * FROM connections")).rows);
  m.transaction.mockImplementation(async callback => db.transaction(async tx => callback({
@@ -60,4 +60,20 @@ it("does not create MercadoLibre jobs without OAuth tokens", async () => {
 it.each([{ platforms: [] }, { platforms: ["UNKNOWN"] }, { platforms: [""] }])("does not expand an invalid explicit selection to all connections: %j", async ({ platforms }) => {
  expect((await run(platforms)).status).toBe(400);
  expect(m.transaction).not.toHaveBeenCalled(); expect(m.email).not.toHaveBeenCalled();
+});
+
+it.each(["credentials", "period"])("rejects a stale approval when %s changed before locking", async field => {
+ m.connections.mockImplementation(async () => {
+  const snapshot = (await db.query("SELECT * FROM connections")).rows;
+  if (field === "credentials") await db.exec("UPDATE connections SET credentials='{}' WHERE id='vtex'");
+  else await db.exec('UPDATE onboarding_requests SET "historyVtexMonths"=6');
+  return snapshot;
+ });
+ expect((await run(["VTEX"])).status).toBe(409);
+ expect((await db.query("SELECT * FROM backfill_jobs")).rows).toEqual([]);
+ expect(m.email).not.toHaveBeenCalled(); expect(m.wait).not.toHaveBeenCalled();
+});
+it("rejects a VTEX placeholder without credentials", async () => {
+ await db.exec("UPDATE connections SET credentials='{}' WHERE id='vtex'");
+ expect((await run(["VTEX"])).status).toBe(409); expect(m.transaction).not.toHaveBeenCalled();
 });

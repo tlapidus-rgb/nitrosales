@@ -23,6 +23,8 @@ import { waitUntil } from "@vercel/functions";
 // TODOS los entornos con el valor de producción, así que un preview que se
 // auto-invocaba salía a producción. `selfFetchBaseUrl` resuelve el origin real.
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
+import { isDeepStrictEqual } from "node:util";
+import { usableBackfillCredentials } from "@/lib/onboarding/backfill-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -115,12 +117,12 @@ export async function POST(
     const hayVtexParaBackfill =
       (!selectedPlatforms || selectedPlatforms.has("VTEX")) &&
       Number(ob.historyVtexMonths) > 0 &&
-      connections.some((c) => c.platform === "VTEX" && !(c.credentials as any)?.needsSetup);
+      connections.some((c) => c.platform === "VTEX" && usableBackfillCredentials(c.platform, c.credentials));
     const hayMlParaBackfill =
       (!selectedPlatforms || selectedPlatforms.has("MERCADOLIBRE")) &&
       Number(ob.historyMlMonths) > 0 &&
       connections.some(
-        (c) => c.platform === "MERCADOLIBRE" && !(c.credentials as any)?.needsSetup && (c.credentials as any)?.accessToken && (c.credentials as any)?.mlUserId,
+        (c) => c.platform === "MERCADOLIBRE" && usableBackfillCredentials(c.platform, c.credentials),
       );
 
     if (!hayVtexParaBackfill && !hayMlParaBackfill) {
@@ -142,11 +144,20 @@ export async function POST(
     // and onboarding together. A rejected/failed approval leaves no enrollment.
     const createdJobs = await prisma.$transaction(async tx => {
       const orgLock = await tx.$queryRawUnsafe('SELECT id FROM organizations WHERE id = $1 FOR UPDATE', ob.createdOrgId);
-      const locked = await tx.$queryRawUnsafe('SELECT status, "createdOrgId" FROM onboarding_requests WHERE id = $1 FOR UPDATE', ob.id);
+      const locked = await tx.$queryRawUnsafe('SELECT status, "createdOrgId", "historyVtexMonths", "historyMlMonths" FROM onboarding_requests WHERE id = $1 FOR UPDATE', ob.id);
       if (!orgLock.length || locked[0]?.status !== "NEEDS_INFO" || locked[0]?.createdOrgId !== ob.createdOrgId) throw Object.assign(new Error("El onboarding cambió durante la aprobación"), { status: 409 });
+      if (Number(locked[0].historyVtexMonths) !== Number(ob.historyVtexMonths) || Number(locked[0].historyMlMonths) !== Number(ob.historyMlMonths)) {
+        throw Object.assign(new Error("El período solicitado cambió durante la aprobación"), { status: 409 });
+      }
+      const currentConnections = await tx.$queryRawUnsafe('SELECT id, platform, status, credentials FROM connections WHERE "organizationId" = $1 ORDER BY id FOR UPDATE', ob.createdOrgId);
+      const normalized = list => list.map(({ id, platform, status, credentials }) => ({ id, platform, status, credentials })).sort((a, b) => a.id.localeCompare(b.id));
+      if (!isDeepStrictEqual(normalized(currentConnections), normalized(connections))) {
+        throw Object.assign(new Error("Las conexiones cambiaron durante la aprobación. Volvé a verificarlas."), { status: 409 });
+      }
     for (const c of connections) {
       const creds = (c.credentials as any) || {};
       if (creds.needsSetup || (selectedPlatforms && !selectedPlatforms.has(c.platform))) continue;
+      if (["VTEX", "MERCADOLIBRE"].includes(c.platform) && !usableBackfillCredentials(c.platform, creds)) continue;
 
       let newStatus: "ACTIVE" | "PENDING" = "ACTIVE";
       if (c.platform === "MERCADOLIBRE") {
