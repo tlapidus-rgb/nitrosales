@@ -15,11 +15,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerListings, fetchSellerReputation, fetchSellerOrders, fetchSellerQuestions } from "@/lib/connectors/mercadolibre-seller";
-import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 // E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
 import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic"; // Prevent static generation at build time
@@ -158,95 +158,9 @@ export async function GET(req: NextRequest) {
       let ordersUpserted = 0;
       let itemsCreated = 0;
       for (const order of mlOrders) {
-        const status = mapMeliStatus(order.status);
-        const totalValue = order.total_amount || 0;
-        const mlItems = order.order_items || [];
-        const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
-
-        // Tanda 7.10.4 — promociones ML (order-level + item-level)
-        const orderPromos: string[] = Array.isArray(order.promotions)
-          ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
-          : [];
-        const itemPromos: string[] = mlItems
-          .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
-          .filter(Boolean);
-        const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
-        const promotionNames = allPromos.length ? allPromos.join(", ") : null;
-
-        const dbOrder = await prisma.order.upsert({
-          where: {
-            organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
-          },
-          update: {
-            status,
-            totalValue,
-            itemCount,
-            promotionNames,
-            paymentMethod: order.payments?.[0]?.payment_type || null,
-          },
-          create: {
-            organizationId: orgId,
-            externalId: String(order.id),
-            status,
-            totalValue,
-            currency: order.currency_id || "ARS",
-            itemCount,
-            promotionNames,
-            source: "MELI",
-            channel: "marketplace",
-            paymentMethod: order.payments?.[0]?.payment_type || null,
-            orderDate: new Date(order.date_created),
-          },
-        });
-        ordersUpserted++;
-
-        // ── Create Products + OrderItems for MELI (same pattern as VTEX) ──
-        if (mlItems.length > 0) {
-          // Delete existing items to avoid duplicates on re-sync
-          await prisma.orderItem.deleteMany({ where: { orderId: dbOrder.id } });
-
-          for (const mlItem of mlItems) {
-            const mlItemId = String(mlItem.item?.id || mlItem.item_id || "");
-            const itemTitle = mlItem.item?.title || mlItem.title || `ML Item ${mlItemId}`;
-            const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-            const quantity = mlItem.quantity || 1;
-            const thumbnailUrl = mlItem.item?.thumbnail || null;
-            // Sesion 21: usar seller_sku real, NO el MLA listing id.
-            const sellerSku = (mlItem.item?.seller_sku || "").trim() || null;
-            const externalId = mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`;
-
-            // Upsert Product (SKU-first; evita duplicados cuando el mismo SKU
-            // entra desde VTEX y ML a la vez)
-            const product = await upsertProductBySku({
-              organizationId: orgId,
-              externalId,
-              sku: sellerSku,
-              create: {
-                name: itemTitle,
-                price: unitPrice,
-                imageUrl: thumbnailUrl,
-                isActive: true,
-              },
-              update: {
-                name: itemTitle,
-                price: unitPrice,
-                ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-              },
-            });
-
-            // Create OrderItem
-            await prisma.orderItem.create({
-              data: {
-                orderId: dbOrder.id,
-                productId: product.id,
-                quantity,
-                unitPrice,
-                totalPrice: unitPrice * quantity,
-              } as any,
-            });
-            itemsCreated++;
-          }
-        }
+        const saved = await ingestMlOrder(orgId, order, mapMeliStatus(order.status, order.tags), token);
+        if (saved.enriched) ordersUpserted++;
+        itemsCreated += saved.itemsCreated;
       }
       log.push(`Upserted ${ordersUpserted} MELI orders, ${itemsCreated} order items`);
     } catch (err: any) {
@@ -302,7 +216,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({
-      ok: true,
+      ok: errors.length === 0,
       elapsed: `${elapsed}s`,
       steps: log,
       errors: errors.length > 0 ? errors : undefined,

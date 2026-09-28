@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
-const m = vi.hoisted(() => ({ transaction: vi.fn(), failFinal: false }));
+const m = vi.hoisted(() => ({ transaction: vi.fn(), failFinal: false, fields: {} as Record<string, unknown> }));
 vi.mock("@/lib/db/client", () => ({ prisma: { $transaction: m.transaction } }));
 vi.mock("@/lib/products/upsert-by-sku", () => ({ upsertProductBySku: async (_args: unknown, tx: any) => {
  await tx.product.upsert(); return { id: "product", costPrice: 5 };
@@ -17,13 +17,13 @@ beforeAll(async () => {
 });
 afterAll(async () => db.close());
 beforeEach(async () => {
- vi.clearAllMocks(); m.failFinal = false;
+ vi.clearAllMocks(); m.failFinal = false; m.fields = {};
  await db.exec(`TRUNCATE orders,effects,order_items; INSERT INTO orders VALUES ('order','org','MELI','2026-09-01T00:00:00Z'); INSERT INTO order_items VALUES ('order','original');`);
  m.transaction.mockImplementation(async callback => db.transaction(async tx => callback({
   $queryRawUnsafe: async (sql: string,...args: unknown[]) => (await tx.query(sql,args)).rows,
   customer: { upsert: async () => { await tx.exec("INSERT INTO effects VALUES ('customer')"); return { id: "customer" }; } },
   product: { upsert: async () => tx.exec("INSERT INTO effects VALUES ('product')") },
-  order: { update: async ({ data }: any) => { if (m.failFinal && data.channel) throw new Error("simulated final write failure"); await tx.exec("INSERT INTO effects VALUES ('order')"); } },
+  order: { update: async ({ data }: any) => { if (m.failFinal && data.channel) throw new Error("simulated final write failure"); if (data.channel) m.fields = data; await tx.exec("INSERT INTO effects VALUES ('order')"); } },
   orderItem: {
    deleteMany: async () => tx.exec("DELETE FROM order_items WHERE \"orderId\"='order'"),
    createMany: async () => tx.exec("INSERT INTO order_items VALUES ('order','replacement')"),
@@ -60,4 +60,20 @@ it.each([{ items: undefined }, { items: [{ item: {}, quantity: 1, unit_price: 10
 it("an explicitly empty list removes obsolete items in the same transaction", async () => {
  expect(await enrichOrderFromMl("order","org",{ ...payload, order_items: [] })).toMatchObject({ itemsCreated: 0 });
  expect((await db.query("SELECT * FROM order_items")).rows).toEqual([]);
+});
+it("preserves promotions, zero fees and payment type fallback from legacy importers", async () => {
+ const result = await enrichOrderFromMl("order", "org", { ...payload,
+  promotions: [{ name: "Seasonal" }], payments: [{ payment_type: "credit_card" }],
+  order_items: [{ ...payload.order_items[0], sale_fee: 0, promotion: { name: "Seasonal" } }],
+ });
+ expect(result).not.toBeNull();
+ expect(m.fields).toMatchObject({ promotionNames: "Seasonal", marketplaceFee: 0, paymentMethod: "credit_card" });
+});
+it("does not replace unavailable fees with zero", async () => {
+ await enrichOrderFromMl("order", "org", payload);
+ expect(m.fields).not.toHaveProperty("marketplaceFee");
+});
+it("rolls back details when a fee is invalid", async () => {
+ expect(await enrichOrderFromMl("order", "org", { ...payload, order_items: [{ ...payload.order_items[0], sale_fee: -1 }] })).toBeNull();
+ expect((await db.query("SELECT value FROM order_items")).rows).toEqual([{ value: "original" }]);
 });

@@ -246,6 +246,20 @@ export async function enrichOrderFromMl(
     // mini-objeto que /orders/search devuelve (casi nunca trae estos campos).
     // /shipments es la fuente autoritativa — la usamos cuando esta disponible.
     const orderFields: any = { channel: "marketplace" };
+    const promotions = [
+      ...(Array.isArray(mlOrder.promotions) ? mlOrder.promotions : []),
+      ...items.map(it => it.promotion).filter(Boolean),
+    ].map(p => String(p?.name || p?.type || "").trim()).filter(Boolean);
+    orderFields.promotionNames = [...new Set(promotions)].join(", ") || null;
+    if (items.every(it => it.sale_fee != null)) {
+      const fees = items.map(it => Number(it.sale_fee));
+      if (fees.some(fee => !Number.isFinite(fee) || fee < 0)) throw new Error("Invalid marketplace fee");
+      orderFields.marketplaceFee = fees.reduce((sum, fee) => sum + fee, 0);
+    }
+    const payment = mlOrder.payments?.[0];
+    if (payment?.payment_method_id || payment?.payment_type) {
+      orderFields.paymentMethod = payment.payment_method_id || payment.payment_type;
+    }
 
     // shippingCost: shipData.shipping_option.cost > shipData.cost > mlOrder.shipping.cost
     const rawShipCost = shipData?.shipping_option?.cost

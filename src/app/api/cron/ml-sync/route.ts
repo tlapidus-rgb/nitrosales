@@ -20,6 +20,7 @@ import { getSellerToken, fetchSellerReputation, fetchSellerOrders } from "@/lib/
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
 import { mapMeliStatus } from "@/lib/meli-status";
 import { isValidAdminKey } from "@/lib/admin-key";
 import { coincideConAlguna } from "@/lib/comparacion-segura";
@@ -37,72 +38,30 @@ async function syncOneOrg(
   connId: string
 ): Promise<{ ok: boolean; log: string[]; error?: string }> {
   const log: string[] = [];
+  let failed = false;
   try {
     const { token, mlUserId } = await getSellerToken(orgId);
     log.push(`Token OK for user ${mlUserId}`);
 
-    // ── 1. Sync recent orders from ML API (last 48h) ─────────
+    // ── 1. Sync recent orders from ML API (last 72h) ─────────
     try {
-      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const twoDaysAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
       const mlOrders = await fetchSellerOrders(token, mlUserId, {
         dateFrom: twoDaysAgo,
         maxOrders: 5000,
       });
-      log.push(`Fetched ${mlOrders.length} orders from ML (last 48h)`);
+      log.push(`Fetched ${mlOrders.length} orders from ML (last 72h)`);
 
       let ordersCreated = 0;
       let ordersUpdated = 0;
       for (const order of mlOrders) {
-        const status = mapMeliStatus(order.status);
-        const totalValue = order.total_amount || 0;
-        const mlItems = order.order_items || [];
-        const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
-
-        const orderPromos: string[] = Array.isArray(order.promotions)
-          ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
-          : [];
-        const itemPromos: string[] = mlItems
-          .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
-          .filter(Boolean);
-        const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
-        const promotionNames = allPromos.length ? allPromos.join(", ") : null;
-
-        const existing = await prisma.order.findUnique({
-          where: {
-            organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
-          },
-          select: { id: true, status: true },
-        });
-
-        if (existing) {
-          if (existing.status !== status) {
-            await prisma.order.update({
-              where: { id: existing.id },
-              data: { status, totalValue, itemCount, promotionNames, paymentMethod: order.payments?.[0]?.payment_type || null },
-            });
-            ordersUpdated++;
-          }
-        } else {
-          await prisma.order.create({
-            data: {
-              organizationId: orgId,
-              externalId: String(order.id),
-              status,
-              totalValue,
-              currency: order.currency_id || "ARS",
-              itemCount,
-              promotionNames,
-              source: "MELI",
-              channel: "marketplace",
-              paymentMethod: order.payments?.[0]?.payment_type || null,
-              orderDate: new Date(order.date_created),
-            },
-          });
-          ordersCreated++;
-        }
+        const saved = await ingestMlOrder(orgId, order, mapMeliStatus(order.status, order.tags), token);
+        if (saved.action === "inserted") ordersCreated++;
+        else if (saved.action === "updated") ordersUpdated++;
       }
       log.push(`Orders: ${ordersCreated} created, ${ordersUpdated} updated`);
     } catch (err: any) {
+      failed = true;
       log.push(`Order sync error: ${err.message}`);
     }
 
@@ -147,133 +106,20 @@ async function syncOneOrg(
       });
       log.push(`Reputation synced: ${rep.level}`);
     } catch (err: any) {
+      failed = true;
       log.push(`Reputation error: ${err.message}`);
-    }
-
-    // ── 3. Enrich order items for recent MELI orders ─────────
-    try {
-      const DAY = 24 * 60 * 60 * 1000;
-      const dateEnd = new Date();
-      const dateStart = new Date(Date.now() - 3 * DAY);
-
-      const mlOrders = await fetchSellerOrders(token, mlUserId, {
-        dateFrom: dateStart.toISOString(),
-        maxOrders: 5000,
-      });
-
-      const filtered = mlOrders.filter((o: any) => {
-        const d = new Date(o.date_created);
-        return d >= dateStart && d <= dateEnd;
-      });
-
-      const allItems: Array<{
-        orderId: string; mlItemId: string; title: string;
-        sku: string; unitPrice: number; quantity: number; thumbnail: string | null;
-      }> = [];
-
-      for (const order of filtered) {
-        for (const it of (order.order_items || [])) {
-          allItems.push({
-            orderId: String(order.id),
-            mlItemId: String(it.item?.id || ""),
-            title: it.item?.title || "ML Item",
-            sku: it.item?.seller_sku || "",
-            unitPrice: it.unit_price || it.full_unit_price || 0,
-            quantity: it.quantity || 1,
-            thumbnail: it.item?.thumbnail || null,
-          });
-        }
-      }
-
-      if (allItems.length > 0) {
-        const uniqueOrderIds = [...new Set(allItems.map((i) => i.orderId))];
-        const PH = uniqueOrderIds.map((_, i) => `$${i + 2}`).join(",");
-        const dbOrders: { id: string; externalId: string }[] = await prisma.$queryRawUnsafe(
-          `SELECT o.id, o."externalId" FROM orders o WHERE o."organizationId" = $1 AND o."externalId" IN (${PH}) AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi."orderId" = o.id)`,
-          orgId, ...uniqueOrderIds
-        );
-
-        if (dbOrders.length > 0) {
-          const dbMap = new Map<string, string>();
-          for (const o of dbOrders) dbMap.set(o.externalId, o.id);
-
-          const productSet = new Map<string, typeof allItems[0]>();
-          for (const item of allItems) {
-            if (!dbMap.has(item.orderId)) continue;
-            const extId = item.mlItemId || `meli-cron-${item.orderId}-${item.title.substring(0, 20)}`;
-            if (!productSet.has(extId)) productSet.set(extId, item);
-          }
-
-          const productExtIds = [...productSet.keys()];
-          const PROD_BATCH = 200;
-          for (let b = 0; b < productExtIds.length; b += PROD_BATCH) {
-            const batch = productExtIds.slice(b, b + PROD_BATCH);
-            const values = batch.map((extId) => {
-              const item = productSet.get(extId)!;
-              const name = item.title.replace(/'/g, "''");
-              const sku = (item.sku || item.mlItemId).replace(/'/g, "''");
-              const thumb = item.thumbnail ? `'${item.thumbnail.replace(/'/g, "''")}'` : "NULL";
-              return `(gen_random_uuid()::text, '${orgId}', '${extId.replace(/'/g, "''")}', '${name}', '${sku}', ${item.unitPrice}, ${thumb}, NOW(), NOW())`;
-            });
-            await prisma.$executeRawUnsafe(`
-              INSERT INTO products ("id", "organizationId", "externalId", "name", "sku", "price", "imageUrl", "createdAt", "updatedAt")
-              VALUES ${values.join(",\n")}
-              ON CONFLICT ("organizationId", "externalId")
-              DO UPDATE SET "name" = EXCLUDED."name", "price" = EXCLUDED."price", "updatedAt" = NOW()
-            `);
-          }
-
-          const prodPH = productExtIds.map((_, i) => `$${i + 2}`).join(",");
-          const products: { id: string; externalId: string }[] = productExtIds.length > 0
-            ? await prisma.$queryRawUnsafe(
-                `SELECT id, "externalId" FROM products WHERE "organizationId" = $1 AND "externalId" IN (${prodPH})`,
-                orgId, ...productExtIds
-              )
-            : [];
-          const prodMap = new Map<string, string>();
-          for (const p of products) prodMap.set(p.externalId, p.id);
-
-          const itemValues: string[] = [];
-          for (const item of allItems) {
-            const dbOrderId = dbMap.get(item.orderId);
-            if (!dbOrderId) continue;
-            const prodExtId = item.mlItemId || `meli-cron-${item.orderId}-${item.title.substring(0, 20)}`;
-            const productId = prodMap.get(prodExtId);
-            if (!productId) continue;
-            const totalPrice = item.unitPrice * item.quantity;
-            itemValues.push(`(gen_random_uuid()::text, '${dbOrderId}', '${productId}', ${item.quantity}, ${item.unitPrice}, ${totalPrice})`);
-          }
-
-          const ITEM_BATCH = 500;
-          let totalCreated = 0;
-          for (let b = 0; b < itemValues.length; b += ITEM_BATCH) {
-            const batch = itemValues.slice(b, b + ITEM_BATCH);
-            await prisma.$executeRawUnsafe(`
-              INSERT INTO order_items ("id", "orderId", "productId", "quantity", "unitPrice", "totalPrice")
-              VALUES ${batch.join(",\n")}
-            `);
-            totalCreated += batch.length;
-          }
-
-          log.push(`Enriched ${dbOrders.length} orders with ${totalCreated} items (last 3 days)`);
-        } else {
-          log.push("All recent orders already have items");
-        }
-      } else {
-        log.push("No ML orders with items found in last 3 days");
-      }
-    } catch (err: any) {
-      log.push(`Item enrichment error: ${err.message}`);
     }
 
     // ── Update connection lastSyncAt + marcar sync exitoso ─────
     const now = new Date();
     await prisma.connection.update({
       where: { id: connId },
-      data: { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null },
+      data: failed
+        ? { lastSyncAt: now, lastSyncError: "ML sync incomplete" }
+        : { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null },
     });
 
-    return { ok: true, log };
+    return { ok: !failed, log };
   } catch (err: any) {
     console.error(`[ML Cron] Fatal for org ${orgId}:`, err);
     return { ok: false, log, error: err.message };

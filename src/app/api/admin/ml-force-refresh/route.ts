@@ -5,7 +5,7 @@
 // ══════════════════════════════════════════════════════════════
 // Re-clasifica todas las ordenes MELI de una org en el rango,
 // aplicando el mapping ACTUAL (post-fix: cancelled gana sobre tag
-// delivered). Bypassa el guard de externalUpdatedAt.
+// delivered). Sólo reclasifica la misma versión; reconciliar primero si cambió.
 //
 // Uso: para corregir packs que tenemos con status desactualizado
 // (ej. MELI los cancelo pero nuestra DB los tiene como DELIVERED
@@ -84,7 +84,9 @@ export async function POST(req: NextRequest) {
             const externalId = String(order.id);
             const newStatus = mapMeliStatus(order.status, order.tags);
 
-            // UPDATE sin guard — forzar la re-clasificacion.
+            const version = new Date(order.last_updated || order.date_created);
+            if (!Number.isFinite(version.getTime())) throw new Error("Invalid ML order version");
+            // Reclassify only the exact version. Never write a stale status.
             const result: any = await prisma.$executeRawUnsafe(
               `UPDATE "orders"
                SET "status" = $1::"OrderStatus",
@@ -93,11 +95,13 @@ export async function POST(req: NextRequest) {
                WHERE "organizationId" = $3
                  AND "source" = 'MELI'
                  AND "externalId" = $4
+                 AND "externalUpdatedAt" = $5::timestamptz
                  AND "status" != $1::"OrderStatus"`,
               newStatus,
               order.pack_id ? String(order.pack_id) : null,
               orgId,
-              externalId
+              externalId,
+              version
             );
             if (Number(result) > 0) {
               totalUpdated++;
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      ok: true,
+      ok: totalErrors === 0,
       orgId,
       range: { from: fromParam, to: toParam },
       stats: {

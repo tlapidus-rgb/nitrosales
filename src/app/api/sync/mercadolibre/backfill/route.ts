@@ -20,6 +20,7 @@ import { prisma } from "@/lib/db/client";
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
 import { mapMeliStatus } from "@/lib/meli-status";
 import {
   getSellerToken,
@@ -72,108 +73,9 @@ export async function GET(req: NextRequest) {
         let upserted = 0;
         let itemsCreated = 0;
         for (const order of filtered) {
-          const status = mapMeliStatus(order.status);
-          const totalValue = order.total_amount || 0;
-          const mlItems = order.order_items || [];
-          const itemCount = mlItems.reduce(
-            (sum: number, i: any) => sum + (i.quantity || 1), 0
-          );
-          // Tanda 7.5 \u2014 sale_fee por \u00edtem (comisi\u00f3n ML)
-          const marketplaceFee = mlItems.reduce(
-            (sum: number, item: any) => sum + (Number(item.sale_fee) || 0),
-            0
-          );
-
-          // Tanda 7.10.4 — promociones ML (order-level + item-level)
-          const orderPromos: string[] = Array.isArray(order.promotions)
-            ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
-            : [];
-          const itemPromos: string[] = mlItems
-            .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
-            .filter(Boolean);
-          const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
-          const promotionNames = allPromos.length ? allPromos.join(", ") : null;
-
-          // Extract shipping cost & delivery type from shipping data
-          const shippingCost = order.shipping?.cost ?? null;
-          const deliveryType = order.shipping?.shipment_type === "pickup"
-            ? "pickup" : order.shipping ? "shipping" : null;
-
-          const dbOrder = await prisma.order.upsert({
-            where: {
-              organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
-            },
-            update: {
-              status,
-              totalValue,
-              itemCount,
-              promotionNames,
-              paymentMethod: order.payments?.[0]?.payment_type || null,
-              ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
-              ...(shippingCost != null ? { shippingCost } : {}),
-              ...(deliveryType ? { deliveryType } : {}),
-            },
-            create: {
-              organizationId: orgId,
-              externalId: String(order.id),
-              status,
-              totalValue,
-              currency: order.currency_id || "ARS",
-              itemCount,
-              promotionNames,
-              source: "MELI",
-              channel: "marketplace",
-              paymentMethod: order.payments?.[0]?.payment_type || null,
-              ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
-              ...(shippingCost != null ? { shippingCost } : {}),
-              ...(deliveryType ? { deliveryType } : {}),
-              orderDate: new Date(order.date_created),
-            },
-          });
-
-          // ── Create Products + OrderItems for MELI ──
-          if (mlItems.length > 0) {
-            await prisma.orderItem.deleteMany({ where: { orderId: dbOrder.id } });
-            for (const mlItem of mlItems) {
-              const mlItemId = String(mlItem.item?.id || mlItem.item_id || "");
-              const itemTitle = mlItem.item?.title || mlItem.title || `ML Item ${mlItemId}`;
-              const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-              const quantity = mlItem.quantity || 1;
-              const thumbnailUrl = mlItem.item?.thumbnail || null;
-
-              const product = await prisma.product.upsert({
-                where: {
-                  organizationId_externalId: { organizationId: orgId, externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}` },
-                },
-                create: {
-                  organizationId: orgId,
-                  externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`,
-                  name: itemTitle,
-                  sku: mlItemId,
-                  price: unitPrice,
-                  imageUrl: thumbnailUrl,
-                  isActive: true,
-                },
-                update: {
-                  name: itemTitle,
-                  price: unitPrice,
-                  ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-                },
-              });
-
-              await prisma.orderItem.create({
-                data: {
-                  orderId: dbOrder.id,
-                  productId: product.id,
-                  quantity,
-                  unitPrice,
-                  totalPrice: unitPrice * quantity,
-                } as any,
-              });
-              itemsCreated++;
-            }
-          }
-          upserted++;
+          const saved = await ingestMlOrder(orgId, order, mapMeliStatus(order.status, order.tags), token);
+          if (saved.enriched) upserted++;
+          itemsCreated += saved.itemsCreated;
         }
 
         result = {
@@ -279,24 +181,10 @@ export async function GET(req: NextRequest) {
             if (!res.ok) { errors.push(`${order.externalId}: HTTP ${res.status}`); continue; }
             const detail = await res.json();
 
-            const mlItems = detail.order_items || [];
-            const fee = mlItems.reduce(
-              (sum: number, item: any) => sum + (Number(item.sale_fee) || 0), 0
-            );
-            const shipCost = detail.shipping?.cost ?? null;
-            const deliveryType = detail.shipping?.shipment_type === "pickup"
-              ? "pickup" : detail.shipping ? "shipping" : null;
+            if (String(detail?.id) !== String(order.externalId)) throw new Error("ML order identity mismatch");
+            const saved = await ingestMlOrder(orgId, detail, mapMeliStatus(detail.status, detail.tags), token);
+            if (saved.enriched) updated++;
 
-            await prisma.order.update({
-              where: { id: order.id },
-              data: {
-                marketplaceFee: fee > 0 ? fee : 0,
-                ...(shipCost != null ? { shippingCost: shipCost } : {}),
-                ...(deliveryType ? { deliveryType } : {}),
-                paymentMethod: detail.payments?.[0]?.payment_type || undefined,
-              },
-            });
-            updated++;
           } catch (e: any) {
             errors.push(`${order.externalId}: ${e.message.substring(0, 80)}`);
           }
@@ -344,12 +232,14 @@ export async function GET(req: NextRequest) {
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     const now = new Date();
+    const complete = !result.errors?.length;
     await prisma.connection.update({
       where: { id: connection.id },
-      data: { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null },
+      data: complete ? { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null }
+        : { lastSyncAt: now, lastSyncError: "ML backfill incomplete" },
     });
 
-    return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, ...result });
+    return NextResponse.json({ ok: complete, elapsed: `${elapsed}s`, ...result });
   } catch (err: any) {
     console.error(`[ML Backfill] Error:`, err);
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
