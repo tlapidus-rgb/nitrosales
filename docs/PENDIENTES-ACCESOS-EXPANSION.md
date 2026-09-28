@@ -15,9 +15,26 @@ Trabajo exclusivo en codex/expansion-review-fixes. No merge a main, push, despli
 
 1. Integración local de main: integración 1f12e598 validada localmente, conservando caché/degradación parcial y optimizaciones.
 2. Backfill: admisión y ownership implementados con pruebas SQL locales; faltan concurrencia multisesión, idempotencia de efectos de chunks y rollout aislado. Ver BACKFILL-OWNERSHIP.md.
-3. Onboarding: readiness conectado a activación y aprobación transaccional implementados; quedan contrato completo de plataformas, cambios concurrentes de credenciales y recorrido completo.
-4. Ciclo de organización: exportación consistente y auditoría previa de borrado implementadas; faltan gate global de suspensión, alcance transitivo/propietarios alternativos del borrado y validación aislada.
+3. Onboarding: readiness conectado a activación, aprobación transaccional y detección de cambios concurrentes de credenciales/períodos implementados; quedan contrato completo de plataformas y recorrido completo.
+4. Ciclo de organización: exportación consistente, auditoría y borrado transitivo por FKs simples implementados con pruebas sintéticas; faltan gate global de suspensión, propiedades sin FK/JSON, retención y validación aislada con escritores concurrentes.
 5. Migraciones/E2E: preparar y verificar localmente todo lo posible; ejecución PostgreSQL y preview pendientes.
 6. Anomalías: facturación y bases cero corregidas; períodos comparables, cobertura de ambos períodos, denominadores publicitarios y contrato IA corregidos localmente; fallos del proveedor ya se reportan como incompletos; calibración y factualidad del texto pendientes.
 
 Este registro no declara los seis frentes terminados ni habilita producción.
+
+## Suspensión: cambio rechazado por revisión automática
+
+La revisión automática rechazó conectar un gate global de middleware mediante self-fetch, por posible recursión y riesgo de indisponibilidad general si falla la consulta. Ese parche no se aplicó. Falta revisar una alternativa de autenticación con alcance y comportamiento ante fallos comprobados, cubrir sesiones ya abiertas, impersonación y rutas con API key, y verificarla en un preview aislado. La excepción existente de `/api/auth/` debe formar parte de la prueba de ausencia de recursión; no resuelve por sí sola la dependencia de disponibilidad. No se solicita autorizar un despliegue del diseño rechazado.
+
+El endpoint local ahora rechaza `cortarIngesta:true`, conserva configuraciones ajenas mediante actualización JSON atómica y declara el bloqueo de acceso desconectado. Esto no sustituye el gate pendiente.
+
+## Decisiones de alcance y validación agrupadas
+
+- Definir si altas sólo de publicidad/NitroPixel (sin VTEX/ML ni historia) deben activar sin backfill de órdenes. El flujo actual las rechaza de forma explícita; no se inventa un job ni se decide un nuevo producto por código.
+- Definir retención/anonimización de email_log, leads, settings y datos externos. Las dependencias compuestas se bloquean hasta clasificar su propiedad; un catálogo incompleto nunca habilita borrado.
+- Confirmar en sandbox la semántica de fechas inclusivas, paging.total, credenciales y muestras VTEX/ML. Los fixtures prueban la implementación, no el contrato real del proveedor.
+- El token de job no cerca upserts de negocio ya iniciados. Revisar una estrategia compartida de versiones/recuperación con webhooks y probar intercalados multisesión; un reintento por página no da ejecución exactamente una vez.
+- Calibrar anomalías y revisar factualidad del texto con datos autorizados. Validación del JSON y evidencia numérica no demuestran causalidad ni calibración estadística.
+- Medir exportación consistente y borrado transaccional a volumen realista en base descartable. Evitar activar borrado mientras haya escritores concurrentes sin un protocolo de quiescencia validado.
+
+Estos pendientes incluyen decisiones y trabajo técnico aún abierto; no son todos simples pedidos de credenciales ni una declaración de finalización local completa.

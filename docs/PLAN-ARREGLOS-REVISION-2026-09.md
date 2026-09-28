@@ -4,6 +4,19 @@ Base: fix/expansion-gate-e0 @ 060607f8. Rama de implementación: codex/expansion
 
 Objetivo: cerrar los defectos del informe de revisión y preparar una integración verificable con main, preservando las mejoras de Analytics. No se cambian Neon/Vercel, secretos, retención real ni datos de clientes durante la implementación local.
 
+## Estado consolidado — 2026-09-27, segunda pasada
+
+- Borrado: descubre rutas transitivas y alternativas, respeta columnas referenciadas distintas de id, ordena las hijas antes de perder sus rutas por SET NULL/CASCADE y bloquea referencias a otra organización o a datos retenidos. Las FKs compuestas se informan como no resueltas y bloquean la ejecución. Fallos de catálogo no producen una auditoría vacía. Hay pruebas SQL de borrado y rollback exclusivamente en PGlite sintético. Esto no acredita borrado total: faltan propiedades por JSON/campos no FK, retención, escritores concurrentes y derivados externos.
+- Suspensión: rechaza el corte de ingesta no implementado y deja de afirmar que lo aplicó. Modifica sólo la clave suspension sobre el JSON actual, preservando ajustes cambiados desde la lectura. El gate de acceso sigue desconectado; el parche de middleware fue rechazado por revisión automática y no se aplicó. Detalle en PENDIENTES-ACCESOS-EXPANSION.md.
+- Aprobación: bloquea/relee conexiones y meses dentro de la transacción; si cambiaron desde la lectura inicial, devuelve conflicto sin jobs, activación de conexiones ni correo. VTEX requiere credenciales con estructura utilizable. No equivale a validar permisos vigentes del proveedor.
+- Verificaciones: respuestas VTEX malformadas o catálogo con error no se interpretan como una cuenta vacía válida. NitroPixel devuelve conteo estructurado y diferencia indisponibilidad de cero. Anomalías rechaza como incompleto el análisis contextual que contiene filas inválidas/duplicadas, preservando los hallazgos independientes por reglas.
+- Backfills: un solo fallo de persistencia conserva la página. VTEX reintenta detalles/enriquecimiento fallidos; ML guarda IDs pendientes de enriquecimiento en el cursor y los recupera aunque la orden básica ya esté actualizada. Sólo se cuentan páginas completadas, incluyendo órdenes ya presentes. Respuestas malformadas o truncadas no acreditan finalización.
+- VTEX: subdivide ventanas con más de 3000 órdenes, sin pasar a la anterior omitiendo el excedente. Ambas plataformas usan límites de milisegundos sin solapar ventanas; el volumen imposible de separar en un mismo instante informa un error. Pruebas con picos recientes/antiguos, extremos exactos y reanudación. Las fechas/páginas de proveedores reales siguen pendientes de validación de contrato.
+
+Límites técnicos que aún no se cierran: los upserts de negocio ya iniciados no están protegidos por el token del job; versiones concurrentes de órdenes/items requieren una estrategia común con webhooks. El reintento de enriquecimiento no reemplaza una cola durable ante muerte del proceso antes de persistir el cursor. Tampoco se afirma entrega exactamente una vez. La prueba PostgreSQL multisesión y el recorrido completo en preview independiente siguen pendientes.
+
+Validación final de esta pasada: **1733 pruebas aprobadas, 7 omitidas, 0 fallos**; 143 archivos aprobados y uno omitido. Build Next.js aprobado. TypeScript y controles de órdenes, Gold, deuda de tipos y dependencias aprobados. Tras la suite/build sólo se retiraron declaraciones/imports no usados y se ajustaron comentarios/documentación; TypeScript y guards se repitieron para ese estado. No se hizo push, merge, despliegue, envío real ni SQL contra una base externa.
+
 ## 1. Integridad de datos y seguridad
 
 - MercadoLibre: corregir cobertura de ventanas al superar la paginación. Probar picos concentrados, bordes, subdías, reanudación y caso que no puede subdividirse.
