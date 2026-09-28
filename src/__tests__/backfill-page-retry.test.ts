@@ -32,11 +32,12 @@ it("ML retains one failed order out of three and counts existing orders on retry
  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ results, paging: { total: 3 } }))));
  const saved = new Set<string>(); let fail = true;
  m.query.mockImplementation(async (sql: string, ...args: unknown[]) => {
+  if (sql.includes("UPDATE orders")) return [{ id: String(args[0]) }];
   if (sql.includes("INSERT INTO")) {
    const id = String(args[0]); if (id === "2" && fail) { fail = false; throw new Error("transient"); }
    saved.add(id); return [{ id, inserted: true }];
   }
-  return [...saved].map(externalId => ({ externalId, externalUpdatedAt: new Date(job.fromDate) }));
+  return [...saved].map(externalId => ({ id: externalId, externalId, externalUpdatedAt: new Date(job.fromDate), backfillEnrichedVersion: new Date(job.fromDate) }));
  });
  const first = await processMercadoLibreChunk(job);
  expect(first).toMatchObject({ isComplete: false, itemsProcessed: 0, newCursor: { offset: 0 } }); expect(first.error).toBeTruthy();

@@ -121,6 +121,7 @@ async function upsertMlOrder(orgId: string, order: any): Promise<UpsertResult> {
       "paymentMethod" = EXCLUDED."paymentMethod",
       "marketplaceFee" = EXCLUDED."marketplaceFee",
       "externalUpdatedAt" = EXCLUDED."externalUpdatedAt",
+      "backfillEnrichedVersion" = NULL,
       "updatedAt" = NOW()
     WHERE
       "orders"."externalUpdatedAt" IS NULL
@@ -140,20 +141,21 @@ async function upsertMlOrder(orgId: string, order: any): Promise<UpsertResult> {
 }
 
 /**
- * Pre-query: devuelve Map<externalId, externalUpdatedAt> de las órdenes
+ * Pre-query: devuelve por externalId la identidad, versión externa y versión
+ * enriquecida de las órdenes
  * que YA existen en DB para este org + platform + list de IDs dado.
  *
  * El caller usa esto para saber cuáles ya tenemos actualizados y
- * skippear el upsert de los que no cambiaron (ahorra writes).
+ * evitar upserts redundantes sin omitir enriquecimientos interrumpidos.
  */
 async function getExistingOrderMap(
   orgId: string,
   externalIds: string[]
-): Promise<Map<string, Date | null>> {
+): Promise<Map<string, { id: string; externalUpdatedAt: Date | null; backfillEnrichedVersion: Date | null }>> {
   if (externalIds.length === 0) return new Map();
   const rows: any[] = await prisma.$queryRawUnsafe(
     `
-    SELECT "externalId", "externalUpdatedAt"
+    SELECT id, "externalId", "externalUpdatedAt", "backfillEnrichedVersion"
     FROM "orders"
     WHERE "organizationId" = $1
       AND "source" = 'MELI'
@@ -161,8 +163,8 @@ async function getExistingOrderMap(
     `,
     orgId, externalIds
   );
-  const m = new Map<string, Date | null>();
-  for (const r of rows) m.set(r.externalId, r.externalUpdatedAt);
+  const m = new Map();
+  for (const r of rows) m.set(r.externalId, r);
   return m;
 }
 
@@ -307,7 +309,7 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
 
     // 4. Filtrar: solo upsertar los que están desactualizados o son nuevos
     const toUpsert = results.filter(o => {
-      const existingUpdatedAt = existingMap.get(String(o.id));
+      const existingUpdatedAt = existingMap.get(String(o.id))?.externalUpdatedAt;
       if (!existingUpdatedAt) return true; // no existe → insertar
       const newUpdatedAt = o.last_updated ? new Date(o.last_updated) : null;
       if (!newUpdatedAt) return true; // sin fecha nueva → ir igual (el guard en DB dedupa)
@@ -336,6 +338,19 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
         failedInPage++;
         console.error(`[ml-processor] upsert failed for order ${order.id} status=${order.status}:`, err.message);
         // Continue con los otros, no fallar todo el chunk
+      }
+    }
+
+    // Recover even after process death BEFORE saving retry IDs in the cursor.
+    // The marker lives with the order and is invalidated atomically by an update.
+    for (const order of results) {
+      const existing = existingMap.get(String(order.id));
+      if (!existing || toEnrich.some(e => String(e.mlOrder.id) === String(order.id))) continue;
+      const payloadVersion = new Date(order.last_updated || order.date_created).getTime();
+      const storedVersion = existing.externalUpdatedAt ? new Date(existing.externalUpdatedAt).getTime() : 0;
+      const enrichedVersion = existing.backfillEnrichedVersion ? new Date(existing.backfillEnrichedVersion).getTime() : null;
+      if (Number.isFinite(payloadVersion) && storedVersion <= payloadVersion && enrichedVersion !== payloadVersion) {
+        toEnrich.push({ dbOrderId: existing.id, mlOrder: order });
       }
     }
 
@@ -372,6 +387,14 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
           try {
             const enriched = await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder, token);
             if (!enriched) failedEnrichment.push(String(e.mlOrder.id));
+            else {
+              const version = new Date(e.mlOrder.last_updated || e.mlOrder.date_created);
+              const marked = await prisma.$queryRawUnsafe(
+                `UPDATE orders SET "backfillEnrichedVersion" = $3::timestamptz
+                 WHERE id = $1 AND "organizationId" = $2 AND source = 'MELI'
+                   AND "externalUpdatedAt" = $3::timestamptz RETURNING id`, e.dbOrderId, orgId, version);
+              if (!marked.length) failedEnrichment.push(String(e.mlOrder.id));
+            }
           } catch (err: any) {
             failedEnrichment.push(String(e.mlOrder.id));
             console.warn("[ml-processor] enrichment failed");

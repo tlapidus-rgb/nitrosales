@@ -38,3 +38,5 @@ El endpoint local ahora rechaza `cortarIngesta:true`, conserva configuraciones a
 - Medir exportación consistente y borrado transaccional a volumen realista en base descartable. Evitar activar borrado mientras haya escritores concurrentes sin un protocolo de quiescencia validado.
 
 Estos pendientes incluyen decisiones y trabajo técnico aún abierto; no son todos simples pedidos de credenciales ni una declaración de finalización local completa.
+
+Migración adicional pendiente: `prisma/migrations/backfill_enrichment_version.sql`. Validar primero en PostgreSQL aislado, junto con `backfill_job_lease.sql`. La recuperación ML de enriquecimientos ahora tiene marca persistente por versión; faltan la carrera multisesión con webhooks, medición del reintento de registros antiguos y reconciliación fuera de las páginas que el job recorre. No se aplicó esta migración a Neon ni a ningún entorno externo.

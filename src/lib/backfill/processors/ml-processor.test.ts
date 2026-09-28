@@ -24,7 +24,7 @@ async function run(orders: Order[], failOnce = false) {
   // Track the IDs reaching persistence, not discarded probe pages.
   db.query.mockImplementation(async (_sql: string, _org: string, ids: string[]) => {
     ids.forEach(id => visited.add(id));
-    return ids.map(externalId => ({ externalId, externalUpdatedAt: new Date("2026-09-11") }));
+    return ids.map(externalId => ({ id: externalId, externalId, externalUpdatedAt: new Date("2026-09-11"), backfillEnrichedVersion: new Date("2026-09-11") }));
   });
   let injected = false;
   const fetcher = vi.fn(async (url: string) => {

@@ -34,4 +34,14 @@ Ambos procesadores conservan la página ante cualquier fallo de persistencia. VT
 
 VTEX subdivide ventanas que exceden 30 páginas antes de persistir la página de prueba. Un cursor antiguo superior a ese límite se reexamina: puede volver a recorrer órdenes existentes y su contador histórico no representa necesariamente IDs únicos. Ambos procesadores evitan solapamientos de un milisegundo entre ventanas nuevas, validan listas/totales y rechazan truncamientos. Un pico indivisible o un cambio de página que pierde IDs de enriquecimiento pendientes exige reconciliación visible.
 
-Pruebas sintéticas: más de 3000 órdenes VTEX, picos en ambas mitades, extremos exactos, fallo minoritario de escritura, detalle/enrichment nulos, reanudación con JSON persistido y respuesta malformada. Queda probar proveedores reales de sandbox, caída antes de guardar cursor, actualizaciones de webhooks durante enrichment y locks PostgreSQL independientes.
+Pruebas sintéticas: más de 3000 órdenes VTEX, picos en ambas mitades, extremos exactos, fallo minoritario de escritura, detalle/enrichment nulos, reanudación con JSON persistido y respuesta malformada. Queda probar proveedores reales de sandbox, actualizaciones de webhooks durante enrichment y locks PostgreSQL independientes.
+
+## Recuperación ML independiente del cursor
+
+Migración adicional preparada, sin aplicar externamente: `prisma/migrations/backfill_enrichment_version.sql`. Añade `orders.backfillEnrichedVersion` TIMESTAMPTZ, igual que la versión externa definida en migrate-ml-sync-infra. No forma parte del modelo Prisma actual: se usa mediante SQL, como externalUpdatedAt.
+
+Una actualización de orden invalida esta marca en el mismo upsert. El procesador recupera detalles pendientes al volver a leer una versión sin marca, incluso si murió antes de guardar retryEnrichmentIds. Sólo confirma después de que el enriquecimiento devuelve éxito, con comparación de organizationId, source y externalUpdatedAt. Un fallo al guardar la confirmación mantiene la orden pendiente.
+
+Pruebas SQL reproducen el estado persistido de una interrupción, cursor perdido, actualización de versión, confirmación fallida, organización ajena y migración ausente. No simulan dos conexiones PostgreSQL ni un corte real del proceso. La comparación evita confirmar una versión ajena, pero no vuelve atómicas las escrituras internas del enriquecimiento frente a un webhook concurrente.
+
+Rollout: aplicar primero en base descartable y medir el costo de reenriquecer registros antiguos sin marca. El código nuevo requiere la columna; si falta, falla antes del primer upsert. No rellenar marcas antiguas suponiendo completitud. No inicia un barrido global: recupera órdenes que el backfill vuelve a recorrer. Órdenes de páginas ya confirmadas o versiones posteriores al payload necesitan reconciliación aparte. Para rollback conservar la columna y drenar workers; no borrar marcas ni leases activas.
