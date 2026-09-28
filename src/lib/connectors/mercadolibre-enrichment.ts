@@ -58,15 +58,25 @@ export async function enrichOrderFromMl(
   token?: string,
 ): Promise<MlEnrichResult | null> {
   try {
-    let customerCreated = false;
-    let itemsCreated = 0;
-    // S58 BIS-2: shipData se mantiene en outer scope para usarlo no solo
-    // en customer (city/state) sino tambien en order.update (shippingCost,
-    // shippingCarrier via logistic_type, postalCode via zip_code). Sin
-    // esto, el code anterior leia esos campos del mlOrder.shipping (objeto
-    // chico de /orders/search que casi nunca los trae).
+    // All provider requests happen before locking the order.
     let shipData: any = null;
-
+    const addr = mlOrder.shipping?.receiver_address;
+    if (mlOrder.shipping?.id && token && (!addr?.city?.name || !addr?.state?.name)) {
+      const r = await fetch(`https://api.mercadolibre.com/shipments/${encodeURIComponent(String(mlOrder.shipping.id))}`, {
+        headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000),
+      });
+      if (!r.ok) throw new Error("Shipment lookup unavailable");
+      shipData = await r.json();
+    }
+    const version = new Date(mlOrder.last_updated || mlOrder.date_created);
+    if (!Number.isFinite(version.getTime())) throw new Error("Invalid order version");
+    return await prisma.$transaction(async tx => {
+      const locked = await tx.$queryRawUnsafe(
+        `SELECT id FROM orders WHERE id=$1 AND "organizationId"=$2 AND source='MELI'
+           AND "externalUpdatedAt"=$3::timestamptz FOR UPDATE`, dbOrderId, orgId, version);
+      if (!locked.length) return null;
+      let customerCreated = false;
+      let itemsCreated = 0;
     // ── Customer ─────────────────────────────────────
     const buyer = mlOrder.buyer;
     if (buyer && buyer.id) {
@@ -82,30 +92,7 @@ export async function enrichOrderFromMl(
       // receiver_address como objeto VACIO {} en /orders/search, asi que addr
       // queda truthy pero city/state son undefined. Cambio: hacer el lookup
       // siempre que falte city o state.
-      let addr = mlOrder.shipping?.receiver_address;
-      const needsShipmentLookup = !addr?.city?.name || !addr?.state?.name;
-      const shippingId = mlOrder.shipping?.id;
-      if (needsShipmentLookup && shippingId && token) {
-        try {
-          // S58 F-TIMEOUT: 8s -> 15s. ML /shipments puede tardar 5-10s en
-          // sellers grandes; con 8s timing-out frecuentemente y perdemos
-          // city/state. El backfill ya tiene timeouts mas generosos en otros
-          // pasos asi que 15s no rompe budget total.
-          const r = await fetch(`https://api.mercadolibre.com/shipments/${shippingId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: AbortSignal.timeout(15000),
-          });
-          if (r.ok) {
-            shipData = await r.json();
-            // Mergear: priorizar shipData (mas completo) pero conservar
-            // valores del addr inicial si existen.
-            const shipAddr = shipData?.receiver_address;
-            if (shipAddr) addr = shipAddr;
-          }
-        } catch {
-          // Silencioso — la falta de address no rompe el enrich completo.
-        }
-      }
+      const addr = shipData?.receiver_address ?? mlOrder.shipping?.receiver_address;
       const city = addr?.city?.name || null;
       const state = addr?.state?.name || null;
       const country = addr?.country?.id || null;
@@ -116,7 +103,7 @@ export async function enrichOrderFromMl(
 
       // Solo crear customer si hay al menos alguna pista identificable
       if (firstName || lastName || nickname || realEmail) {
-        const customer = await prisma.customer.upsert({
+        const customer = await tx.customer.upsert({
           where: {
             organizationId_externalId: {
               organizationId: orgId,
@@ -148,7 +135,7 @@ export async function enrichOrderFromMl(
           },
         });
 
-        await prisma.order.update({
+        await tx.order.update({
           where: { id: dbOrderId },
           data: { customerId: customer.id },
         });
@@ -161,18 +148,20 @@ export async function enrichOrderFromMl(
     // Antes: count + if(==0) + create por item. Si webhook + backfill llegaban
     // concurrentes al mismo order podian crear duplicados. Ahora: products en
     // serie, despues UN deleteMany + createMany atomico.
-    const items = mlOrder.order_items || [];
-    if (items.length > 0) {
+    const items = mlOrder.order_items;
+    if (!Array.isArray(items)) throw new Error("Order items unavailable");
+    {
       const orderItemsToCreate: any[] = [];
 
       for (const it of items) {
         const mlItem = it.item || {};
         const productExtId = String(mlItem.id || mlItem.variation_id || "");
-        if (!productExtId) continue;
+        if (!productExtId) throw new Error("Item identifier unavailable");
 
         const realSku = (mlItem.seller_sku || mlItem.seller_custom_field || "").toString().trim() || null;
-        const unitPrice = Number(it.unit_price ?? it.full_unit_price ?? 0);
-        const quantity = Number(it.quantity) || 1;
+        const unitPrice = Number(it.unit_price ?? it.full_unit_price);
+        const quantity = Number(it.quantity);
+        if (!Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isSafeInteger(quantity) || quantity <= 0) throw new Error("Invalid order item amounts");
 
         // ML devuelve la imagen directamente en el payload de /orders/search
         // via mlItem.thumbnail. Ojo: puede ser http:// (http v1 de ML) — forzar https para
@@ -188,7 +177,7 @@ export async function enrichOrderFromMl(
         // Esto persiste, no es solo runtime.
         if (realSku && (!thumbnail || !mlItem.title)) {
           try {
-            const sibling = await prisma.product.findFirst({
+            const sibling = await tx.product.findFirst({
               where: {
                 organizationId: orgId,
                 sku: realSku,
@@ -228,7 +217,7 @@ export async function enrichOrderFromMl(
             ...(thumbnail ? { imageUrl: thumbnail } : {}),
             ...(brandFromSibling ? { brand: brandFromSibling } : {}),
           },
-        });
+        }, tx);
 
         orderItemsToCreate.push({
           orderId: dbOrderId,
@@ -240,13 +229,9 @@ export async function enrichOrderFromMl(
         });
       }
 
-      if (orderItemsToCreate.length > 0) {
-        await prisma.$transaction([
-          prisma.orderItem.deleteMany({ where: { orderId: dbOrderId } }),
-          prisma.orderItem.createMany({ data: orderItemsToCreate as any }),
-        ]);
-        itemsCreated = orderItemsToCreate.length;
-      }
+      await tx.orderItem.deleteMany({ where: { orderId: dbOrderId } });
+      if (orderItemsToCreate.length > 0) await tx.orderItem.createMany({ data: orderItemsToCreate as any });
+      itemsCreated = orderItemsToCreate.length;
     }
 
     // ── Campos opcionales de la orden ─────────────────
@@ -288,12 +273,13 @@ export async function enrichOrderFromMl(
       || mlOrder.shipping?.receiver_address?.zip_code;
     if (postalCode) orderFields.postalCode = String(postalCode);
 
-    await prisma.order.update({
+    await tx.order.update({
       where: { id: dbOrderId },
       data: orderFields,
     });
 
     return { customerCreated, itemsCreated };
+    }, { timeout: 30_000, maxWait: 5_000 });
   } catch (err: any) {
     console.error(`[ml-enrichment] enrichOrder ${dbOrderId} failed:`, err.message);
     return null;

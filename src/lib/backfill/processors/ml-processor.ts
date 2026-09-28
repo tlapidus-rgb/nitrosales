@@ -21,6 +21,7 @@
 // Backwards compat: cursor viejo o vacío → inicializa desde job.toDate.
 // ══════════════════════════════════════════════════════════════
 
+import { persistMlOrder } from "@/lib/connectors/ml-order-persistence";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
 import { enrichOrderFromMl } from "@/lib/connectors/mercadolibre-enrichment";
@@ -77,67 +78,8 @@ async function mlGetWithRetry(path: string, token: string): Promise<any> {
  * Esto hace que webhooks y cron puedan correr en paralelo sin race
  * condition: siempre gana el update más reciente por externalUpdatedAt.
  */
-type UpsertResult = {
-  action: "inserted" | "updated" | "skipped";
-  dbOrderId: string | null;
-};
-
-async function upsertMlOrder(orgId: string, order: any): Promise<UpsertResult> {
-  const externalId = String(order.id);
-  const packId = order.pack_id ? String(order.pack_id) : null; // dedup de carritos
-  const status = mapMeliStatus(order.status, order.tags);
-  const total = Number(order.total_amount) || 0;
-  const currency = order.currency_id || "ARS";
-  const itemCount = Array.isArray(order.order_items)
-    ? order.order_items.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 0), 0)
-    : 0;
-  const orderDate = new Date(order.date_created);
-  const externalUpdatedAt = order.last_updated ? new Date(order.last_updated) : orderDate;
-  const paymentMethod = order.payments?.[0]?.payment_method_id || null;
-  const marketplaceFee = order.order_items?.[0]?.sale_fee
-    ? order.order_items.reduce((sum: number, it: any) => sum + (Number(it.sale_fee) || 0), 0)
-    : null;
-
-  // Raw SQL con ON CONFLICT guard. Usamos el UNIQUE (organizationId, externalId).
-  const rows: any[] = await prisma.$queryRawUnsafe(
-    `
-    INSERT INTO "orders" (
-      "id", "externalId", "packId", "status", "totalValue", "currency", "itemCount",
-      "source", "paymentMethod", "marketplaceFee",
-      "orderDate", "externalUpdatedAt", "organizationId", "createdAt", "updatedAt"
-    )
-    VALUES (
-      gen_random_uuid()::text, $1, $2, $3::"OrderStatus", $4, $5, $6,
-      'MELI', $7, $8,
-      $9, $10, $11, NOW(), NOW()
-    )
-    ON CONFLICT ("organizationId", "externalId")
-    DO UPDATE SET
-      "packId" = EXCLUDED."packId",
-      "status" = EXCLUDED."status",
-      "totalValue" = EXCLUDED."totalValue",
-      "currency" = EXCLUDED."currency",
-      "itemCount" = EXCLUDED."itemCount",
-      "paymentMethod" = EXCLUDED."paymentMethod",
-      "marketplaceFee" = EXCLUDED."marketplaceFee",
-      "externalUpdatedAt" = EXCLUDED."externalUpdatedAt",
-      "backfillEnrichedVersion" = NULL,
-      "updatedAt" = NOW()
-    WHERE
-      "orders"."externalUpdatedAt" IS NULL
-      OR "orders"."externalUpdatedAt" < EXCLUDED."externalUpdatedAt"
-    RETURNING "id", xmax = 0 AS "inserted"
-    `,
-    externalId, packId, status, total, currency, itemCount,
-    paymentMethod, marketplaceFee,
-    orderDate, externalUpdatedAt, orgId
-  );
-
-  if (rows.length === 0) return { action: "skipped", dbOrderId: null }; // guard blocked update (vino viejo)
-  return {
-    action: rows[0].inserted ? "inserted" : "updated",
-    dbOrderId: String(rows[0].id),
-  };
+async function upsertMlOrder(orgId: string, order: any) {
+  return persistMlOrder(orgId, order, mapMeliStatus(order.status, order.tags));
 }
 
 /**

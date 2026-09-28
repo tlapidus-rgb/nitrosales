@@ -34,20 +34,21 @@ export type UpsertBySkuArgs = {
  * Devuelve siempre el Product (creado o actualizado).
  */
 export async function upsertProductBySku(
-  args: UpsertBySkuArgs
+  args: UpsertBySkuArgs,
+  client: Pick<Prisma.TransactionClient, "product"> = prisma,
 ): Promise<Product> {
   const { organizationId, externalId, sku, create, update } = args;
   const cleanSku = sku?.trim() || null;
 
   // 1. Si hay SKU, priorizarlo
   if (cleanSku) {
-    const existingBySku = await prisma.product.findFirst({
+    const existingBySku = await client.product.findFirst({
       where: { organizationId, sku: cleanSku },
       select: { id: true },
     });
 
     if (existingBySku) {
-      return prisma.product.update({
+      return client.product.update({
         where: { id: existingBySku.id },
         data: update,
       });
@@ -55,7 +56,7 @@ export async function upsertProductBySku(
   }
 
   // 2. Fallback: upsert por externalId (comportamiento legacy)
-  return prisma.product.upsert({
+  return client.product.upsert({
     where: {
       organizationId_externalId: { organizationId, externalId },
     },
