@@ -189,3 +189,16 @@ Validación conjunta final del bloque (2026-09-26): suite completa con **1649 ap
 - No se conectó todavía el gate global de suspensión. El código lo sigue declarando seAplica:false; no se presenta una suspensión anotada como efectiva. Borrado transitivo/propietarios alternativos y retención siguen abiertos.
 - Controles focalizados, TypeScript, guards de órdenes/Gold/ts-nocheck y dependencias aprobados. Suite completa y build en curso; registrar el resultado al terminar.
 Validación del bloque: suite completa con **1678 aprobadas, 7 omitidas, 0 fallos**, 138 archivos aprobados y uno omitido. TypeScript, guards, dependencias y build de 106 páginas aprobados. Después se corrigieron dos casos de borde (selección explícita vacía/inválida y detalle de complete tras perder ownership): las 16 pruebas afectadas y TypeScript pasan; no se repitió la suite completa tras estos dos ajustes. La selección inválida no abre transacciones ni se amplía a todas las conexiones.
+
+### Recuperación y escritura ML por versión (2026-09-28)
+
+- Commits locales e0dbe41b y b35efafd: marca persistente de enriquecimiento, recuperación de la misma versión tras interrupción y persistencia compartida entre backfill y notificaciones. El detalle se escribe en una transacción con bloqueo y comparación de versión; un fallo revierte customer/productos/items/campos del detalle. Las consultas al proveedor ocurren antes del bloqueo.
+- Las notificaciones propagan fallos para permitir reintentos; pagos y envíos refrescan la orden canónica. Un evento viejo no enriquece una versión más reciente. Esta garantía no cubre aún todos los escritores ML legacy ni prueba concurrencia multisesión.
+- Validación de b35efafd: 1758 pruebas aprobadas, siete omitidas, cero fallos; TypeScript, guards, dependencias y build de 106 páginas aprobados. SQL probado sólo en PGlite. Migraciones preparadas, sin aplicar a Neon. Alcance y límites ampliados en BACKFILL-OWNERSHIP.md.
+
+### Texto visible de anomalías y suspensión (2026-09-28)
+
+- Las anomalías contextuales nuevas conservan selección/tipo/prioridad del modelo, pero título, descripción y acción se construyen desde una plantilla por métrica y valores medidos. No se reutilizan cifras ni causas inventadas, ni instrucciones del modelo para modificar campañas. La comparación no se presenta como causalidad. Puntos porcentuales y porcentajes usan unidades distintas; una base no comparable no inventa crecimiento.
+- Seis pruebas nuevas cubren texto contradictorio, causas y acciones inventadas, margen, base cero, pérdidas, comparación plana y unidades. Con contrato y proveedor simulado: 51 aprobadas. No se recalcularon insights históricos. Calibración de selección/prioridad y revisión editorial de reglas preexistentes siguen pendientes.
+- Revisión automática rechazó también conectar suspensión desde sesiones Node y reescribir auth-guard por su alcance global. La conexión parcial se retiró; no queda gate activo. Propuesta y matriz de pruebas pendiente de autorización específica en PENDIENTES-ACCESOS-EXPANSION.md. Esa matriz no se ejecutó ni se declara aprobada.
+- Validación final: **1764 pruebas aprobadas, siete omitidas, cero fallos** (147 archivos aprobados y uno omitido). TypeScript, guards de órdenes/Gold/ts-nocheck, dependencias y build de 106 páginas aprobados. Sin llamadas reales a proveedores ni cambios en producción.

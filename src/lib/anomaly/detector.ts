@@ -9,6 +9,7 @@
 // 2. CLAUDE-BASED: Contextual anomalies (seasonality, correlations)
 
 import Anthropic from "@anthropic-ai/sdk";
+import { measuredAnomalyText, type EvidenceMetric } from "./evidence-text";
 import {
   esCambioCreible,
   esSubaDeGastoCreible,
@@ -242,7 +243,7 @@ export function validateAnomalies(input: unknown, current: MetricSnapshot, previ
     const delta = metric === "grossMargin" ? Math.round(value - before) : pctChange(value, before);
     if (delta !== null && !Number.isFinite(delta)) continue;
     result.push({ type: a.type as AnomalyResult["type"], priority: a.priority as AnomalyResult["priority"],
-      title: a.title.trim(), description: a.description.trim(), action: a.action.trim(),
+      ...measuredAnomalyText(metric as EvidenceMetric, value, before, delta),
       metric, metricValue: value, metricDelta: delta });
     seen.add(metric);
     if (result.length === 3) break;
@@ -289,7 +290,8 @@ ${additionalContext ? `CONTEXTO ADICIONAL:\n${additionalContext}` : ""}
 COBERTURA DE DATOS DE COSTO: actual ${current.cogsCoverage ?? 0}%, anterior ${previous.cogsCoverage ?? 0}%.
 
 INSTRUCCIONES:
-- Busca patrones que reglas fijas NO detectarian: correlaciones entre metricas, contexto estacional (feriados argentinos, dia del nino, Black Friday, Hot Sale), tendencias graduales peligrosas, oportunidades ocultas.
+- Selecciona métricas que convenga revisar comparando ambos períodos. Dos agregados semanales no prueban correlaciones, tendencias graduales, estacionalidad ni causas; no afirmes esos fenómenos sin evidencia adicional.
+- El texto visible se construye con los valores medidos. Tu selección y prioridad son recomendaciones heurísticas, no una prueba estadística.
 - NO repitas lo que detectarian reglas simples (ej: "revenue bajo X%"). Eso ya lo cubrimos.
 - IMPORTANTE: Si la cobertura de costos no es 100% en AMBOS períodos, NO generes insights sobre margen, ganancia o COGS ni los infieras de otras métricas.
 - Solo genera insights si HAY algo genuinamente interesante. Si todo es normal, devuelve array vacio.

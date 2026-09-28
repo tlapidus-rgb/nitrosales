@@ -18,7 +18,7 @@ Trabajo exclusivo en codex/expansion-review-fixes. No merge a main, push, despli
 3. Onboarding: readiness conectado a activación, aprobación transaccional y detección de cambios concurrentes de credenciales/períodos implementados; quedan contrato completo de plataformas y recorrido completo.
 4. Ciclo de organización: exportación consistente, auditoría y borrado transitivo por FKs simples implementados con pruebas sintéticas; faltan gate global de suspensión, propiedades sin FK/JSON, retención y validación aislada con escritores concurrentes.
 5. Migraciones/E2E: preparar y verificar localmente todo lo posible; ejecución PostgreSQL y preview pendientes.
-6. Anomalías: facturación y bases cero corregidas; períodos comparables, cobertura de ambos períodos, denominadores publicitarios y contrato IA corregidos localmente; fallos del proveedor ya se reportan como incompletos; calibración y factualidad del texto pendientes.
+6. Anomalías: facturación y bases cero corregidas; períodos comparables, cobertura de ambos períodos, denominadores publicitarios y contrato IA corregidos localmente; fallos del proveedor ya se reportan como incompletos. El nuevo texto contextual se genera desde las métricas medidas, sin reutilizar cifras/causas/acciones libres del modelo. Siguen pendientes calibración, revisión de textos históricos y validación con datos autorizados.
 
 Este registro no declara los seis frentes terminados ni habilita producción.
 
@@ -34,9 +34,17 @@ El endpoint local ahora rechaza `cortarIngesta:true`, conserva configuraciones a
 - Definir retención/anonimización de email_log, leads, settings y datos externos. Las dependencias compuestas se bloquean hasta clasificar su propiedad; un catálogo incompleto nunca habilita borrado.
 - Confirmar en sandbox la semántica de fechas inclusivas, paging.total, credenciales y muestras VTEX/ML. Los fixtures prueban la implementación, no el contrato real del proveedor.
 - El token de job no cerca upserts de negocio ya iniciados. Revisar una estrategia compartida de versiones/recuperación con webhooks y probar intercalados multisesión; un reintento por página no da ejecución exactamente una vez.
-- Calibrar anomalías y revisar factualidad del texto con datos autorizados. Validación del JSON y evidencia numérica no demuestran causalidad ni calibración estadística.
+- Calibrar la selección, tipo y prioridad de anomalías con datos autorizados. El texto contextual nuevo usa comparaciones deterministas y pasos de revisión; no demuestra causalidad ni calibración estadística. Los insights históricos no se reescribieron y las reglas preexistentes requieren revisión editorial separada.
 - Medir exportación consistente y borrado transaccional a volumen realista en base descartable. Evitar activar borrado mientras haya escritores concurrentes sin un protocolo de quiescencia validado.
 
 Estos pendientes incluyen decisiones y trabajo técnico aún abierto; no son todos simples pedidos de credenciales ni una declaración de finalización local completa.
 
 Migración adicional pendiente: `prisma/migrations/backfill_enrichment_version.sql`. Validar primero en PostgreSQL aislado, junto con `backfill_job_lease.sql`. La recuperación ML de enriquecimientos ahora tiene marca persistente por versión; faltan la carrera multisesión con webhooks, medición del reintento de registros antiguos y reconciliación fuera de las páginas que el job recorre. No se aplicó esta migración a Neon ni a ningún entorno externo.
+
+## Autorización específica pendiente — acceso por sesión (2026-09-28)
+
+La revisión automática también rechazó la alternativa sin self-fetch: reescribir globalmente auth-guard y activar el filtro de sesiones. Motivo: cambia numerosos endpoints y puede interrumpir flujos; considera insuficiente la autorización general para continuar. La conexión parcial en auth.ts se retiró, el guard original permanece y EL_GATE_ESTA_CONECTADO sigue false. No se usó otra vía para aplicar el cambio rechazado.
+
+Propuesta concreta a autorizar después: comprobar settings de la organización al resolver sesiones Node; conservar acceso del staff real para soporte, aplicar el bloqueo al impersonar un cliente y retirar la identidad de sesiones suspendidas/no verificables. Eliminar el fallback que selecciona la única organización sin sesión. Mostrar un estado de suspensión/reintento en la aplicación. Webhooks y crons deben seguir resolviendo una organización explícita con su propia autorización; no cortar ingesta. No incluye deploy.
+
+Antes de activar: inventariar los 251 usos encontrados de getOrganization/getOrganizationId en APIs, verificar llamadas de mantenimiento sin sesión y medir la consulta adicional por organización. Matriz de pruebas requerida: sesiones ya abiertas, suspensión/reactivación sin renovar JWT, org inexistente, base indisponible, JSON inválido, staff, view-as, impersonación, sesión ausente con una sola org y ausencia de recursión. Se requiere autorización específica para este cambio amplio, además de validación en preview aislado. Esta matriz es trabajo pendiente, no un resultado de pruebas aprobado.
