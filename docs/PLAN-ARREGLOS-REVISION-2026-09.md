@@ -219,3 +219,11 @@ Validación del bloque: suite completa con **1678 aprobadas, 7 omitidas, 0 fallo
 - 44 pruebas focalizadas de ingesta/rutas/transacción/contratos y cinco SQL de force-refresh aprobadas. PGlite verifica protección por versión, organización y fuente, junto con rollback de detalles; no simula locks entre conexiones reales. TypeScript y guards/dependencias aprobados.
 - Límites documentados en BACKFILL-OWNERSHIP.md: paginación legacy truncada, duración/cursor del cron, coste adicional de enriquecimiento, revisión de autorización y selección de primera conexión en rutas manuales, recuperación fuera de recorridos y concurrencia PostgreSQL. No se consultaron proveedores reales ni se ejecutaron endpoints externos.
 - Validación final: **1802 pruebas aprobadas, siete omitidas, cero fallos**, 151 archivos aprobados y uno omitido. TypeScript, guards, dependencias y build con 106 páginas aprobados. Cambios exclusivamente locales.
+
+### Paginación de lectura ML legacy (2026-09-28)
+
+- fetchSellerOrders fija ambos extremos, divide ventanas densas y valida páginas, IDs, fechas y total estable. Los límites de volumen, solicitudes y tiempo generan error explícito en lugar de devolver un prefijo como resultado completo. Backfill semanal y enrich-items envían dateTo.
+- Prueba con 1600 órdenes detectó y permitió corregir un doble conteo del límite entre páginas. Los 25 casos conjuntos de búsqueda y rutas legacy pasan, incluidos extremos, duplicados, truncamiento, pico indivisible, fallo tardío y presupuesto. TypeScript, guards y dependencias pasan.
+- La lectura no garantiza un snapshot del proveedor. Los límites/fechas requieren validación sandbox. El cron todavía necesita cursor persistente/presupuesto integral; reconciliación por fecha de actualización mantiene su lector separado sin subdivisión.
+- Se descubrió un escritor adicional: api/sync/mercadolibre/enrich-items. Sólo se acotó su búsqueda; los INSERT masivos y el control de organización siguen pendientes. Se corrigió el inventario sin declarar cobertura global. No se ejecutaron llamadas reales ni migraciones externas.
+- Validación final: **1820 pruebas aprobadas, siete omitidas, cero fallos**, 152 archivos aprobados y uno omitido. Build con 106 páginas aprobado. Sin push ni merge.

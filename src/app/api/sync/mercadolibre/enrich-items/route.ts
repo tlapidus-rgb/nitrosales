@@ -47,10 +47,11 @@ export async function GET(req: NextRequest) {
     // Fetch orders from ML (this paginates automatically, cap at 10k)
     const mlOrders = await fetchSellerOrders(token, mlUserId, {
       dateFrom: dateStart.toISOString(),
+      dateTo: dateEnd.toISOString(),
       maxOrders: 10000,
     });
 
-    // Filter to our window (fetchSellerOrders uses dateFrom but not dateTo)
+    // Defensive window filter; the search itself uses both bounds.
     const filtered = mlOrders.filter((o: any) => {
       const d = new Date(o.date_created);
       return d >= dateStart && d <= dateEnd;

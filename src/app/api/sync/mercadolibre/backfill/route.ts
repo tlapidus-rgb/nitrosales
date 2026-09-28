@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
         const weekStart = new Date(Date.now() - week * 7 * DAY);
         const mlOrders = await fetchSellerOrders(token, mlUserId, {
           dateFrom: weekStart.toISOString(),
+      dateTo: weekEnd.toISOString(),
           maxOrders: 2000,
         });
 

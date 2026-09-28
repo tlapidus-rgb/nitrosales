@@ -15,6 +15,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import { searchMlOrders, type MlOrderSearchOptions } from "./ml-order-search";
 
 const ML_API = "https://api.mercadolibre.com";
 
@@ -252,38 +253,16 @@ async function fetchItemIdsByStatus(
 export async function fetchSellerOrders(
   token: string,
   mlUserId: number,
-  options: { dateFrom?: string; maxOrders?: number } = {}
+  options: MlOrderSearchOptions = {}
 ): Promise<any[]> {
-  const maxOrders = options.maxOrders || 50000; // Safety cap
-  const allOrders: any[] = [];
-  const batchSize = 50;
-
-  // Default: last 30 days
-  const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-  let offset = 0;
-  while (allOrders.length < maxOrders) {
-    // ML pagination hard limit: offset + limit <= 10000
-    if (offset + batchSize > 10000) {
-      console.log(`[ML Orders] Reached ML offset cap at ${allOrders.length} orders`);
-      break;
-    }
-
-    const data = await mlGet(
-      `/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${dateFrom}`,
-      token
-    );
-    const orders = data.results || [];
-    if (orders.length === 0) break;
-    allOrders.push(...orders);
-    offset += batchSize;
-
-    const total = data.paging?.total || 0;
-    if (offset >= total) break;
-  }
-
-  console.log(`[ML Orders] Fetched ${allOrders.length} orders total`);
-  return allOrders;
+  return searchMlOrders(async path => {
+    const response = await fetch(`${ML_API}${path}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`ML order search unavailable (${response.status})`);
+    return response.json();
+  }, mlUserId, options);
 }
 
 // ── Reputation ───────────────────────────────────────────────
