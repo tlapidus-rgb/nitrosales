@@ -317,9 +317,13 @@ Formato:
       parsed = JSON.parse(match[0]);
     }
     if (!parsed || !Array.isArray(parsed.anomalies)) throw new Error("Respuesta contextual inválida");
-    return validateAnomalies(parsed, current, previous);
+    const validated = validateAnomalies(parsed, current, previous);
+    // Dropped/duplicate/unsupported rows are a failed analysis, not evidence
+    // that no anomaly exists. The caller retains its independent rule results.
+    if (validated.length !== parsed.anomalies.length) throw new Error("Hallazgos contextuales inválidos");
+    return validated;
   } catch (error: any) {
-    console.error("[anomaly] Claude analysis failed:", error.message);
+    console.error("[anomaly] Contextual analysis unavailable");
     throw new Error("No se pudo completar el análisis contextual de anomalías");
   }
 }

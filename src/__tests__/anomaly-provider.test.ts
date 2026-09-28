@@ -8,7 +8,7 @@ beforeEach(() => { vi.stubEnv("ANTHROPIC_API_KEY", "fake-local-test"); m.create.
 afterEach(() => vi.unstubAllEnvs());
 it("does not send untrustworthy profit to the provider and rejects its margin output", async () => {
  m.create.mockResolvedValue({ content: [{ type: "text", text: JSON.stringify({ anomalies: [{ type: "ALERT", priority: "HIGH", title: "Margen", description: "Cambió el margen", action: "Revisar", metric: "grossMargin", metricValue: 1, metricDelta: -99 }] }) }] });
- expect(await detectClaudeAnomalies(snapshot, { ...snapshot, cogsCoverage: 99.99 }, "Test")).toEqual([]);
+ await expect(detectClaudeAnomalies(snapshot, { ...snapshot, cogsCoverage: 99.99 }, "Test")).rejects.toThrow("No se pudo completar");
  const prompt = m.create.mock.calls[0][0].messages[0].content;
  expect(prompt).toContain("no disponibles para comparar");
  expect(prompt).not.toContain("987.654");
@@ -27,4 +27,12 @@ it("reports a missing provider instead of a successful empty analysis", async ()
  vi.stubEnv("ANTHROPIC_API_KEY", "");
  await expect(detectClaudeAnomalies(snapshot, snapshot, "Test")).rejects.toThrow("sin configurar");
  expect(m.create).not.toHaveBeenCalled();
+});
+it.each([{ rows: [{}] }, { rows: [null] }, { rows: Array(4).fill({ type: "TREND", priority: "LOW", title: "Ingresos", description: "Cambio", action: "Revisar", metric: "revenue", metricValue: 100, metricDelta: 0 }) }])("does not report a clean analysis after discarding invalid rows: %j", async ({ rows }) => {
+ m.create.mockResolvedValue({ content: [{ type: "text", text: JSON.stringify({ anomalies: rows }) }] });
+ await expect(detectClaudeAnomalies(snapshot, snapshot, "Test")).rejects.toThrow("No se pudo completar");
+});
+it("accepts an explicitly empty valid analysis", async () => {
+ m.create.mockResolvedValue({ content: [{ type: "text", text: '{"anomalies":[]}' }] });
+ expect(await detectClaudeAnomalies(snapshot, snapshot, "Test")).toEqual([]);
 });
