@@ -35,13 +35,15 @@ import { isInternalUser } from "@/lib/feature-flags";
 import { isValidAdminKey } from "@/lib/admin-key";
 import {
   auditar,
-  armarPlanDeBorrado,
+  planConIndirectas,
+  citarIdentificador,
+  SQL_DEPENDENCIAS,
   loQueSePuedeAfirmar,
-  SE_CONSERVAN,
   tablasIndirectas,
   whereIndirecto,
   tablasQueNadieReclama,
   type TablaConOrg,
+  type TablaIndirecta,
   type Dependencia,
 } from "@/lib/organizacion/borrado";
 
@@ -70,21 +72,7 @@ const TABLAS_CON_ORG = `
  * como bloqueantes inventa un ciclo donde no hay ninguno — pasó con
  * `users` ↔ `custom_roles` la primera vez que esto corrió contra datos reales.
  */
-const DEPENDENCIAS = `
-  SELECT
-    tc.table_name    AS hija,
-    ccu.table_name   AS madre,
-    rc.delete_rule   AS "reglaDeBorrado",
-    kcu.column_name  AS columna
-  FROM information_schema.table_constraints tc
-  JOIN information_schema.key_column_usage kcu
-    ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-  JOIN information_schema.constraint_column_usage ccu
-    ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-  JOIN information_schema.referential_constraints rc
-    ON rc.constraint_name = tc.constraint_name AND rc.constraint_schema = tc.table_schema
-  WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
-`;
+
 
 export async function GET(req: NextRequest, { params }: { params: { orgId: string } }) {
   const url = new URL(req.url);
@@ -95,30 +83,22 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
   const { orgId } = params;
   if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
-  const org = await prisma.organization
-    .findUnique({ where: { id: orgId }, select: { name: true } })
-    .catch(() => null);
-
-  const tablas = (await prisma.$queryRawUnsafe<Array<{ tabla: string }>>(TABLAS_CON_ORG)).map(
-    (r) => r.tabla,
-  );
-
-  const dependencias = await prisma
-    .$queryRawUnsafe<Dependencia[]>(DEPENDENCIAS)
-    .catch(() => [] as Dependencia[]);
-
-  // Las que NO tienen `organizationId` pero cuelgan de una que sí.
-  //
-  // Sin esto la auditoría podía decir "no queda ningún dato" con seis tablas
-  // llenas (`order_items`, `bot_messages`, `pixel_visitor_aliases`,
-  // `influencer_commission_tiers`, `audience_sync_logs`, `login_events`) —
-  // justo la afirmación falsa que este endpoint existe para evitar.
-  const indirectas = tablasIndirectas(tablas, dependencias);
-
-  const todas = await prisma
-    .$queryRawUnsafe<Array<{ tabla: string }>>(TODAS_LAS_TABLAS)
-    .then((r) => r.map((x) => x.tabla))
-    .catch(() => [] as string[]);
+  let org: { name: string } | null;
+  let tablas: string[];
+  let dependencias: Dependencia[];
+  let todas: string[];
+  let indirectas: TablaIndirecta[];
+  try {
+    org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
+    if (!org) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
+    tablas = (await prisma.$queryRawUnsafe<Array<{ tabla: string }>>(TABLAS_CON_ORG)).map(r => r.tabla);
+    dependencias = await prisma.$queryRawUnsafe<Dependencia[]>(SQL_DEPENDENCIAS);
+    todas = (await prisma.$queryRawUnsafe<Array<{ tabla: string }>>(TODAS_LAS_TABLAS)).map(r => r.tabla);
+    if (!tablas.length || !todas.length) throw new Error("Catálogo incompleto");
+    indirectas = tablasIndirectas(tablas, dependencias);
+  } catch {
+    return NextResponse.json({ completo: false, error: "No se pudo verificar el catálogo o la organización." }, { status: 503 });
+  }
 
   // Cada COUNT va con su propio catch: una tabla que no se puede consultar sale
   // como `null`, que NO es cero. La diferencia es la que decide si se puede
@@ -127,7 +107,7 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
   for (const tabla of tablas) {
     try {
       const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-        `SELECT COUNT(*)::float8 AS n FROM "${tabla}" WHERE "organizationId" = $1`,
+        `SELECT COUNT(*)::float8 AS n FROM ${citarIdentificador(tabla)} WHERE "organizationId" = $1`,
         orgId,
       );
       conteos.push({ tabla, filas: Number(r[0]?.n ?? 0) });
@@ -139,7 +119,7 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
   for (const t of indirectas) {
     try {
       const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-        `SELECT COUNT(*)::float8 AS n FROM "${t.tabla}" WHERE ${whereIndirecto(t)}`,
+        `SELECT COUNT(*)::float8 AS n FROM ${citarIdentificador(t.tabla)} WHERE ${whereIndirecto(t)}`,
         orgId,
       );
       conteos.push({ tabla: t.tabla, filas: Number(r[0]?.n ?? 0) });
@@ -149,7 +129,7 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
   }
 
   const auditoria = auditar(conteos);
-  const plan = armarPlanDeBorrado(tablas, dependencias);
+  const plan = planConIndirectas(tablas, indirectas, dependencias);
 
   // Lo que `wipe-account` borra hoy, para poder mostrar el hueco.
   const QUE_BORRA_HOY = [
@@ -168,6 +148,9 @@ export async function GET(req: NextRequest, { params }: { params: { orgId: strin
     .map((t) => ({ tabla: t.tabla, filas: t.filas }));
 
   return NextResponse.json({
+    borradoTotalVerificado: false,
+    completo: auditoria.sinPoderContar.length === 0 && !dependencias.some(d => (d.columnas ?? 1) > 1),
+    dependenciasCompuestasSinResolver: dependencias.filter(d => (d.columnas ?? 1) > 1),
     generadoEn: new Date().toISOString(),
     organizationId: orgId,
     nombre: org?.name ?? null,

@@ -75,6 +75,8 @@ export type Dependencia = {
   madre: string;
   /** La columna de la hija que apunta a la madre. Para las tablas indirectas. */
   columna?: string;
+  columnaReferenciada?: string;
+  columnas?: number;
   /**
    * Qué hace Postgres cuando se borra la fila referenciada: `NO ACTION`,
    * `RESTRICT`, `CASCADE`, `SET NULL`, `SET DEFAULT`.
@@ -287,6 +289,7 @@ export type TablaIndirecta = {
   columna: string;
   /** La tabla madre, que sí tiene `organizationId`. */
   madre: string;
+  rutas?: Dependencia[][];
 };
 
 /**
@@ -296,26 +299,37 @@ export type TablaIndirecta = {
  * Sale de la base y no de una lista escrita a mano por el mismo motivo que el
  * resto de este archivo: una lista a mano se queda vieja y no avisa.
  *
- * Sólo un nivel de indirección, que es lo que hay hoy (las seis cuelgan
- * directo de una tabla con `organizationId`). Si algún día aparece una que
- * cuelgue de otra indirecta, va a quedar afuera — y por eso
- * `tablasQueNadieReclama` la va a listar.
+ * Recorre todas las rutas simples hasta una tabla con organizationId.
+ * Las FKs compuestas requieren revisión explícita: una sola columna no
+ * acredita propiedad. Los límites de complejidad fallan de forma visible.
  */
 export function tablasIndirectas(
   conOrganizationId: string[],
   dependencias: Dependencia[],
 ): TablaIndirecta[] {
   const directas = new Set(conOrganizationId);
-  const vistas = new Set<string>();
   const salida: TablaIndirecta[] = [];
-
-  for (const d of dependencias) {
-    if (directas.has(d.hija)) continue; // ya se resuelve sola
-    if (!directas.has(d.madre)) continue; // la madre tampoco sabe de quién es
-    if (!d.columna) continue; // sin la columna no se puede armar el WHERE
-    if (vistas.has(d.hija)) continue; // con una vía alcanza
-    vistas.add(d.hija);
-    salida.push({ tabla: d.hija, columna: d.columna, madre: d.madre });
+  const edges = dependencias.filter(d => d.columna && (d.columnas ?? 1) === 1);
+  const paths = (table: string, visited: Set<string>): Dependencia[][] => {
+    if (directas.has(table)) return [[]];
+    if (visited.has(table)) return [];
+    if (visited.size >= 32) throw new Error("Dependencias demasiado profundas para auditar automáticamente");
+    const next = new Set(visited); next.add(table);
+    const result: Dependencia[][] = [];
+    for (const edge of edges.filter(d => d.hija === table)) {
+      for (const tail of paths(edge.madre, next)) {
+        result.push([edge, ...tail]);
+        if (result.length > 256) throw new Error("Demasiadas vías de propiedad para auditar automáticamente");
+      }
+    }
+    return result;
+  };
+  for (const table of new Set(edges.map(d => d.hija))) {
+    if (directas.has(table)) continue;
+    const routes = paths(table, new Set());
+    if (!routes.length) continue;
+    const first = routes[0][0];
+    salida.push({ tabla: table, columna: first.columna!, madre: first.madre, rutas: routes });
   }
 
   return salida.sort((a, b) => a.tabla.localeCompare(b.tabla));
@@ -324,12 +338,69 @@ export function tablasIndirectas(
 /**
  * El `WHERE` que acota una tabla indirecta a una organización.
  *
- * Los nombres salen de `information_schema`, no de la request, así que no hay
- * nada que escapar. El `orgId` va como parámetro.
+ * Los identificadores del catálogo se escapan; el orgId va como parámetro.
  */
-export function whereIndirecto(t: TablaIndirecta): string {
-  return `"${t.columna}" IN (SELECT "id" FROM "${t.madre}" WHERE "organizationId" = $1)`;
+export function whereIndirecto(t: TablaIndirecta, otraOrganizacion = false): string {
+  const quote = citarIdentificador;
+  const root = otraOrganizacion ? '"organizationId" IS DISTINCT FROM $1' : '"organizationId" = $1';
+  const pathSql = (path: Dependencia[], index = 0): string => {
+    const edge = path[index];
+    return `${quote(edge.columna!)} IN (SELECT ${quote(edge.columnaReferenciada ?? "id")} FROM ${quote(edge.madre)} WHERE ${index + 1 === path.length ? root : pathSql(path, index + 1)})`;
+  };
+  const routes = t.rutas ?? [[{ hija: t.tabla, madre: t.madre, columna: t.columna }]];
+  const predicates = [...new Set(routes.map(path => pathSql(path)))];
+  return predicates.length === 1 ? predicates[0] : `(${predicates.join(" OR ")})`;
 }
+
+export function citarIdentificador(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+/** También ordena SET NULL/CASCADE cuando borrar la madre perdería la ruta de propiedad. */
+export function planConIndirectas(tablas: string[], indirectas: TablaIndirecta[], deps: Dependencia[]) {
+  const indirectNames = new Set(indirectas.map(t => t.tabla));
+  return armarPlanDeBorrado([...new Set([...tablas, ...indirectNames])], deps.map(d =>
+    indirectNames.has(d.hija) ? { ...d, reglaDeBorrado: "RESTRICT" } : d));
+}
+
+/** Detecta FKs que borrarían/modificarían filas de otro dueño o tablas retenidas. */
+export function consultasConflictos(tablas: string[], indirectas: TablaIndirecta[], deps: Dependencia[]) {
+  const directas = new Set(tablas);
+  const byName = new Map(indirectas.map(t => [t.tabla, t]));
+  const consultas: Array<{ tabla: string; sql: string }> = [];
+  for (const d of deps) {
+    if (!d.columna || (d.columnas ?? 1) > 1) continue;
+    // Una tabla conservada no se borra, por lo que sus referencias no disparan efectos.
+    if (d.madre in SE_CONSERVAN) continue;
+    const madreIndirecta = byName.get(d.madre);
+    const propiedadMadre = directas.has(d.madre) ? '"organizationId" = $1'
+      : madreIndirecta ? whereIndirecto(madreIndirecta) : null;
+    if (!propiedadMadre) continue;
+    const retained = d.hija in SE_CONSERVAN;
+    if (!retained && !directas.has(d.hija)) continue;
+    consultas.push({ tabla: d.hija, sql:
+      `SELECT COUNT(*)::float8 AS n FROM ${citarIdentificador(d.hija)} WHERE ${retained ? "" : '"organizationId" IS DISTINCT FROM $1 AND '}${citarIdentificador(d.columna)} IN (SELECT ${citarIdentificador(d.columnaReferenciada ?? "id")} FROM ${citarIdentificador(d.madre)} WHERE ${propiedadMadre})` });
+  }
+  return consultas;
+}
+
+/** Alinea cada columna con la columna realmente referenciada, incluso en FKs compuestas. */
+export const SQL_DEPENDENCIAS = `
+  SELECT child.relname AS hija, parent.relname AS madre,
+    ca.attname AS columna, pa.attname AS "columnaReferenciada",
+    cardinality(fk.conkey) AS columnas,
+    CASE fk.confdeltype WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT'
+      WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END AS "reglaDeBorrado"
+  FROM pg_constraint fk
+  JOIN pg_class child ON child.oid = fk.conrelid
+  JOIN pg_namespace cn ON cn.oid = child.relnamespace AND cn.nspname = 'public'
+  JOIN pg_class parent ON parent.oid = fk.confrelid
+  JOIN pg_namespace pn ON pn.oid = parent.relnamespace AND pn.nspname = 'public'
+  JOIN LATERAL unnest(fk.conkey, fk.confkey) AS pair(child_att, parent_att) ON true
+  JOIN pg_attribute ca ON ca.attrelid = child.oid AND ca.attnum = pair.child_att
+  JOIN pg_attribute pa ON pa.attrelid = parent.oid AND pa.attnum = pair.parent_att
+  WHERE fk.contype = 'f'
+`;
 
 /**
  * Tablas que no son de nadie: ni tienen `organizationId` ni cuelgan de algo que

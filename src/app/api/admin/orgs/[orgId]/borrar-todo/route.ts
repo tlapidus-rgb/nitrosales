@@ -46,7 +46,10 @@ import { isInternalUser } from "@/lib/feature-flags";
 import { isValidAdminKey } from "@/lib/admin-key";
 import {
   auditar,
-  armarPlanDeBorrado,
+  planConIndirectas,
+  citarIdentificador,
+  SQL_DEPENDENCIAS,
+  consultasConflictos,
   loQueSePuedeAfirmar,
   tablasIndirectas,
   whereIndirecto,
@@ -58,12 +61,6 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
-const TODAS_LAS_TABLAS = `
-  SELECT table_name AS tabla FROM information_schema.tables
-  WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-  ORDER BY table_name
-`;
-
 const TABLAS_CON_ORG = `
   SELECT table_name AS tabla
   FROM information_schema.columns
@@ -71,24 +68,14 @@ const TABLAS_CON_ORG = `
   ORDER BY table_name
 `;
 
-const DEPENDENCIAS = `
-  SELECT tc.table_name AS hija, ccu.table_name AS madre, rc.delete_rule AS "reglaDeBorrado", kcu.column_name AS columna
-  FROM information_schema.table_constraints tc
-  JOIN information_schema.key_column_usage kcu
-    ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-  JOIN information_schema.constraint_column_usage ccu
-    ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-  JOIN information_schema.referential_constraints rc
-    ON rc.constraint_name = tc.constraint_name AND rc.constraint_schema = tc.table_schema
-  WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
-`;
+
 
 async function contar(tablas: string[], orgId: string): Promise<TablaConOrg[]> {
   const out: TablaConOrg[] = [];
   for (const tabla of tablas) {
     try {
       const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-        `SELECT COUNT(*)::float8 AS n FROM "${tabla}" WHERE "organizationId" = $1`,
+        `SELECT COUNT(*)::float8 AS n FROM ${citarIdentificador(tabla)} WHERE "organizationId" = $1`,
         orgId,
       );
       out.push({ tabla, filas: Number(r[0]?.n ?? 0) });
@@ -106,7 +93,7 @@ async function contarIndirectas(ts: TablaIndirecta[], orgId: string): Promise<Ta
   for (const t of ts) {
     try {
       const r = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-        `SELECT COUNT(*)::float8 AS n FROM "${t.tabla}" WHERE ${whereIndirecto(t)}`,
+        `SELECT COUNT(*)::float8 AS n FROM ${citarIdentificador(t.tabla)} WHERE ${whereIndirecto(t)}`,
         orgId,
       );
       out.push({ tabla: t.tabla, filas: Number(r[0]?.n ?? 0) });
@@ -148,7 +135,7 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
     org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
     if (!org) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
     tablas = (await prisma.$queryRawUnsafe<Array<{ tabla: string }>>(TABLAS_CON_ORG)).map(r => r.tabla);
-    dependencias = await prisma.$queryRawUnsafe<Dependencia[]>(DEPENDENCIAS);
+    dependencias = await prisma.$queryRawUnsafe<Dependencia[]>(SQL_DEPENDENCIAS);
     // Missing catalog visibility must never turn into an empty successful wipe.
     if (tablas.length === 0) throw new Error("No se pudo determinar el alcance del borrado");
   } catch {
@@ -163,9 +150,12 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   // lado seguro —la transacción revierte— pero no borraba nada. Y el
   // `wipe-account` viejo, el que borra 9 tablas, sí las contemplaba: en esto era
   // más completo que su reemplazo.
-  const indirectas = tablasIndirectas(tablas, dependencias);
+  let indirectas: TablaIndirecta[];
+  try { indirectas = tablasIndirectas(tablas, dependencias); }
+  catch { return NextResponse.json({ ok: false, completo: false, error: "No se pudo resolver el alcance de las dependencias." }, { status: 503 }); }
+  const compuestas = dependencias.filter(d => (d.columnas ?? 1) > 1);
 
-  const plan = armarPlanDeBorrado(tablas, dependencias);
+  const plan = planConIndirectas(tablas, indirectas, dependencias);
   const antes = auditar([
     ...(await contar(tablas, orgId)),
     ...(await contarIndirectas(indirectas, orgId)),
@@ -185,7 +175,8 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   }
 
   const comun = {
-    alcance: "Tablas con organizationId y dependencias directas descubiertas",
+    alcance: "Tablas con organizationId y dependencias transitivas simples descubiertas",
+    dependenciasCompuestasSinResolver: compuestas,
     borradoTotalVerificado: false,
     organizationId: orgId,
     nombre: org?.name ?? null,
@@ -203,7 +194,7 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   if (!ejecutar) {
     return NextResponse.json({
       simulacro: true,
-      completo: antes.sinPoderContar.length === 0,
+      completo: antes.sinPoderContar.length === 0 && compuestas.length === 0,
       ...comun,
       loQueSePuedeAfirmar: loQueSePuedeAfirmar(antes),
       paraEjecutarDeVerdad:
@@ -216,6 +207,10 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   if (antes.sinPoderContar.length > 0) {
     return NextResponse.json({ ...comun, ok: false, completo: false,
       error: "No se pudo completar la auditoría previa. No se inició el borrado." }, { status: 503 });
+  }
+  if (compuestas.length) {
+    return NextResponse.json({ ...comun, ok: false, completo: false,
+      error: "Hay claves compuestas sin resolver. Se requiere revisar su propiedad antes de borrar." }, { status: 409 });
   }
   const esperado = `BORRAR-${orgId}`;
   if (body?.confirm !== esperado) {
@@ -237,25 +232,27 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
   try {
     await prisma.$transaction(
       async (tx) => {
-        // Las indirectas PRIMERO: cuelgan de tablas que estan en `plan.orden`,
-        // y si se borrara la madre antes, el DELETE choca contra la FK.
-        for (const t of indirectas) {
-          const n = await tx.$executeRawUnsafe(
-            `DELETE FROM "${t.tabla}" WHERE ${whereIndirecto(t)}`,
-            orgId,
-          );
-          if (n > 0) borradas.push({ tabla: t.tabla, filas: n });
+        for (const check of consultasConflictos(tablas, indirectas, dependencias)) {
+          const rows = await tx.$queryRawUnsafe<Array<{ n: number }>>(check.sql, orgId);
+          if (!rows[0] || Number(rows[0].n) > 0) throw new Error("Referencia a datos ajenos o retenidos: " + check.tabla);
         }
-
+        // Verificar propietarios compartidos antes de la primera escritura.
+        for (const t of indirectas) {
+          const shared = await tx.$queryRawUnsafe<Array<{ n: number }>>(
+            `SELECT COUNT(*)::float8 AS n FROM ${citarIdentificador(t.tabla)} WHERE (${whereIndirecto(t)}) AND (${whereIndirecto(t, true)})`, orgId);
+          if (!shared[0] || Number(shared[0].n) > 0) throw new Error("Propiedad compartida o no verificable: " + t.tabla);
+        }
+        const byName = new Map(indirectas.map(t => [t.tabla, t]));
         for (const tabla of plan.orden) {
+          const indirecta = byName.get(tabla);
           const n = await tx.$executeRawUnsafe(
-            `DELETE FROM "${tabla}" WHERE "organizationId" = $1`,
+            `DELETE FROM ${citarIdentificador(tabla)} WHERE ${indirecta ? whereIndirecto(indirecta) : '"organizationId" = $1'}`,
             orgId,
           );
           if (n > 0) borradas.push({ tabla, filas: n });
         }
       },
-      { timeout: 780_000, maxWait: 20_000 },
+      { timeout: 780_000, maxWait: 20_000, isolationLevel: "Serializable" },
     );
   } catch (e: any) {
     return NextResponse.json(

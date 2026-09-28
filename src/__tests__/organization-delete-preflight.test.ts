@@ -10,7 +10,7 @@ beforeEach(() => {
  vi.resetAllMocks(); m.staff.mockResolvedValue(true); m.org.mockResolvedValue({ name: "A" });
  m.query.mockImplementation(async (sql: string) => {
   if (sql.includes("information_schema.columns")) return [{ tabla: "orders" }];
-  if (sql.includes("information_schema.table_constraints")) return [];
+  if (sql.includes("pg_constraint")) return [];
   return [{ n: 0 }];
  });
 });
@@ -21,7 +21,7 @@ it.each(["org", "catalog", "dependencies", "count", "empty-catalog"])("refuses e
    if (failure === "catalog") throw new Error("offline");
    return failure === "empty-catalog" ? [] : [{ tabla: "orders" }];
   }
-  if (sql.includes("information_schema.table_constraints")) {
+  if (sql.includes("pg_constraint")) {
    if (failure === "dependencies") throw new Error("permission denied");
    return [];
   }
