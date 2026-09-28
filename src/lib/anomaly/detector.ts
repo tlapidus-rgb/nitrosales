@@ -2,11 +2,11 @@
 // Anomaly Detector — Claude-powered + rule-based
 // ══════════════════════════════════════════════
 // Combines business heuristics (fast, no API cost) with
-// Claude analysis (contextual, understands business logic).
+// Claude selection of metrics for review, with measured evidence text.
 //
 // Types of anomalies detected:
 // 1. RULE-BASED: Sudden drops/spikes in KPIs (>30% change)
-// 2. CLAUDE-BASED: Contextual anomalies (seasonality, correlations)
+// 2. CLAUDE-BASED: Heuristic selection, not proof of causes or seasonality.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { measuredAnomalyText, type EvidenceMetric } from "./evidence-text";
@@ -110,7 +110,7 @@ export function detectRuleBasedAnomalies(
       priority: "MEDIUM",
       title: `Facturacion subio ${revChange}% vs periodo anterior`,
       description: `Excelente performance. Facturacion paso de $${Math.round(previous.revenue).toLocaleString("es-AR")} a $${Math.round(current.revenue).toLocaleString("es-AR")}. Identificar que impulso este crecimiento.`,
-      action: "Analizar que campanas, productos o canales impulsaron el spike y duplicar esfuerzos ahi.",
+      action: "Comparar campañas, productos y canales de ambos períodos antes de decidir cambios de inversión.",
       metric: "revenue",
       metricValue: current.revenue,
       metricDelta: revChange,
@@ -129,7 +129,7 @@ export function detectRuleBasedAnomalies(
       priority: "HIGH",
       title: `Inversion en ads subio ${adSpendChange}% sin crecimiento proporcional`,
       description: `El gasto publicitario aumento significativamente pero la facturacion no acompano. Meta: $${Math.round(current.metaSpend).toLocaleString("es-AR")}, Google: $${Math.round(current.googleSpend).toLocaleString("es-AR")}.`,
-      action: "Pausar campanas con bajo ROAS y redistribuir presupuesto a las que mejor convierten.",
+      action: "Revisar inversión, conversiones y ventanas de atribución por campaña antes de modificar presupuestos.",
       metric: "adSpend",
       metricValue: current.adSpend,
       metricDelta: adSpendChange,
@@ -156,8 +156,8 @@ export function detectRuleBasedAnomalies(
     anomalies.push({
       type: "ALERT",
       priority: "MEDIUM",
-      title: `CPA aumento ${cpaChange}% — cuesta mas adquirir cada cliente`,
-      description: `El costo por adquisicion paso de $${Math.round(previous.cpa).toLocaleString("es-AR")} a $${Math.round(current.cpa).toLocaleString("es-AR")}. Las campanas estan siendo menos eficientes.`,
+      title: `CPA aumento ${cpaChange}% — mayor costo por conversión atribuida`,
+      description: `El costo por conversión atribuida paso de $${Math.round(previous.cpa).toLocaleString("es-AR")} a $${Math.round(current.cpa).toLocaleString("es-AR")}. Las conversiones publicitarias no equivalen necesariamente a clientes nuevos o únicos.`,
       action: "Optimizar landing pages, revisar targeting de audiencias, y probar nuevos creativos.",
       metric: "cpa",
       metricValue: current.cpa,
@@ -171,8 +171,8 @@ export function detectRuleBasedAnomalies(
       type: "TREND",
       priority: "MEDIUM",
       title: `Ticket promedio bajo ${Math.abs(aovChange)}%`,
-      description: `El AOV paso de $${Math.round(previous.aov).toLocaleString("es-AR")} a $${Math.round(current.aov).toLocaleString("es-AR")}. Los clientes estan comprando menos por pedido.`,
-      action: "Implementar cross-sell, bundles, o free shipping en compras mayores a un umbral.",
+      description: `El importe promedio por pedido paso de $${Math.round(previous.aov).toLocaleString("es-AR")} a $${Math.round(current.aov).toLocaleString("es-AR")}. Esto no permite determinar si cambió la cantidad de productos por pedido.`,
+      action: "Revisar precios, descuentos y composición de los pedidos antes de definir promociones.",
       metric: "aov",
       metricValue: current.aov,
       metricDelta: aovChange,

@@ -14,7 +14,7 @@ Trabajo exclusivo en codex/expansion-review-fixes. No merge a main, push, despli
 ## Alcance de los seis frentes
 
 1. Integración local de main: integración 1f12e598 validada localmente, conservando caché/degradación parcial y optimizaciones.
-2. Backfill: admisión y ownership implementados con pruebas SQL locales; faltan concurrencia multisesión, idempotencia de efectos de chunks y rollout aislado. Ver BACKFILL-OWNERSHIP.md.
+2. Backfill: admisión y ownership implementados con pruebas SQL locales; persistencia por versión compartida con notificaciones y reconciliación. Reconciliación no adelanta watermark ante errores/truncamiento. Faltan migrar cuatro escritores legacy inventariados, subdividir ventanas de reconciliación mayores a 1000 resultados, recuperar detalles fuera del backfill, concurrencia multisesión y rollout aislado. Ver BACKFILL-OWNERSHIP.md.
 3. Onboarding: readiness conectado a activación, aprobación transaccional y detección de cambios concurrentes de credenciales/períodos implementados; quedan contrato completo de plataformas y recorrido completo.
 4. Ciclo de organización: exportación consistente, auditoría y borrado transitivo por FKs simples implementados con pruebas sintéticas; faltan gate global de suspensión, propiedades sin FK/JSON, retención y validación aislada con escritores concurrentes.
 5. Migraciones/E2E: preparar y verificar localmente todo lo posible; ejecución PostgreSQL y preview pendientes.
@@ -34,7 +34,7 @@ El endpoint local ahora rechaza `cortarIngesta:true`, conserva configuraciones a
 - Definir retención/anonimización de email_log, leads, settings y datos externos. Las dependencias compuestas se bloquean hasta clasificar su propiedad; un catálogo incompleto nunca habilita borrado.
 - Confirmar en sandbox la semántica de fechas inclusivas, paging.total, credenciales y muestras VTEX/ML. Los fixtures prueban la implementación, no el contrato real del proveedor.
 - El token de job no cerca upserts de negocio ya iniciados. Revisar una estrategia compartida de versiones/recuperación con webhooks y probar intercalados multisesión; un reintento por página no da ejecución exactamente una vez.
-- Calibrar la selección, tipo y prioridad de anomalías con datos autorizados. El texto contextual nuevo usa comparaciones deterministas y pasos de revisión; no demuestra causalidad ni calibración estadística. Los insights históricos no se reescribieron y las reglas preexistentes requieren revisión editorial separada.
+- Calibrar la selección, tipo y prioridad de anomalías con datos autorizados. El texto contextual nuevo usa comparaciones deterministas y pasos de revisión; no demuestra causalidad ni calibración estadística. Se corrigieron reglas que confundían conversiones con clientes, importe con cantidad de productos y recomendaban cambiar presupuestos sin revisar evidencia. Los insights históricos no se reescribieron.
 - Medir exportación consistente y borrado transaccional a volumen realista en base descartable. Evitar activar borrado mientras haya escritores concurrentes sin un protocolo de quiescencia validado.
 
 Estos pendientes incluyen decisiones y trabajo técnico aún abierto; no son todos simples pedidos de credenciales ni una declaración de finalización local completa.

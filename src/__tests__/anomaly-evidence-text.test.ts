@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateAnomalies, type MetricSnapshot } from "@/lib/anomaly/detector";
+import { detectRuleBasedAnomalies, validateAnomalies, type MetricSnapshot } from "@/lib/anomaly/detector";
 
 const baseline: MetricSnapshot = {
   revenue: 1000, orders: 100, grossProfit: 500, grossMargin: 50, cogsCoverage: 100,
@@ -15,6 +15,22 @@ function result(metric: string, current: Partial<MetricSnapshot>, previous: Part
 }
 
 describe("visible anomaly evidence", () => {
+  it("does not equate attributed advertising conversions with new customers", () => {
+    const anomaly = detectRuleBasedAnomalies({ ...baseline, cpa: 10 }, baseline).find(a => a.metric === "cpa");
+    expect(anomaly?.title).toContain("conversión atribuida");
+    expect(anomaly?.description).toContain("no equivalen necesariamente a clientes");
+  });
+  it("does not infer item quantities from average order amount", () => {
+    const anomaly = detectRuleBasedAnomalies({ ...baseline, aov: 1 }, baseline).find(a => a.metric === "aov");
+    expect(anomaly?.description).toContain("no permite determinar");
+    expect(anomaly?.action).toContain("Revisar precios");
+  });
+  it("asks to review campaign evidence before budget or promotion changes", () => {
+    const rising = detectRuleBasedAnomalies({ ...baseline, revenue: 2000 }, baseline);
+    const spending = detectRuleBasedAnomalies({ ...baseline, adSpend: 1000 }, baseline);
+    expect(rising.find(a => a.metric === "revenue")?.action).toContain("antes de decidir");
+    expect(spending.find(a => a.metric === "adSpend")?.action).toContain("antes de modificar");
+  });
   it("does not expose invented numbers, causes or prescriptive actions", () => {
     const anomaly = result("revenue", { revenue: 500 });
     expect(anomaly).toMatchObject({ metricValue: 500, metricDelta: -50 });

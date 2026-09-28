@@ -33,6 +33,7 @@ import { orgJitter, sleep } from "@/lib/sync/jitter";
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
+import { persistMlOrder } from "@/lib/connectors/ml-order-persistence";
 import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,7 @@ async function mlGet(path: string, token: string): Promise<any> {
     async () => {
       const res = await fetch(`${ML_API}${path}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
         const err: any = new Error(`ML ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -77,49 +79,7 @@ async function mlGet(path: string, token: string): Promise<any> {
 
 
 async function upsertOrderWithGuard(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
-  const externalId = String(order.id);
-  const packId = order.pack_id ? String(order.pack_id) : null;
-  const status = mapMeliStatus(order.status, order.tags);
-  const total = Number(order.total_amount) || 0;
-  const currency = order.currency_id || "ARS";
-  const itemCount = Array.isArray(order.order_items)
-    ? order.order_items.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 0), 0)
-    : 0;
-  const orderDate = new Date(order.date_created);
-  const externalUpdatedAt = order.last_updated ? new Date(order.last_updated) : orderDate;
-  const paymentMethod = order.payments?.[0]?.payment_method_id || null;
-  const marketplaceFee = order.order_items?.[0]?.sale_fee
-    ? order.order_items.reduce((sum: number, it: any) => sum + (Number(it.sale_fee) || 0), 0)
-    : null;
-
-  const rows: any[] = await prisma.$queryRawUnsafe(
-    `
-    INSERT INTO "orders" (
-      "id","externalId","packId","status","totalValue","currency","itemCount",
-      "source","paymentMethod","marketplaceFee",
-      "orderDate","externalUpdatedAt","organizationId","createdAt","updatedAt"
-    )
-    VALUES (
-      gen_random_uuid()::text,$1,$2,$3::"OrderStatus",$4,$5,$6,
-      'MELI',$7,$8,$9,$10,$11,NOW(),NOW()
-    )
-    ON CONFLICT ("organizationId","externalId")
-    DO UPDATE SET
-      "packId"=EXCLUDED."packId",
-      "status"=EXCLUDED."status","totalValue"=EXCLUDED."totalValue",
-      "currency"=EXCLUDED."currency","itemCount"=EXCLUDED."itemCount",
-      "paymentMethod"=EXCLUDED."paymentMethod","marketplaceFee"=EXCLUDED."marketplaceFee",
-      "externalUpdatedAt"=EXCLUDED."externalUpdatedAt","updatedAt"=NOW()
-    WHERE "orders"."externalUpdatedAt" IS NULL
-       OR "orders"."externalUpdatedAt" < EXCLUDED."externalUpdatedAt"
-    RETURNING xmax = 0 AS "inserted"
-    `,
-    externalId, packId, status, total, currency, itemCount,
-    paymentMethod, marketplaceFee,
-    orderDate, externalUpdatedAt, orgId
-  );
-  if (rows.length === 0) return "skipped";
-  return rows[0].inserted ? "inserted" : "updated";
+  return (await persistMlOrder(orgId, order, mapMeliStatus(order.status, order.tags))).action;
 }
 
 async function getExistingMap(orgId: string, ids: string[]): Promise<Map<string, Date | null>> {
@@ -145,7 +105,7 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
     mlUserId = auth.mlUserId;
   } catch (err: any) {
     console.warn(`[ml-reconcile/${layer}] ${orgId}: no token`);
-    return { ...stats, error: err.message };
+    return { ...stats, errors: 1, error: "ML token unavailable" };
   }
 
   // Watermark: desde (lastSuccessfulSyncAt - 5min overlap) o (now - lookback)
@@ -158,9 +118,7 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
   let from: Date;
   if (wmRows.length > 0 && wmRows[0].lastSuccessfulSyncAt) {
     from = new Date(wmRows[0].lastSuccessfulSyncAt.getTime() - WATERMARK_OVERLAP_MS);
-    // Safety: no retroceder más de lookbackMs aunque el watermark diga lo contrario
-    const maxBack = new Date(now.getTime() - lookbackMs);
-    if (from < maxBack) from = maxBack;
+    // Never silently discard an unprocessed interval after a prolonged failure.
   } else {
     from = new Date(now.getTime() - lookbackMs);
   }
@@ -185,7 +143,15 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
       break;
     }
 
-    const results: any[] = data.results || [];
+    const results = data?.results;
+    const total = data?.paging?.total;
+    // A truncated/invalid search is incomplete, never a successful empty scan.
+    if (!Array.isArray(results) || !Number.isSafeInteger(total) || total < 0 || total > 1000 ||
+        results.length !== Math.min(PAGE_SIZE, Math.max(0, total - offset)) ||
+        results.some(o => !o?.id || !Number.isFinite(new Date(o.last_updated || o.date_created).getTime()))) {
+      stats.errors++;
+      break;
+    }
     if (results.length === 0) break;
     stats.fetched += results.length;
 
@@ -214,16 +180,19 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
       }
     }
 
-    if (results.length < PAGE_SIZE) break;
+    if (offset + results.length >= total) break;
     offset += PAGE_SIZE;
   }
 
-  // Watermark update
+  // A failed run must retain its previous successful boundary for retry.
+  if (stats.errors > 0) return stats;
+
+  // Watermark update (older concurrent completions cannot move it backwards).
   await prisma.$executeRawUnsafe(
     `INSERT INTO "sync_watermarks" ("organizationId","platform","syncLayer","lastSuccessfulSyncAt","lastRunAt","lastRunStatus","metadata")
      VALUES ($1,'MERCADOLIBRE',$2,$3::timestamptz,NOW(),'ok',$4::jsonb)
      ON CONFLICT ("organizationId","platform","syncLayer")
-     DO UPDATE SET "lastSuccessfulSyncAt"=$3::timestamptz,"lastRunAt"=NOW(),"lastRunStatus"='ok',"metadata"=$4::jsonb,"updatedAt"=NOW()`,
+     DO UPDATE SET "lastSuccessfulSyncAt"=GREATEST("sync_watermarks"."lastSuccessfulSyncAt", $3::timestamptz),"lastRunAt"=NOW(),"lastRunStatus"='ok',"metadata"=$4::jsonb,"updatedAt"=NOW()`,
     orgId, layer, now, JSON.stringify(stats)
   );
 
@@ -268,5 +237,5 @@ export async function GET(req: NextRequest) {
   };
 
   console.log(`[ml-reconcile/${mode}] totals:`, totals);
-  return NextResponse.json({ ok: true, totals, perOrg: results });
+  return NextResponse.json({ ok: totals.errors === 0, totals, perOrg: results });
 }

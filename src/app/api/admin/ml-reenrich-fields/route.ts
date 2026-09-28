@@ -104,7 +104,8 @@ export async function GET(req: NextRequest) {
             }
           );
 
-          await enrichOrderFromMl(o.id, orgId, data, token);
+          if (String(data?.id) !== String(o.externalId)) throw new Error("ML order identity mismatch");
+          if (!await enrichOrderFromMl(o.id, orgId, data, token)) throw new Error("ML enrichment incomplete or version changed");
           enriched++;
         } catch (err: any) {
           errors++;
@@ -116,10 +117,11 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
-      ok: true,
+      ok: errors === 0,
       orgId,
       durationMs: Date.now() - t0,
       total: orders.length,
+      complete: errors === 0,
       enriched,
       errors,
       firstErrors,
