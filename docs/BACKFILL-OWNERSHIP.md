@@ -27,3 +27,11 @@ Antes de desplegar, en PostgreSQL descartable:
 Rollout futuro: drenar workers anteriores antes de habilitar código nuevo, porque un binario viejo no respeta el token. Aplicar la columna primero en el entorno autorizado, luego desplegar. Para rollback, detener workers nuevos antes de revertir código y conservar la columna nullable. No borrar leases activas para acelerar el rollback.
 
 No ejecutar estos pasos en producción sin autorización. PostgreSQL multisesión y preview con base aislada siguen pendientes.
+
+## Reanudación por página — 2026-09-27
+
+Ambos procesadores conservan la página ante cualquier fallo de persistencia. VTEX incluye fallos de detalle/enriquecimiento; ML persiste retryEnrichmentIds para recuperar detalles de órdenes cuyo upsert ya terminó. Los contadores avanzan sólo con la página completa. Esto evita omitir un fallo minoritario o contarlo dos veces en un reintento normal, pero no ofrece un commit atómico entre escrituras del negocio y cursor.
+
+VTEX subdivide ventanas que exceden 30 páginas antes de persistir la página de prueba. Un cursor antiguo superior a ese límite se reexamina: puede volver a recorrer órdenes existentes y su contador histórico no representa necesariamente IDs únicos. Ambos procesadores evitan solapamientos de un milisegundo entre ventanas nuevas, validan listas/totales y rechazan truncamientos. Un pico indivisible o un cambio de página que pierde IDs de enriquecimiento pendientes exige reconciliación visible.
+
+Pruebas sintéticas: más de 3000 órdenes VTEX, picos en ambas mitades, extremos exactos, fallo minoritario de escritura, detalle/enrichment nulos, reanudación con JSON persistido y respuesta malformada. Queda probar proveedores reales de sandbox, caída antes de guardar cursor, actualizaciones de webhooks durante enrichment y locks PostgreSQL independientes.

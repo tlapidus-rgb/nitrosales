@@ -22,8 +22,8 @@
 // SOLUCION: paginacion por VENTANAS DE FECHA. Dividimos el rango total
 // del job en ventanas chicas (7 dias) y paginamos hasta 30 dentro de
 // cada ventana. Cuando una ventana se agota, mover a la anterior.
-// Esto permite traer cualquier volumen historico sin chocar con el
-// limite de VTEX.
+// Las ventanas densas se subdividen antes de persistir. Si un mismo instante
+// supera el límite, se informa incompleto y requiere otra extracción.
 //
 // Cursor shape: { windowEnd: ISO, windowStart: ISO, page: int }
 //   - windowEnd: limite superior de la ventana actual
@@ -132,7 +132,7 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
       const totalUrl =
         `${baseUrl}?per_page=1&page=1` +
         `&f_creationDate=creationDate:[${fromDate.toISOString()}%20TO%20${toDate.toISOString()}]`;
-      const totalRes = await fetch(totalUrl, { headers });
+      const totalRes = await fetch(totalUrl, { headers, signal: AbortSignal.timeout(15_000) });
       if (totalRes.ok) {
         const totalData = await totalRes.json();
         const t = totalData?.paging?.total;
@@ -147,30 +147,9 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
 
   // Loop principal: procesar paginas. Cuando una ventana se agota, mover a la anterior.
   for (let i = 0; i < PAGES_PER_CHUNK; i++) {
-    // Si llegamos al limite de paginas de VTEX en esta ventana, mover a ventana anterior.
-    if (currentPage > VTEX_PAGE_LIMIT) {
-      // Mover ventana hacia atras
-      const newEnd = new Date(currentWindowStart);
-      const newStart = new Date(newEnd);
-      newStart.setDate(newStart.getDate() - WINDOW_DAYS);
-      if (newStart < fromDate) {
-        currentWindowStart = new Date(fromDate);
-      } else {
-        currentWindowStart = newStart;
-      }
-      currentWindowEnd = newEnd;
-      currentPage = 1;
-
-      // Si la nueva ventana esta fuera del rango (windowEnd <= fromDate), terminamos
-      if (currentWindowEnd <= fromDate) {
-        return {
-          itemsProcessed: totalProcessed,
-          newCursor: {},
-          isComplete: true,
-          totalEstimate,
-        };
-      }
-    }
+    // Un cursor viejo más allá del límite no acredita cobertura: reexaminar
+    // la ventana y subdividirla usando el total, sin saltar órdenes.
+    if (currentPage > VTEX_PAGE_LIMIT) currentPage = 1;
 
     const fromStr = currentWindowStart.toISOString();
     const toStr = currentWindowEnd.toISOString();
@@ -181,7 +160,7 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
 
     let res: Response;
     try {
-      res = await fetch(url, { headers });
+      res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
     } catch (err: any) {
       return {
         itemsProcessed: totalProcessed,
@@ -223,15 +202,35 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
     }
 
     const data = await res.json();
-    const list = data?.list || [];
+    const list = data?.list;
+    if (!Array.isArray(list)) {
+      return { itemsProcessed: totalProcessed, newCursor: { windowStart: currentWindowStart.toISOString(), windowEnd: currentWindowEnd.toISOString(), page: currentPage }, isComplete: false, error: "Respuesta de órdenes VTEX inválida" };
+    }
+
+    const windowTotal = data?.paging?.total;
+    if (!Number.isSafeInteger(windowTotal) || windowTotal < 0) {
+      return { itemsProcessed: totalProcessed, newCursor: { windowStart: currentWindowStart.toISOString(), windowEnd: currentWindowEnd.toISOString(), page: currentPage }, isComplete: false, error: "Total de órdenes VTEX no verificable" };
+    }
+    if (windowTotal > VTEX_PAGE_LIMIT * PAGE_SIZE) {
+      const span = currentWindowEnd.getTime() - currentWindowStart.getTime();
+      if (span <= 0) {
+        return { itemsProcessed: totalProcessed, newCursor: { windowStart: currentWindowStart.toISOString(), windowEnd: currentWindowEnd.toISOString(), page: 1 }, isComplete: false, error: "Volumen VTEX superior al límite en un mismo instante; requiere otra estrategia de extracción" };
+      }
+      currentWindowStart = new Date(currentWindowStart.getTime() + Math.floor(span / 2) + 1);
+      currentPage = 1;
+      continue;
+    }
+    if (list.length === 0 && (currentPage - 1) * PAGE_SIZE < windowTotal) {
+      return { itemsProcessed: totalProcessed, newCursor: { windowStart: currentWindowStart.toISOString(), windowEnd: currentWindowEnd.toISOString(), page: currentPage }, isComplete: false, error: "Página VTEX vacía antes de alcanzar el total" };
+    }
 
     if (list.length === 0) {
       // Ventana actual agotada → mover a ventana anterior (mas vieja)
       // sin avanzar i (no consume del PAGES_PER_CHUNK por cambiar de ventana)
-      const newEnd = new Date(currentWindowStart);
+      const newEnd = new Date(currentWindowStart.getTime() - 1);
       const newStart = new Date(newEnd);
       newStart.setDate(newStart.getDate() - WINDOW_DAYS);
-      const reachedEnd = newEnd <= fromDate;
+      const reachedEnd = currentWindowStart <= fromDate;
 
       if (reachedEnd) {
         // Llegamos al inicio del rango total → backfill completo
@@ -249,22 +248,28 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
       continue; // no incrementar pagesRunInChunk porque no procesamos data esta iter
     }
 
+    if (list.length < Math.min(PAGE_SIZE, Math.max(0, windowTotal - (currentPage - 1) * PAGE_SIZE))) {
+      return { itemsProcessed: totalProcessed, newCursor: { windowStart: currentWindowStart.toISOString(), windowEnd: currentWindowEnd.toISOString(), page: currentPage }, isComplete: false, error: "Página VTEX incompleta respecto del total" };
+    }
+
     // 1. Upsertar todas las ordenes de la pagina (crea/actualiza row basica)
     const upsertedOrders: Array<{ dbOrderId: string; externalId: string }> = [];
+    let failedInPage = 0;
     for (const order of list) {
       try {
         const dbOrderId = await upsertVtexOrder(orgId, order);
         if (dbOrderId) {
           upsertedOrders.push({ dbOrderId, externalId: String(order.orderId) });
         }
-        totalProcessed++;
+        if (!dbOrderId) failedInPage++;
       } catch (err: any) {
-        console.warn(`[vtex-backfill] skip upsert ${order.orderId}: ${err.message}`);
+        failedInPage++;
+        console.warn("[vtex-backfill] order persistence failed");
       }
     }
 
     // 2. Enriquecer cada orden en paralelo (GET detail → customer + items + products)
-    //    Concurrency 8 para no saturar VTEX. Fallas silenciosas — el order basico ya esta.
+    //    Una falla conserva la página para reintentar, incluso si el básico ya existe.
     if (upsertedOrders.length > 0) {
       await withConcurrency(
         ENRICH_CONCURRENCY,
@@ -272,10 +277,12 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
           try {
             const vData = await fetchVtexOrderDetail(creds, o.externalId);
             if (vData) {
-              await enrichOrderFromVtex(o.dbOrderId, orgId, vData);
-            }
+              const enriched = await enrichOrderFromVtex(o.dbOrderId, orgId, vData);
+              if (!enriched) failedInPage++;
+            } else { failedInPage++; }
           } catch (err: any) {
-            console.warn(`[vtex-backfill] enrich failed ${o.externalId}: ${err.message}`);
+            failedInPage++;
+            console.warn("[vtex-backfill] enrichment failed");
           }
         }),
       );
@@ -295,16 +302,20 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
       );
     }
 
+    if (failedInPage > 0) {
+      return { itemsProcessed: totalProcessed, newCursor: { windowStart: currentWindowStart.toISOString(), windowEnd: currentWindowEnd.toISOString(), page: currentPage }, isComplete: false, error: `${failedInPage} operaciones fallaron; se reintentará la misma página VTEX.` };
+    }
+    totalProcessed += list.length;
     pagesRunInChunk++;
     currentPage++;
 
     // Si la pagina trajo menos del page size, esta ventana se agoto
-    if (list.length < PAGE_SIZE) {
+    if ((currentPage - 1) * PAGE_SIZE >= windowTotal) {
       // Mover a ventana anterior
-      const newEnd = new Date(currentWindowStart);
+      const newEnd = new Date(currentWindowStart.getTime() - 1);
       const newStart = new Date(newEnd);
       newStart.setDate(newStart.getDate() - WINDOW_DAYS);
-      const reachedEnd = newEnd <= fromDate;
+      const reachedEnd = currentWindowStart <= fromDate;
 
       if (reachedEnd) {
         return {

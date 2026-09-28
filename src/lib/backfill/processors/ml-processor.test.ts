@@ -42,12 +42,14 @@ async function run(orders: Order[], failOnce = false) {
   vi.stubGlobal("fetch", fetcher);
   vi.spyOn(console, "log").mockImplementation(() => {});
   let job: any = { organizationId: "test", fromDate: "2026-09-01", toDate: "2026-09-08", cursor: {} };
+  let processed = 0;
   for (let i = 0; i < 200; i++) {
     const result = await processMercadoLibreChunk(job);
+    processed += result.itemsProcessed;
     // JSON round-trip represents a new invocation loading a persisted cursor.
     job = { ...job, cursor: JSON.parse(JSON.stringify(result.newCursor)) };
     if (result.error && !(injected && result.error.includes("simulated failure"))) return { result, visited, injected };
-    if (result.isComplete) return { result, visited, injected };
+    if (result.isComplete) return { result, visited, injected, processed };
   }
   throw new Error("Processor did not converge");
 }
@@ -62,8 +64,9 @@ describe("ML backfill temporal coverage", () => {
   });
   it("resumes a failed page without omitting boundaries or older dates", async () => {
     const orders = [...ordersAt(1700, "2026-09-07", "peak"), ...ordersAt(1, "2026-09-01", "from"), ...ordersAt(1, "2026-09-08", "to"), ...ordersAt(1, "2026-09-04T12:00:00Z", "mid")];
-    const { result, visited, injected } = await run(orders, true);
+    const { result, visited, injected, processed } = await run(orders, true);
     expect(injected).toBe(true);
+    expect(processed).toBe(orders.length);
     expect(result.isComplete).toBe(true);
     expect([...visited].sort()).toEqual(orders.map(o => o.id).sort());
   });

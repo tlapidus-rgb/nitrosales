@@ -45,6 +45,7 @@ async function mlGetWithRetry(path: string, token: string): Promise<any> {
     async () => {
       const res = await fetch(`${ML_API}${path}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const body = await res.text();
@@ -242,8 +243,11 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
       };
     }
 
-    const results: any[] = data.results || [];
-    const total = data.paging?.total || 0;
+    const results: any[] = data?.results;
+    const total = data?.paging?.total;
+    if (!Array.isArray(results) || !Number.isSafeInteger(total) || total < 0) {
+      return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false, error: "Respuesta de órdenes ML inválida" };
+    }
 
     // Search is descending: finish the NEWER half first, then the normal
     // backwards advance covers everything before its start. Keeping only the
@@ -251,9 +255,10 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     // Split before persisting a probe page, and use exact durations so peaks
     // within a day can also be subdivided. The full cursor survives a restart.
     if (total > ML_OFFSET_MAX) {
+      if (cursor.retryEnrichmentIds?.length) return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false, error: "La ventana ML cambió con enriquecimientos pendientes; requiere reconciliación" };
       const startMs = new Date(windowStartIso).getTime();
       const endMs = new Date(windowEndIso).getTime();
-      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs - startMs <= 1) {
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs - startMs <= 0) {
         return {
           itemsProcessed: totalProcessed,
           newCursor: cursor,
@@ -262,7 +267,7 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
         };
       }
       cursor = {
-        windowStart: new Date(startMs + Math.floor((endMs - startMs) / 2)).toISOString(),
+        windowStart: new Date(startMs + Math.floor((endMs - startMs) / 2) + 1).toISOString(),
         windowEnd: windowEndIso,
         offset: 0,
       };
@@ -270,14 +275,17 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     }
 
     // 2. Si la ventana está vacía, avanzar a la ventana anterior
+    if (results.length < Math.min(PAGE_SIZE, Math.max(0, total - offset))) {
+      return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false, error: "Página ML incompleta respecto del total" };
+    }
     if (results.length === 0) {
-      const newWindowEnd = new Date(windowStartIso);
+      const newWindowEnd = new Date(Date.parse(windowStartIso) - 1);
       const newWindowStart = new Date(Math.max(
         fromDate.getTime(),
         newWindowEnd.getTime() - WINDOW_DAYS * 24 * 3600 * 1000
       ));
       // Si ya cubrimos todo el rango, complete
-      if (newWindowEnd.getTime() <= fromDate.getTime()) {
+      if (Date.parse(windowStartIso) <= fromDate.getTime()) {
         return {
           itemsProcessed: totalProcessed,
           newCursor: cursor,
@@ -312,7 +320,6 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     // Podríamos paralelizar con withConcurrency pero para 50 órdenes/page
     // el beneficio es marginal y complica el manejo de errores.
     let failedInPage = 0;
-    const firstErrors: string[] = [];
     // Orders que necesitan enrichment (inserted/updated + payload original para items)
     const toEnrich: Array<{ dbOrderId: string; mlOrder: any }> = [];
     for (const order of toUpsert) {
@@ -321,60 +328,82 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
         if (result.action === "inserted") totalInserted++;
         else if (result.action === "updated") totalUpdated++;
         else totalSkipped++;
-        totalProcessed++;
         // Solo enriquecer si el upsert hizo algo Y tenemos el dbOrderId
         if (result.dbOrderId && result.action !== "skipped") {
           toEnrich.push({ dbOrderId: result.dbOrderId, mlOrder: order });
         }
       } catch (err: any) {
         failedInPage++;
-        if (firstErrors.length < 3) firstErrors.push(`${order.id}(${order.status}): ${err.message}`);
         console.error(`[ml-processor] upsert failed for order ${order.id} status=${order.status}:`, err.message);
         // Continue con los otros, no fallar todo el chunk
       }
     }
 
+    // Retomar enrichments que fallaron después de guardar la orden básica.
+    // El guard de versiones del upsert no debe hacerlos desaparecer al reintentar.
+    const retryIds: string[] = Array.isArray(cursor.retryEnrichmentIds) ? cursor.retryEnrichmentIds : [];
+    if (retryIds.length) {
+      if (retryIds.some(id => !idsInPage.includes(id))) {
+        return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false, error: "La página ML cambió y faltan órdenes pendientes de enriquecimiento" };
+      }
+      const retryRows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT id, "externalId", "externalUpdatedAt" FROM orders WHERE "organizationId" = $1 AND source = 'MELI' AND "externalId" = ANY($2::text[])`, orgId, retryIds);
+      for (const id of retryIds) {
+        const row = retryRows.find(r => r.externalId === id);
+        const order = results.find(o => String(o.id) === id);
+        if (!row) return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false, error: "No se encontró una orden ML pendiente de enriquecimiento" };
+        const storedTime = row.externalUpdatedAt ? new Date(row.externalUpdatedAt).getTime() : 0;
+        const payloadTime = new Date(order.last_updated || order.date_created).getTime();
+        if (!Number.isFinite(payloadTime)) return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false, error: "Fecha ML inválida" };
+        // Una versión posterior ya puede tener detalles más nuevos: no reescribirla con el payload viejo.
+        if (storedTime <= payloadTime && !toEnrich.some(e => String(e.mlOrder.id) === id)) toEnrich.push({ dbOrderId: row.id, mlOrder: order });
+      }
+    }
+    const failedEnrichment: string[] = [];
     // 5b. Enriquecer en paralelo (customer + products + items desde el payload ML)
     //     S58 F2.3: pasamos el token para que enrichOrderFromMl pueda llamar
     //     /shipments/{id} cuando la direccion NO viene en /orders/search (caso
     //     normal). Eso completa city/state/country del Customer.
-    //     Failsafe: errores en enrich NO fallan el chunk. El order basico ya esta.
+    //     Un fallo conserva IDs pendientes en el cursor para no perder el enriquecimiento.
     if (toEnrich.length > 0) {
       await withConcurrency(
         ENRICH_CONCURRENCY,
         toEnrich.map((e) => async () => {
           try {
-            await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder, token);
+            const enriched = await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder, token);
+            if (!enriched) failedEnrichment.push(String(e.mlOrder.id));
           } catch (err: any) {
-            console.warn(`[ml-processor] enrich failed ${e.mlOrder.id}: ${err.message}`);
+            failedEnrichment.push(String(e.mlOrder.id));
+            console.warn("[ml-processor] enrichment failed");
           }
         }),
       );
     }
-    // Si >50% de la página falló, abortar chunk con error para que quede trazado
-    // en lastError del job (en vez de silenciar el problema).
-    if (failedInPage > 0 && failedInPage >= Math.ceil(toUpsert.length / 2)) {
+    // Incluso un solo fallo debe conservar la página: avanzar lo omite para siempre.
+    if (failedInPage > 0 || failedEnrichment.length > 0) {
       return {
         itemsProcessed: totalProcessed,
-        newCursor: cursor,
+        newCursor: { ...cursor, retryEnrichmentIds: failedEnrichment },
         isComplete: false,
-        error: `${failedInPage}/${toUpsert.length} upserts fallaron. Primeros: ${firstErrors.join(" | ")}`,
+        error: `${failedInPage} upserts y ${failedEnrichment.length} enriquecimientos fallaron; se reintentará la misma página ML.`,
       };
     }
 
     // 6. Avanzar cursor
+    delete cursor.retryEnrichmentIds;
+    totalProcessed += results.length;
 
     const ventanaAgotada = offset + results.length >= total;
 
     // ¿Terminamos la página actual?
     if (ventanaAgotada) {
       // Esta ventana se agotó de verdad. Mover a la ventana anterior.
-      const newWindowEnd = new Date(windowStartIso);
+      const newWindowEnd = new Date(Date.parse(windowStartIso) - 1);
       const newWindowStart = new Date(Math.max(
         fromDate.getTime(),
         newWindowEnd.getTime() - WINDOW_DAYS * 24 * 3600 * 1000
       ));
-      if (newWindowEnd.getTime() <= fromDate.getTime()) {
+      if (Date.parse(windowStartIso) <= fromDate.getTime()) {
         return {
           itemsProcessed: totalProcessed,
           newCursor: cursor,
