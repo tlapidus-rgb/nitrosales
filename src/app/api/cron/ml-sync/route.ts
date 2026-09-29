@@ -27,6 +27,9 @@ import { coincideConAlguna } from "@/lib/comparacion-segura";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel Pro plan — 5 min
+// Cooperative cutoff; an in-flight DB/provider operation still needs its own
+// timeout. Leave a minute to finish the current unit and report incomplete work.
+const WORK_BUDGET_MS = 240_000;
 
 
 /**
@@ -35,7 +38,8 @@ export const maxDuration = 300; // Vercel Pro plan — 5 min
  */
 async function syncOneOrg(
   orgId: string,
-  connId: string
+  connId: string,
+  deadline: number,
 ): Promise<{ ok: boolean; log: string[]; error?: string }> {
   const log: string[] = [];
   let failed = false;
@@ -55,6 +59,7 @@ async function syncOneOrg(
       let ordersCreated = 0;
       let ordersUpdated = 0;
       for (const order of mlOrders) {
+        if (Date.now() >= deadline) throw new Error("ML sync time budget exhausted; retry required");
         const saved = await ingestMlOrder(orgId, order, mapMeliStatus(order.status, order.tags), token);
         if (saved.action === "inserted") ordersCreated++;
         else if (saved.action === "updated") ordersUpdated++;
@@ -67,6 +72,7 @@ async function syncOneOrg(
 
     // ── 2. Sync reputation snapshot ──────────────────────────
     try {
+      if (Date.now() >= deadline) throw new Error("ML reputation deferred by time budget");
       const rep = await fetchSellerReputation(token, mlUserId);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -192,9 +198,17 @@ export async function GET(req: NextRequest) {
     }> = [];
 
     let overallOk = true;
+    let orgsDeferred = 0;
     for (const conn of mlConnections) {
       const orgStart = Date.now();
-      const result = await syncOneOrg(conn.organizationId, conn.id);
+      if (orgStart >= startTime + WORK_BUDGET_MS) {
+        overallOk = false;
+        orgsDeferred++;
+        orgResults.push({ orgId: conn.organizationId, ok: false, log: [],
+          error: "ML organization deferred by time budget", elapsedMs: 0 });
+        continue;
+      }
+      const result = await syncOneOrg(conn.organizationId, conn.id, startTime + WORK_BUDGET_MS);
       orgResults.push({
         orgId: conn.organizationId,
         ok: result.ok,
@@ -209,7 +223,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: overallOk,
       elapsed: `${elapsed}s`,
-      orgsProcessed: orgResults.length,
+      orgsProcessed: orgResults.length - orgsDeferred,
+      orgsDeferred,
       results: orgResults,
     });
   } catch (err: any) {
