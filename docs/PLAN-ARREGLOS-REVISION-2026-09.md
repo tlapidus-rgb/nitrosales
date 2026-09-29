@@ -252,3 +252,11 @@ Validación del bloque: suite completa con **1678 aprobadas, 7 omitidas, 0 fallo
 - Nueva tabla independiente con clave organización/modo, lease de seis minutos y límites congelados. Páginas fallidas se reintentan; cambios de total reinician la ventana; finalización y watermark son atómicos y condicionados al ownership. Migración sólo preparada y probada sobre PGlite.
 - Treinta casos específicos pasan (22 de endpoint/contratos y ocho SQL). Verificación final: **1868 pruebas aprobadas, siete omitidas, cero fallos** (156 archivos aprobados y uno omitido). TypeScript, guards, dependencias (898 módulos) y build de 106 páginas aprobados.
 - El intento de gate global volvió a ser rechazado por revisión automática: no considera «seguí» aprobación específica suficiente para modificar autenticación. No se ejecutó ese comando; auth.ts, auth-guard, layout y suspensión permanecen sin cambios. Se mantiene como pendiente separado.
+
+
+### Inventario de acceso y propagación de organización (2026-09-29)
+
+- Inventario AST de 243 llamadas directas en 170 archivos API, con líneas y grupos: EXPANSION-AUTH-SUSPENSION-INVENTARIO.md. No confundir menciones de texto con llamadas reales ni ausencia de llamadas directas con prueba de todos los caminos transitivos.
+- Hallazgo corregido: sync/trigger no enviaba la organización resuelta a sus llamadas internas de Meta/Google, que no heredan sesión. Ahora envía organizationId codificado, ignora overrides del cliente, incorpora los headers del propio preview y no agenda si falta la clave interna. Mantiene la selección del guard existente; no activa ni modifica la suspensión global.
+- Validación de este cambio: seis pruebas nuevas, 18 aprobadas junto con self-fetch-entorno; TypeScript y diff-check correctos. La última suite completa corresponde al commit previo df5f5bfa (1868 aprobadas, siete omitidas); no se atribuye esa ejecución al cambio posterior.
+- Sin push, merge, deploy ni llamadas reales. La autorización específica del gate global y las validaciones externas continúan pendientes.

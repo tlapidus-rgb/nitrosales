@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
-import { selfFetchBaseUrl } from "@/lib/self-fetch";
+import { selfFetchBaseUrl, selfFetchHeaders } from "@/lib/self-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -70,12 +70,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Fire-and-forget: trigger sync in background
-    const syncKey = process.env.NEXTAUTH_SECRET || "";
+    const syncKey = process.env.NEXTAUTH_SECRET;
+    if (!syncKey) {
+      return NextResponse.json({ ok: false, syncStarted: false, error: "Sync authentication is not configured" }, { status: 503 });
+    }
     const baseUrl = selfFetchBaseUrl();
-    const syncUrl = `${baseUrl}${syncPath}?key=${encodeURIComponent(syncKey)}`;
+    const syncUrl = new URL(syncPath, baseUrl);
+    syncUrl.searchParams.set("key", syncKey);
+    // Use the resolved identity (including staff view-as), never a caller's override.
+    syncUrl.searchParams.set("organizationId", org.id);
 
     waitUntil(
-      fetch(syncUrl, { method: "GET" })
+      fetch(syncUrl.toString(), { method: "GET", headers: selfFetchHeaders() })
         .then((res) => {
           console.log(`[sync/trigger] ${platform} sync completed: ${res.status}`);
         })
