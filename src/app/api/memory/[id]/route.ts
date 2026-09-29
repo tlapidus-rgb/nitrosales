@@ -13,7 +13,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const orgId = await getOrganizationId();
     const body = await req.json();
@@ -49,7 +49,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const orgId = await getOrganizationId();
 

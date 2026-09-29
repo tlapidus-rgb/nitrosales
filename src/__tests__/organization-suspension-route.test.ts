@@ -18,10 +18,10 @@ beforeEach(async () => {
  m.find.mockResolvedValue({ id: "a", name: "Synthetic", settings: { other: "stale" } });
  m.query.mockImplementation(async (sql: string, ...args: unknown[]) => (await db.query(sql,args)).rows);
 });
-it("patches only suspension and honestly reports that enforcement is disconnected", async () => {
+it("patches only suspension and reports session enforcement", async () => {
  const res = await run({ motivo: "Prueba sintética" });
  expect(res.status).toBe(200);
- expect(await res.json()).toMatchObject({ seAplica: false, seSigueIngiriendo: true, corteDeIngestaSeAplica: false, mensajeQueVeElCliente: null });
+ expect(await res.json()).toMatchObject({ seAplica: true, seSigueIngiriendo: true, corteDeIngestaSeAplica: false, mensajeQueVeElCliente: expect.any(String) });
  const row = (await db.query<{ settings: Record<string, unknown> }>("SELECT settings FROM organizations")).rows[0];
  expect(row.settings.other).toBe("current"); expect(row.settings.suspension).toBeDefined();
  await DELETE(new NextRequest("https://test.invalid/api"), params);

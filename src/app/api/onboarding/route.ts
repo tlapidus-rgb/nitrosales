@@ -1,3 +1,4 @@
+import { authOptions } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db/client";
@@ -64,8 +65,8 @@ const COUNTRY_CALENDARS: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const org = await getOrganization();
     // CRITICAL: getOrganization() no selecciona `settings`. Hacemos una segunda
@@ -86,8 +87,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const org = await getOrganization();
     const body = await req.json();

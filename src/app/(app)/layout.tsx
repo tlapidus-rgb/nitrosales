@@ -243,6 +243,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const organizationAccess = (session as typeof session & { organizationAccess?: string })?.organizationAccess;
+  if (organizationAccess) {
+    return <main className="min-h-screen bg-canvas text-ink flex flex-col items-center justify-center gap-4 p-8 text-center">
+      <h1 className="text-2xl font-semibold tracking-tight">{organizationAccess === "suspended" ? "Cuenta temporalmente suspendida" : "No pudimos verificar el acceso"}</h1>
+      <p className="max-w-md text-sm text-ink-60 leading-relaxed">{organizationAccess === "suspended"
+        ? "Contactá al equipo de NitroSales para reactivar tu cuenta."
+        : "Intentá nuevamente en unos momentos."}</p>
+      <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white focus-visible:outline focus-visible:outline-2" onClick={() => window.location.reload()}>Volver a intentar</button>
+      <button className="rounded-lg border border-ink-10 px-4 py-2 text-sm focus-visible:outline focus-visible:outline-2" onClick={() => signOut({ callbackUrl: "/login" })}>Cerrar sesión</button>
+    </main>;
+  }
+
   if (!session?.user) {
     router.push("/login");
     return null;

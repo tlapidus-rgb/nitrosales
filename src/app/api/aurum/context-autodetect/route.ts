@@ -1,3 +1,4 @@
+import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 // ══════════════════════════════════════════════════════════════
@@ -94,8 +95,8 @@ const PLATFORM_TO_AD_CHANNEL: Record<string, string> = {
 
 export async function GET() {
   try {
-    const session = await getServerSession();
-    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const org = await getOrganization();
 

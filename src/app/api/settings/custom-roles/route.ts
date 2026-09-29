@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { authOptions } from "@/lib/auth";
 // ═══════════════════════════════════════════════════════════════════
 // /api/settings/custom-roles — Fase 7 QA
 // ═══════════════════════════════════════════════════════════════════
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     const check = await requirePermission("settings_team", "admin");
     if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     const email = session?.user?.email;
     const creator = email
       ? await prisma.user.findUnique({

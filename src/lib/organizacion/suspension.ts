@@ -55,24 +55,8 @@ export type EstadoDeOrganizacion =
 /** Dónde vive el estado dentro de `Organization.settings`. */
 export const CLAVE_EN_SETTINGS = "suspension";
 
-/**
- * ¿Hay alguien que lea este estado para cortarle el acceso al cliente?
- *
- * **Hoy no.** Suspender deja el estado anotado y nada más: ni el middleware,
- * ni el login, ni los endpoints de datos lo consultan. Un cliente suspendido
- * sigue entrando igual.
- *
- * Esta constante existe para que el endpoint pueda decirlo en su respuesta en
- * vez de contestar un `ok: true` que no significa nada. No se calcula: se
- * escribe a mano, y hay un test que verifica que diga la verdad —barre el
- * repo buscando quién llama a `leerEstado` y falla si aparece alguien
- * mientras esto siga en `false`.
- *
- * Para ponerla en `true` hacen falta dos cosas: que `middleware.ts` lea el
- * estado y corte, y decidir qué pasa con las sesiones ya abiertas (el JWT no
- * se entera de la suspensión hasta que se renueva).
- */
-export const EL_GATE_ESTA_CONECTADO = false;
+/** Node session callback checks current state. Machine ingestion keeps its own authorization. */
+export const EL_GATE_ESTA_CONECTADO = true;
 
 /**
  * Lee el estado desde `settings`.

@@ -1,6 +1,6 @@
 # Superficie de autenticación para suspensión — 2026-09-29
 
-Inventario estático generado mediante TypeScript AST: imports de auth-guard y llamadas directas en route.ts. No cuenta comentarios. No prueba autorización completa, llamadas dinámicas ni caminos transitivos.
+Inventario previo al gate, generado mediante TypeScript AST: imports de auth-guard y llamadas directas en route.ts. No cuenta comentarios. No prueba autorización completa, llamadas dinámicas ni caminos transitivos.
 
 Resultado: 170 archivos y 243 llamadas directas. La cifra histórica de 251 menciones no equivale a rutas ni a llamadas ejecutables.
 
@@ -222,3 +222,10 @@ Cliente activo/suspendido/reactivado con el mismo JWT; org inexistente; consulta
 | src/app/api/sync/vtex-details/route.ts | getOrganization:23 |
 | src/app/api/sync/vtex-stock/route.ts | getOrganization:20 |
 | src/app/api/sync/vtex/route.ts | getOrganization:164, getOrganization:366 |
+
+
+## Implementación posterior al inventario
+
+Tras «Bueno, hace los 3», se aplicó el gate Node en la rama local. Ya no existe fallback single-org sin sesión. Las llamadas sin authOptions fueron conectadas a la configuración común; las comprobaciones que sólo miraban el objeto sesión ahora requieren identidad. Los números/líneas anteriores describen la foto previa, no la ubicación posterior a la edición.
+
+Se probaron sesiones existentes, reactivación con el mismo JWT, staff, view-as, impersonación, settings inválidos, organización ausente y fallo de consulta. El callback no hace self-fetch. El smoke HTTP de Next utiliza una base sintética local y prueba las rutas reales de suspensión, sesión y login-history. El acceso se revoca en la siguiente resolución de sesión; no borra datos ya renderizados en una pestaña ni revoca credenciales de ingesta. El refresh de UI sigue el comportamiento de SessionProvider (por ejemplo, al recuperar foco o recargar).

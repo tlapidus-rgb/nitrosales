@@ -260,3 +260,12 @@ Validación del bloque: suite completa con **1678 aprobadas, 7 omitidas, 0 fallo
 - Hallazgo corregido: sync/trigger no enviaba la organización resuelta a sus llamadas internas de Meta/Google, que no heredan sesión. Ahora envía organizationId codificado, ignora overrides del cliente, incorpora los headers del propio preview y no agenda si falta la clave interna. Mantiene la selección del guard existente; no activa ni modifica la suspensión global.
 - Validación de este cambio: seis pruebas nuevas, 18 aprobadas junto con self-fetch-entorno; TypeScript y diff-check correctos. La última suite completa corresponde al commit previo df5f5bfa (1868 aprobadas, siete omitidas); no se atribuye esa ejecución al cambio posterior.
 - Sin push, merge, deploy ni llamadas reales. La autorización específica del gate global y las validaciones externas continúan pendientes.
+
+
+### Tres bloques: suspensión, PostgreSQL y operación (2026-09-29)
+
+- Pedido explícito «Bueno, hace los 3»: gate de suspensión implementado sólo en rama local. Verificación de organización en cada callback de sesión Node, sin self-fetch; identidad retirada al suspender/no poder verificar, soporte conservado e impersonación bloqueada. Se retira fallback single-org y se conectan las rutas que omitían authOptions. UI muestra suspensión/reintento sin motivo privado. El estado se refleja al resolver sesión, no borra datos ya renderizados.
+- Usuario confirma que no existe entorno externo y no decide altas Ads/NitroPixel. Docker local habilitado; PostgreSQL 16 descartable con loopback y datos sintéticos. Ocho casos multisesión y migraciones repetidas pasan. Smoke HTTP real Next comprueba el mismo JWT antes/durante/después de suspensión. No hubo conexión a producción.
+- Resultado: 1891 pruebas aprobadas, siete omitidas, cero fallos; tipos/guards/dependencias correctos; build de 106 páginas. Suite PostgreSQL separada: ocho aprobadas. Detalle reproducible y límites en EXPANSION-VALIDACION-LOCAL.md.
+- Consulta de main remoto confirma la referencia 39d93a204c2d54730e886bae2be710718ec54e10. Sin merge/push.
+- Preparadas decisiones de retención/producto y plan de rotación, con inventario sin valores de 29 cron paths que contienen key. No se cambiaron secretos reales, plazos de retención ni comportamiento de altas sin órdenes. Pendientes actuales reescritos en PENDIENTES-ACCESOS-EXPANSION.md para separar lo cerrado de lo externo/indeciso.

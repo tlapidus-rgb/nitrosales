@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { authOptions } from "@/lib/auth";
 // ═══════════════════════════════════════════════════════════════════
 // /api/settings/security/login-history — Fase 7 QA
 // ═══════════════════════════════════════════════════════════════════
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     const email = session?.user?.email;
     if (!email) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });

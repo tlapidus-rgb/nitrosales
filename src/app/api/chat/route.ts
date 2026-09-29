@@ -1,3 +1,4 @@
+import { authOptions } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
@@ -273,8 +274,8 @@ export async function POST(req: Request) {
   let errorMessage: string | null = null;
 
   try {
-    const session = await getServerSession();
-    if (!session) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

@@ -1,3 +1,4 @@
+import { authOptions } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
@@ -11,8 +12,8 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     return NextResponse.json({
       message:

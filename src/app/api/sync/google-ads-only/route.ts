@@ -1,3 +1,4 @@
+import { authOptions } from "@/lib/auth";
 // Temporary endpoint to trigger ONLY Google Ads sync
 // Uses session auth instead of syncKey, avoids timeout from full sync
 import { NextResponse } from "next/server";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }

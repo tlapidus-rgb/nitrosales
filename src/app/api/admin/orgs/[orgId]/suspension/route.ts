@@ -1,50 +1,7 @@
-// ══════════════════════════════════════════════════════════════════════════
-// /api/admin/orgs/{orgId}/suspension — suspender y reactivar un cliente
-// ══════════════════════════════════════════════════════════════════════════
-// E-27. Hasta acá las únicas opciones eran dejarlo entrar o borrarle la cuenta.
-// Entre esas dos hay un abismo, y un cliente que se atrasó un mes no merece
-// ninguna de las dos.
-//
-// GET  → estado actual
-// POST → suspender    { motivo, cortarIngesta? }
-// DELETE → reactivar
-//
-// ── NO NECESITA MIGRACIÓN ────────────────────────────────────────────────
-// El estado vive en `Organization.settings`, que ya es `Json` y ya se usa para
-// esto mismo (roles custom, API keys, invitaciones). Ver el módulo para el
-// costo de esa decisión.
-//
-// ── SUSPENDER NO CORTA LA INGESTA ────────────────────────────────────────
-// Por defecto se sigue ingiriendo, porque los webhooks de VTEX y MELI **no
-// reintentan**: un día sin ingerir es un agujero que no se rellena nunca, ni
-// pagando después. Cortar la ingesta convierte una suspensión reversible en un
-// daño permanente. `cortarIngesta: true` existe para el caso en que el costo de
-// seguir ingiriendo pese más — es una decisión de negocio, y por eso es
-// explícita.
-//
-// Auth: **sólo staff**. Suspender le corta el acceso a un cliente que paga: no
-// puede quedar detrás de la clave que está en `vercel.json` versionado.
-//
-// ⚠️⚠️ ESTO TODAVÍA NO CORTA NADA ⚠️⚠️
-// ══════════════════════════════════════════════════════════════════════════
-// Suspender **deja anotado** el estado en `Organization.settings`, y nada
-// más. Hoy no hay un solo lugar que lo lea: ni el middleware, ni el login, ni
-// los endpoints de datos. Un cliente suspendido sigue entrando y usando el
-// producto exactamente igual que antes.
-//
-// Se deja así y no a medias a propósito: el gate que falta va en el camino de
-// auth de TODOS los requests, y eso se cambia solo, con su propia
-// verificación, no colgado del final de una branch grande. Lo que no se puede
-// dejar es que el endpoint conteste `ok: true` como si hubiera pasado algo
-// — por eso la respuesta trae `seAplica: false` y lo dice en castellano.
-//
-// Un `ok: true` que no hace nada es peor que un endpoint que no existe: quien
-// lo usa se queda tranquilo, y el cliente sigue adentro.
-//
-// Para que empiece a aplicar hacen falta dos cosas, y ninguna vive acá:
-//   1. que `middleware.ts` lea el estado y devuelva 403 / redirija;
-//   2. decidir qué pasa con las sesiones YA abiertas (el JWT no se entera).
-// ══════════════════════════════════════════════════════════════════════════
+// Organization suspension: staff-only settings mutation, no database migration.
+// Access is enforced by the Node session callback on every session resolution.
+// Ingestion retains its explicit authentication; cortarIngesta:true is rejected.
+// Support retains access; impersonated client sessions receive the client block.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -151,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: { orgId: stri
     ok: true,
     ...respuesta(rows[0]),
     // Que quede dicho en la respuesta, no sólo en la documentación.
-    nota: "Se guardó el estado solicitado. La ingesta sigue habilitada; el bloqueo de acceso todavía no se aplica.",
+    nota: "Se guardó el estado solicitado. La ingesta sigue habilitada; el acceso del cliente se verifica al resolver cada sesión.",
   });
 }
 

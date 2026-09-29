@@ -1,3 +1,4 @@
+import { enforceOrganizationAccess } from "@/lib/organizacion/session-access";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
@@ -270,7 +271,7 @@ export const authOptions: NextAuthOptions = {
           }
         }
       }
-      return session;
+      return enforceOrganizationAccess(session);
     },
   },
   pages: {
