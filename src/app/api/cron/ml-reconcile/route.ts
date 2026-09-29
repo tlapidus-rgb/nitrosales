@@ -34,6 +34,7 @@ import { orgJitter, sleep } from "@/lib/sync/jitter";
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
 import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
+import { claimReconcile, checkpointReconcile, completeReconcile } from "@/lib/connectors/ml-reconcile-progress";
 import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic";
@@ -124,12 +125,17 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
   }
 
   // Paginar con filtro date_last_updated.from=X&to=now (capta mutaciones)
-  const windows = [{ from: from.getTime(), to: now.getTime() }];
+  const claim = await claimReconcile(orgId, layer, from, now);
+  if (!claim) return { ...stats, errors: 1, complete: false, deferred: true };
+  const windows = claim.cursor;
+  const checkpoint = async () => {
+    if (!(await checkpointReconcile(claim, windows))) throw new Error("Reconciliation ownership lost");
+  };
   let requests = 0;
   while (windows.length && stats.errors === 0) {
-    const window = windows.pop()!;
-    let offset = 0;
-    let expectedTotal: number | undefined;
+    const window = windows[windows.length - 1];
+    let offset = window.offset;
+    let expectedTotal = window.total;
     const fromIso = new Date(window.from).toISOString();
     const toIso = new Date(window.to).toISOString();
     while (offset < 1000) {
@@ -157,15 +163,25 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
       stats.errors++;
       break;
     }
-    if (expectedTotal !== undefined && expectedTotal !== total) { stats.errors++; break; }
+    if (expectedTotal !== undefined && expectedTotal !== total) {
+      // A changing search cannot safely resume at the old offset. Replay this
+      // window (versioned ingestion is idempotent) before claiming coverage.
+      window.offset = 0; delete window.total;
+      stats.errors++; break;
+    }
     if (total > 1000) {
       if (window.from >= window.to) { stats.errors++; break; }
       const mid = window.from + Math.floor((window.to - window.from) / 2);
-      windows.push({ from: window.from, to: mid }, { from: mid + 1, to: window.to });
+      windows.pop();
+      windows.push({ from: window.from, to: mid, offset: 0 }, { from: mid + 1, to: window.to, offset: 0 });
+      await checkpoint();
       break;
     }
     expectedTotal = total;
-    if (results.length === 0) break;
+    window.total = total;
+    if (results.length === 0) {
+      windows.pop(); await checkpoint(); break;
+    }
     stats.fetched += results.length;
 
     // Pre-query: cuáles ya tenemos actualizados?
@@ -194,24 +210,26 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
       }
     }
 
-    if (offset + results.length >= total) break;
+    // A partial write/enrichment failure must replay this exact page.
+    if (stats.errors > 0) break;
+    if (offset + results.length >= total) {
+      windows.pop(); await checkpoint(); break;
+    }
     offset += PAGE_SIZE;
+    window.offset = offset;
+    await checkpoint();
     }
   }
 
-  // A failed run must retain its previous successful boundary for retry.
-  if (stats.errors > 0) return stats;
+  if (stats.errors > 0) {
+    if (!(await checkpointReconcile(claim, windows, true))) stats.errors++;
+    return { ...stats, complete: false };
+  }
 
-  // Watermark update (older concurrent completions cannot move it backwards).
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "sync_watermarks" ("organizationId","platform","syncLayer","lastSuccessfulSyncAt","lastRunAt","lastRunStatus","metadata")
-     VALUES ($1,'MERCADOLIBRE',$2,$3::timestamptz,NOW(),'ok',$4::jsonb)
-     ON CONFLICT ("organizationId","platform","syncLayer")
-     DO UPDATE SET "lastSuccessfulSyncAt"=GREATEST("sync_watermarks"."lastSuccessfulSyncAt", $3::timestamptz),"lastRunAt"=NOW(),"lastRunStatus"='ok',"metadata"=$4::jsonb,"updatedAt"=NOW()`,
-    orgId, layer, now, JSON.stringify(stats)
-  );
+  // Ownership, completed cursor and success watermark commit atomically.
+  if (!(await completeReconcile(claim, stats))) stats.errors++;
 
-  return stats;
+  return { ...stats, complete: stats.errors === 0 };
 }
 
 export async function GET(req: NextRequest) {
@@ -235,7 +253,12 @@ export async function GET(req: NextRequest) {
 
   const tasks = connections.map(c => async () => {
     await sleep(orgJitter(c.organizationId, JITTER_WINDOW_MS));
-    return await reconcileOrg(c.organizationId, mode, Math.max(lookbackMs, MAX_LOOKBACK_MS), start + 180_000);
+    try {
+      return await reconcileOrg(c.organizationId, mode, Math.max(lookbackMs, MAX_LOOKBACK_MS), start + 180_000);
+    } catch {
+      // Preserve checkpoints; a dead worker's claim becomes recoverable on expiry.
+      return { orgId: c.organizationId, layer: mode, fetched: 0, inserted: 0, updated: 0, skipped: 0, errors: 1, complete: false };
+    }
   });
 
   const results = await withConcurrency(5, tasks);

@@ -244,3 +244,11 @@ Validación del bloque: suite completa con **1678 aprobadas, 7 omitidas, 0 fallo
 - Inventario local de propiedad y retención en EXPANSION-RETENCION-PROPIEDAD.md: JSON de filas con propietario, FKs indirectas, logs sin userId, contadores opacos y excepciones email_log/leads. El alcance externo/retención requiere decisiones y catálogo real, no DELETE heurístico. El borrado sigue sin declarar borradoTotalVerificado.
 - Una suite previa de este bloque pasó 1853 casos y siete omitidos; tras el arreglo adicional de fechas de cliente se ejecuta una nueva suite y build. No hay fetch remoto, push, merge, llamadas a proveedores reales ni DDL externo.
 - Resultado final: **1854 pruebas aprobadas, siete omitidas, cero fallos** (155 archivos aprobados y uno omitido). TypeScript, guards, dependencias y build de 106 páginas aprobados. Los dos cambios amplios rechazados siguen pendientes de autorización; PostgreSQL multisesión, sandbox/preview y decisiones de retención/producto no se consideran completados por estas pruebas.
+
+
+### Reanudación de reconciliación, alternativa acotada (2026-09-29)
+
+- Implementado checkpoint persistente por página en el lector existente de ml-reconcile, manteniendo autorización, ingesta, contadores y tests de contrato. No se aplicó el reemplazo completo rechazado anteriormente.
+- Nueva tabla independiente con clave organización/modo, lease de seis minutos y límites congelados. Páginas fallidas se reintentan; cambios de total reinician la ventana; finalización y watermark son atómicos y condicionados al ownership. Migración sólo preparada y probada sobre PGlite.
+- Treinta casos específicos pasan (22 de endpoint/contratos y ocho SQL). Verificación final: **1868 pruebas aprobadas, siete omitidas, cero fallos** (156 archivos aprobados y uno omitido). TypeScript, guards, dependencias (898 módulos) y build de 106 páginas aprobados.
+- El intento de gate global volvió a ser rechazado por revisión automática: no considera «seguí» aprobación específica suficiente para modificar autenticación. No se ejecutó ese comando; auth.ts, auth-guard, layout y suspensión permanecen sin cambios. Se mantiene como pendiente separado.
