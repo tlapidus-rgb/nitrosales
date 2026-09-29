@@ -3,6 +3,7 @@ export const maxDuration = 300; // 5 min Vercel Pro
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { mlSessionConnection } from "@/lib/connectors/ml-session-connection";
 import { enrichOrderFromMl } from "@/lib/connectors/mercadolibre-enrichment";
 import { getSellerToken, fetchSellerOrders } from "@/lib/connectors/mercadolibre-seller";
 
@@ -32,13 +33,9 @@ export async function GET(req: NextRequest) {
 
   try {
     // Multi-tenant safe: resolver orgId primero
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
-      select: { id: true, organizationId: true },
-    });
-    if (!connection) {
-      return NextResponse.json({ error: "No active ML connection" }, { status: 404 });
-    }
+    const access = await mlSessionConnection();
+    if (access.response) return access.response;
+    const connection = access.connection;
     const orgId = connection.organizationId;
     const { token, mlUserId } = await getSellerToken(orgId);
 

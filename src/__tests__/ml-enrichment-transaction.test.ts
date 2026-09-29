@@ -13,15 +13,28 @@ const payload = { id: "external", date_created: version, last_updated: version,
 beforeAll(async () => {
  db = await PGlite.create();
  await db.exec(`CREATE TABLE orders (id text PRIMARY KEY, "organizationId" text, source text, "externalUpdatedAt" timestamptz);
- CREATE TABLE effects (kind text); CREATE TABLE order_items ("orderId" text, value text);`);
+ CREATE TABLE effects (kind text); CREATE TABLE order_items ("orderId" text, value text);
+ CREATE TABLE customers (id text PRIMARY KEY, "organizationId" text, "firstOrderAt" timestamptz, "lastOrderAt" timestamptz);`);
 });
 afterAll(async () => db.close());
 beforeEach(async () => {
  vi.clearAllMocks(); m.failFinal = false; m.fields = {};
- await db.exec(`TRUNCATE orders,effects,order_items; INSERT INTO orders VALUES ('order','org','MELI','2026-09-01T00:00:00Z'); INSERT INTO order_items VALUES ('order','original');`);
+ await db.exec(`TRUNCATE orders,effects,order_items,customers; INSERT INTO orders VALUES ('order','org','MELI','2026-09-01T00:00:00Z'); INSERT INTO order_items VALUES ('order','original');
+ INSERT INTO customers VALUES ('customer','org','2026-08-01T00:00:00Z','2026-08-31T00:00:00Z');`);
  m.transaction.mockImplementation(async callback => db.transaction(async tx => callback({
   $queryRawUnsafe: async (sql: string,...args: unknown[]) => (await tx.query(sql,args)).rows,
-  customer: { upsert: async () => { await tx.exec("INSERT INTO effects VALUES ('customer')"); return { id: "customer" }; } },
+  customer: {
+   upsert: async ({ update }: any) => {
+    expect(update).not.toHaveProperty("lastOrderAt");
+    await tx.exec("INSERT INTO effects VALUES ('customer')"); return { id: "customer" };
+   },
+   updateMany: async ({ where, data }: any) => {
+    const first = "firstOrderAt" in data;
+    const column = first ? "firstOrderAt" : "lastOrderAt";
+    expect(where.OR).toEqual([{ [column]: null }, { [column]: { [first ? "gt" : "lt"]: data[column] } }]);
+    await tx.query(`UPDATE customers SET "${column}"=$3 WHERE id=$1 AND "organizationId"=$2 AND ("${column}" IS NULL OR "${column}" ${first ? ">" : "<"} $3)`, [where.id, where.organizationId, data[column]]);
+   },
+  },
   product: { upsert: async () => tx.exec("INSERT INTO effects VALUES ('product')") },
   order: { update: async ({ data }: any) => { if (m.failFinal && data.channel) throw new Error("simulated final write failure"); if (data.channel) m.fields = data; await tx.exec("INSERT INTO effects VALUES ('order')"); } },
   orderItem: {
@@ -76,4 +89,10 @@ it("does not replace unavailable fees with zero", async () => {
 it("rolls back details when a fee is invalid", async () => {
  expect(await enrichOrderFromMl("order", "org", { ...payload, order_items: [{ ...payload.order_items[0], sale_fee: -1 }] })).toBeNull();
  expect((await db.query("SELECT value FROM order_items")).rows).toEqual([{ value: "original" }]);
+});
+it("replaying an older order expands the first purchase without regressing the last", async () => {
+ expect(await enrichOrderFromMl("order", "org", { ...payload, date_created: "2026-07-01T00:00:00Z" })).not.toBeNull();
+ const [customer] = (await db.query<{ firstOrderAt: Date; lastOrderAt: Date }>(`SELECT "firstOrderAt","lastOrderAt" FROM customers`)).rows;
+ expect(customer.firstOrderAt.toISOString()).toBe("2026-07-01T00:00:00.000Z");
+ expect(customer.lastOrderAt.toISOString()).toBe("2026-08-31T00:00:00.000Z");
 });

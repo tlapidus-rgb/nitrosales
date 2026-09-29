@@ -4,6 +4,7 @@ const m = vi.hoisted(() => ({ query: vi.fn(), enrich: vi.fn(), search: vi.fn(), 
 vi.mock("@/lib/db/client", () => ({ prisma: { $queryRawUnsafe: m.query, connection: { findFirst: m.connection } } }));
 vi.mock("@/lib/connectors/mercadolibre-enrichment", () => ({ enrichOrderFromMl: m.enrich }));
 vi.mock("@/lib/connectors/mercadolibre-seller", () => ({ getSellerToken: async () => ({ token: "test", mlUserId: 1 }), fetchSellerOrders: m.search }));
+vi.mock("@/lib/connectors/ml-session-connection", () => ({ mlSessionConnection: async () => ({ connection: { id: "conn", organizationId: "org" } }) }));
 import { GET } from "@/app/api/sync/mercadolibre/enrich-items/route";
 const order = { id: "external", date_created: new Date(Date.now() - 86400000).toISOString(), order_items: [] };
 beforeEach(() => {

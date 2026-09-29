@@ -131,8 +131,18 @@ export async function enrichOrderFromMl(
             ...(city ? { city } : {}),
             ...(state ? { state } : {}),
             ...(country ? { country } : {}),
-            lastOrderAt: orderDate,
           },
+        });
+
+        // Replaying an older order must not move the customer's last purchase
+        // backwards. Conditional updates preserve bounds across different orders.
+        await tx.customer.updateMany({
+          where: { id: customer.id, organizationId: orgId, OR: [{ firstOrderAt: null }, { firstOrderAt: { gt: orderDate } }] },
+          data: { firstOrderAt: orderDate },
+        });
+        await tx.customer.updateMany({
+          where: { id: customer.id, organizationId: orgId, OR: [{ lastOrderAt: null }, { lastOrderAt: { lt: orderDate } }] },
+          data: { lastOrderAt: orderDate },
         });
 
         await tx.order.update({

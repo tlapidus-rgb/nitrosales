@@ -33,7 +33,7 @@ import { orgJitter, sleep } from "@/lib/sync/jitter";
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
-import { persistMlOrder } from "@/lib/connectors/ml-order-persistence";
+import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
 import { mapMeliStatus } from "@/lib/meli-status";
 
 export const dynamic = "force-dynamic";
@@ -45,8 +45,8 @@ const ML_API = "https://api.mercadolibre.com";
 // Overlap: siempre consultamos desde (watermark - 5 min) para absorber clock skew
 const WATERMARK_OVERLAP_MS = 5 * 60 * 1000;
 
-// Jitter scatter: 10 min (para cron que corre cada 2h)
-const JITTER_WINDOW_MS = 10 * 60 * 1000;
+// Small scatter within the request budget; never sleep longer than maxDuration.
+const JITTER_WINDOW_MS = 1000;
 
 // Máximo default: 2 horas hacia atrás si no hay watermark (bootstrap)
 const DEFAULT_LOOKBACK_MS = 2 * 60 * 60 * 1000;
@@ -78,24 +78,24 @@ async function mlGet(path: string, token: string): Promise<any> {
 }
 
 
-async function upsertOrderWithGuard(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
-  return (await persistMlOrder(orgId, order, mapMeliStatus(order.status, order.tags))).action;
+async function upsertOrderWithGuard(orgId: string, order: any, token: string): Promise<"inserted" | "updated" | "skipped"> {
+  return (await ingestMlOrder(orgId, order, mapMeliStatus(order.status, order.tags), token)).action;
 }
 
-async function getExistingMap(orgId: string, ids: string[]): Promise<Map<string, Date | null>> {
+async function getExistingMap(orgId: string, ids: string[]): Promise<Map<string, any>> {
   if (ids.length === 0) return new Map();
   const rows: any[] = await prisma.$queryRawUnsafe(
-    `SELECT "externalId","externalUpdatedAt" FROM "orders"
+    `SELECT "externalId","externalUpdatedAt","backfillEnrichedVersion" FROM "orders"
      WHERE "organizationId"=$1 AND "source"='MELI' AND "externalId"=ANY($2::text[])`,
     orgId, ids
   );
-  const m = new Map<string, Date | null>();
-  for (const r of rows) m.set(r.externalId, r.externalUpdatedAt);
+  const m = new Map<string, any>();
+  for (const r of rows) m.set(r.externalId, r);
   return m;
 }
 
 /** Reconciliación incremental para una org. */
-async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookbackMs: number): Promise<any> {
+async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookbackMs: number, deadline: number): Promise<any> {
   const stats = { orgId, layer, fetched: 0, inserted: 0, updated: 0, skipped: 0, errors: 0 };
 
   let token: string, mlUserId: number;
@@ -124,11 +124,16 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
   }
 
   // Paginar con filtro date_last_updated.from=X&to=now (capta mutaciones)
-  let offset = 0;
-  const fromIso = from.toISOString();
-  const toIso = now.toISOString();
-
-  while (offset < 1000) {
+  const windows = [{ from: from.getTime(), to: now.getTime() }];
+  let requests = 0;
+  while (windows.length && stats.errors === 0) {
+    const window = windows.pop()!;
+    let offset = 0;
+    let expectedTotal: number | undefined;
+    const fromIso = new Date(window.from).toISOString();
+    const toIso = new Date(window.to).toISOString();
+    while (offset < 1000) {
+    if (++requests > 100 || Date.now() >= deadline) { stats.errors++; break; }
     let data: any;
     try {
       data = await mlGet(
@@ -146,12 +151,20 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
     const results = data?.results;
     const total = data?.paging?.total;
     // A truncated/invalid search is incomplete, never a successful empty scan.
-    if (!Array.isArray(results) || !Number.isSafeInteger(total) || total < 0 || total > 1000 ||
+    if (!Array.isArray(results) || !Number.isSafeInteger(total) || total < 0 ||
         results.length !== Math.min(PAGE_SIZE, Math.max(0, total - offset)) ||
         results.some(o => !o?.id || !Number.isFinite(new Date(o.last_updated || o.date_created).getTime()))) {
       stats.errors++;
       break;
     }
+    if (expectedTotal !== undefined && expectedTotal !== total) { stats.errors++; break; }
+    if (total > 1000) {
+      if (window.from >= window.to) { stats.errors++; break; }
+      const mid = window.from + Math.floor((window.to - window.from) / 2);
+      windows.push({ from: window.from, to: mid }, { from: mid + 1, to: window.to });
+      break;
+    }
+    expectedTotal = total;
     if (results.length === 0) break;
     stats.fetched += results.length;
 
@@ -161,17 +174,18 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
 
     // Filtrar: solo los que cambiaron
     const toUpsert = results.filter(o => {
-      const curr = existing.get(String(o.id));
-      if (!curr) return true;
-      const nu = o.last_updated ? new Date(o.last_updated) : null;
-      if (!nu) return true;
-      return nu.getTime() > curr.getTime();
+      const saved = existing.get(String(o.id));
+      if (!saved?.externalUpdatedAt) return true;
+      const next = new Date(o.last_updated || o.date_created).getTime();
+      const current = new Date(saved.externalUpdatedAt).getTime();
+      return next > current || (next === current && (!saved.backfillEnrichedVersion || new Date(saved.backfillEnrichedVersion).getTime() !== next));
     });
     stats.skipped += results.length - toUpsert.length;
 
     for (const o of toUpsert) {
+      if (Date.now() >= deadline) { stats.errors++; break; }
       try {
-        const act = await upsertOrderWithGuard(orgId, o);
+        const act = await upsertOrderWithGuard(orgId, o, token);
         if (act === "inserted") stats.inserted++;
         else if (act === "updated") stats.updated++;
         else stats.skipped++;
@@ -182,6 +196,7 @@ async function reconcileOrg(orgId: string, layer: "incremental" | "deep", lookba
 
     if (offset + results.length >= total) break;
     offset += PAGE_SIZE;
+    }
   }
 
   // A failed run must retain its previous successful boundary for retry.
@@ -220,7 +235,7 @@ export async function GET(req: NextRequest) {
 
   const tasks = connections.map(c => async () => {
     await sleep(orgJitter(c.organizationId, JITTER_WINDOW_MS));
-    return await reconcileOrg(c.organizationId, mode, Math.max(lookbackMs, MAX_LOOKBACK_MS));
+    return await reconcileOrg(c.organizationId, mode, Math.max(lookbackMs, MAX_LOOKBACK_MS), start + 180_000);
   });
 
   const results = await withConcurrency(5, tasks);

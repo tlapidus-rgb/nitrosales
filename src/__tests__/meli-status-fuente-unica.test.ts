@@ -75,7 +75,6 @@ describe("los que ingieren ordenes de MELI usan el canonico", () => {
     "lib/backfill/processors/ml-processor.ts",
     "app/api/sync/mercadolibre/route.ts",
     "app/api/sync/mercadolibre/backfill/route.ts",
-    "app/api/cron/ml-sync/route.ts",
     "app/api/cron/ml-reconcile/route.ts",
     "app/api/admin/ml-force-refresh/route.ts",
   ];

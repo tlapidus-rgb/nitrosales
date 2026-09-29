@@ -88,4 +88,16 @@ El cron ml-sync deja de iniciar órdenes o reputación al alcanzar 240 segundos 
 
 Persisten los pendientes de autorización/selección de organización de rutas manuales y prueba PostgreSQL multisesión/volumen real. No se modificó el guard global rechazado ni se ejecutaron rutas reales.
 
+### Cursor de cron, rotación y reconciliación (2026-09-29)
+
+La migración aditiva ml_sync_progress.sql prepara estado por organización: límites fijos, cursor, frontera completada, último intento y lease de seis minutos. Probada dos veces sólo en PGlite. Si falta la tabla, el cron falla; no hace DDL automático. Aplicarla primero en PostgreSQL aislado autorizado junto con las columnas de enriquecimiento, drenar workers viejos antes del rollout y conservar la tabla al revertir código.
+
+ml-sync reutiliza processMercadoLibreChunk con hasta diez páginas y presupuesto cooperativo de 60 segundos por organización. Guarda el cursor devuelto, incluida la página con errores/detalles pendientes. El token y su vencimiento condicionan el checkpoint; un worker reemplazado no puede completar otro turno. Al terminar el rango, el siguiente arranca desde la frontera anterior menos 72 horas, sin recortar una interrupción larga. La selección por último intento deja primero a las organizaciones no intentadas o más antiguas. La capacidad real por turno y los tiempos de operaciones en vuelo necesitan medición; no se garantiza un timeout duro ni ejecución exactamente una vez.
+
+Reconciliación por last_updated divide ventanas mayores a 1000 órdenes, conserva watermark ante errores y limita solicitudes/tiempo; jitter reducido a un segundo. Usa el flujo completo de ingesta y repara una versión sin marca de enriquecimiento. Su progreso parcial sigue representado por escrituras idempotentes y watermark previo, no por cursor de subventanas: un intervalo patológico puede requerir recuperación operativa o cursor adicional.
+
+Las tres rutas manuales sync, backfill y enrich-items resuelven la conexión activa exclusivamente por organizationId de la sesión, incluido view-as ya resuelto por auth. Sin sesión no consultan proveedor ni escogen la primera organización. No se modificaron auth.ts/auth-guard ni se activó la suspensión global. Esto no es una auditoría exhaustiva de otros endpoints administrativos o importadores.
+
+SQL local prueba lease ocupado, expiración/reclaim, token viejo, recuperación tras muerte antes de checkpoint, continuidad de rango y orden de intentos. Fixtures prueban reconciliación de 1500 órdenes, detalles incompletos y llamadas sin sesión. PostgreSQL multisesión, validación sandbox de filtros y preview aislado siguen pendientes.
+
 Pruebas SQL y de dispatcher cubren rollback final, versión nueva que rechaza detalles viejos, organización/fuente ajenas y propagación de fallos. Esto todavía no acredita concurrencia PostgreSQL multisesión. Otros importadores legacy y herramientas administrativas pueden escribir órdenes por caminos distintos; no se afirma cobertura global de todos los escritores. La entrega del outbox, sus duplicados fallidos y la recuperación de páginas fuera del backfill conservan pendientes propios. Validar también el tratamiento de respuestas 404/permisos de envíos en sandbox antes del rollout.

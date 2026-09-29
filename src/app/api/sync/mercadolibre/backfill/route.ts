@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { mlSessionConnection } from "@/lib/connectors/ml-session-connection";
 // E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
@@ -41,13 +42,9 @@ export async function GET(req: NextRequest) {
 
   try {
     // Multi-tenant safe: resolver orgId de la connection activa primero.
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
-      select: { id: true, organizationId: true },
-    });
-    if (!connection) {
-      return NextResponse.json({ error: "No active ML connection" }, { status: 404 });
-    }
+    const access = await mlSessionConnection();
+    if (access.response) return access.response;
+    const connection = access.connection;
     const orgId = connection.organizationId;
     const { token, mlUserId } = await getSellerToken(orgId);
 

@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { mlSessionConnection } from "@/lib/connectors/ml-session-connection";
 import { getSellerToken, fetchSellerListings, fetchSellerReputation, fetchSellerOrders, fetchSellerQuestions } from "@/lib/connectors/mercadolibre-seller";
 // E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
@@ -33,11 +34,9 @@ export async function GET(req: NextRequest) {
   try {
     // ── Step 0: Resolve org (multi-tenant safe) ──────────────
     // TODO post-Arredo: aceptar ?orgId= en query para sync selectivo.
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
-      select: { id: true, organizationId: true },
-    });
-    if (!connection) throw new Error("No active ML connection");
+    const access = await mlSessionConnection();
+    if (access.response) return access.response;
+    const connection = access.connection;
     const orgId = connection.organizationId;
 
     const { token, mlUserId } = await getSellerToken(orgId);

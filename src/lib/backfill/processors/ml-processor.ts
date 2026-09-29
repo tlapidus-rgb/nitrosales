@@ -124,7 +124,7 @@ async function getExistingOrderMap(
 // Main processor
 // ══════════════════════════════════════════════════════════════
 
-export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
+export async function processMercadoLibreChunk(job: any, options: { maxPages?: number; deadline?: number } = {}): Promise<ChunkResult> {
   const orgId = job.organizationId as string;
   const fromDate = new Date(job.fromDate);
   const toDate = new Date(job.toDate);
@@ -162,7 +162,8 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
   let totalUpdated = 0;
   let totalSkipped = 0;
 
-  for (let pageCount = 0; pageCount < PAGES_PER_CHUNK; pageCount++) {
+  for (let pageCount = 0; pageCount < Math.min(PAGES_PER_CHUNK, options.maxPages ?? PAGES_PER_CHUNK); pageCount++) {
+    if (Date.now() >= (options.deadline ?? Infinity)) return { itemsProcessed: totalProcessed, newCursor: cursor, isComplete: false };
     const windowStartIso = cursor.windowStart;
     const windowEndIso = cursor.windowEnd;
     const offset = cursor.offset;
@@ -267,6 +268,7 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     // Orders que necesitan enrichment (inserted/updated + payload original para items)
     const toEnrich: Array<{ dbOrderId: string; mlOrder: any }> = [];
     for (const order of toUpsert) {
+      if (Date.now() >= (options.deadline ?? Infinity)) { failedInPage++; continue; }
       try {
         const result = await upsertMlOrder(orgId, order);
         if (result.action === "inserted") totalInserted++;
@@ -326,6 +328,7 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
       await withConcurrency(
         ENRICH_CONCURRENCY,
         toEnrich.map((e) => async () => {
+          if (Date.now() >= (options.deadline ?? Infinity)) { failedEnrichment.push(String(e.mlOrder.id)); return; }
           try {
             const enriched = await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder, token);
             if (!enriched) failedEnrichment.push(String(e.mlOrder.id));

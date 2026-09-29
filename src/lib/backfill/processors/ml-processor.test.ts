@@ -55,6 +55,13 @@ async function run(orders: Order[], failOnce = false) {
 }
 
 describe("ML backfill temporal coverage", () => {
+  it("preserves a checkpoint without fetching after its deadline", async () => {
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    const cursor = { windowStart: "2026-09-01T00:00:00Z", windowEnd: "2026-09-08T00:00:00Z", offset: 50 };
+    const result = await processMercadoLibreChunk({ organizationId: "test", fromDate: "2026-09-01", toDate: "2026-09-08", cursor }, { deadline: 0, maxPages: 1 });
+    expect(result).toMatchObject({ isComplete: false, newCursor: cursor, itemsProcessed: 0 });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it.each([true, false])("covers both halves with the dense half recent=%s", async recent => {
     const orders = [...ordersAt(3000, recent ? "2026-09-07" : "2026-09-02", "dense"), ...ordersAt(100, recent ? "2026-09-02" : "2026-09-07", "sparse")];
     const { result, visited } = await run(orders);

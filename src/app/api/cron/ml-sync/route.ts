@@ -15,13 +15,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getSellerToken, fetchSellerReputation, fetchSellerOrders } from "@/lib/connectors/mercadolibre-seller";
+import { getSellerToken, fetchSellerReputation } from "@/lib/connectors/mercadolibre-seller";
 // E-30. Acá vivía una de las SIETE copias del mapeo de estados de MELI, en
 // dos familias que no coincidían: `confirmed` era APPROVED en cinco y
 // PENDING en dos, y eso decide si la orden cuenta como venta. Ahora todos
 // llaman a `mapMeliStatus` —espejo de `vtex-status.ts`— directamente.
-import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
-import { mapMeliStatus } from "@/lib/meli-status";
+import { processMercadoLibreChunk } from "@/lib/backfill/processors/ml-processor";
+import { claimMlSync, saveMlSync, orderMlConnections } from "@/lib/connectors/ml-sync-progress";
 import { isValidAdminKey } from "@/lib/admin-key";
 import { coincideConAlguna } from "@/lib/comparacion-segura";
 
@@ -44,35 +44,26 @@ async function syncOneOrg(
   const log: string[] = [];
   let failed = false;
   try {
-    const { token, mlUserId } = await getSellerToken(orgId);
-    log.push(`Token OK for user ${mlUserId}`);
+    const claim = await claimMlSync(orgId);
+    if (!claim) return { ok: false, log, error: "ML sync already owned by another worker" };
 
     // ── 1. Sync recent orders from ML API (last 72h) ─────────
     try {
-      const twoDaysAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-      const mlOrders = await fetchSellerOrders(token, mlUserId, {
-        dateFrom: twoDaysAgo,
-        maxOrders: 5000,
-      });
-      log.push(`Fetched ${mlOrders.length} orders from ML (last 72h)`);
-
-      let ordersCreated = 0;
-      let ordersUpdated = 0;
-      for (const order of mlOrders) {
-        if (Date.now() >= deadline) throw new Error("ML sync time budget exhausted; retry required");
-        const saved = await ingestMlOrder(orgId, order, mapMeliStatus(order.status, order.tags), token);
-        if (saved.action === "inserted") ordersCreated++;
-        else if (saved.action === "updated") ordersUpdated++;
-      }
-      log.push(`Orders: ${ordersCreated} created, ${ordersUpdated} updated`);
+      const chunk = await processMercadoLibreChunk(claim, { maxPages: 10, deadline });
+      if (!await saveMlSync(claim, chunk)) return { ok: false, log, error: "ML sync lease lost" };
+      failed = !chunk.isComplete || !!chunk.error;
+      log.push(`Orders: ${chunk.itemsProcessed} processed; ${chunk.isComplete ? "complete" : "cursor saved for next run"}`);
+      if (chunk.error) log.push(chunk.error);
     } catch (err: any) {
       failed = true;
+      await saveMlSync(claim, { itemsProcessed: 0, newCursor: claim.cursor, isComplete: false, error: "ML sync chunk failed" });
       log.push(`Order sync error: ${err.message}`);
     }
 
     // ── 2. Sync reputation snapshot ──────────────────────────
     try {
       if (Date.now() >= deadline) throw new Error("ML reputation deferred by time budget");
+      const { token, mlUserId } = await getSellerToken(orgId);
       const rep = await fetchSellerReputation(token, mlUserId);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -199,7 +190,7 @@ export async function GET(req: NextRequest) {
 
     let overallOk = true;
     let orgsDeferred = 0;
-    for (const conn of mlConnections) {
+    for (const conn of await orderMlConnections(mlConnections)) {
       const orgStart = Date.now();
       if (orgStart >= startTime + WORK_BUDGET_MS) {
         overallOk = false;
@@ -208,7 +199,7 @@ export async function GET(req: NextRequest) {
           error: "ML organization deferred by time budget", elapsedMs: 0 });
         continue;
       }
-      const result = await syncOneOrg(conn.organizationId, conn.id, startTime + WORK_BUDGET_MS);
+      const result = await syncOneOrg(conn.organizationId, conn.id, Math.min(startTime + WORK_BUDGET_MS, orgStart + 60_000));
       orgResults.push({
         orgId: conn.organizationId,
         ok: result.ok,
