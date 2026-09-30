@@ -159,3 +159,51 @@ it("preserves the existing staff or admin-key authorization", async () => {
   expect(accepted.status).toBe(200);
   expect(m.claim).toHaveBeenCalledWith("org","deep",expect.any(Date),expect.any(Date));
 });
+
+// ── Una orden que falla en la ÚLTIMA página no puede cerrar la ventana ──────
+// Los tests de arriba sólo miran que no se llame a `complete`. Pero hay una
+// pérdida más silenciosa que esa: si el loop no corta ante un error de
+// escritura, la última página "termina" la ventana (`windows.pop()`) y se
+// checkpointea un cursor vacío. El próximo run ve `[]`, no tiene nada que
+// reintentar, completa y avanza el watermark: la orden fallida no vuelve más.
+// Por eso acá se afirma QUÉ cursor quedó guardado, no sólo qué no pasó.
+//
+// `checkpointReconcile` recibe el MISMO array que el route sigue mutando, así
+// que el mock guarda una copia en el momento de la llamada; si se mirara
+// `mock.calls` al final, todas las llamadas mostrarían el estado final.
+function capturarCheckpoints() {
+  const guardados: Array<{ ventanas: any[]; fallido: boolean | undefined }> = [];
+  m.checkpoint.mockImplementation(async (_claim, ventanas, fallido) => {
+    guardados.push({ ventanas: structuredClone(ventanas), fallido });
+    return true;
+  });
+  return guardados;
+}
+it("no cierra la ventana si falla una orden de su única (y última) página", async () => {
+  const guardados = capturarCheckpoints();
+  m.persist.mockRejectedValue(new Error("write failed"));
+  expect(await run()).toMatchObject({ ok: false, totals: { errors: 1 } });
+  // Ningún checkpoint puede haber dado la ventana por terminada.
+  expect(guardados.filter(g => g.ventanas.length === 0)).toEqual([]);
+  // Lo último guardado es la ventana entera, en el offset de la página fallida,
+  // marcada como fallida para que el próximo run la reintente.
+  expect(guardados.at(-1)).toEqual({ ventanas: [expect.objectContaining({ offset: 0, total: 1 })], fallido: true });
+  expect(m.complete).not.toHaveBeenCalled();
+});
+it("reintenta la última página de una ventana paginada si una orden de esa página falla", async () => {
+  const guardados = capturarCheckpoints();
+  const pagina1 = Array.from({ length: 50 }, (_, i) => ({ ...order, id: i + 1 }));
+  const pagina2 = [{ ...order, id: 51 }];
+  vi.stubGlobal("fetch", vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ results: pagina1, paging: { total: 51 } })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ results: pagina2, paging: { total: 51 } }))));
+  m.persist.mockImplementation(async (_org, o) => {
+    if (o.id === 51) throw new Error("write failed");
+    return { action: "updated", dbOrderId: "saved" };
+  });
+  expect(await run()).toMatchObject({ ok: false, totals: { errors: 1, updated: 50 } });
+  expect(guardados.filter(g => g.ventanas.length === 0)).toEqual([]);
+  // La primera página sí avanzó el cursor; la segunda (la que falló) queda por hacer.
+  expect(guardados.at(-1)).toEqual({ ventanas: [expect.objectContaining({ offset: 50, total: 51 })], fallido: true });
+  expect(m.complete).not.toHaveBeenCalled();
+});

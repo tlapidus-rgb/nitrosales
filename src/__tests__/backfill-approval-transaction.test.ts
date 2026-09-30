@@ -77,3 +77,22 @@ it("rejects a VTEX placeholder without credentials", async () => {
  await db.exec("UPDATE connections SET credentials='{}' WHERE id='vtex'");
  expect((await run(["VTEX"])).status).toBe(409); expect(m.transaction).not.toHaveBeenCalled();
 });
+
+// Mezcla de una conexión usable con una inutilizable, aprobando TODO (sin
+// selección). La aprobación sigue adelante por la usable, y ahí está el riesgo:
+// el loop que activa conexiones recorre todas. Sin el filtro de
+// `usableBackfillCredentials` adentro del loop, la inutilizable queda ACTIVE
+// —y por lo tanto enrolada en los crons que filtran por `status: ACTIVE`— sin
+// ningún job de backfill que la respalde. `mlUserId: "0"` pasa el viejo chequeo
+// "¿hay token y user id?" porque "0" es un string truthy; un accountName con
+// espacios no es un host de VTEX válido.
+it.each([
+ { rota: "ml", valida: "vtex", plataforma: "VTEX", credenciales: '{"accessToken":"fake","mlUserId":"0"}' },
+ { rota: "vtex", valida: "ml", plataforma: "MERCADOLIBRE", credenciales: '{"accountName":"no es una cuenta","appKey":"fake","appToken":"fake"}' },
+])("no activa la conexión inutilizable ($rota) al aprobar junto a una válida", async ({ rota, valida, plataforma, credenciales }) => {
+ await db.query("UPDATE connections SET credentials=$2::jsonb WHERE id=$1", [rota, credenciales]);
+ expect((await run()).status).toBe(200);
+ const estados = Object.fromEntries((await db.query<any>("SELECT id, status FROM connections")).rows.map(r => [r.id, r.status]));
+ expect(estados).toEqual({ [valida]: "ACTIVE", [rota]: "PENDING" });
+ expect((await db.query<any>("SELECT platform FROM backfill_jobs")).rows).toEqual([{ platform: plataforma }]);
+});
