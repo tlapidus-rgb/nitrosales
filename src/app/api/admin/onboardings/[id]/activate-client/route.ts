@@ -79,8 +79,11 @@ export async function POST(
     // Si el cliente tiene VTEX activo, disparar el POST a su VTEX para
     // configurar el Orders Broadcaster. Si falla, NO bloquea la activacion
     // — solo loguea y deja un flag en la respuesta para que el admin lo vea.
-    let broadcasterResult: any = null;
-    if (ob.createdOrgId) {
+    // Preview/local activation must not reconfigure a provider to send data to production.
+    // A sandbox broadcaster requires a separate, explicitly configured workflow.
+    let broadcasterResult: any = process.env.VERCEL_ENV === "production"
+      ? null : { skipped: true, reason: "Automatic broadcaster setup is disabled outside production" };
+    if (ob.createdOrgId && process.env.VERCEL_ENV === "production") {
       try {
         const vtexConn = await prisma.connection.findFirst({
           where: { organizationId: ob.createdOrgId, platform: "VTEX" as any, status: "ACTIVE" as any },

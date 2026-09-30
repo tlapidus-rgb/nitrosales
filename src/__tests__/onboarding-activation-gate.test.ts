@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const m = vi.hoisted(() => ({ query: vi.fn(), update: vi.fn(), readiness: vi.fn(), email: vi.fn(), staff: vi.fn(), connection: vi.fn() }));
 vi.mock("@/lib/db/client", () => ({ prisma: { $queryRawUnsafe: m.query, $executeRawUnsafe: m.update, connection: { findFirst: m.connection } } }));
@@ -37,4 +37,20 @@ it("already active is idempotent", async () => {
 });
 it("requires staff before inspecting or changing anything", async () => {
  m.staff.mockResolvedValue(false); expect((await run()).status).toBe(403); expect(m.query).not.toHaveBeenCalled();
+});
+
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+it.each(["preview", "development", ""])("does not configure a VTEX broadcaster from %s", async environment => {
+ vi.stubEnv("VERCEL_ENV", environment);
+ m.connection.mockResolvedValue({ id: "vtex-connection" });
+ const fetchSpy = vi.fn(() => { throw new Error("Provider mutation forbidden"); }); vi.stubGlobal("fetch",fetchSpy);
+ const response = await run();
+ expect(response.status).toBe(200);
+ expect(await response.json()).toMatchObject({ ok:true, broadcasterResult:{skipped:true} });
+ expect(m.connection).not.toHaveBeenCalled(); expect(fetchSpy).not.toHaveBeenCalled();
+});
+it("keeps the existing production connection lookup", async () => {
+ vi.stubEnv("VERCEL_ENV","production");
+ expect((await run()).status).toBe(200);
+ expect(m.connection).toHaveBeenCalledWith({where:{organizationId:"org",platform:"VTEX",status:"ACTIVE"},select:{id:true}});
 });
