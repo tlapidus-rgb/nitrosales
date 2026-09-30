@@ -1,11 +1,10 @@
-import { enforceOrganizationAccess } from "@/lib/organizacion/session-access";
+import { verificarIdentidad, accesoDeLaOrganizacion, sesionBloqueada } from "@/lib/organizacion/session-access";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { createHmac } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { cookies } from "next/headers";
-import { isStaffUser } from "@/lib/staff";
 import {
   resolveEffectivePermissionsByEmail,
   allowedSectionsFrom,
@@ -227,51 +226,66 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).isStaff = token.isStaff === true;
-        (session.user as any).organizationId = token.organizationId;
-        (session.user as any).organizationName = token.organizationName;
-        (session.user as any).allowedSections = token.allowedSections;
-        (session.user as any).writableSections = token.writableSections;
-        if (token.impersonatedBy) {
-          (session.user as any).impersonatedBy = token.impersonatedBy;
-          (session.user as any).impersonatorEmail = token.impersonatorEmail;
-        }
+      if (!session.user) return session;
 
-        // S59 BIS: View as Org. Si user es staff Y hay cookie, override
-        // organizationId/Name. Nunca aplica si esta impersonando (la
-        // impersonate session ya hizo el switch de identidad).
-        const email = (session.user.email || "").toLowerCase();
-        const isInternal = isStaffUser({ isStaff: token.isStaff === true, email });
-        if (isInternal && !token.impersonatedBy) {
-          try {
-            const c = await cookies();
-            const viewAsOrgId = c.get(VIEW_AS_COOKIE)?.value;
-            if (viewAsOrgId && viewAsOrgId !== token.organizationId) {
-              const org = await prisma.organization.findUnique({
-                where: { id: viewAsOrgId },
-                select: { id: true, name: true },
-              });
-              if (org) {
-                (session.user as any).realOrganizationId = token.organizationId;
-                (session.user as any).realOrganizationName = token.organizationName;
-                (session.user as any).organizationId = org.id;
-                (session.user as any).organizationName = org.name;
-                // S60 EXT-2 BIS+++++++++ FIX: antes era `true` (boolean) lo que
-                // rompia la comparacion `org.id === currentOrgId` en el frontend.
-                // Ahora guardamos el orgId real para que el checkmark visual del
-                // OrgSwitcher matchee correctamente.
-                (session.user as any).viewingAsOrg = org.id;
-              }
+      // Antes de copiar nada del token: ¿ese usuario existe y coincide con la
+      // base? El token se puede fabricar con NEXTAUTH_SECRET, que hoy le llega
+      // a cualquier usuario logueado (ver session-access.ts). `isStaff` sale
+      // de acá, de la base — nunca del token.
+      const identidad = await verificarIdentidad({
+        id: token.id,
+        email: token.email,
+        organizationId: token.organizationId,
+      });
+      if (identidad.estado !== "ok") return sesionBloqueada(session, "unavailable");
+      const esSoporte = identidad.esStaff && !token.impersonatedBy;
+
+      (session.user as any).id = token.id;
+      (session.user as any).role = identidad.role; // de la base, como isStaff
+      (session.user as any).isStaff = identidad.esStaff;
+      (session.user as any).organizationId = token.organizationId;
+      (session.user as any).organizationName = token.organizationName;
+      (session.user as any).allowedSections = token.allowedSections;
+      (session.user as any).writableSections = token.writableSections;
+      if (token.impersonatedBy) {
+        (session.user as any).impersonatedBy = token.impersonatedBy;
+        (session.user as any).impersonatorEmail = token.impersonatorEmail;
+      }
+
+      // S59 BIS: View as Org. Si user es staff Y hay cookie, override
+      // organizationId/Name. Nunca aplica si esta impersonando (la
+      // impersonate session ya hizo el switch de identidad).
+      if (esSoporte) {
+        try {
+          const c = await cookies();
+          const viewAsOrgId = c.get(VIEW_AS_COOKIE)?.value;
+          if (viewAsOrgId && viewAsOrgId !== token.organizationId) {
+            const org = await prisma.organization.findUnique({
+              where: { id: viewAsOrgId },
+              select: { id: true, name: true },
+            });
+            if (org) {
+              (session.user as any).realOrganizationId = token.organizationId;
+              (session.user as any).realOrganizationName = token.organizationName;
+              (session.user as any).organizationId = org.id;
+              (session.user as any).organizationName = org.name;
+              // S60 EXT-2 BIS+++++++++ FIX: antes era `true` (boolean) lo que
+              // rompia la comparacion `org.id === currentOrgId` en el frontend.
+              // Ahora guardamos el orgId real para que el checkmark visual del
+              // OrgSwitcher matchee correctamente.
+              (session.user as any).viewingAsOrg = org.id;
             }
-          } catch {
-            // silent — no romper la sesion si falla la cookie
           }
+        } catch {
+          // silent — no romper la sesion si falla la cookie
         }
       }
-      return enforceOrganizationAccess(session);
+
+      // El soporte mantiene el acceso en "ver como" aunque la organización esté
+      // suspendida; la impersonación vive el bloqueo del cliente.
+      if (esSoporte) return session;
+      const acceso = accesoDeLaOrganizacion(identidad.settings);
+      return acceso ? sesionBloqueada(session, acceso) : session;
     },
   },
   pages: {
