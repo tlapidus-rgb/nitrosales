@@ -21,6 +21,9 @@
 // Lo que sí resuelve el problema: **no se puede olvidar lo que una pantalla te
 // dice.** Cuatro líneas en verde o en rojo se revisan en cinco segundos, y
 // después del merge siguen contestando si alguien se olvidó de algo.
+//
+// Después se sumaron las migraciones de las que depende el código (más abajo).
+// Ésas son de otra clase: no degradan en silencio, rompen.
 // ══════════════════════════════════════════════════════════════════════════
 
 export type EstadoDelPaso = "ok" | "falta" | "mal" | "no-se-sabe";
@@ -34,7 +37,81 @@ export type PasoDelMerge = {
   queHacer?: string;
   /** `true` si se puede correr desde acá; `false` si es de Vercel y va a mano. */
   automatizable: boolean;
+  /**
+   * `true` si sin este paso el código nuevo FALLA al deployar, en vez de
+   * degradar en silencio como los demás.
+   */
+  rompeProduccion?: boolean;
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+// Las migraciones de las que depende el código
+// ══════════════════════════════════════════════════════════════════════════
+// Los otros pasos de este checklist degradan en silencio. Éstos no: el código de
+// la branch escribe estas columnas y tablas, y si no existen Postgres rechaza la
+// sentencia en el minuto del deploy. El checklist decía `listo: true` sin
+// mirarlos, que es justo lo que existe para evitar.
+//
+// Las corre una persona en la consola de Neon (la base de producción no se toca
+// desde el código). Son aditivas e idempotentes y el código anterior las ignora,
+// así que van ANTES del merge.
+// ══════════════════════════════════════════════════════════════════════════
+export const MIGRACIONES_REQUERIDAS = [
+  {
+    clave: "mig-orders-enrichment",
+    archivo: "prisma/migrations/backfill_enrichment_version.sql",
+    tabla: "orders",
+    columna: "backfillEnrichedVersion",
+    permisos: null,
+    siFalta:
+      "No entra ninguna orden de MercadoLibre: el upsert de ml-order-persistence.ts escribe " +
+      "esta columna y Postgres rechaza la sentencia entera, inserts incluidos. Lo usan el " +
+      "webhook, ml-missed-feeds, ml-sync, ml-reconcile y el backfill. Los webhooks que fallen " +
+      "no se reprocesan: ML descarta el reenvío como duplicado.",
+  },
+  {
+    clave: "mig-backfill-lease",
+    archivo: "prisma/migrations/backfill_job_lease.sql",
+    tabla: "backfill_jobs",
+    columna: "leaseToken",
+    permisos: null,
+    siFalta:
+      "Ningún backfill arranca: el claim del runner escribe esta columna. Las altas nuevas " +
+      "quedan trabadas en BACKFILLING. Correrla con backfills en curso es inocuo (el código " +
+      "viejo ignora la columna); lo que importa es no MERGEAR con backfills corriendo, porque " +
+      "los workers viejos no respetan el lease.",
+  },
+  {
+    clave: "mig-ml-sync-progress",
+    archivo: "prisma/migrations/ml_sync_progress.sql",
+    tabla: "ml_sync_progress",
+    columna: null,
+    permisos: ["SELECT", "INSERT", "UPDATE"],
+    siFalta: "El cron ml-sync falla entero en cada corrida: lee esta tabla antes del loop por organización.",
+  },
+  {
+    clave: "mig-ml-reconcile-progress",
+    archivo: "prisma/migrations/ml_reconcile_progress.sql",
+    tabla: "ml_reconcile_progress",
+    columna: null,
+    permisos: ["SELECT", "INSERT", "UPDATE"],
+    siFalta:
+      "El cron ml-reconcile falla, y con él la red de seguridad que levanta las órdenes de " +
+      "MercadoLibre que el webhook no guardó.",
+  },
+  {
+    clave: "mig-creator-password-attempts",
+    archivo: "prisma/migrations/creator_password_attempts.sql",
+    tabla: "creator_password_attempts",
+    columna: null,
+    permisos: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+    siFalta:
+      "Ningún creador entra a su panel con contraseña: la admisión responde 503 a propósito " +
+      "(falla cerrada) en verify, content y metrics.",
+  },
+] as const;
+
+export type ClaveDeMigracion = (typeof MIGRACIONES_REQUERIDAS)[number]["clave"];
 
 export type InsumosDelChecklist = {
   /** ¿Existe la tabla `cron_cursors`? `null` = no se pudo consultar. */
@@ -63,7 +140,66 @@ export type InsumosDelChecklist = {
    * `NEXTAUTH_SECRET_ANTERIOR` (el webhook de órdenes de VTEX).
    */
   ventanasDeRotacionAbiertas: { adminKey: boolean; webhook: boolean };
+  /**
+   * Por cada migración requerida: ¿existe su columna o tabla? `null` = no se
+   * pudo consultar. Una clave ausente cuenta como `null`: no se inventa.
+   */
+  esquema: Record<ClaveDeMigracion, boolean | null>;
+  /**
+   * Por cada migración que crea una tabla nueva: ¿el rol de la app tiene los
+   * permisos que usa el código (`permisos` de la migración)? `null` = no se
+   * pudo saber. Las que agregan una columna a una tabla que la app ya usa no
+   * se miran: la columna hereda los permisos de la tabla.
+   */
+  permisos: Partial<Record<ClaveDeMigracion, boolean | null>>;
 };
+
+function pasoDeMigracion(
+  m: (typeof MIGRACIONES_REQUERIDAS)[number],
+  existe: boolean | null,
+  permisos: boolean | null,
+): PasoDelMerge {
+  const objeto = m.columna ? `${m.tabla}."${m.columna}"` : m.tabla;
+  const base = {
+    clave: m.clave,
+    titulo: `Migración ${m.archivo.split("/").pop()}`,
+    automatizable: false,
+    rompeProduccion: true,
+  };
+  if (existe === null) {
+    return { ...base, estado: "no-se-sabe", detalle: `No se pudo consultar si existe ${objeto}.` };
+  }
+  if (!existe) {
+    return {
+      ...base,
+      estado: "falta",
+      detalle: `No existe ${objeto}. ${m.siFalta}`,
+      queHacer:
+        `Correr ${m.archivo} en la consola de Neon ANTES del merge. Es aditiva e ` +
+        "idempotente, y el código actual la ignora: correrla antes no cambia nada.",
+    };
+  }
+  // Las tablas nuevas las crea una persona desde la consola, y el rol con el que
+  // entra puede no ser el de la app. Existir no alcanza: si la app no puede
+  // escribirlas, falla igual que si no existieran. Las columnas agregadas a
+  // tablas que la app ya usa heredan sus permisos.
+  if (m.permisos) {
+    if (permisos === null) {
+      return { ...base, estado: "no-se-sabe", detalle: `${objeto} existe, pero no se pudieron consultar los permisos del rol de la app.` };
+    }
+    if (!permisos) {
+      return {
+        ...base,
+        estado: "mal",
+        detalle: `${objeto} existe, pero el rol de la app no tiene todos los permisos que usa el código. ${m.siFalta}`,
+        queHacer:
+          `Dar ${m.permisos.join(", ")} sobre ${m.tabla} al rol de la app. Volver a correr ` +
+          "la migración no arregla esto: la tabla ya existe.",
+      };
+    }
+  }
+  return { ...base, estado: "ok", detalle: `${objeto} existe.` };
+}
 
 /** La ventana incremental de los crons Gold de atribución, en días. */
 const VENTANA_INCREMENTAL_DIAS = 4;
@@ -81,7 +217,12 @@ export function evaluarChecklist(i: InsumosDelChecklist): {
   sinSaber: number;
   pasos: PasoDelMerge[];
 } {
-  const pasos: PasoDelMerge[] = [];
+  // ── 0. Las migraciones de las que depende el código ─────────────────────
+  // Primero, porque son las únicas que rompen. `?.` y `?? null` porque un
+  // checklist que revienta no puede reportar nada: sin el insumo, no se sabe.
+  const pasos: PasoDelMerge[] = MIGRACIONES_REQUERIDAS.map((m) =>
+    pasoDeMigracion(m, i.esquema?.[m.clave] ?? null, i.permisos?.[m.clave] ?? null),
+  );
 
   // ── 1. La tabla de cursores ─────────────────────────────────────────────
   // Va ANTES del merge del código que la usa, como manda el orden de

@@ -10,6 +10,12 @@
 // backfills Gold— sí se podrían correr y a propósito no se corren desde acá
 // (ver el módulo del criterio para el porqué).
 //
+// También mira las cinco migraciones de las que depende el código (y los
+// permisos de la tabla de intentos de creadores). Ojo con el momento: esta ruta
+// es parte del código que se deploya, así que ANTES del merge no existe en
+// producción. Para ese momento está la verificación en SQL de
+// `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`, que se corre en la consola.
+//
 // Sirve antes del merge y también después: si alguien se olvidó de algo, esto
 // lo sigue diciendo. Todas las consultas van con su propio catch — un checklist
 // que se rompe no puede reportar "todo bien".
@@ -22,8 +28,8 @@ import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { isValidAdminKey, hayVentanaDeRotacionAbierta } from "@/lib/admin-key";
 import { hayVentanaDeRotacionDeWebhookAbierta } from "@/lib/webhook-key";
-import { evaluarChecklist } from "@/lib/merge/checklist";
-import type { InsumosDelChecklist } from "@/lib/merge/checklist";
+import { evaluarChecklist, MIGRACIONES_REQUERIDAS } from "@/lib/merge/checklist";
+import type { InsumosDelChecklist, ClaveDeMigracion } from "@/lib/merge/checklist";
 import { estadoDeLaVentana } from "@/lib/backfill/admision";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 import { TABLA_CURSORES } from "@/lib/cron/cursor-store";
@@ -46,6 +52,63 @@ async function diasDeHistoria(tabla: string): Promise<number | null> {
   }
 }
 
+// ⚠️ `to_regclass` y `pg_attribute`, NO `information_schema`. Las vistas de
+// information_schema sólo muestran lo que el rol actual tiene permiso de ver:
+// una tabla creada desde la consola con otro rol y sin GRANT a la app aparece
+// como inexistente, el checklist diría "falta, corré la migración", y correrla
+// no cambiaría nada (IF NOT EXISTS). El catálogo no filtra por permisos, así
+// que "existe pero no la podés usar" sale como lo que es: un problema de
+// permisos.
+
+/** ¿Existe la tabla (o la columna, si se pide)? `null` = no se pudo consultar. */
+async function existeEnEsquema(tabla: string, columna: string | null): Promise<boolean | null> {
+  try {
+    const r = columna
+      ? await prisma.$queryRawUnsafe<Array<{ existe: boolean }>>(
+          `SELECT EXISTS (
+             SELECT 1 FROM pg_attribute
+              WHERE attrelid = to_regclass($1) AND attname = $2
+                AND attnum > 0 AND NOT attisdropped
+           ) AS existe`,
+          `public.${tabla}`,
+          columna,
+        )
+      : await prisma.$queryRawUnsafe<Array<{ existe: boolean }>>(
+          `SELECT to_regclass($1) IS NOT NULL AS existe`,
+          `public.${tabla}`,
+        );
+    return Boolean(r[0]?.existe);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ¿El rol de la app tiene sobre la tabla todos los permisos que usa el código?
+ * `null` = la tabla no existe o no se pudo consultar (el paso ya dice "falta").
+ *
+ * Una llamada por permiso, a propósito: `has_table_privilege` con varios
+ * permisos separados por coma devuelve `true` si tiene CUALQUIERA, no todos.
+ * Y `CASE`, no `AND`: Postgres no garantiza el orden de un AND, y
+ * `has_table_privilege` sobre una tabla que no existe tira error.
+ */
+async function tienePermisos(tabla: string, permisos: readonly string[]): Promise<boolean | null> {
+  try {
+    const chequeos = permisos
+      .map((_, n) => `has_table_privilege(current_user, to_regclass($1), $${n + 2})`)
+      .join(" AND ");
+    const r = await prisma.$queryRawUnsafe<Array<{ puede: boolean | null }>>(
+      `SELECT CASE WHEN to_regclass($1) IS NULL THEN NULL ELSE (${chequeos}) END AS puede`,
+      `public.${tabla}`,
+      ...permisos,
+    );
+    const puede = r[0]?.puede;
+    return puede == null ? null : Boolean(puede);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const key = new URL(req.url).searchParams.get("key");
   if (!isValidAdminKey(key) && !(await isInternalUser())) {
@@ -53,19 +116,21 @@ export async function GET(req: NextRequest) {
   }
 
   const [tablaDeCursores, source, channel] = await Promise.all([
-    prisma
-      .$queryRawUnsafe<Array<{ existe: boolean }>>(
-        `SELECT EXISTS (
-           SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = $1
-         ) AS existe`,
-        TABLA_CURSORES,
-      )
-      .then((r) => Boolean(r[0]?.existe))
-      .catch(() => null),
+    existeEnEsquema(TABLA_CURSORES, null),
     diasDeHistoria("gold_attribution_source"),
     diasDeHistoria("gold_attribution_channel"),
   ]);
+
+  const [existencias, conPermisos] = await Promise.all([
+    Promise.all(MIGRACIONES_REQUERIDAS.map((m) => existeEnEsquema(m.tabla, m.columna))),
+    Promise.all(MIGRACIONES_REQUERIDAS.map((m) => (m.permisos ? tienePermisos(m.tabla, m.permisos) : null))),
+  ]);
+  const esquema = Object.fromEntries(
+    MIGRACIONES_REQUERIDAS.map((m, n) => [m.clave, existencias[n]]),
+  ) as Record<ClaveDeMigracion, boolean | null>;
+  const permisos = Object.fromEntries(
+    MIGRACIONES_REQUERIDAS.filter((m) => m.permisos).map((m) => [m.clave, conPermisos[MIGRACIONES_REQUERIDAS.indexOf(m)]]),
+  ) as Partial<Record<ClaveDeMigracion, boolean | null>>;
 
   // `destinatariosDeAlertas` nunca devuelve vacío: sin configurar cae a la
   // casilla histórica. Para saber si alguien la configuró hay que comparar
@@ -89,6 +154,8 @@ export async function GET(req: NextRequest) {
       adminKey: hayVentanaDeRotacionAbierta(),
       webhook: hayVentanaDeRotacionDeWebhookAbierta(),
     },
+    esquema,
+    permisos,
   };
 
   return NextResponse.json({

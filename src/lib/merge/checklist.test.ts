@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { evaluarChecklist } from "./checklist";
+import { evaluarChecklist, MIGRACIONES_REQUERIDAS } from "./checklist";
 import type { InsumosDelChecklist } from "./checklist";
+
+const esquemaCompleto = Object.fromEntries(
+  MIGRACIONES_REQUERIDAS.map((m) => [m.clave, true]),
+) as InsumosDelChecklist["esquema"];
+const permisosCompletos = Object.fromEntries(
+  MIGRACIONES_REQUERIDAS.filter((m) => m.permisos).map((m) => [m.clave, true]),
+) as InsumosDelChecklist["permisos"];
 
 // ══════════════════════════════════════════════════════════════════════════
 // E-33 — las cuatro acciones manuales del merge
@@ -16,6 +23,8 @@ const todoHecho: InsumosDelChecklist = {
   ventana: { estado: "ok" },
   historiaGold: { source: 400, channel: 400 },
   ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
+  esquema: esquemaCompleto,
+  permisos: permisosCompletos,
 };
 
 const paso = (r: ReturnType<typeof evaluarChecklist>, clave: string) =>
@@ -36,6 +45,8 @@ describe("el caso feliz", () => {
       ventana: { estado: "sin-configurar" },
       historiaGold: { source: 2, channel: 1 },
       ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
+      esquema: esquemaCompleto,
+      permisos: permisosCompletos,
     });
     for (const p of r.pasos) {
       if (p.estado !== "ok" && p.estado !== "no-se-sabe") {
@@ -181,10 +192,16 @@ describe("el resultado es completo y estable", () => {
     expect(r.pendientes).toBe(1);
   });
 
-  it("siempre devuelve los cuatro pasos", () => {
+  it("siempre devuelve los cuatro pasos y una línea por migración", () => {
     const r = evaluarChecklist(todoHecho);
     expect(r.pasos.map((p) => p.clave).sort()).toEqual(
-      ["alertas-emails", "backfill-ventana", "cron-cursors", "gold-full"].sort(),
+      [
+        "alertas-emails",
+        "backfill-ventana",
+        "cron-cursors",
+        "gold-full",
+        ...MIGRACIONES_REQUERIDAS.map((m) => m.clave),
+      ].sort(),
     );
   });
 
@@ -205,6 +222,8 @@ describe("el resultado es completo y estable", () => {
       ventana: { estado: "mal-escrita", valor: "x", motivo: "y" },
       historiaGold: { source: 400, channel: 400 },
       ventanasDeRotacionAbiertas: { adminKey: false, webhook: false },
+      esquema: esquemaCompleto,
+      permisos: permisosCompletos,
     });
     expect(r.pendientes).toBe(3);
     expect(r.listo).toBe(false);
@@ -285,5 +304,153 @@ describe("R-17 — no saber no es estar listo", () => {
 
     expect(r.pendientes).toBe(0);
     expect(r.sinSaber).toBeGreaterThan(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Las migraciones de las que depende el código
+// ══════════════════════════════════════════════════════════════════════════
+// Los otros pasos degradan en silencio. Éstos no: sin ellos el código nuevo
+// falla en el minuto del deploy (sin órdenes de MercadoLibre, sin backfills,
+// sin panel de creadores). El checklist decía `listo: true` sin mirarlos.
+// ══════════════════════════════════════════════════════════════════════════
+describe("las migraciones de las que depende el código", () => {
+  const sinUna = (clave: string) => ({
+    ...todoHecho,
+    esquema: { ...esquemaCompleto, [clave]: false },
+  });
+
+  it("son las cinco que agregó la branch, con su archivo", () => {
+    expect(MIGRACIONES_REQUERIDAS.map((m) => m.archivo).sort()).toEqual(
+      [
+        "prisma/migrations/backfill_enrichment_version.sql",
+        "prisma/migrations/backfill_job_lease.sql",
+        "prisma/migrations/creator_password_attempts.sql",
+        "prisma/migrations/ml_reconcile_progress.sql",
+        "prisma/migrations/ml_sync_progress.sql",
+      ].sort(),
+    );
+  });
+
+  it.each(MIGRACIONES_REQUERIDAS.map((m) => m.clave))(
+    "EL BUG: con %s sin correr, NO dice listo",
+    (clave) => {
+      const r = evaluarChecklist(sinUna(clave));
+      expect(r.listo).toBe(false);
+      expect(r.pendientes).toBe(1);
+      expect(paso(r, clave).estado).toBe("falta");
+    },
+  );
+
+  it("cada una dice qué archivo correr y qué se rompe si no", () => {
+    for (const m of MIGRACIONES_REQUERIDAS) {
+      const p = paso(evaluarChecklist(sinUna(m.clave)), m.clave);
+      expect(p.queHacer, m.clave).toContain(m.archivo);
+      expect(p.queHacer, m.clave).toMatch(/antes del merge/i);
+      expect(p.detalle.length, m.clave).toBeGreaterThan(40);
+    }
+  });
+
+  it("la de órdenes nombra a MercadoLibre, que es lo que se corta", () => {
+    const p = paso(evaluarChecklist(sinUna("mig-orders-enrichment")), "mig-orders-enrichment");
+    expect(p.detalle).toMatch(/MercadoLibre/);
+  });
+
+  it("se distinguen de los pasos silenciosos: rompen producción", () => {
+    const r = evaluarChecklist(todoHecho);
+    for (const m of MIGRACIONES_REQUERIDAS) expect(paso(r, m.clave).rompeProduccion).toBe(true);
+    expect(paso(r, "cron-cursors").rompeProduccion).toBeFalsy();
+  });
+
+  it("van primero: son lo que hay que mirar antes que nada", () => {
+    const r = evaluarChecklist(todoHecho);
+    const claves = MIGRACIONES_REQUERIDAS.map((m) => m.clave as string);
+    expect(r.pasos.slice(0, claves.length).map((p) => p.clave)).toEqual(claves);
+  });
+
+  it("las corre una persona en Neon, no el código", () => {
+    const r = evaluarChecklist(todoHecho);
+    for (const m of MIGRACIONES_REQUERIDAS) expect(paso(r, m.clave).automatizable).toBe(false);
+  });
+
+  it("no poder consultarla no es estar listo", () => {
+    const r = evaluarChecklist({
+      ...todoHecho,
+      esquema: { ...esquemaCompleto, "mig-backfill-lease": null },
+    });
+    expect(paso(r, "mig-backfill-lease").estado).toBe("no-se-sabe");
+    expect(r.listo).toBe(false);
+    expect(r.pendientes).toBe(0);
+  });
+
+  it("si al insumo le falta una clave, tampoco se inventa que está", () => {
+    const { ["mig-ml-sync-progress"]: _omitida, ...incompleto } = esquemaCompleto;
+    const r = evaluarChecklist({ ...todoHecho, esquema: incompleto as any });
+    expect(paso(r, "mig-ml-sync-progress").estado).toBe("no-se-sabe");
+    expect(r.listo).toBe(false);
+  });
+
+  it("sin el insumo entero, no revienta: todo queda sin saber", () => {
+    const { esquema: _e, permisos: _p, ...viejo } = todoHecho;
+    const r = evaluarChecklist(viejo as any);
+    expect(r.listo).toBe(false);
+    for (const m of MIGRACIONES_REQUERIDAS) expect(paso(r, m.clave).estado).toBe("no-se-sabe");
+  });
+});
+
+describe("los permisos sobre las tablas nuevas", () => {
+  // Las tres tablas nuevas las crea una persona desde la consola, con un rol que
+  // puede no ser el de la app. Existir no alcanza: si la app no las puede
+  // escribir, falla igual. Y volver a correr la migración no lo arregla.
+  const conPermiso = (clave: string, valor: boolean | null) => ({
+    ...todoHecho,
+    permisos: { ...permisosCompletos, [clave]: valor },
+  });
+
+  it("se miran en las tres tablas nuevas, no sólo en una", () => {
+    expect(MIGRACIONES_REQUERIDAS.filter((m) => m.permisos).map((m) => m.tabla).sort()).toEqual(
+      ["creator_password_attempts", "ml_reconcile_progress", "ml_sync_progress"],
+    );
+  });
+
+  it.each(["mig-ml-sync-progress", "mig-ml-reconcile-progress", "mig-creator-password-attempts"])(
+    "%s creada pero sin permisos: está mal, no ok, y no manda a re-correr la migración",
+    (clave) => {
+      const r = evaluarChecklist(conPermiso(clave, false));
+      const p = paso(r, clave);
+      expect(p.estado).toBe("mal");
+      expect(p.queHacer).toMatch(/^Dar SELECT, INSERT, UPDATE/);
+      expect(p.queHacer).toMatch(/no arregla/);
+      expect(r.listo).toBe(false);
+    },
+  );
+
+  it("la de creadores pide también DELETE: la limpieza borra", () => {
+    const p = paso(evaluarChecklist(conPermiso("mig-creator-password-attempts", false)), "mig-creator-password-attempts");
+    expect(p.queHacer).toContain("DELETE");
+  });
+
+  it("sin poder consultar los permisos, no se sabe", () => {
+    const r = evaluarChecklist(conPermiso("mig-ml-reconcile-progress", null));
+    expect(paso(r, "mig-ml-reconcile-progress").estado).toBe("no-se-sabe");
+    expect(r.listo).toBe(false);
+  });
+
+  it("las columnas sobre tablas que la app ya usa no dependen de permisos", () => {
+    // Heredan los de la tabla: no hay nada que mirar, y un `null` ahí no puede
+    // dejar el paso en "no se sabe".
+    const r = evaluarChecklist({ ...todoHecho, permisos: {} });
+    expect(paso(r, "mig-orders-enrichment").estado).toBe("ok");
+    expect(paso(r, "mig-backfill-lease").estado).toBe("ok");
+    expect(paso(r, "mig-ml-sync-progress").estado).toBe("no-se-sabe");
+  });
+
+  it("si la tabla no existe, manda correr la migración (lo de los permisos viene después)", () => {
+    const r = evaluarChecklist({
+      ...todoHecho,
+      esquema: { ...esquemaCompleto, "mig-creator-password-attempts": false },
+      permisos: { ...permisosCompletos, "mig-creator-password-attempts": null },
+    });
+    expect(paso(r, "mig-creator-password-attempts").estado).toBe("falta");
   });
 });
