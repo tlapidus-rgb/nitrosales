@@ -35,7 +35,7 @@ interface ApiKey {
   lastUsedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
-  createdBy: { id: string; name: string | null; email: string } | null;
+  createdBy: { name: string | null; email: string } | null;
 }
 
 const AVAILABLE_SCOPES = [

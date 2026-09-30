@@ -51,7 +51,9 @@ export async function GET() {
         lastUsedAt: true,
         expiresAt: true,
         createdAt: true,
-        createdBy: { select: { id: true, name: true, email: true } },
+        // Sin `id`: una key creada por staff en "ver como" exponía el id de
+        // alguien de staff a los usuarios del cliente (ver auth.ts, impersonación).
+        createdBy: { select: { name: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
     });

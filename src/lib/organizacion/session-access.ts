@@ -2,7 +2,8 @@
 // src/lib/organizacion/session-access.ts — quién es, y si puede entrar
 // ══════════════════════════════════════════════════════════════════════════
 // Corre en cada resolución de sesión (callback `session` de NextAuth), también
-// para JWT ya emitidos. Hace tres cosas con UNA consulta a la base:
+// para JWT ya emitidos. Hace tres cosas con una sola búsqueda por clave primaria
+// (Prisma la resuelve en dos idas a la base: usuario y organización):
 //
 // 1. **Ata la identidad del token a la base.** El token es un JWT firmado con
 //    NEXTAUTH_SECRET, y ese secreto no es secreto: `/api/me/vtex-affiliate-info`
@@ -13,8 +14,17 @@
 //    la suspensión) lo creía. Ahora el usuario del token tiene que existir, y su
 //    email y su organización tienen que coincidir con los de la base; `isStaff`
 //    y el rol salen de la base, nunca del token (si no, un usuario podría
-//    fabricarse su propio token con rol OWNER). Fabricar una sesión pasa a requerir el id
-//    real de un usuario, que no se expone entre clientes.
+//    fabricarse su propio token con rol OWNER).
+//
+//    Lo que esto NO cierra, para que nadie lo lea de más: fabricar una sesión
+//    pasa a requerir el id, el email y la organización reales de un usuario —
+//    dentro de la propia organización eso se consigue (el equipo se lista), así
+//    que un usuario puede hacerse pasar por un compañero. Y el secreto sigue
+//    abriendo, sin sesión, las rutas que aceptan `?key=<secreto>`, varias con
+//    cualquier `org` (a 2026-09-30, 63 archivos route.ts bajo src/app/api lo
+//    referencian; ver también webhook-key.ts). Cerrar eso requiere dejar de entregar el secreto,
+//    que es una decisión: la clave del webhook de VTEX está en la configuración
+//    de cada cliente.
 //
 // 2. **Aplica la suspensión de la organización** (E-27), con los mismos
 //    criterios que antes: el soporte de NitroSales mantiene el acceso en "ver

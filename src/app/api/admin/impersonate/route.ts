@@ -24,7 +24,9 @@ import { createHmac } from "crypto";
 export const dynamic = "force-dynamic";
 
 function signImpersonateToken(payload: any): string {
-  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
+  // Sin secreto no se firma: auth.ts rechaza los tokens firmados sin él.
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error("NEXTAUTH_SECRET no está configurado");
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const hmac = createHmac("sha256", secret);
   hmac.update(data);

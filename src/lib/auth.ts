@@ -3,6 +3,8 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { createHmac } from "crypto";
+import { igualSeguro } from "@/lib/comparacion-segura";
+import { isStaffUser } from "@/lib/staff";
 import { prisma } from "@/lib/db/client";
 import { cookies } from "next/headers";
 import {
@@ -24,11 +26,14 @@ function verifyImpersonateToken(token: string): { targetUserId: string; imperson
   try {
     const [data, sig] = token.split(".");
     if (!data || !sig) return null;
-    const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
+    // Sin secreto no hay impersonación. Antes caía a "fallback-secret", un
+    // literal que está en el código: cualquiera podía firmar un token válido.
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) return null;
     const hmac = createHmac("sha256", secret);
     hmac.update(data);
     const expectedSig = hmac.digest("base64url").slice(0, 32);
-    if (expectedSig !== sig) return null;
+    if (!igualSeguro(expectedSig, sig)) return null;
     const payload = JSON.parse(Buffer.from(data, "base64url").toString("utf-8"));
     if (!payload.targetUserId || !payload.impersonatorUserId || !payload.exp) return null;
     if (Date.now() > payload.exp) return null;
@@ -158,6 +163,19 @@ export const authOptions: NextAuthOptions = {
         });
         if (!user) return null;
 
+        // El token de impersonación se firma con NEXTAUTH_SECRET, que hoy le
+        // llega a cualquier usuario logueado. Así que el token solo no prueba
+        // nada: quien la inicia tiene que ser staff EN LA BASE, y el destino no
+        // puede ser staff. Sin esto, con el id de alguien de staff (se veía en
+        // `createdBy` de roles y API keys) un cliente abría una sesión de staff.
+        const impersonador = await prisma.user.findUnique({
+          where: { id: String(payload.impersonatorUserId) },
+          select: { email: true, isStaff: true },
+        });
+        if (!impersonador || !isStaffUser({ isStaff: impersonador.isStaff, email: impersonador.email })) return null;
+        if (isStaffUser({ isStaff: user.isStaff, email: user.email })) return null;
+        payload.impersonatorEmail = impersonador.email; // el de la base, no el del token
+
         // Audit log: registramos el impersonate exitoso.
         try {
           await prisma.loginEvent.create({
@@ -242,7 +260,8 @@ export const authOptions: NextAuthOptions = {
 
       (session.user as any).id = token.id;
       (session.user as any).role = identidad.role; // de la base, como isStaff
-      (session.user as any).isStaff = identidad.esStaff;
+      // Impersonando, nunca staff: se ve lo que ve el cliente, con sus permisos.
+      (session.user as any).isStaff = esSoporte;
       (session.user as any).organizationId = token.organizationId;
       (session.user as any).organizationName = token.organizationName;
       (session.user as any).allowedSections = token.allowedSections;
