@@ -122,13 +122,23 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
   const order = await mlGet(resource, token);
 
   // Resolve optional catalog fields before any transaction holds a row lock.
+  //
+  // Opcionales de verdad: si esta consulta falla, la orden se guarda igual sin
+  // SKU ni foto (el enriquecimiento tolera que falten). Si el error cortara acá,
+  // la orden no entraría, y el reenvío de ML con el mismo _id se descarta como
+  // duplicado: quedaría afuera hasta que la levante ml-reconcile. Así era antes
+  // de b35efafd y así tiene que seguir.
   for (const line of order.order_items ?? []) {
     const item = line.item ?? {};
     if (item.id && (!item.seller_sku || !item.thumbnail)) {
-      const detail = await mlGet(`/items/${encodeURIComponent(String(item.id))}?attributes=id,seller_sku,attributes,pictures,thumbnail`, token);
-      item.seller_sku ||= detail.seller_sku || detail.attributes?.find((a: any) => a.id === "SELLER_SKU" || a.name === "SKU")?.value_name;
-      item.thumbnail ||= detail.thumbnail || detail.pictures?.[0]?.url;
-      line.item = item;
+      try {
+        const detail = await mlGet(`/items/${encodeURIComponent(String(item.id))}?attributes=id,seller_sku,attributes,pictures,thumbnail`, token);
+        item.seller_sku ||= detail.seller_sku || detail.attributes?.find((a: any) => a.id === "SELLER_SKU" || a.name === "SKU")?.value_name;
+        item.thumbnail ||= detail.thumbnail || detail.pictures?.[0]?.url;
+        line.item = item;
+      } catch (err: any) {
+        console.warn(`[ML Processor] could not fetch /items/${item.id}: ${err.message}`);
+      }
     }
   }
   const result = await persistMlOrder(orgId, order, mapMeliStatus(order.status, order.tags));

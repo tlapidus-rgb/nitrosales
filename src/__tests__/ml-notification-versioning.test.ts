@@ -33,6 +33,19 @@ it("does not enrich obsolete payload when the stored version is newer", async ()
  m.persist.mockResolvedValue({ dbOrderId: null, action: "skipped" });
  await processMLNotification(event); expect(m.enrich).not.toHaveBeenCalled();
 });
+it.each([429, 500])("still saves the order when the optional /items lookup fails with %i", async status => {
+ // El SKU y la foto son opcionales: antes de b35efafd un fallo acá se logueaba y
+ // la orden se guardaba igual. Si ahora corta, la orden no entra, y el reenvío de
+ // ML con el mismo _id se descarta como duplicado: se pierde hasta ml-reconcile.
+ const withItem = { ...order, order_items: [{ item: { id: "MLA1" }, quantity: 1, unit_price: 10 }] };
+ vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("/items/")
+  ? new Response("rate limited", { status })
+  : new Response(JSON.stringify(withItem))));
+ await processMLNotification(event);
+ expect(m.persist).toHaveBeenCalledTimes(1);
+ expect(m.persist.mock.calls[0][1].order_items[0].item.id).toBe("MLA1");
+ expect(m.enrich).toHaveBeenCalledTimes(1);
+});
 it.each(["payments", "shipments"])("refreshes the canonical order for %s instead of writing a stale fragment", async topic => {
  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith("/orders/1") ? order : { order_id: 1, status: "delivered" }))));
  await processMLNotification({ ...event, resource: `/${topic}/99`, topic });
