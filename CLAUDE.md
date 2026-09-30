@@ -257,10 +257,14 @@ origen), revisar primero las tareas programadas de Claude Desktop, antes que el 
 
 Al onboardear un cliente VTEX hay que configurar **ambos**, con `?org=<orgId>` en la URL:
 
-| Mecanismo | Dónde | Eventos |
+| Mecanismo | Dónde se configura | A qué endpoint nuestro apunta |
 |---|---|---|
-| Afiliados | VTEX Admin → Pedidos → Config → pestaña "Afiliados" | SKU / inventario |
-| Orders Broadcaster | Sólo por API: `/api/orders/hook/config` (no tiene UI) | Estados de orden |
+| Afiliados | A mano en VTEX Admin → Pedidos → Config → pestaña "Afiliados" | `/api/webhooks/vtex/orders` — la URL completa la arma `/api/me/vtex-affiliate-info` y el onboarding se la muestra al cliente |
+| Orders Broadcaster | Sólo por API: `/api/orders/hook/config` (no tiene UI); `activate-client` lo configura solo, y sólo en producción | `/api/webhooks/vtex/orders` |
+
+Existe además `/api/webhooks/vtex/inventory` para cambios de SKU/stock. Una versión anterior
+de este archivo decía que los Afiliados mandan "SKU / inventario": el código no lo usa así,
+y la verificación de hooks (`src/lib/vtex/hooks.ts`) exige `/orders` para los dos.
 
 Para ver lo configurado:
 

@@ -402,3 +402,76 @@ equivocado", y ésta) dicen que no es distracción: es que **escribo el chequeo 
 quiero encontrar en vez de lo que distingue los dos estados**.
 
 ---
+
+### E-14 · Mi script y el de un subagente tenían el mismo nombre en el scratchpad
+
+**Cuándo:** 2026-09-30 · **Lo detectó:** yo, porque la salida no tenía el formato de siempre
+
+**Qué hice mal:** usé `crlf.cjs` en el scratchpad, que es compartido con los subagentes. Un
+subagente escribió **su** `crlf.cjs`, con la ruta de **su** checkout fija adentro, y pisó el
+mío. Mi siguiente llamada normalizó un archivo del checkout del subagente en vez del mío.
+
+**Cómo se manifestó:** la salida decía "bytes 1566 LF sueltos 0" en vez de "CRLF n / LF n".
+Revisé: mi archivo estaba entero y el del subagente no cambió de contenido (sólo finales de
+línea que ya estaban bien). Pudo haber sido peor: un script de edición con el mismo nombre
+habría escrito en el directorio equivocado sin avisar.
+
+**Qué hago distinto:** los scripts del scratchpad llevan prefijo propio (`claude-…`), y a los
+subagentes les indico un prefijo distinto. Y si una salida no tiene el formato que espero,
+paro antes de seguir.
+
+---
+
+### E-15 · Usé `information_schema` para preguntar si una tabla existe
+
+**Cuándo:** 2026-09-30 · **Lo detectó:** el revisor independiente, reproduciéndolo en PGlite
+con un rol sin permisos
+
+**Qué hice mal:** el checklist de merge preguntaba si existían las migraciones mirando
+`information_schema`. Esas vistas **sólo muestran lo que el rol actual puede ver**: una tabla
+creada desde la consola con otro rol, y sin GRANT a la app, aparece como inexistente.
+
+**Cómo se habría manifestado:** el checklist habría dicho "falta, corré la migración", y
+correrla no cambia nada (`IF NOT EXISTS`). Un paso rojo para siempre, con la instrucción
+equivocada. Además miraba permisos en una sola de las tres tablas nuevas, con un comentario
+que justificaba eso y era falso.
+
+**Por qué pasó:** mis tests corrían como superusuario, donde todo es visible y todo está
+permitido. El fixture no se parecía a producción en lo único que importaba: el rol.
+
+**Qué hago distinto:** existencia por catálogo (`to_regclass`, `pg_attribute`), permisos por
+separado, y un test con `CREATE ROLE` + `SET ROLE`. Cuando algo depende de permisos, el test
+corre con un rol que no los tiene.
+
+---
+
+### E-16 · Un test que no creaba la condición que decía probar
+
+**Cuándo:** 2026-09-30 · **Lo detectó:** la mutación
+
+**Qué hice mal:** el test "la memoria no revive a un usuario que la base ya dijo que no
+existe" arrancaba sin ninguna verificación previa. Con o sin el arreglo, el resultado era el
+mismo: bloqueado. La mutación que sacaba el arreglo lo dejó verde.
+
+**Qué hago distinto:** el escenario tiene que tener el estado que el bug aprovecharía: acá,
+un usuario verificado antes, borrado después, y recién ahí el corte. Es la forma E-11 de
+nuevo: el test tiene que poder distinguir los dos mundos.
+
+---
+
+### E-17 · Puse en el informe final un hallazgo de un revisor sin verificarlo
+
+**Cuándo:** 2026-09-30 · **Lo detectó:** yo, al ir a arreglarlo
+
+**Qué hice mal:** `07-ESTADO-FINAL.md` listaba como riesgo R4 ("la verificación del afiliado
+VTEX exige la ruta de órdenes y está mal"). Lo reportó un revisor citando `CLAUDE.md`, y lo
+copié. Al ir a arreglarlo, el código dice lo contrario: la propia app le indica al cliente
+que configure el afiliado apuntando a `/api/webhooks/vtex/orders`
+(`/api/me/vtex-affiliate-info`, el onboarding). La verificación de Codex era correcta; lo
+desactualizado era `CLAUDE.md`, y yo lo había copiado a la versión nueva.
+
+**Qué hago distinto:** en un informe, cada hallazgo dice si lo verifiqué yo. Los que no,
+van marcados como "reportado", y no los arreglo ni los doy por ciertos sin leer el código.
+Un documento del repo no es evidencia de cómo funciona el código.
+
+---
