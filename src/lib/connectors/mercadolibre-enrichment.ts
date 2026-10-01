@@ -65,8 +65,19 @@ export async function enrichOrderFromMl(
       const r = await fetch(`https://api.mercadolibre.com/shipments/${encodeURIComponent(String(mlOrder.shipping.id))}`, {
         headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000),
       });
-      if (!r.ok) throw new Error("Shipment lookup unavailable");
-      shipData = await r.json();
+      if (r.ok) shipData = await r.json();
+      else if (r.status === 401 || r.status === 408 || r.status === 429 || r.status >= 500) {
+        // Pasajero: reintentar más tarde tiene sentido, así que la orden queda
+        // como no enriquecida y vuelve a pasar.
+        throw new Error(`Shipment lookup unavailable (${r.status})`);
+      } else {
+        // Permanente (403 de un envío ajeno, 404 de uno borrado…): reintentar
+        // no lo arregla. Si cortara acá, esa orden trabaría para siempre la
+        // página del backfill y la ventana de ml-reconcile —que es la red de
+        // seguridad de los webhooks perdidos—. La dirección es opcional: la
+        // orden sigue sin ella, como hacía producción antes de esta branch.
+        console.warn(`[ML Enrichment] shipment ${mlOrder.shipping.id} → ${r.status}; sigue sin dirección`);
+      }
     }
     const version = new Date(mlOrder.last_updated || mlOrder.date_created);
     if (!Number.isFinite(version.getTime())) throw new Error("Invalid order version");

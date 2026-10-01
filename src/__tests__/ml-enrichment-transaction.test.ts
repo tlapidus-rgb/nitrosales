@@ -96,3 +96,32 @@ it("replaying an older order expands the first purchase without regressing the l
  expect(customer.firstOrderAt.toISOString()).toBe("2026-07-01T00:00:00.000Z");
  expect(customer.lastOrderAt.toISOString()).toBe("2026-08-31T00:00:00.000Z");
 });
+
+// ── El envío de ML: permanente vs pasajero ────────────────────────────────
+// La dirección viene vacía en /orders/search, así que esta consulta se hace
+// casi siempre. Un error permanente (403 de un envío ajeno, 404 de uno borrado)
+// no se arregla reintentando: si cortara el enriquecimiento, esa orden trabaría
+// para siempre la página del backfill y la ventana de ml-reconcile. Uno pasajero
+// sí tiene que cortar, para que la orden vuelva a pasar.
+const conEnvio = { ...payload, shipping: { id: "ship-1", receiver_address: {} } };
+const conRespuesta = async (respuesta: () => Response | Promise<Response>, probar: () => Promise<void>) => {
+ vi.stubGlobal("fetch", vi.fn(async () => respuesta()));
+ try { await probar(); } finally { vi.unstubAllGlobals(); }
+};
+it.each([403, 404, 400])("un envío que responde %i no traba la orden: se enriquece sin dirección", async status => {
+ await conRespuesta(() => new Response("{}", { status }), async () => {
+  expect(await enrichOrderFromMl("order","org",conEnvio,"token")).toMatchObject({ itemsCreated: 1 });
+  expect((await db.query("SELECT value FROM order_items")).rows).toEqual([{ value: "replacement" }]);
+ });
+});
+it.each([429, 500, 503, 401])("un envío que responde %i corta, para reintentar", async status => {
+ await conRespuesta(() => new Response("{}", { status }), async () => {
+  expect(await enrichOrderFromMl("order","org",conEnvio,"token")).toBeNull();
+  expect((await db.query("SELECT * FROM effects")).rows).toEqual([]);
+ });
+});
+it("un timeout del envío corta, para reintentar", async () => {
+ await conRespuesta(() => { throw new Error("The operation was aborted due to timeout"); }, async () => {
+  expect(await enrichOrderFromMl("order","org",conEnvio,"token")).toBeNull();
+ });
+});
