@@ -23,7 +23,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isPathAllowed } from "@/lib/section-access";
-import { checkAdminApiAccess, isAdminApiPath } from "@/lib/admin-gate";
+import { aceptaClavePorUrl, checkAdminApiAccess, isAdminApiPath } from "@/lib/admin-gate";
 
 function adminDenied(status: 401 | 403): NextResponse {
   return new NextResponse(
@@ -65,6 +65,16 @@ export default async function middleware(req: NextRequest) {
   const adminAccess = checkAdminApiAccess(pathname, token);
   if (adminAccess === "unauthenticated") return adminDenied(401);
   if (adminAccess === "forbidden") return adminDenied(403);
+  // Fuera de la allowlist, la clave de la URL no llega a la ruta (ver
+  // aceptaClavePorUrl). Se aplica al final, después de los demás chequeos.
+  const sinClave =
+    isAdminApiPath(pathname) && !aceptaClavePorUrl(pathname) && req.nextUrl.searchParams.has("key")
+      ? (() => {
+          const url = req.nextUrl.clone();
+          url.searchParams.delete("key");
+          return url;
+        })()
+      : null;
 
   // ── 1. Read-only durante impersonate (writes de API) ──
   const isWrite =
@@ -111,7 +121,7 @@ export default async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return sinClave ? NextResponse.rewrite(sinClave) : NextResponse.next();
 }
 
 export const config = {

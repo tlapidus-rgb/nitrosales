@@ -45,10 +45,50 @@ function req(path: string, method = "GET"): NextRequest {
   return new NextRequest(`${BASE}${path}`, { method });
 }
 
-/** NextResponse.next() marca la respuesta con este header. */
+/**
+ * El pedido sigue hacia la ruta: NextResponse.next() o un rewrite (el que saca
+ * la clave de la URL, ver "la clave no llega a la ruta").
+ */
 function passed(res: Response): boolean {
-  return res.headers.get("x-middleware-next") === "1";
+  return res.headers.get("x-middleware-next") === "1" || res.headers.has("x-middleware-rewrite");
 }
+
+/** La URL con la que la ruta va a recibir el pedido. */
+function urlQueLlega(res: Response, original: string): URL {
+  return new URL(res.headers.get("x-middleware-rewrite") ?? `${BASE}${original}`);
+}
+
+describe("middleware — fuera de la allowlist, la clave no llega a la ruta", () => {
+  // El middleware no puede consultar la base: confía en el isStaff del JWT, y
+  // con NEXTAUTH_SECRET filtrado ese JWT se puede fabricar. Si la ruta además
+  // viera la clave (que el atacante también tiene), aceptaría
+  // `key === ADMIN_API_KEY` sin mirar la sesión. Sin la clave, cae a
+  // isInternalUser(), que consulta la base.
+  it("EL CASO: staff (o un JWT fabricado) con ?key= → la ruta la recibe SIN key", async () => {
+    getTokenMock.mockResolvedValue(STAFF_TOKEN);
+    const res = await middleware(req(SENSITIVE));
+    expect(passed(res)).toBe(true);
+    const url = urlQueLlega(res, SENSITIVE);
+    expect(url.searchParams.has("key")).toBe(false);
+    expect(url.searchParams.get("orgId")).toBe("org_victima");
+    expect(url.pathname).toBe("/api/admin/debug-vtex-raw-emails");
+  });
+
+  it("staff sin key → sigue igual, sin rewrite", async () => {
+    getTokenMock.mockResolvedValue(STAFF_TOKEN);
+    const res = await middleware(req("/api/admin/debug-vtex-raw-emails?orgId=x"));
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(res.headers.has("x-middleware-rewrite")).toBe(false);
+  });
+
+  it("en la allowlist la clave SÍ llega (la automatización la necesita)", async () => {
+    getTokenMock.mockResolvedValue(null);
+    const path = `${ADMIN_KEY_ALLOWLIST[0].path}?key=${KEY}`;
+    const res = await middleware(req(path));
+    expect(passed(res)).toBe(true);
+    expect(urlQueLlega(res, path).searchParams.get("key")).toBe(KEY);
+  });
+});
 
 beforeEach(() => {
   getTokenMock.mockReset();
