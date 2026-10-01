@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { GoogleAdsConnector } from "@/lib/connectors/google-ads";
 import { classifyCreative } from "@/lib/classification/ad-classifier";
 import { getOrganization } from "@/lib/auth-guard";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const syncKey = searchParams.get("key");
 
-    if (syncKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(syncKey)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

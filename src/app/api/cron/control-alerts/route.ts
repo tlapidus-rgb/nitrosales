@@ -15,7 +15,6 @@
 
 import { registrarLatido } from "@/lib/cron/latido";
 import { coberturaDeLatidos } from "@/lib/cron/schedules";
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import {
   checkConnectionIssues,
@@ -28,6 +27,7 @@ import { buildAlertEmailHtml } from "@/lib/control/email-template";
 import { sendEmail } from "@/lib/email/send";
 import { isInternalUser } from "@/lib/feature-flags";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 // E-11: 300 y no 60. El limite viejo era el que mataba este cron cuando
@@ -36,7 +36,6 @@ export const dynamic = "force-dynamic";
 // que subirlo es red de seguridad gratis.
 export const maxDuration = 300;
 
-const CRON_KEY = ADMIN_API_KEY;
 // E-19.3: la casilla se resuelve en un solo lugar y acepta varias.
 // Sin ALERTAS_EMAILS ni ADMIN_EMAIL seteadas, es exactamente la de antes.
 
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest) {
     const preview = url.searchParams.get("preview") === "1";
 
     // Auth: cron key o isInternalUser
-    const hasKey = key === CRON_KEY;
+    const hasKey = isValidAdminKey(key);
     const internal = hasKey ? true : await isInternalUser();
     if (!internal) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

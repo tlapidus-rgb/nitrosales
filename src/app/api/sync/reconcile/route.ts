@@ -19,13 +19,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { ordersValidWhere } from "@/domains/orders";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const key = req.nextUrl.searchParams.get("key") || "";
-  if (key !== process.env.NEXTAUTH_SECRET) {
+  if (!esClaveDeCron(key)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 

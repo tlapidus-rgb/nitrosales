@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
 import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     // Auth — acepta key query param (cron) o NEXTAUTH_SECRET
     const url = new URL(req.url);
     const reqKey = url.searchParams.get("key");
-    if (reqKey !== KEY && reqKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(reqKey)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

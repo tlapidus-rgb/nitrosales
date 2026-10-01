@@ -10,6 +10,7 @@ import { markSyncSuccess } from "@/lib/sync-tracker";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
 import { ORG_BUDGET_MS, canStartAnotherOrg } from "@/lib/sync/chain-budget";
 import { selfFetchBaseUrl, selfFetchHeaders } from "@/lib/self-fetch";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 
@@ -149,7 +150,7 @@ export async function GET(req: NextRequest) {
     }
 
     const key = req.nextUrl.searchParams.get("key") || "";
-    if (key !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(key)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

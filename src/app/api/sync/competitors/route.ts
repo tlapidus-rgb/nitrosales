@@ -9,15 +9,15 @@ export const dynamic = "force-dynamic";
 // Auth: key query param
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { scrapeProductPrice } from "@/lib/connectors/competitor-scraper";
+import { isValidAdminKey } from "@/lib/admin-key";
+import { esClavePropia } from "@/lib/cron/clave";
 
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const CRON_KEY = process.env.CRON_SECRET || ADMIN_API_KEY;
 const MAX_RUNTIME_MS = 50000; // 50s safety margin for Vercel
 const DELAY_BETWEEN_SAME_DOMAIN = 1500; // 1.5s rate limit per domain
 
@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
   const syncStart = Date.now();
   const { searchParams } = new URL(req.url);
 
-  if (searchParams.get("key") !== CRON_KEY) {
+  const key = searchParams.get("key");
+  if (!esClavePropia(key, process.env.CRON_SECRET) && !isValidAdminKey(key)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

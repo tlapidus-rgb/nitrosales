@@ -7,6 +7,7 @@ import { sendEmail } from "@/lib/email/send";
 import { weeklyDigestEmail, DigestMetrics } from "@/lib/email/templates";
 import Anthropic from "@anthropic-ai/sdk";
 import { isValidAdminKey } from "@/lib/admin-key";
+import { esClavePropia } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -52,10 +53,7 @@ export async function GET(req: NextRequest) {
   // Por eso entran por cualquiera de las dos, y las dos son fail-closed:
   // `isValidAdminKey` cae a una clave aleatoria por proceso si la env falta, y
   // la de SYNC_KEY exige que exista ANTES de comparar.
-  const porSyncKey =
-    typeof process.env.SYNC_KEY === "string" &&
-    process.env.SYNC_KEY.length > 0 &&
-    syncKey === process.env.SYNC_KEY;
+  const porSyncKey = esClavePropia(syncKey, process.env.SYNC_KEY); // vacía o ausente: no
   if (!porSyncKey && !isValidAdminKey(syncKey)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

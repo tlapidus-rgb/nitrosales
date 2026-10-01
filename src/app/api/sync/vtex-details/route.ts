@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { getOrganization } from "@/lib/auth-guard";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    if (key !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(key)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

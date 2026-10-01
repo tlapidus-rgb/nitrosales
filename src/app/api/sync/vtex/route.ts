@@ -8,6 +8,7 @@ import { getOrganization } from "@/lib/auth-guard";
 import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 import { extractRealEmail } from "@/lib/connectors/vtex-email";
 import { attributeOrderByMatch } from "@/lib/pixel/attribute-order-by-match";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 // -- Helper: Enrich a DB order with customer + items from VTEX detail --
 // Called when an order exists in DB but is missing customer/products data.
@@ -148,7 +149,7 @@ export async function GET(req: Request) {
     const phase = searchParams.get("phase");
     const syncKey = searchParams.get("syncKey");
 
-    if (syncKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(syncKey)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
@@ -354,7 +355,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { syncKey, page = 1, since, until, orgId: bodyOrgId } = body;
-    if (syncKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(syncKey)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

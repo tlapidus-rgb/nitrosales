@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -193,7 +194,7 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
 export async function GET(req: NextRequest) {
   const ORG_ID = await getOrganizationId();
   const key = req.nextUrl.searchParams.get("key");
-  if (key !== process.env.NEXTAUTH_SECRET) {
+  if (!esClaveDeCron(key)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   const startPage = parseInt(req.nextUrl.searchParams.get("from") || "0");
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const syncKey = body.syncKey || body.key;
-    if (syncKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(syncKey)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
     const startPage = body.from || 0;

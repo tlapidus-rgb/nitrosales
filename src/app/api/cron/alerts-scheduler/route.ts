@@ -15,9 +15,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { registrarLatido } from "@/lib/cron/latido";
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { loadAllPendingSchedules, evaluateRule } from "@/lib/alerts/engine";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -57,7 +57,6 @@ export const maxDuration = 300;
 // cubrir, y `engine-cola.test.ts` no tiene ningun caso donde `evaluate` tire.
 const TIME_BUDGET_MS = 250_000;
 
-const CRON_KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   // Auth: aceptamos tanto la query key (Vercel cron pasa esto) como el
@@ -69,7 +68,7 @@ export async function GET(req: NextRequest) {
   // bypass por `user-agent: vercel-cron` se quitó (auditoría 2026-07-22): el
   // user-agent lo pone quien llama, así que cualquiera con `curl -A vercel-cron`
   // pasaba sin key — y este cron manda mails a los clientes.
-  if (key !== CRON_KEY) {
+  if (!isValidAdminKey(key)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

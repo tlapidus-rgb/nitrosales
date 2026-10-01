@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
 import { sendEmail } from "@/lib/email/send";
 import { monthlyCommissionSummaryEmail } from "@/lib/email/templates";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const maxDuration = 60;
 
@@ -20,8 +21,7 @@ export async function GET(req: NextRequest) {
     // Security: require secret key
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    const secret = process.env.NEXTAUTH_SECRET;
-    if (key !== secret) {
+    if (!esClaveDeCron(key)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

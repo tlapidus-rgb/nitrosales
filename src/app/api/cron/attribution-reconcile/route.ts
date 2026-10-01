@@ -31,6 +31,7 @@ export const maxDuration = 300; // 5 min — Vercel Pro
 const KEY = ADMIN_API_KEY;
 const DEFAULT_DAYS = 3;
 import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 // E-11 — este cron gasta hasta 240s en UNA sola organizacion (40 ordenes x ~6s
 // de calculateAttribution), y el presupuesto total son 250s. O sea que en la
@@ -46,7 +47,7 @@ const DEFAULT_LIMIT = 40; // tope por org/corrida. ~6s por calculateAttribution 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const reqKey = url.searchParams.get("key");
-  if (reqKey !== KEY && reqKey !== process.env.NEXTAUTH_SECRET) {
+  if (!esClaveDeCron(reqKey)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const days = Math.min(14, Math.max(1, Number(url.searchParams.get("days") || DEFAULT_DAYS)));

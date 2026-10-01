@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const m = vi.hoisted(() => ({ claim: vi.fn(), progress: vi.fn(), complete: vi.fn(), get: vi.fn(), process: vi.fn(), fetch: vi.fn() }));
-vi.mock("@/lib/admin-key", () => ({ ADMIN_API_KEY: "test" }));
+vi.mock("@/lib/admin-key", () => ({ ADMIN_API_KEY: "test", isValidAdminKey: (v: string | null) => v === "test" }));
 vi.mock("@/lib/db/client", () => ({ prisma: { $queryRawUnsafe: async () => [] } }));
 vi.mock("@/lib/feature-flags", () => ({ isInternalUser: async () => true }));
 vi.mock("@/lib/backfill/job-manager", () => ({ reclamarProximoJob: m.claim, updateJobProgress: m.progress,

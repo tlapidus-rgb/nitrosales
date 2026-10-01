@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { markSyncSuccess } from "@/lib/sync-tracker";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -90,7 +91,7 @@ async function runSyncForOrg(orgId: string, syncKey: string) {
 
 // Multi-tenant: itera todas las orgs con VTEX ACTIVE. Pattern BP-MT-001.
 async function runSync(syncKey: string) {
-  if (syncKey !== process.env.NEXTAUTH_SECRET) {
+  if (!esClaveDeCron(syncKey)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
@@ -137,7 +138,7 @@ export async function GET(req: Request) {
     const syncKey = url.searchParams.get("key") || "";
     const orgParam = url.searchParams.get("org");
 
-    if (syncKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(syncKey)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
@@ -159,7 +160,7 @@ export async function POST(req: Request) {
     const syncKey = body.syncKey || "";
     const orgId = body.orgId || null;
 
-    if (syncKey !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeCron(syncKey)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

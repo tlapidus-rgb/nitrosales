@@ -1,19 +1,18 @@
 export const dynamic = "force-dynamic";
 
 // Quick ML API diagnostic endpoint — forces token refresh
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { MLCredentials } from "@/lib/connectors/mercadolibre";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const revalidate = 0;
 
-const CRON_KEY = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
 const ML_API = "https://api.mercadolibre.com";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  if (searchParams.get("key") !== CRON_KEY) {
+  if (!esClaveDeCron(searchParams.get("key"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

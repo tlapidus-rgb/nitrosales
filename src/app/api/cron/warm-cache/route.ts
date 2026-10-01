@@ -42,6 +42,7 @@ import {
   PIPELINE_FRESHNESS_TARGETS,
 } from "@/lib/pipeline/freshness";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — warm de N orgs puede tardar
@@ -212,7 +213,7 @@ export async function GET(req: NextRequest) {
     const key = url.searchParams.get("key");
     // Auth: SÓLO por key. El bypass por `user-agent: vercel-cron` (spoofeable) se
     // quitó (auditoría 2026-07-22): Vercel Cron manda la key en vercel.json.
-    if (key !== WARM_CACHE_KEY) {
+    if (!isValidAdminKey(key)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

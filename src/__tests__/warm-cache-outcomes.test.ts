@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const m = vi.hoisted(() => ({ query: vi.fn(), fetch: vi.fn(), freshness: vi.fn(), purge: vi.fn(), cleanup: vi.fn(), email: vi.fn(), heartbeat: vi.fn(), wait: vi.fn() }));
 vi.mock("@/lib/db/client", () => ({ prisma: { $queryRawUnsafe: m.query } }));
-vi.mock("@/lib/admin-key", () => ({ ADMIN_API_KEY: "test-key" }));
+vi.mock("@/lib/admin-key", () => ({ ADMIN_API_KEY: "test-key", isValidAdminKey: (v: string | null) => v === "test-key" }));
 vi.mock("@/lib/cron/latido", () => ({ registrarLatido: m.heartbeat }));
 vi.mock("@vercel/functions", () => ({ waitUntil: m.wait }));
 vi.mock("@/lib/api-cache-shared", () => ({ purgeExpiredSharedCache: m.purge }));

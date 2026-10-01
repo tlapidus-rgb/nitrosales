@@ -21,7 +21,6 @@
 // falló silenciosamente.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -36,11 +35,11 @@ import { orgJitter, sleep } from "@/lib/sync/jitter";
 import { ingestMlOrder } from "@/lib/connectors/ml-order-ingestion";
 import { claimReconcile, checkpointReconcile, completeReconcile } from "@/lib/connectors/ml-reconcile-progress";
 import { mapMeliStatus } from "@/lib/meli-status";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const CRON_KEY = ADMIN_API_KEY;
 const ML_API = "https://api.mercadolibre.com";
 
 // Overlap: siempre consultamos desde (watermark - 5 min) para absorber clock skew
@@ -237,7 +236,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
   const mode = (url.searchParams.get("mode") === "deep" ? "deep" : "incremental") as "incremental" | "deep";
-  const ok = key === CRON_KEY ? true : await isInternalUser();
+  const ok = isValidAdminKey(key) ? true : await isInternalUser();
   if (!ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // incremental: 2h típico (max 7 días de lookback safety)

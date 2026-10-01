@@ -5,6 +5,7 @@ import { MetaAdsConnector } from "@/lib/connectors/meta-ads";
 import { classifyCreative, classifyWithVision } from "@/lib/classification/ad-classifier";
 import { analyzeCreativeImage } from "@/lib/ai/vision-analyzer";
 import { getOrganization } from "@/lib/auth-guard";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
-  if (key !== process.env.NEXTAUTH_SECRET) {
+  if (!esClaveDeCron(key)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

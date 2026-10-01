@@ -25,6 +25,7 @@ import {
   SearchMatch,
 } from "@/lib/connectors/search-first-matcher";
 import { getAccessToken, MLCredentials } from "@/lib/connectors/mercadolibre";
+import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const revalidate = 0;
 export const maxDuration = 60;
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   // Auth
-  if (searchParams.get("key") !== CRON_KEY) {
+  if (!esClaveDeCron(searchParams.get("key"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

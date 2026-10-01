@@ -20,7 +20,6 @@
 //  - Idempotencia garantizada por el outbox dedup
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -29,11 +28,11 @@ import { processMLNotification } from "@/lib/connectors/ml-notification-processo
 import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
 import { withConcurrency } from "@/lib/sync/concurrency";
 import { orgJitter, sleep } from "@/lib/sync/jitter";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const CRON_KEY = ADMIN_API_KEY;
 const ML_API = "https://api.mercadolibre.com";
 
 // Jitter scatter total: 5 min (para cron que corre cada 30 min)
@@ -166,7 +165,7 @@ export async function GET(req: NextRequest) {
   const start = Date.now();
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
-  const ok = key === CRON_KEY ? true : await isInternalUser();
+  const ok = isValidAdminKey(key) ? true : await isInternalUser();
   if (!ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // Listar todas las orgs con conexión ML activa

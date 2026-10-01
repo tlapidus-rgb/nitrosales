@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { esClaveDeCron } from "@/lib/cron/clave";
 import {
   discoverCompetitorProducts,
   OwnProduct,
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   // Auth
-  if (searchParams.get("key") !== CRON_KEY) {
+  if (!esClaveDeCron(searchParams.get("key"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

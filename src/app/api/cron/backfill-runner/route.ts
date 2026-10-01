@@ -52,6 +52,7 @@ import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
 import { dataReadyEmailActive } from "@/lib/onboarding/emails";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
+import { isValidAdminKey } from "@/lib/admin-key";
 import {
   decidirAdmision,
   seguirEnElLoop,
@@ -69,7 +70,6 @@ export const maxDuration = 300;
 // Keep this literal statically analyzable by Next.js and aligned with the lease.
 if (maxDuration !== RUNNER_MAX_DURATION_SECONDS) throw new Error("Backfill runtime/lease mismatch");
 
-const CRON_KEY = ADMIN_API_KEY;
 
 // Budget de tiempo del loop: 240s (4min) de los 300s (5min) max.
 // Deja 60s de margen para la response final + cleanup.
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    const ok = key === CRON_KEY ? true : await isInternalUser();
+    const ok = isValidAdminKey(key) ? true : await isInternalUser();
     if (!ok) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

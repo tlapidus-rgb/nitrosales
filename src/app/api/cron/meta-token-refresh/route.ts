@@ -22,6 +22,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     // Cron Vercel pasa header x-vercel-cron-signature, key=KEY para manual,
     // o sesion admin.
     const isCron = req.headers.get("x-vercel-cron") === "1";
-    const allowed = isCron || key === KEY || (await isInternalUser());
+    const allowed = isCron || isValidAdminKey(key) || (await isInternalUser());
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const appId = (process.env.META_APP_ID || "").trim();
