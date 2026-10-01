@@ -2,9 +2,11 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { createHmac } from "crypto";
+import { igualSeguro } from "@/lib/comparacion-segura";
 import { prisma } from "@/lib/db/client";
 import { cookies } from "next/headers";
 import { isStaffUser } from "@/lib/staff";
+import { verificarIdentidad, sesionSinUsuario } from "@/lib/organizacion/session-access";
 import {
   resolveEffectivePermissionsByEmail,
   allowedSectionsFrom,
@@ -24,11 +26,14 @@ function verifyImpersonateToken(token: string): { targetUserId: string; imperson
   try {
     const [data, sig] = token.split(".");
     if (!data || !sig) return null;
-    const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
+    // Sin secreto no hay impersonación. Antes caía a "fallback-secret", un
+    // literal que está en el código: cualquiera podía firmar un token válido.
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) return null;
     const hmac = createHmac("sha256", secret);
     hmac.update(data);
     const expectedSig = hmac.digest("base64url").slice(0, 32);
-    if (expectedSig !== sig) return null;
+    if (!igualSeguro(expectedSig, sig)) return null;
     const payload = JSON.parse(Buffer.from(data, "base64url").toString("utf-8"));
     if (!payload.targetUserId || !payload.impersonatorUserId || !payload.exp) return null;
     if (Date.now() > payload.exp) return null;
@@ -158,6 +163,19 @@ export const authOptions: NextAuthOptions = {
         });
         if (!user) return null;
 
+        // El token de impersonación se firma con NEXTAUTH_SECRET, que hoy le
+        // llega a cualquier usuario logueado. Así que el token solo no prueba
+        // nada: quien la inicia tiene que ser staff EN LA BASE, y el destino no
+        // puede ser staff (si no, un cliente con el id de alguien de staff abría
+        // una sesión de staff).
+        const impersonador = await prisma.user.findUnique({
+          where: { id: String(payload.impersonatorUserId) },
+          select: { email: true, isStaff: true },
+        });
+        if (!impersonador || !isStaffUser({ isStaff: impersonador.isStaff, email: impersonador.email })) return null;
+        if (isStaffUser({ isStaff: user.isStaff, email: user.email })) return null;
+        payload.impersonatorEmail = impersonador.email; // el de la base, no el del token
+
         // Audit log: registramos el impersonate exitoso.
         try {
           await prisma.loginEvent.create({
@@ -227,9 +245,22 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
+        // HOTFIX 2026-10-01. Antes de copiar nada del token: ¿ese usuario existe
+        // y coincide con la base? El token se puede fabricar con NEXTAUTH_SECRET,
+        // que hoy le llega a cualquier usuario logueado (ver session-access.ts).
+        // isStaff y el rol salen de la base, nunca del token.
+        const identidad = await verificarIdentidad({
+          id: token.id,
+          email: token.email,
+          organizationId: token.organizationId,
+        });
+        if (identidad.estado !== "ok") return sesionSinUsuario(session);
+        // Impersonando, nunca staff: se ve lo que ve el cliente.
+        const esSoporte = identidad.esStaff && !token.impersonatedBy;
+
         (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).isStaff = token.isStaff === true;
+        (session.user as any).role = identidad.role; // de la base, como isStaff
+        (session.user as any).isStaff = esSoporte;
         (session.user as any).organizationId = token.organizationId;
         (session.user as any).organizationName = token.organizationName;
         (session.user as any).allowedSections = token.allowedSections;
@@ -242,9 +273,7 @@ export const authOptions: NextAuthOptions = {
         // S59 BIS: View as Org. Si user es staff Y hay cookie, override
         // organizationId/Name. Nunca aplica si esta impersonando (la
         // impersonate session ya hizo el switch de identidad).
-        const email = (session.user.email || "").toLowerCase();
-        const isInternal = isStaffUser({ isStaff: token.isStaff === true, email });
-        if (isInternal && !token.impersonatedBy) {
+        if (esSoporte) {
           try {
             const c = await cookies();
             const viewAsOrgId = c.get(VIEW_AS_COOKIE)?.value;

@@ -20,11 +20,14 @@ import { isInternalUser } from "@/lib/feature-flags";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createHmac } from "crypto";
+import { isStaffUser } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
 
 function signImpersonateToken(payload: any): string {
-  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
+  // Sin secreto no se firma: auth.ts rechaza los tokens firmados sin él.
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error("NEXTAUTH_SECRET no está configurado");
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const hmac = createHmac("sha256", secret);
   hmac.update(data);
@@ -80,10 +83,16 @@ export async function POST(req: NextRequest) {
     // Validar que existe
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, email: true, name: true, organizationId: true },
+      select: { id: true, email: true, name: true, organizationId: true, isStaff: true },
     });
     if (!targetUser) {
       return NextResponse.json({ error: "User target no existe" }, { status: 404 });
+    }
+
+    // auth.ts rechaza impersonar a alguien de staff (ver el provider). Decirlo
+    // acá, con un mensaje, en vez de entregar un link que va a fallar en el login.
+    if (isStaffUser({ isStaff: targetUser.isStaff, email: targetUser.email })) {
+      return NextResponse.json({ error: "No se puede impersonar a alguien de staff" }, { status: 400 });
     }
 
     // Anti-loop: no impersonar al mismo usuario admin

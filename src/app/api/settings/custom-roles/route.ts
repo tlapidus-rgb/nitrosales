@@ -39,7 +39,9 @@ export async function GET() {
         permissions: true,
         createdAt: true,
         updatedAt: true,
-        createdBy: { select: { id: true, name: true, email: true } },
+        // Sin `id`: un rol o una key creada por staff en "ver como" exponía el id
+        // de alguien de staff a los usuarios del cliente (ver auth.ts, impersonación).
+        createdBy: { select: { name: true, email: true } },
         _count: { select: { users: true } },
       },
       orderBy: { createdAt: "asc" },
