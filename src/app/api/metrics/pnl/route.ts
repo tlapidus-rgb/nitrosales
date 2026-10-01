@@ -364,6 +364,24 @@ export async function GET(req: NextRequest) {
     // COGS coverage: what % of items have cost data
     const cogsCoverage = itemsTotal > 0 ? (itemsWithCost / itemsTotal) * 100 : 0;
 
+    // ── ¿Hubo algo que costear? ─────────────────────────
+    // Con 0 ítems la cobertura de arriba sale 0, y 0 % es lo mismo que "no
+    // cargaste ningún costo": `PnlCoverageGate` escondía el P&L con "falta
+    // cargar los precios de costo" a un cliente con el 100 % de los costos
+    // cargados, sólo porque el rango (p. ej. "hoy" antes de la primera venta)
+    // no tenía ventas. No es falta de costos: no hay nada que costear.
+    //
+    // `cogsCoverage` NO se cambia (sigue en 0) para no moverle el número a
+    // nadie que lo lea suelto; el que distingue es este flag, y el criterio
+    // de qué hacer con él vive en `confianzaDelPnl` (confianza-del-margen.ts).
+    //
+    // Exige las DOS cosas a propósito. Mismos filtros en las dos queries, así
+    // que sin órdenes no puede haber ítems; pero si hay órdenes y 0 ítems (los
+    // ítems no se sincronizaron), la facturación es real y el COGS = 0 es
+    // desconocido, no cero: ese caso tiene que seguir bloqueado, o volvería el
+    // "margen 100 %" que E-25 vino a cerrar.
+    const sinVentas = orders === 0 && itemsTotal === 0;
+
     // Comparison calculations
     const prevRevenue = parseFloat(compRevenue[0].revenue);
     const prevOrders = parseInt(compRevenue[0].orders);
@@ -586,6 +604,7 @@ export async function GET(req: NextRequest) {
         aov: Math.round(aov),
         cogs: Math.round(cogs),
         cogsCoverage: Math.round(cogsCoverage),
+        sinVentas,
         grossProfit: Math.round(grossProfit),
         grossMargin: Math.round(grossMargin * 10) / 10,
         adSpend: Math.round(adSpend),

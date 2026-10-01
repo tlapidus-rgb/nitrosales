@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   confianzaDelMargen,
+  confianzaDelPnl,
   margenParaMostrar,
   avisoDeCobertura,
   COBERTURA_MINIMA,
@@ -106,6 +107,24 @@ describe("avisoDeCobertura", () => {
     for (const c of [0, 35]) {
       expect(avisoDeCobertura(c)!.toLowerCase()).not.toContain("cogs");
       expect(avisoDeCobertura(c)!.toLowerCase()).not.toContain("coverage");
+    }
+  });
+});
+
+describe("confianzaDelPnl", () => {
+  // Un rango sin ventas da cobertura 0 (0 ítems con costo de 0 ítems) y eso
+  // NO es falta de costos: no hay nada que costear. Tratarlo como "sin-datos"
+  // le decía "falta cargar los precios de costo" a quien los tenía todos.
+  it("sin ventas no hay costos faltantes", () => {
+    expect(confianzaDelPnl({ cogsCoverage: 0, sinVentas: true })).toBe("confiable");
+  });
+
+  it("con ventas, o sin el flag, decide la cobertura igual que siempre", () => {
+    // Sólo `sinVentas === true` cambia algo: una respuesta sin el campo no
+    // puede destrabar un P&L con cobertura 0.
+    for (const c of [0, 19.99, 20, 49.99, 50, 100, NaN]) {
+      expect(confianzaDelPnl({ cogsCoverage: c, sinVentas: false })).toBe(confianzaDelMargen(c));
+      expect(confianzaDelPnl({ cogsCoverage: c })).toBe(confianzaDelMargen(c));
     }
   });
 });

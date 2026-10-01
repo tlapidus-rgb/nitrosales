@@ -51,6 +51,33 @@ export function confianzaDelMargen(coberturaPct: number): ConfianzaDelMargen {
 }
 
 /**
+ * La confianza del P&L de un rango, que no es exactamente la de su cobertura.
+ *
+ * `/api/metrics/pnl` calcula la cobertura como ítems con costo / ítems vendidos,
+ * y con 0 ítems vendidos eso da 0 %. Pero un rango sin ventas (por ejemplo
+ * "hoy" antes de la primera orden) no tiene costos FALTANTES: no tiene nada que
+ * costear. Tratarlo como cobertura 0 le decía "falta cargar los precios de
+ * costo" a un cliente que los tenía todos cargados.
+ *
+ * Por eso la API manda `sinVentas` (sin órdenes Y sin ítems) y este es el único
+ * lugar que lo interpreta: sin ventas, el COGS = 0 no es un costo desconocido
+ * contado como gratis —el error que E-25 vino a cerrar—, es el costo exacto de
+ * no haber vendido nada. El margen no se infla porque no hay facturación sobre
+ * la cual calcularlo.
+ *
+ * Sólo `sinVentas === true` cambia algo: si el flag no vino (una respuesta vieja
+ * o un consumidor que no lo manda), se decide por la cobertura como siempre. Y
+ * con ventas el resultado es exactamente `confianzaDelMargen`.
+ */
+export function confianzaDelPnl(summary: {
+  cogsCoverage: number;
+  sinVentas?: boolean;
+}): ConfianzaDelMargen {
+  if (summary.sinVentas === true) return "confiable";
+  return confianzaDelMargen(summary.cogsCoverage);
+}
+
+/**
  * El margen que corresponde mostrar, o `null` si no corresponde mostrar ninguno.
  *
  * `null` **no** significa "mostrá 0 %" ni "mostrá 100 %": significa que la

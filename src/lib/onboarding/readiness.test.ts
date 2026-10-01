@@ -210,17 +210,32 @@ describe("el afiliado de VTEX — el otro mecanismo", () => {
     expect(r.listo).toBe(true);
   });
 
-  it("EL CASO TEVE COMPRAS: tener sólo uno de los dos no es estar listo", () => {
-    // Con el afiliado puesto y el broadcaster no, el semáforo tiene que
-    // mostrar el problema en el item que corresponde — no dar todo en verde
-    // porque "hay un webhook".
+  it("EL CASO TEVE COMPRAS: con sólo el afiliado, el Broadcaster que falta queda en rojo — pero HOY no bloquea el alta (R-26)", () => {
+    // Este test se llamaba "tener sólo uno de los dos no es estar listo" y
+    // nunca miraba `listo`: afirmaba sólo los dos items, que ya cubren por
+    // separado "no registrado: falta" y el caso feliz. Agregar "webhook-vtex"
+    // a BLOQUEANTES, o sacarlo, lo dejaba verde igual; y peor, el título
+    // afirmaba lo contrario de lo que el código hace — con este insumo
+    // `evaluarReadiness` da `listo: true`.
+    //
+    // Si el Broadcaster tiene que bloquear el alta es una decisión de negocio
+    // PENDIENTE (R-26, docs/revision-2026-09/04-DECISIONES-TECNICAS.md §10).
+    // Este test fija el comportamiento ACTUAL a propósito, para que cambiarlo
+    // sea una decisión explícita y no un efecto colateral: el día que se decida
+    // que bloquee, este test se da vuelta junto con BLOQUEANTES.
     const r = evaluarReadiness({
       ...todoBien,
       afiliadoVtexRegistrado: true,
       webhookVtexRegistrado: false,
     });
+    // Lo que el semáforo SÍ garantiza: el problema se ve, en el item que es y
+    // con la instrucción para arreglarlo — no queda todo en verde porque "hay
+    // un webhook".
     expect(item(r, "afiliado-vtex").estado).toBe("ok");
     expect(item(r, "webhook-vtex").estado).toBe("falta");
+    expect(item(r, "webhook-vtex").queHacer).toContain("/api/orders/hook/config");
+    // Lo que HOY no hace: no frena el alta. El rojo no cuenta como bloqueante.
+    expect(r).toMatchObject({ listo: true, estado: "listo", bloqueantes: 0 });
   });
 
   it("cuando se verificó, el detalle dice qué pasa", () => {

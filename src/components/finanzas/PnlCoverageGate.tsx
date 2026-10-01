@@ -1,11 +1,11 @@
 "use client";
 
 import React, { type ReactNode } from "react";
-import { confianzaDelMargen, avisoDeCobertura } from "@/lib/finanzas/confianza-del-margen";
+import { confianzaDelPnl, avisoDeCobertura } from "@/lib/finanzas/confianza-del-margen";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 
 type KnownSummary = {
-  cogsCoverage: number; revenue: number; orders: number; units: number; aov: number;
+  cogsCoverage: number; sinVentas?: boolean; revenue: number; orders: number; units: number; aov: number;
   cogs: number; adSpend: number; shipping: number;
   platformFees?: number; paymentFees?: number; manualCostsTotal?: number;
 };
@@ -20,9 +20,15 @@ type Props = {
   children: ReactNode;
 };
 
-/** One boundary for cards, charts, drills and exports in both P&L views. */
+/**
+ * One boundary for cards, charts, drills and exports in both P&L views.
+ *
+ * Decide con `confianzaDelPnl` y no con la cobertura sola: un rango sin ventas
+ * da cobertura 0 y NO es falta de costos (no hay nada que costear). Antes este
+ * gate le mostraba "falta cargar los precios de costo" a quien los tenía todos.
+ */
 export default function PnlCoverageGate(props: Props) {
-  if (confianzaDelMargen(props.summary.cogsCoverage) !== "sin-datos") return <>{props.children}</>;
+  if (confianzaDelPnl(props.summary) !== "sin-datos") return <>{props.children}</>;
   return <KnownPnlData {...props} />;
 }
 

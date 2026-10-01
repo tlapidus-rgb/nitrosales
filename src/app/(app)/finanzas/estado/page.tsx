@@ -15,7 +15,7 @@ import WaterfallDrillPanel, { DrillData, DrillRow } from "@/components/finanzas/
 import ExportMenu from "@/components/finanzas/ExportMenu";
 import { exportPnLToExcel, ExportRow, ExportManualCost } from "@/lib/finanzas/export";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
-import { confianzaDelMargen } from "@/lib/finanzas/confianza-del-margen";
+import { confianzaDelPnl } from "@/lib/finanzas/confianza-del-margen";
 import PnlCoverageGate from "@/components/finanzas/PnlCoverageGate";
 
 /* ── Types ──────────────────────────────────── */
@@ -26,6 +26,8 @@ interface PnlSummary {
   aov: number;
   cogs: number;
   cogsCoverage: number;
+  /** El rango no tuvo órdenes ni ítems: cobertura 0 NO es falta de costos. Ver `confianzaDelPnl`. */
+  sinVentas?: boolean;
   grossProfit: number;
   grossMargin: number;
   adSpend: number;
@@ -166,14 +168,30 @@ function MarginBar({ value, color }: { value: number; color: string }) {
  * otra. Exactamente la divergencia que el módulo dice cerrar.
  *
  * Un margen del 100 % no es una buena noticia: es que no hay costos cargados.
+ *
+ * Recibe el summary entero (no sólo el número) porque un rango SIN VENTAS
+ * también da cobertura 0 y no es falta de costos: no hay nada que costear.
+ * Decirle "Sin datos de costo" a quien tiene todos los costos cargados es el
+ * mismo aviso falso que mostraba el gate. Ver `confianzaDelPnl`.
  */
 function getHealthStatus(
   margin: number,
-  coberturaPct: number,
+  summary: { cogsCoverage: number; sinVentas?: boolean },
 ): { label: string; color: string; bgColor: string; dotColor: string } {
+  // Sin ventas no hay margen que semaforear, pero por otro motivo: sin
+  // facturación el margen sale 0 por convención de la API, y pintarlo
+  // "Ajustado" sería inventar un juicio sobre algo que no pasó.
+  if (summary.sinVentas === true) {
+    return {
+      label: "Sin ventas en el período",
+      color: "text-ink-60",
+      bgColor: "bg-ink-5 border-ink-10",
+      dotColor: "bg-ink-30",
+    };
+  }
   // Sin cobertura suficiente no hay margen que semaforear. El criterio es el
   // del módulo compartido, no un número escrito acá.
-  if (confianzaDelMargen(coberturaPct) === "sin-datos") {
+  if (confianzaDelPnl(summary) === "sin-datos") {
     return {
       label: "Sin datos de costo",
       color: "text-ink-60",
@@ -266,7 +284,7 @@ function ExecutiveView({
 
   const netProfit = summary.netOperatingProfit ?? summary.operatingProfit;
   const netMargin = summary.netOperatingMargin ?? summary.operatingMargin;
-  const health = getHealthStatus(netMargin, summary.cogsCoverage);
+  const health = getHealthStatus(netMargin, summary);
 
   // Total costs
   const totalCosts = summary.cogs + summary.adSpend + summary.shipping
@@ -279,7 +297,7 @@ function ExecutiveView({
       {/* COGS Coverage Warning */}
       {/* El umbral sale del módulo compartido, no de un 50 escrito acá.
           Ver `confianza-del-margen.ts` y el comentario de getHealthStatus. */}
-      {confianzaDelMargen(summary.cogsCoverage) !== "confiable" && (
+      {confianzaDelPnl(summary) !== "confiable" && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
           <span className="text-amber-500 text-lg">&#9888;</span>
           <div>
@@ -418,7 +436,7 @@ function ExecutiveView({
       {bySource.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {bySource.map((s) => {
-            const channelHealth = getHealthStatus(s.operatingMargin, summary.cogsCoverage);
+            const channelHealth = getHealthStatus(s.operatingMargin, summary);
             const revPct = summary.revenue > 0 ? ((s.revenue / summary.revenue) * 100).toFixed(0) : 0;
             return (
               <div key={s.source} className="bg-elevated rounded-xl p-5 shadow-sm">
@@ -688,7 +706,12 @@ function DetailedView({
     }
 
     if (name === "COGS") {
-      base.description = `Costo de mercadería vendida. Cobertura actual: ${summary.cogsCoverage}% de las unidades tienen precio de costo cargado.`;
+      // Sin ventas la cobertura viene en 0 y "0% de las unidades tienen precio
+      // de costo" sería el mismo aviso falso de costos faltantes (ver
+      // `confianzaDelPnl`): no hubo unidades que costear.
+      base.description = summary.sinVentas === true
+        ? "Costo de mercadería vendida. No hubo unidades vendidas en el período."
+        : `Costo de mercadería vendida. Cobertura actual: ${summary.cogsCoverage}% de las unidades tienen precio de costo cargado.`;
       const totalAbs = Math.abs(value) || 1;
       base.rows = bySource
         .filter((s) => s.cogs > 0)
@@ -829,7 +852,7 @@ function DetailedView({
       {/* COGS Coverage Warning */}
       {/* El umbral sale del módulo compartido, no de un 50 escrito acá.
           Ver `confianza-del-margen.ts` y el comentario de getHealthStatus. */}
-      {confianzaDelMargen(summary.cogsCoverage) !== "confiable" && (
+      {confianzaDelPnl(summary) !== "confiable" && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
           <span className="text-amber-500 text-lg">&#9888;</span>
           <div>
@@ -1313,7 +1336,7 @@ export default function FinanzasPage() {
             <p className="text-sm text-ink-40 mt-0.5">P&L — Estado de Resultados</p>
           </div>
           {/* View Mode Toggle */}
-          {confianzaDelMargen(summary.cogsCoverage) !== "sin-datos" && (
+          {confianzaDelPnl(summary) !== "sin-datos" && (
           <div className="flex bg-surface-2 rounded-lg p-0.5 print:hidden">
             <button
               onClick={() => setViewMode("executive")}
