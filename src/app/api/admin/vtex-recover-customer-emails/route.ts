@@ -175,8 +175,16 @@ export async function GET(req: NextRequest) {
       const nextUrl =
         `${baseUrl}/api/admin/vtex-recover-customer-emails` +
         `?orgId=${encodeURIComponent(orgId)}&key=${encodeURIComponent(KEY)}&autoContinue=1`;
+      // HOTFIX 2026-10-01: el middleware exige sesión de staff en /api/admin
+      // (la key sola ya no alcanza, y esta ruta NO está en la allowlist porque
+      // devuelve emails de compradores). El auto-continue reenvía la cookie de
+      // sesión del staff que disparó la corrida, sólo a nuestro propio host.
+      const sessionCookie = req.headers.get("cookie");
       waitUntil(
-        fetch(nextUrl, { method: "GET" })
+        fetch(nextUrl, {
+          method: "GET",
+          headers: sessionCookie ? { cookie: sessionCookie } : undefined,
+        })
           .then((r) => console.log(`[vtex-recover-customer-emails] auto-continue triggered: HTTP ${r.status}`))
           .catch((err) => console.error(`[vtex-recover-customer-emails] auto-continue failed: ${err.message}`)),
       );
