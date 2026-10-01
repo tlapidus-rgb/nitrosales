@@ -2,8 +2,8 @@
 // src/lib/organizacion/session-access.ts — quién es, y si puede entrar
 // ══════════════════════════════════════════════════════════════════════════
 // Corre en cada resolución de sesión (callback `session` de NextAuth), también
-// para JWT ya emitidos. Hace tres cosas con una sola búsqueda por clave primaria
-// (Prisma la resuelve en dos idas a la base: usuario y organización):
+// para JWT ya emitidos. Hace tres cosas con una sola consulta por clave
+// primaria, en UNA ida a la base (ver `leerIdentidad`):
 //
 // 1. **Ata la identidad del token a la base.** El token es un JWT firmado con
 //    NEXTAUTH_SECRET, y ese secreto no es secreto: `/api/me/vtex-affiliate-info`
@@ -55,6 +55,8 @@ const MAX_RECORDADOS = 5_000;
 
 type Identidad = { email: string; organizationId: string; isStaff: boolean; role: string; settings: unknown };
 type Recordada = { identidad: Identidad | null; hasta: number };
+/** Una fila de `leerIdentidad`, tal como la devuelve la base. */
+type FilaIdentidad = { email: string; isStaff: boolean; role: string; organizationId: string; settings: unknown };
 
 const ultimaVerificada = new Map<string, Recordada>();
 
@@ -79,6 +81,36 @@ export type Verificacion =
 
 type DatosDelToken = { id?: unknown; email?: unknown; organizationId?: unknown };
 
+/**
+ * El usuario y los settings de su organización, en una sola ida a la base.
+ *
+ * Por qué SQL y no `findUnique` con `organization: { select }`: Prisma 5 sin
+ * `relationJoins` resuelve ese select anidado en DOS consultas (usuario, después
+ * organización), y esto corre en cada resolución de sesión —cada vez que una
+ * pestaña vuelve al foco— contra un pool chico. Un JOIN por clave primaria lo
+ * deja en una. Devuelve lo mismo que devolvía el select de Prisma:
+ * - Tablas y columnas son las reales del esquema (`@@map("users")`,
+ *   `@@map("organizations")`; los campos camelCase no tienen `@map`, por eso
+ *   van entre comillas: sin ellas Postgres los pasa a minúsculas y no existen).
+ * - `role` es el enum `UserRole`: se castea a texto en la base para no depender
+ *   de cómo deserializa Prisma un enum en una consulta cruda.
+ * - `settings` es jsonb: Prisma lo entrega ya parseado, igual que con el select.
+ * - LEFT JOIN y no JOIN: la existencia del usuario la decide `users`. Si la
+ *   organización faltara (la FK lo impide), el usuario no pasa a "no existe" ni
+ *   queda recordado como tal: llega con `settings` null, que
+ *   `accesoDeLaOrganizacion` bloquea igual ("unavailable").
+ * El id viaja como parámetro del tagged template, nunca interpolado en el texto.
+ */
+async function leerIdentidad(id: string): Promise<FilaIdentidad | null> {
+  const filas = await prisma.$queryRaw<FilaIdentidad[]>`
+    SELECT u."email", u."isStaff", u."role"::text AS "role", u."organizationId", o."settings"
+    FROM "users" u
+    LEFT JOIN "organizations" o ON o."id" = u."organizationId"
+    WHERE u."id" = ${id}
+    LIMIT 1`;
+  return filas[0] ?? null;
+}
+
 /** ¿El usuario del token existe y coincide con la base? */
 export async function verificarIdentidad(token: DatosDelToken, ahora = Date.now()): Promise<Verificacion> {
   const { id, email, organizationId } = token;
@@ -87,18 +119,9 @@ export async function verificarIdentidad(token: DatosDelToken, ahora = Date.now(
 
   let identidad: Identidad | null;
   try {
-    const u = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        email: true,
-        isStaff: true,
-        role: true,
-        organizationId: true,
-        organization: { select: { settings: true } },
-      },
-    });
+    const u = await leerIdentidad(id);
     identidad = u
-      ? { email: u.email, organizationId: u.organizationId, isStaff: u.isStaff === true, role: String(u.role), settings: u.organization?.settings }
+      ? { email: u.email, organizationId: u.organizationId, isStaff: u.isStaff === true, role: String(u.role), settings: u.settings }
       : null;
     recordar(id, identidad, ahora);
   } catch (err: any) {

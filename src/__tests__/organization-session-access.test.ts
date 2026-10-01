@@ -1,6 +1,9 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ user: vi.fn(), find: vi.fn(), many: vi.fn(), session: vi.fn(), cookies: vi.fn() }));
-vi.mock("@/lib/db/client", () => ({ prisma: { user: { findUnique: m.user }, organization: { findUnique: m.find, findMany: m.many } } }));
+// `m.user` es la consulta de identidad: un `$queryRaw` (tagged template) que
+// devuelve filas planas. El SQL real se prueba contra Postgres en
+// session-access-sql.test.ts; acá se prueba qué se hace con lo que devuelve.
+vi.mock("@/lib/db/client", () => ({ prisma: { $queryRaw: m.user, organization:{ findUnique: m.find, findMany: m.many } } }));
 vi.mock("next-auth", () => ({ getServerSession: m.session }));
 vi.mock("next/headers", () => ({ cookies: m.cookies }));
 vi.mock("@/lib/permissions-resolve", () => ({ resolveEffectivePermissionsByEmail: vi.fn(),allowedSectionsFrom: vi.fn(),writableSectionsFrom: vi.fn() }));
@@ -22,7 +25,9 @@ import { STAFF_EMAILS } from "@/lib/staff";
 const suspended = { suspension: { desde: "2026-09-29",motivo: "PRIVATE REASON",porQuien: "PRIVATE STAFF",cortarIngesta: false } };
 const token = { id: "user",organizationId: "a",organizationName: "A",email: "client@example.invalid",isStaff: false,role: "VIEWER" };
 const enBase = (o: Record<string, unknown> = {}, settings: unknown = {}) =>
- ({ email: "client@example.invalid",isStaff: false,role: "VIEWER",organizationId: "a",organization: { settings },...o });
+ [{ email: "client@example.invalid",isStaff: false,role: "VIEWER",organizationId: "a",settings,...o }];
+/** Lo que devuelve la consulta cuando el usuario no existe: ninguna fila. */
+const noExiste: unknown[] = [];
 const resolve = (override = {}) => authOptions.callbacks!.session!({ session: { expires: "2099-01-01",user: { email: "client@example.invalid" } },token: { ...token,...override } } as any) as Promise<any>;
 const staffEmail = [...STAFF_EMAILS][0];
 
@@ -47,7 +52,7 @@ it.each([null,[],"invalid",{ suspension: "invalid" },{ suspension: {} }])("denie
  m.user.mockResolvedValue(enBase({}, settings)); expect(await resolve()).toMatchObject({ organizationAccess: "unavailable" });
 });
 it("denies missing users and database failures without exposing identity", async () => {
- m.user.mockResolvedValue(null); expect(await resolve()).toEqual({ expires: "2099-01-01",organizationAccess: "unavailable" });
+ m.user.mockResolvedValue(noExiste); expect(await resolve()).toEqual({ expires: "2099-01-01",organizationAccess: "unavailable" });
  olvidarVerificaciones();
  m.user.mockRejectedValue(new Error("database internal detail"));
  expect(await resolve()).toEqual({ expires: "2099-01-01",organizationAccess: "unavailable" });
@@ -96,7 +101,7 @@ it("un token que dice otra organización que la del usuario, no entra", async ()
  expect(await resolve({ organizationId: "other-org" })).toMatchObject({ organizationAccess: "unavailable" });
 });
 it("un token de un usuario que no existe, no entra", async () => {
- m.user.mockResolvedValue(null);
+ m.user.mockResolvedValue(noExiste);
  expect((await resolve({ id: "invented" })).user).toBeUndefined();
 });
 it("el rol sale de la base: un token que se sube a OWNER sigue siendo VIEWER", async () => {
@@ -108,6 +113,15 @@ it("el staff real sale de la base, también por la allowlist de email", async ()
 });
 it("el email se compara sin distinguir mayúsculas", async () => {
  expect((await resolve({ email: "Client@Example.Invalid" })).user.id).toBe("user");
+});
+it("una sola consulta por sesión, con el id como parámetro y no en el texto del SQL", async () => {
+ // El id del token es dato del atacante: tiene que viajar como parámetro del
+ // tagged template. Si alguien lo interpolara en el texto, acá aparecería.
+ await resolve({ id: "x' OR '1'='1" });
+ expect(m.user).toHaveBeenCalledTimes(1);
+ const [strings, ...values] = m.user.mock.calls[0];
+ expect(values).toEqual(["x' OR '1'='1"]);
+ expect(strings.join("?")).not.toContain("OR '1'='1");
 });
 it("sin email en el token, no entra", async () => {
  expect(await resolve({ email: undefined })).toMatchObject({ organizationAccess: "unavailable" });
@@ -132,7 +146,7 @@ it("la memoria no revive a un usuario que la base ya dijo que no existe", async 
  // Verificado, después borrado, después un corte: lo último que dijo la base
  // es "no existe", y eso es lo que vale — no la verificación de antes.
  expect((await resolve()).user.id).toBe("user");
- m.user.mockResolvedValue(null); await resolve();
+ m.user.mockResolvedValue(noExiste); await resolve();
  m.user.mockRejectedValue(new Error("pool timeout"));
  expect(await resolve()).toMatchObject({ organizationAccess: "unavailable" });
 });

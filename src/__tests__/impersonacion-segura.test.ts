@@ -21,6 +21,12 @@ vi.mock("@/lib/db/client", () => ({
         return u ? { ...u, organization: { id: u.organizationId, name: "Org", settings: {} } } : null;
       },
     },
+    // La verificación de identidad de cada sesión (session-access.ts) es una
+    // consulta cruda con el id como único parámetro; devuelve filas planas.
+    $queryRaw: async (_sql: TemplateStringsArray, id: string) => {
+      const u = m.users.get(id);
+      return u ? [{ email: u.email, isStaff: u.isStaff, role: u.role, organizationId: u.organizationId, settings: {} }] : [];
+    },
     loginEvent: { create: m.login },
   },
 }));
