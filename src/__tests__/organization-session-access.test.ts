@@ -58,7 +58,7 @@ it.each([undefined,"",123])("denies a missing or invalid organization ID: %j", a
 it.each([undefined,"",42])("denies a missing or invalid user ID without querying: %j", async id => {
  expect(await resolve({ id })).toMatchObject({ organizationAccess: "unavailable" }); expect(m.user).not.toHaveBeenCalled();
 });
-it("keeps actual support access and resolves view-as before checking the session", async () => {
+it("keeps actual support access in view-as, after verifying the identity", async () => {
  m.user.mockResolvedValue(enBase({ isStaff: true }, suspended));
  m.cookies.mockResolvedValue({ get: () => ({ value: "target" }) });
  m.find.mockResolvedValue({ id: "target",name: "Target" });

@@ -34,6 +34,10 @@ async function main() {
  const request=(path,c=clientCookie,method='GET',body)=>fetch(base+path,{method,headers:{cookie:c,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
  const session=async(c=clientCookie)=>(await request('/api/auth/session',c)).json();
  assert.equal((await session()).user.organizationId,'smoke-org');
+ // A forged staff claim is ignored: staff, role and identity come from the database.
+ const forged=await session(await cookie({isStaff:true}));assert.equal(forged.user.isStaff,false);
+ assert.equal((await session(await cookie({email:'staff@local.example.invalid'}))).organizationAccess,'unavailable');
+ assert.equal((await session(await cookie({organizationId:'other-org'}))).organizationAccess,'unavailable');
  assert.equal((await request('/api/settings/security/login-history')).status,200);
  const suspend=await request('/api/admin/orgs/smoke-org/suspension',staffCookie,'POST',{motivo:'Synthetic private reason'});
  assert.equal(suspend.status,200);assert.equal((await suspend.json()).seAplica,true);

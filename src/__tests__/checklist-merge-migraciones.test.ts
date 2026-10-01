@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 // /api/admin/checklist-merge contra Postgres de verdad
 // ══════════════════════════════════════════════════════════════════════════
 // El criterio (`evaluarChecklist`) tiene sus tests; éste prueba que la RUTA
-// pregunte bien: que las consultas a information_schema y los permisos
+// pregunte bien: que las consultas al catálogo (to_regclass, pg_attribute) y los permisos
 // detecten las cinco migraciones sin correr, y que después de correr los
 // `.sql` reales digan que están. Un checklist que consulta mal es peor que no
 // tenerlo: da "listo" con autoridad.

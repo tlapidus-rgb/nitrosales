@@ -101,7 +101,11 @@ export async function verificarIdentidad(token: DatosDelToken, ahora = Date.now(
       ? { email: u.email, organizationId: u.organizationId, isStaff: u.isStaff === true, role: String(u.role), settings: u.organization?.settings }
       : null;
     recordar(id, identidad, ahora);
-  } catch {
+  } catch (err: any) {
+    // Que quede rastro: un error que no se resuelve solo (esquema, permisos)
+    // se ve igual que un corte breve, y la memoria atrasa el síntoma 5 minutos.
+    // Sin datos del usuario: sólo qué tipo de error fue.
+    console.error("[session-access] no se pudo verificar la sesión:", err?.code ?? err?.name ?? "error");
     const previa = ultimaVerificada.get(id);
     if (!previa || previa.hasta < ahora) return { estado: "no-verificable" };
     identidad = previa.identidad;
