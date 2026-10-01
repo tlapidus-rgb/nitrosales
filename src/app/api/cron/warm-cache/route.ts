@@ -27,7 +27,6 @@
 // ══════════════════════════════════════════════════════════════
 
 import { registrarLatido } from "@/lib/cron/latido";
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
@@ -42,7 +41,7 @@ import {
   PIPELINE_FRESHNESS_TARGETS,
 } from "@/lib/pipeline/freshness";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
-import { isValidAdminKey } from "@/lib/admin-key";
+import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — warm de N orgs puede tardar

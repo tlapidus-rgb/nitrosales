@@ -19,17 +19,16 @@
 // Multi-tenant safe: orgId explicito + credenciales del seller.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
 import { withConcurrency } from "@/lib/sync/concurrency";
 import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const REFRESH_KEY = ADMIN_API_KEY;
 const CONCURRENCY = 5;          // batches /items en paralelo
 const BATCH_SIZE = 20;          // ML acepta hasta 20 ids por request
 const MAX_PRODUCTS = 5000;      // techo por corrida (chunk defensive)
@@ -40,7 +39,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
     const orgId = url.searchParams.get("orgId");
-    if (key !== REFRESH_KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!isValidAdminKey(key)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!orgId) return NextResponse.json({ error: "orgId required" }, { status: 400 });
 
     // Token del seller (refrescado si hiciera falta)

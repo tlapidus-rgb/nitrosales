@@ -18,7 +18,6 @@
 //   - Si refresh falla → marcar status=ERROR y notificar (TODO).
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -27,7 +26,6 @@ import { isValidAdminKey } from "@/lib/admin-key";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const KEY = ADMIN_API_KEY;
 const META_API_VERSION = "v21.0";
 const REFRESH_THRESHOLD_DAYS = 7; // Renovar si quedan menos de 7 dias
 
@@ -36,7 +34,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    // Cron Vercel pasa header x-vercel-cron-signature, key=KEY para manual,
+    // Cron Vercel pasa header x-vercel-cron-signature, key=<ADMIN_API_KEY> para manual,
     // o sesion admin.
     const isCron = req.headers.get("x-vercel-cron") === "1";
     const allowed = isCron || isValidAdminKey(key) || (await isInternalUser());

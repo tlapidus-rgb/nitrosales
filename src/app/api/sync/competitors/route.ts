@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { scrapeProductPrice } from "@/lib/connectors/competitor-scraper";
-import { isValidAdminKey } from "@/lib/admin-key";
 import { esClavePropia } from "@/lib/cron/clave";
+import { isValidAdminKey } from "@/lib/admin-key";
 
 export const revalidate = 0;
 export const maxDuration = 60;
@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   const key = searchParams.get("key");
-  if (!esClavePropia(key, process.env.CRON_SECRET) && !isValidAdminKey(key)) {
+  // Igual que antes: si CRON_SECRET está configurada, es la única que vale.
+  const autorizado = process.env.CRON_SECRET ? esClavePropia(key, process.env.CRON_SECRET) : isValidAdminKey(key);
+  if (!autorizado) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -24,9 +24,9 @@
 //   - Idempotente: upserts por (organizationId + X)
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isValidAdminKey } from "@/lib/admin-key";
 import {
   getSellerToken,
   fetchSellerListings,
@@ -37,7 +37,6 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const BOOTSTRAP_KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
@@ -49,7 +48,7 @@ export async function GET(req: NextRequest) {
     const key = url.searchParams.get("key");
     const orgId = url.searchParams.get("orgId");
 
-    if (key !== BOOTSTRAP_KEY) {
+    if (!isValidAdminKey(key)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!orgId) {

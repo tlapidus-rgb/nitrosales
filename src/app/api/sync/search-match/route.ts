@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 //   GET /api/sync/search-match?key=...&dry=true  (test without writing)
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { OwnProduct } from "@/lib/connectors/competitor-discovery";
@@ -30,7 +29,6 @@ import { esClaveDeCron } from "@/lib/cron/clave";
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const CRON_KEY = process.env.NEXTAUTH_SECRET || ADMIN_API_KEY;
 const SAFETY_TIMEOUT_MS = 45000;
 const DEFAULT_BATCH = 50;
 
@@ -169,7 +167,7 @@ export async function GET(req: NextRequest) {
         matched: 0,
         alreadyMatched: ownProducts.length,
         hasMore: offset + maxProducts < await prisma.product.count({ where: { organizationId: orgId, isActive: true } }),
-        nextUrl: `/api/sync/search-match?key=${CRON_KEY}&store=${competitorStoreId}&offset=${offset + maxProducts}&maxProducts=${maxProducts}`,
+        nextUrl: `/api/sync/search-match?key=${encodeURIComponent(searchParams.get("key") ?? "")}&store=${competitorStoreId}&offset=${offset + maxProducts}&maxProducts=${maxProducts}`,
       });
     }
 
@@ -312,7 +310,7 @@ export async function GET(req: NextRequest) {
       totalOwnProducts,
       elapsedMs: Date.now() - start,
       ...(hasMore ? {
-        nextUrl: `/api/sync/search-match?key=${CRON_KEY}&store=${competitorStoreId}&offset=${offset + maxProducts}&maxProducts=${maxProducts}${platformOverride ? `&platform=${platformOverride}` : ""}`,
+        nextUrl: `/api/sync/search-match?key=${encodeURIComponent(searchParams.get("key") ?? "")}&store=${competitorStoreId}&offset=${offset + maxProducts}&maxProducts=${maxProducts}${platformOverride ? `&platform=${platformOverride}` : ""}`,
       } : {}),
     });
   } catch (error: any) {

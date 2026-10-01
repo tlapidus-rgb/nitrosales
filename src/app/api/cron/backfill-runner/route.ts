@@ -34,7 +34,6 @@
 // mientras corremos, soltamos con el cursor guardado.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { waitUntil } from "@vercel/functions";
@@ -52,7 +51,7 @@ import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
 import { dataReadyEmailActive } from "@/lib/onboarding/emails";
 import { selfFetchBaseUrl } from "@/lib/self-fetch";
-import { isValidAdminKey } from "@/lib/admin-key";
+import { ADMIN_API_KEY, isValidAdminKey } from "@/lib/admin-key";
 import {
   decidirAdmision,
   seguirEnElLoop,

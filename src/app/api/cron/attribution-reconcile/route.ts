@@ -17,7 +17,6 @@
 // (o que lo dispare otro cron). Pendiente junto con la migración de crons a CRON_SECRET
 // (ver BP-M1). Mientras tanto es invocable manualmente con ?key=.
 // ──────────────────────────────────────────────────────────────
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
@@ -28,7 +27,6 @@ import { attributeOrderToInfluencer } from "@/lib/pixel/influencer-attribution";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
 
-const KEY = ADMIN_API_KEY;
 const DEFAULT_DAYS = 3;
 import { ultimoProcesado, indiceDespuesDe, guardarCorte } from "@/lib/cron/cursor-store";
 import { esClaveDeCron } from "@/lib/cron/clave";

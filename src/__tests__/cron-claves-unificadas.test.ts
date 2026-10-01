@@ -45,9 +45,42 @@ const deCrons: string[] = [
 const deSync = rutasBajo(join(API, "sync"));
 const ALCANCE = [...new Set([...deCrons, ...deSync])];
 
-// Una comparación directa contra algo que parece un secreto, de cualquiera de los dos lados.
-const SECRETO = String.raw`(?:process\.env\.[A-Z_]*(?:SECRET|KEY)[A-Z_]*|ADMIN_API_KEY|CRON_KEY|WARM_CACHE_KEY|KEY)\b`;
-const COMPARACION_A_MANO = new RegExp(String.raw`[!=]==\s*${SECRETO}|\b${SECRETO}\s*[!=]==`);
+// ── Qué cuenta como "comparar a mano" ─────────────────────────────────────
+// Se busca la CONDICIÓN, no una forma sintáctica (E-03): cualquier comparación
+// —`===`, `!==`, `==`, `!=`— entre dos expresiones que no son literales, donde
+// una de las dos parece un secreto (por nombre: termina en KEY/Key/key,
+// SECRET/Secret/secret, o es process.env). También `[a, b].includes(clave)` y la
+// comparación contra un template literal con un secreto adentro. El código se
+// une en una sola línea antes de buscar, así un prettier que parte la
+// comparación en dos no la esconde.
+//
+// No cuentan los chequeos de presencia (`typeof process.env.X === "string"`,
+// `=== undefined`): comparan contra un literal, no contra otra clave.
+const OPERANDO = String.raw`[A-Za-z_$][\w$]*(?:\.[\w$]+|\[["'][\w$]+["']\])*`;
+const COMPARACION = new RegExp(String.raw`(${OPERANDO})\s*(?:===|!==|==|!=)\s*(${OPERANDO})`, "g");
+const PARECE_SECRETO = /(?:^process\.env\b|(?:KEY|Key|key|SECRET|Secret|secret)$|(?:KEY|SECRET)["']\]$)/;
+const NO_ES_CLAVE = new Set(["undefined", "null", "true", "false", "NaN"]);
+const INCLUDES = /\.includes\(\s*[\w$.]*(?:KEY|Key|key|SECRET|Secret|secret)\s*\)/;
+const TEMPLATE = /(?:===|!==|==|!=)\s*`[^`]*\$\{[^}]*(?:KEY|SECRET)/;
+
+/** Las comparaciones a mano que encuentra, o [] si no hay. */
+function comparacionesAMano(codigo: string): string[] {
+  const plano = codigo.replace(/\s+/g, " ");
+  const halladas: string[] = [];
+  for (const m of plano.matchAll(COMPARACION)) {
+    const [entera, a, b] = m;
+    if (NO_ES_CLAVE.has(a) || NO_ES_CLAVE.has(b)) continue;
+    if (PARECE_SECRETO.test(a) || PARECE_SECRETO.test(b)) halladas.push(entera);
+  }
+  for (const r of [INCLUDES, TEMPLATE]) {
+    const m = plano.match(r);
+    if (m) halladas.push(m[0]);
+  }
+  return halladas;
+}
+
+/** ¿La ruta lee una clave del request? Entonces tiene que validarla con un helper. */
+const LEE_CLAVE = /searchParams\.get\(\s*["']key["']\s*\)|\.syncKey\b/;
 const VALIDA_CON_HELPER = /\b(?:isValidAdminKey|esClaveDeCron|esClavePropia|isInternalUser)\s*\(/;
 
 const nombre = (p: string) => p.slice(join(process.cwd(), "src", "app").length).replace(/\\/g, "/");
@@ -61,29 +94,51 @@ describe("crons y /api/sync*: la clave se valida con el helper, nunca a mano", (
 
   it.each(ALCANCE.map((p) => [nombre(p), p]))("%s no compara secretos a mano", (_n, p) => {
     const codigo = sinComentarios(readFileSync(p, "utf8"));
-    const linea = codigo.split("\n").find((l) => COMPARACION_A_MANO.test(l));
-    expect(linea, "comparación a mano").toBeUndefined();
+    expect(comparacionesAMano(codigo), "comparación a mano").toEqual([]);
   });
 
-  it.each(deCrons.map((p) => [nombre(p), p]))("%s valida la clave con un helper", (_n, p) => {
-    expect(sinComentarios(readFileSync(p, "utf8"))).toMatch(VALIDA_CON_HELPER);
+  it.each(ALCANCE.map((p) => [nombre(p), p]))("%s, si lee una clave, la valida con un helper", (_n, p) => {
+    const codigo = sinComentarios(readFileSync(p, "utf8"));
+    if (deCrons.includes(p) || LEE_CLAVE.test(codigo)) expect(codigo).toMatch(VALIDA_CON_HELPER);
   });
 
-  it("el patrón reconoce las formas viejas (si no, el barrido no protege nada)", () => {
-    for (const vieja of [
-      `if (key !== process.env.NEXTAUTH_SECRET) {`,
-      `if (reqKey !== KEY && reqKey !== process.env.NEXTAUTH_SECRET) {`,
-      `const ok = key === CRON_KEY ? true : await isInternalUser();`,
-      `if (key !== WARM_CACHE_KEY) {`,
-      `if (key !== process.env.SYNC_SECRET_KEY && key !== ADMIN_API_KEY) {`,
-      `syncKey === process.env.SYNC_KEY;`,
-      `if (process.env.CRON_SECRET === key) {`,
-    ]) expect(COMPARACION_A_MANO.test(vieja), vieja).toBe(true);
-    for (const sana of [
-      `if (!esClaveDeCron(key)) {`,
-      `const porSyncKey = esClavePropia(syncKey, process.env.SYNC_KEY);`,
-      `if (process.env.VERCEL_ENV === "production") {`,
-      `const KEY_PREFIX = "x"; if (k === "a") {}`,
-    ]) expect(COMPARACION_A_MANO.test(sana), sana).toBe(false);
+  it.each(ALCANCE.map((p) => [nombre(p), p]))("%s no le devuelve al que llama una clave que no mandó", (_n, p) => {
+    // competitor-discovery y search-match devolvían un `nextUrl` con
+    // NEXTAUTH_SECRET adentro. Hoy da igual (es la misma clave que la de admin),
+    // pero separadas, quien tuviera la de admin se llevaba la de sesión.
+    const codigo = sinComentarios(readFileSync(p, "utf8")).replace(/\s+/g, " ");
+    for (const m of codigo.matchAll(/nextUrl\s*:\s*`[^`]*key=\$\{([^}]*)\}/g)) {
+      expect(m[1], "el nextUrl tiene que reenviar la clave del pedido").toMatch(/searchParams\.get\(\s*["']key["']\s*\)/);
+    }
+  });
+
+  it("reconoce las formas viejas y las que encontró la revisión", () => {
+    const viejas = [
+      "if (key !== process.env.NEXTAUTH_SECRET) {",
+      "if (reqKey !== KEY && reqKey !== process.env.NEXTAUTH_SECRET) {",
+      "const ok = key === CRON_KEY ? true : await isInternalUser();",
+      "if (key !== WARM_CACHE_KEY) {",
+      "if (key !== BOOTSTRAP_KEY) {",
+      "if (key !== process.env.SYNC_SECRET_KEY && key !== ADMIN_API_KEY) {",
+      "syncKey === process.env.SYNC_KEY;",
+      "if (process.env.CRON_SECRET === key) {",
+      "const secret = process.env.NEXTAUTH_SECRET; if (key !== secret) {",
+      "if (key != ADMIN_API_KEY) {",
+      'if (key !== process.env["ADMIN_API_KEY"]) {',
+      "const { NEXTAUTH_SECRET } = process.env; if (key !== NEXTAUTH_SECRET) {",
+      "if (![ADMIN_API_KEY, OTRA].includes(key)) {",
+      "if (\n      key !==\n      process.env.NEXTAUTH_SECRET\n    ) {",
+      "if (key !== `${ADMIN_API_KEY}`) {",
+    ];
+    for (const v of viejas) expect(comparacionesAMano(v), v).not.toEqual([]);
+    const sanas = [
+      "if (!esClaveDeCron(key)) {",
+      "const porSyncKey = esClavePropia(syncKey, process.env.SYNC_KEY);",
+      'if (process.env.VERCEL_ENV === "production") {',
+      'if (typeof process.env.SYNC_KEY === "string") {',
+      "if (process.env.RESEND_API_KEY === undefined) {",
+      'const KEY_PREFIX = "x"; if (k === "a") {}',
+    ];
+    for (const s of sanas) expect(comparacionesAMano(s), s).toEqual([]);
   });
 });
