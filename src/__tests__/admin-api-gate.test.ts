@@ -81,6 +81,12 @@ describe("middleware — /api/admin sensible con ?key= correcta", () => {
     expect(passed(res)).toBe(true);
   });
 
+  it("aura-resend-onboarding (sin gate de rol propio) con sesión de cliente → 403", async () => {
+    getTokenMock.mockResolvedValue(CLIENT_TOKEN);
+    const res = await middleware(req("/api/admin/aura-resend-onboarding", "POST"));
+    expect(res.status).toBe(403);
+  });
+
   it("POST sin sesión a una ruta de escritura → 401", async () => {
     getTokenMock.mockResolvedValue(null);
     const res = await middleware(req(`/api/admin/orgs/x/wipe-account?key=${KEY}`, "POST"));

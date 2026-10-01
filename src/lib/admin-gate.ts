@@ -76,11 +76,10 @@ export const ADMIN_SELF_GATED_ROUTES: ReadonlyArray<{ path: string; reason: stri
     path: "/api/admin/channels-breakdown",
     reason: "UI cliente /pixel/canales — requirePermission('pixel') + org de la sesión",
   },
-  {
-    path: "/api/admin/aura-resend-onboarding",
-    reason: "acción de la org sobre sus creadores — getOrganization() de la sesión",
-  },
 ];
+// NOTA: /api/admin/aura-resend-onboarding NO va acá a propósito: sólo mira la
+// org de la sesión (sin rol ni permiso de sección) y ninguna UI la llama, así
+// que queda detrás del gate de staff como el resto.
 
 const KEY_ALLOWED = new Set(ADMIN_KEY_ALLOWLIST.map((r) => r.path));
 const SELF_GATED = new Set(ADMIN_SELF_GATED_ROUTES.map((r) => r.path));
