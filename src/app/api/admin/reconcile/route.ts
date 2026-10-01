@@ -20,13 +20,16 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
 import { calculateAttribution } from '@/lib/pixel/attribution';
+import { isInternalUser } from '@/lib/feature-flags';
 
 export const maxDuration = 60; // Allow up to 60s for batch processing
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get('key');
-  if (key !== process.env.ADMIN_SECRET && key !== 'reattribute-2026') {
+  // Sesión de staff. Antes aceptaba ?key= contra ADMIN_SECRET o un literal
+  // escrito acá en el código. Nadie la llama automáticamente.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

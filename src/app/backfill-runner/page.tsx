@@ -8,7 +8,6 @@
 
 import React, { useState, useRef, useCallback } from "react";
 
-const BACKFILL_KEY = "nitrosales-backfill-2024";
 const API_BASE = "/api/backfill/vtex";
 
 interface BatchResult {
@@ -62,7 +61,7 @@ export default function BackfillRunnerPage() {
   }, []);
 
   const runBatch = async (phase: string, batch: number): Promise<BatchResult | null> => {
-    const url = `${API_BASE}?phase=${phase}&batch=${batch}&key=${BACKFILL_KEY}`;
+    const url = `${API_BASE}?phase=${phase}&batch=${batch}`;
     try {
       const res = await fetch(url);
       if (!res.ok) {

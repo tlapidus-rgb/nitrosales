@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { isInternalUser } from "@/lib/feature-flags";
 
-const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
 const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX // v3
 
@@ -337,7 +337,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (key !== BACKFILL_KEY) {
+  // Sesión de staff. Antes, una clave escrita en el código (y en el caso de
+  // /api/backfill/vtex, también en el JavaScript público de /backfill-runner):
+  // cualquiera que la viera disparaba escrituras sobre cualquier ?org=.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -820,7 +823,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...results,
       nextOffset: offset + limit,
-      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-vtex&limit=${limit}&offset=${offset + limit}`,
+      nextUrl: `/api/fix-brands?action=fix-vtex&limit=${limit}&offset=${offset + limit}`,
     });
   }
 
@@ -922,7 +925,7 @@ export async function GET(request: NextRequest) {
         ...results,
         type: "numeric_categories",
         nextOffset: offset + limit,
-        nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
+        nextUrl: `/api/fix-brands?action=fix-categories&limit=${limit}&offset=${offset + limit}`,
       });
     }
 
@@ -978,7 +981,7 @@ export async function GET(request: NextRequest) {
       ...results,
       type: "missing_categories",
       nextOffset: offset + limit,
-      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
+      nextUrl: `/api/fix-brands?action=fix-categories&limit=${limit}&offset=${offset + limit}`,
     });
   }
 
@@ -1057,7 +1060,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...results,
       nextOffset: offset + limit,
-      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-category-paths&limit=${limit}&offset=${offset + limit}`,
+      nextUrl: `/api/fix-brands?action=fix-category-paths&limit=${limit}&offset=${offset + limit}`,
     });
   }
 

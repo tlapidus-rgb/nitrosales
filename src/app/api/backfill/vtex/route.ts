@@ -18,6 +18,7 @@ import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { extractRealEmail } from "@/lib/connectors/vtex-email";
+import { isInternalUser } from "@/lib/feature-flags";
 
 // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Config ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
 // ORG_ID resolved dynamically via getOrganizationId() in handler
@@ -26,7 +27,6 @@ let ORG_ID = "";
 let VTEX_ACCOUNT = "";
 let VTEX_KEY = "";
 let VTEX_TOKEN = "";
-const BACKFILL_SECRET = "nitrosales-backfill-2024";
 
 const VTEX_BASE = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
 function getVtexHeaders() {
@@ -588,7 +588,10 @@ export async function GET(request: Request) {
   const orgParam = url.searchParams.get("org");
 
   // Security check
-  if (key !== BACKFILL_SECRET) {
+  // Sesión de staff. Antes, una clave escrita en el código (y en el caso de
+  // /api/backfill/vtex, también en el JavaScript público de /backfill-runner):
+  // cualquiera que la viera disparaba escrituras sobre cualquier ?org=.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -713,7 +716,7 @@ export async function GET(request: Request) {
         const diagTo = url.searchParams.get("to") || "";
         if (!diagFrom || !diagTo) { result = { error: "Need from and to params (YYYY-MM-DD)" }; break; }
         // Validar formato YYYY-MM-DD antes de ejecutar (defense in depth contra SQLi,
-        // aunque el endpoint ya está detrás de BACKFILL_SECRET admin).
+        // aunque el endpoint ya está detrás de la sesión de staff).
         const dateRe = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRe.test(diagFrom) || !dateRe.test(diagTo)) {
           result = { error: "from and to must be YYYY-MM-DD" };
