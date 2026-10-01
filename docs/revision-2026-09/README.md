@@ -54,10 +54,11 @@ falta para mergear —decisiones, migraciones, variables de Vercel, autorizació
 | 02 | `02-HALLAZGOS.md` | **El informe original de la revisión.** Los 37 hallazgos con `archivo:línea` y escenario de falla. Incluye una sección de lo que se verificó **y está bien** |
 | 03 | `03-COMO-VERIFICAR.md` | Cómo reproducir cualquier afirmación de estos documentos sin creerle a nadie |
 | 04 | `04-DECISIONES-TECNICAS.md` | Las 12 decisiones pendientes, con el detalle técnico y mi recomendación |
-| 05 | `05-DECISIONES-PARA-TOMY.md` | Las mismas 12, escritas para el fundador no técnico: qué pasa, qué se pierde, qué recomiendo |
-| 06 | `06-ERRORES-COMETIDOS.md` | Los 13 errores que cometí durante los arreglos, escritos en el momento |
+| 05 | `05-DECISIONES-PARA-TOMY.md` | Las mismas 12, escritas para el fundador no técnico: qué pasa, qué se pierde, qué recomiendo. **Superado por el 09** |
+| 06 | `06-ERRORES-COMETIDOS.md` | Los errores que cometí durante los arreglos (E-01 a E-18), escritos en el momento |
 | 07 | `07-ESTADO-FINAL.md` | La revisión final (2026-09-30) de los 43 commits de Codex y del plan contra el código: bloqueantes del merge, seguridad, decisiones que Codex tomó sin pasar por Tomy, qué falta, estado de las 33 tareas y runbook de merge |
 | 08 | `08-MIGRACIONES-NEON.sql` | El script para correr las cinco migraciones en la consola de Neon **antes** del merge, paso por paso y con verificación |
+| 09 | `09-PARA-TOMY.md` | **Lo que Tomy tiene que decidir**, todo junto y sin jerga, ordenado por urgencia: reemplaza al 05 como lista a decidir |
 
 ---
 

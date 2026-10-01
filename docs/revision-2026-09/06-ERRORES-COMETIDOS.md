@@ -475,3 +475,23 @@ van marcados como "reportado", y no los arreglo ni los doy por ciertos sin leer 
 Un documento del repo no es evidencia de cómo funciona el código.
 
 ---
+
+### E-18 · Escribí en el informe una consecuencia que no verifiqué
+
+**Cuándo:** 2026-09-30 · **Lo detectó:** yo, al ir a repetirla en el documento para Tomy
+
+**Qué hice mal:** en la decisión D1 del informe 07 escribí que con el secreto filtrado se
+podían "cargar órdenes falsas en otro cliente" por el webhook de VTEX. Lo deduje de que el
+webhook acepta la clave con cualquier `org`. No lo leí: el webhook no confía en el payload,
+va a buscar la orden a VTEX con las credenciales de esa organización. Lo peor que se logra es
+que vuelva a leer una orden real.
+
+**Cómo se manifestó:** nada todavía, porque lo verifiqué antes de mandárselo a Tomy. Al
+verificarlo encontré lo que sí pasa, que es más grave (datos de compradores de cualquier
+organización por las rutas de `/api/admin` que aceptan la clave).
+
+**Qué hago distinto:** es E-17 de nuevo, ahora con una deducción propia en vez de una ajena.
+La consecuencia concreta de un hallazgo de seguridad ("qué consigue alguien con esto") se
+escribe después de leer el camino completo, nunca por analogía con la forma de la entrada.
+
+---

@@ -43,15 +43,38 @@ máquina) ni contra proveedores.
 
 **Decisiones (Tomy / Axel):**
 
-- **D1 — El secreto filtrado (S1).** Lo que el código no puede cerrar: con el secreto se puede
-  hacerse pasar por un compañero de la misma organización, y abrir sin sesión las rutas que
-  aceptan `?key=<secreto>` (63 `route.ts` lo referencian; algunas aceptan cualquier `org`, como
-  el sync y el webhook de órdenes de VTEX, que permitiría **cargar órdenes falsas en otro
-  cliente**). Cerrarlo requiere dejar de entregarlo: una clave de webhook propia por
-  organización (cambia la configuración de VTEX de cada cliente) y separar `ADMIN_API_KEY` de
-  `NEXTAUTH_SECRET`. *La decisión de no rotar sigue siendo de ustedes; esto es un dato que no se
-  tenía cuando se tomó.* **Recomendación:** planificarlo como el primer trabajo después del
-  merge.
+- **D1 — El secreto filtrado (S1). Es lo más grave de este informe, y está en producción.**
+  *(Actualizado 2026-10-01; reemplaza una versión anterior que decía que con el secreto se
+  podían "cargar órdenes falsas" por el webhook de VTEX: era falso, el webhook busca la orden
+  en VTEX con las credenciales del cliente. Ver E-18.)*
+
+  Cualquier usuario logueado de cualquier cliente ve el secreto en su pantalla de integración
+  VTEX (`/api/me/vtex-affiliate-info`), y hoy es **el mismo valor que la clave de admin**. Con
+  esa clave, **106 de las 165 rutas de `/api/admin`** se abren por URL, sin sesión. Entre ellas:
+  - varias **listan todas las organizaciones** (por ejemplo `consumo-por-cliente`, `usage`,
+    `compare-orgs-pixel`);
+  - otras devuelven **datos de compradores de la organización que se pida**: verificado en
+    `debug-vtex-raw-emails` (nombre y email; el archivo es idéntico en producción).
+
+  Además, en producción la sesión no está atada a la base: con el secreto se fabrica una sesión
+  de staff. La branch cierra eso (`8920c2e3`, `eff86b87`), no lo de las rutas por clave.
+
+  Verificado leyendo el código, no probado contra producción; no hay forma de saber desde el
+  repo si alguien lo usó.
+
+  **Opciones** (todas tocan producción):
+  1. Hotfix chico en `main`: `/api/admin/*` deja de aceptar la clave por URL y exige sesión de
+     staff. Los crons no se afectan (viven en `/api/cron` y `/api/sync`). Junto con el atado de
+     identidad de la branch, corta el acceso entre clientes.
+  2. Mergear la branch (con las migraciones antes): cierra las sesiones fabricadas; hay que
+     sumarle la 1.
+  3. De fondo: dejar de entregar el secreto (clave de webhook propia por organización, cambia
+     la configuración de VTEX de cada cliente) y separar `ADMIN_API_KEY` de `NEXTAUTH_SECRET`.
+     La parte de código para separarlas sin cortar la ingesta ya está hecha (`709a92c5`,
+     `dfeb76f4`).
+
+  *La decisión de no rotar sigue siendo de ustedes; esto es un dato que no se tenía cuando se
+  tomó.* **Recomendación:** la 1 ya, la 2 cuando se autorice el merge, la 3 planificada.
 - **D2 — Aurum ante un error del proveedor (R2).** Hoy, un solo error deja a la organización en
   modo básico hasta fin de mes. Opciones: (a) dejarlo así; (b) contar cada consulta fallida al
   peor caso (hasta ~USD 10 una DEEP) y seguir; (c) contarla al promedio de las consultas medidas
