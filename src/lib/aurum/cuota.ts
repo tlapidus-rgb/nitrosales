@@ -134,8 +134,8 @@ export function evaluarCuota(args: {
     };
   }
 
-  // Pending/unknown spend permits FLASH only; an unreadable admission counter
-  // fails before reaching this policy in admitirAurum.
+  // Gasto pendiente o sin precio: sólo se permite FLASH. Si el contador de
+  // admisión no se puede leer, admitirAurum falla antes de llegar acá (503).
   if (consumo.usdDelMes === null) {
     return {
       permitido: true,

@@ -723,7 +723,9 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 - **Estado:** ✅ **HECHO (2026-09-07)** — `docs/RUNBOOK-ALTA-DE-CLIENTE.md`. Arranca con el paso
   que más se olvida (el Orders Broadcaster de VTEX, API-only, que ya rompió a TeVe Compras), el
   flujo completo, qué hacer cuando el cliente dice que ve todo en cero, cómo verificar el pixel, el
-  pedido de borrado, y las tres acciones manuales del merge. Todo verificado contra el código. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-4 h
+  pedido de borrado, y las tres acciones manuales del merge (actualizado 2026-10-01: además
+  hay que correr antes cinco migraciones, ver `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`).
+  Todo verificado contra el código. · **Riesgo:** 🟢 bajo · **Esfuerzo:** 3-4 h
 - **Qué:** los 6 runbooks que existen son excelentes y son todos del mismo tipo: recetas de SQL para
   construir la capa Medallion. **No hay un solo runbook operativo.** Falta: cómo onboardear de punta
   a punta, qué hacer cuando un cliente dice que ve todo en cero, cómo verificar que su pixel está

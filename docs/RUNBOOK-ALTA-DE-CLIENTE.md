@@ -174,13 +174,19 @@ Al recibir un pedido, verificar a mano que no queden filas en: `orders`, `order_
 
 ---
 
-## 5. Después de mergear la branch del plan
+## 5. Antes y después de mergear la branch del plan
 
-Hay **cuatro** acciones manuales que, si no se hacen, dejan cosas apagadas **en silencio**:
+> **Actualizado 2026-10-01 — ANTES del merge, y esto no es silencioso: rompe.** Hay que correr
+> cinco migraciones en la consola de Neon: `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`, paso
+> por paso. Si el código llega sin ellas, en el minuto del deploy dejan de entrar las órdenes de
+> MercadoLibre, ningún backfill arranca y ningún creador entra a su panel. Y al momento de
+> mergear, que no haya backfills corriendo (el script lo verifica al final).
+
+Después del merge hay **cuatro** acciones manuales que, si no se hacen, dejan cosas apagadas **en silencio**:
 
 | Acción | Si no se hace |
 |---|---|
-| `POST /api/admin/migrate-cron-cursors` — **antes** de mergear el código que la usa | Los cursores de los crons no guardan nada: a algunos clientes no les corre nunca |
+| `POST /api/admin/migrate-cron-cursors` — **después** del deploy: el endpoint viene con el código nuevo, así que antes no existe *(corregido 2026-10-01; decía "antes")*. Sin la tabla el código degrada sin romper | Los cursores de los crons no guardan nada: a algunos clientes no les corre nunca |
 | `ALERTAS_EMAILS` en Vercel (separadas por coma) | Todas las alertas siguen yendo a una sola casilla. Si esa casilla manda a spam, el sistema pierde su único sentido de la vista |
 | `BACKFILL_VENTANA=1-7` en Vercel *(opcional)* | El backfill corre a cualquier hora. Los otros dos frenos sí están activos solos. **Horas enteras: `1-7`, NO `01:00-07:00`** — el parser rechaza el segundo y un valor que no parsea significa "sin restricción" |
 | `?full=1` en los dos crons de atribución Gold | Quedan las huérfanas históricas acumuladas |

@@ -1,5 +1,9 @@
 # Decisiones pendientes — post-revisión de `fix/expansion-gate-e0`
 
+> **Actualizado 2026-10-01:** hoy son **24 arreglados**, R-13 y R-16 resueltos por Codex (a
+> ratificar) y R-14 parcial. La lista a decidir vigente, en lenguaje llano, está en
+> `09-PARA-TOMY.md`; este documento queda como el detalle técnico.
+>
 > **Al 2026-09-15.** De los 37 hallazgos de `BP-REVISION-0914`, **8 están arreglados** y
 > commiteados. De los 29 restantes, éstos son los **11** que no puedo cerrar yo: cambian lo que
 > ve o recibe un cliente, o eligen entre dos caminos igual de defendibles.
