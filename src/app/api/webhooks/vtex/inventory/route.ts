@@ -26,6 +26,24 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { esClaveDeWebhookValida } from "@/lib/webhook-key";
+
+// ── La clave (`?key=`) ──
+// Es la misma que el webhook de órdenes: `NEXTAUTH_SECRET`, pegada en la URL que
+// cada cliente tiene configurada del lado de VTEX. Por eso se valida con el mismo
+// helper que órdenes y no con un `!==` a mano:
+//
+//   · tiempo constante: el `!==` cortaba en el primer byte distinto, y este
+//     endpoint se puede probar desde internet;
+//   · fail-closed con el entorno vacío: con `NEXTAUTH_SECRET=""` el `!==` viejo
+//     aceptaba `?key=` (o ninguna key) porque `"" === ""`;
+//   · ventana de rotación: acepta también `NEXTAUTH_SECRET_ANTERIOR` mientras
+//     esté seteada. Sin esto, el día que se rote, este webhook empezaba a dar
+//     401 apenas cambiaba la env, aunque órdenes siguiera entrando.
+//
+// Con sólo `NEXTAUTH_SECRET` seteada el comportamiento es idéntico al de antes:
+// misma clave aceptada, mismo 401 con el mismo cuerpo para todo lo demás.
+// Lo cubre `src/__tests__/webhook-vtex-inventory-clave.test.ts`.
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -39,8 +57,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // ── Validate key ──
-    const key = req.nextUrl.searchParams.get("key") || "";
-    if (key !== process.env.NEXTAUTH_SECRET) {
+    if (!esClaveDeWebhookValida(req.nextUrl.searchParams.get("key"))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -301,9 +318,11 @@ export async function POST(req: NextRequest) {
 }
 
 // GET endpoint for testing connectivity
+// Este GET ya pedía la misma clave que el POST, y la sigue pidiendo. No se le
+// saca: a diferencia del GET de órdenes (que VTEX usa para validar el hook y va
+// sin clave), acá sacarle la clave sería un cambio de comportamiento.
 export async function GET(req: NextRequest) {
-  const key = req.nextUrl.searchParams.get("key") || "";
-  if (key !== process.env.NEXTAUTH_SECRET) {
+  if (!esClaveDeWebhookValida(req.nextUrl.searchParams.get("key"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return NextResponse.json({

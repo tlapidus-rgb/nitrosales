@@ -35,9 +35,11 @@
 // env por su cuenta.
 //
 // ⚠️ ALCANCE: hay ~50 endpoints más que comparan contra `NEXTAUTH_SECRET` con
-// `!==` (todo `/api/sync/*`, los `migrate-*`, el webhook de inventory). Esos
-// siguen igual: durante la ventana aceptan sólo la clave nueva. Están anotados
-// en el plan; darles el mismo trato es un cambio aparte.
+// `!==` (todo `/api/sync/*`, los `migrate-*`). Esos siguen igual: durante la
+// ventana aceptan sólo la clave nueva. Están anotados en el plan; darles el
+// mismo trato es un cambio aparte. El webhook de inventory
+// (`/api/webhooks/vtex/inventory`) ya usa este helper: es la otra URL que vive
+// pegada del lado de VTEX.
 // ══════════════════════════════════════════════════════════════════════════
 
 import { coincideConAlguna } from "./comparacion-segura";
