@@ -12,6 +12,73 @@
 
 ---
 
+## 0. Actualización (2026-09-30, después de la revisión) — dónde quedó
+
+Todo lo de este informe que se podía resolver con código se resolvió en una branch nueva,
+**`claude/listo-para-merge`**, que sale de `db4dbdd6` (Codex) y suma 14 commits. Es la que
+habría que mergear. **Sin push, sin merge.** `main` no se toca hasta que Axel lo diga.
+
+**Verificación en el último commit de código (`e7913da5`):** 1.986 tests pasan, 7 omitidos,
+0 fallan · `tsc` limpio · `npm run build` OK (guards, depcruise, 106 páginas) · la deuda de
+`@ts-nocheck` no creció. Cada arreglo tiene su test, visto rojo por el motivo correcto con el
+bug reintroducido. No se pudo correr nada contra PostgreSQL real (Docker no arranca en la
+máquina) ni contra proveedores.
+
+### Qué se resolvió
+
+| Del informe | Cómo quedó | Commit |
+|---|---|---|
+| B1 — cinco migraciones | **Script listo** para la consola de Neon, paso por paso y con verificación: `08-MIGRACIONES-NEON.sql`. Correrlo lo hace una persona. | `5f9140c2` |
+| B2 — el checklist no las miraba | Las mira, con los permisos de la app, por catálogo (no `information_schema`). | `fbaba73a` |
+| B3 — el webhook de ML no guardaba la orden | Arreglado: la orden se guarda aunque falle la consulta de SKU. | `5c215dda` |
+| B4 — trabajo sin commitear de Codex | Incorporado: el Orders Broadcaster de VTEX sólo se configura en producción. | `7b7ced23` |
+| S1 — el secreto filtrado | **Mitigado, no cerrado.** La sesión ahora se ata a la base (usuario, email, organización, staff y rol salen de la base) y la impersonación ya no puede abrir una sesión de staff. Lo que sigue abierto: ver "Decisiones", D1. | `8920c2e3`, `eff86b87` |
+| R1 — un error de la base deja a todos afuera | Arreglado: si la base falla, sirve lo verificado en los últimos 5 minutos. | `8920c2e3` |
+| R3 — orden envenenada | **Arreglado en MercadoLibre** (un envío con error permanente ya no traba nada). En VTEX queda como decisión (D3). | `e7913da5` |
+| R4 — afiliado VTEX | **Era un falso positivo**: la app configura el afiliado contra `/orders`, como exige la verificación. Lo desactualizado era `CLAUDE.md`, ya corregido. | `ec94d8da` |
+| T1–T6 — falsos verdes | Seis tests nuevos, cada uno visto rojo con su mutación. | `48e344da` |
+| Docs desincronizados | `PLAN_EXPANSION.md`, `CLAUDE_STATE.md`, backlog, estado de la branch, README, 04 y 05. | `4794343f` |
+
+### Qué falta para mergear — sólo personas
+
+**Decisiones (Tomy / Axel):**
+
+- **D1 — El secreto filtrado (S1).** Lo que el código no puede cerrar: con el secreto se puede
+  hacerse pasar por un compañero de la misma organización, y abrir sin sesión las rutas que
+  aceptan `?key=<secreto>` (63 `route.ts` lo referencian; algunas aceptan cualquier `org`, como
+  el sync y el webhook de órdenes de VTEX, que permitiría **cargar órdenes falsas en otro
+  cliente**). Cerrarlo requiere dejar de entregarlo: una clave de webhook propia por
+  organización (cambia la configuración de VTEX de cada cliente) y separar `ADMIN_API_KEY` de
+  `NEXTAUTH_SECRET`. *La decisión de no rotar sigue siendo de ustedes; esto es un dato que no se
+  tenía cuando se tomó.* **Recomendación:** planificarlo como el primer trabajo después del
+  merge.
+- **D2 — Aurum ante un error del proveedor (R2).** Hoy, un solo error deja a la organización en
+  modo básico hasta fin de mes. Opciones: (a) dejarlo así; (b) contar cada consulta fallida al
+  peor caso (hasta ~USD 10 una DEEP) y seguir; (c) contarla al promedio de las consultas medidas
+  del mes. **Recomendación: (c)**, con (b) como respaldo si no hay consultas medidas.
+- **D3 — Órdenes de VTEX que fallan siempre en el backfill (R3, VTEX).** Hoy frenan la página
+  para siempre y el alta queda trabada hasta forzarla a mano. Saltearlas oculta datos;
+  frenarlas traba. **Recomendación:** saltear con registro visible (una lista de "órdenes que
+  no se pudieron completar" en el panel de altas), nunca en silencio.
+- **D4 — Las siete de la sección 4** (P&L oculto bajo 20%, alerta de margen al 100%, textos de
+  anomalías, Aurum fail-closed, monitoreo de crons opción B, activación sin override,
+  suspensión real): ratificar o revertir. Las de Aurum y monitoreo ya están en `05-` como "ya
+  está hecho, falta que lo apruebes".
+- **D5 — Las que ya estaban pendientes:** ver `05-DECISIONES-PARA-TOMY.md`.
+- **D6 — S2**, el bloqueo del panel de un creador ajeno: cambiar el límite de intentos para que
+  no castigue a quien acierta la contraseña sin abrir fuerza bruta es un trade-off de diseño.
+
+**En producción (una persona, con autorización):**
+
+1. **Hoy, sin esperar nada:** confirmar que `SYNC_KEY` existe en Vercel (fail-open de cinco
+   crons en producción).
+2. Antes del merge: punto de restauración en Neon y correr `08-MIGRACIONES-NEON.sql` paso por
+   paso, sin backfills corriendo al momento de mergear.
+3. Después del merge: el runbook de la sección 7.
+4. **La orden de mergear la da Axel.**
+
+---
+
 ## Cómo se revisó
 
 **Lo que corrí yo, de cero, en un checkout limpio de `db4dbdd6`** (sin `.env`, sin conexión a
