@@ -495,3 +495,22 @@ La consecuencia concreta de un hallazgo de seguridad ("qué consigue alguien con
 escribe después de leer el camino completo, nunca por analogía con la forma de la entrada.
 
 ---
+
+### E-19 · Volví a editar un archivo con `node -e` desde el shell, y se comió una barra invertida
+
+**Cuándo:** 2026-10-01 · **Lo detectó:** la mutación (la versión vieja de `reattribute` no ponía rojo al guard)
+
+**Qué hice mal:** para ajustar el guard de claves en el código usé `node -e '…'` con un reemplazo
+que contenía `/[\\/]route\.ts$/`. Llegó al archivo como `/[\/]route.ts$/`. En Windows las
+rutas usan `\`, así que el guard nunca reconocía un archivo como ruta y la mitad del chequeo no
+corría. Pasaba en verde sobre el código real **porque no miraba nada**.
+
+**Por qué pasó:** es E-04, E-05 y E-09 otra vez, con la regla escrita en `CLAUDE.md` ("los
+scripts de edición no pasan por el shell"). La rompí por apuro, en un cambio "chico".
+
+**Qué hago distinto:** no hay cambios chicos para esta regla. Cualquier texto con `\` va por
+la herramienta de edición o por un `.cjs` escrito con la de escritura. Y un guard nuevo se
+prueba también con un caso que DEBE marcar sobre archivos reales, no sólo con strings en
+memoria: los casos en memoria pasaban, el barrido real no veía nada.
+
+---
