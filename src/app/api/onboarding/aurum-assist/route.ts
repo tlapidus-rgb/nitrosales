@@ -131,12 +131,17 @@ NO DIGAS NUNCA:
 - Recomendar plataformas que no soportamos.
 `;
 
-async function loadConversation(conversationId: string) {
+// Sólo conversaciones del usuario de la sesión. Antes buscaba por id solo: con el
+// id de una conversación ajena se podía seguirla —el modelo recibía los mensajes
+// del otro, y el UPDATE de abajo los pisaba—. El id es un UUID al azar, así que
+// hacía falta conocerlo, pero el id viene del cliente y no es una credencial.
+async function loadConversation(conversationId: string, userId: string) {
   const rows = await prisma.$queryRawUnsafe<Array<any>>(
     `SELECT "id", "userId", "organizationId", "onboardingRequestId", "messages"
      FROM "onboarding_aurum_conversations"
-     WHERE "id" = $1 LIMIT 1`,
-    conversationId
+     WHERE "id" = $1 AND "userId" = $2 LIMIT 1`,
+    conversationId,
+    userId
   );
   return rows[0] || null;
 }
@@ -166,10 +171,11 @@ async function upsertConversation(params: {
     await prisma.$executeRawUnsafe(
       `UPDATE "onboarding_aurum_conversations"
        SET "messages" = $2::jsonb, "lastPhase" = $3, "updatedAt" = NOW()
-       WHERE "id" = $1`,
+       WHERE "id" = $1 AND "userId" = $4`,
       params.id,
       JSON.stringify(params.messages),
-      params.lastPhase
+      params.lastPhase,
+      params.userId
     );
   }
 }
@@ -192,7 +198,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message: string = (body.message || "").toString().trim();
     const images: Array<{ base64: string; mediaType: string }> = Array.isArray(body.images) ? body.images : [];
-    const conversationId: string = body.conversationId || randomUUID();
+    let conversationId: string = body.conversationId || randomUUID();
     const currentPhase: string | null = body.currentPhase || null;
     const currentStep: string | null = body.currentStep || null; // ej: "VTEX" o "intro"
 
@@ -200,8 +206,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Mandá un mensaje o una imagen" }, { status: 400 });
     }
 
-    // Levantar conversacion previa si existe
-    const existing = await loadConversation(conversationId);
+    // Levantar conversacion previa si existe Y es de este usuario. Si el id que
+    // mandó el cliente no es suyo (o no existe), arranca una conversación nueva
+    // con un id nuevo: reusar el ajeno chocaría con su fila en el INSERT. El
+    // frontend toma el id de la respuesta, así que sigue con el nuevo.
+    const existing = await loadConversation(conversationId, user.id);
+    if (!existing && body.conversationId) conversationId = randomUUID();
     const isNew = !existing;
     const priorMessages: any[] = existing?.messages || [];
 
