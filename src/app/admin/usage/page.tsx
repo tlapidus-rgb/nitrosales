@@ -4,12 +4,11 @@
 // Admin: Aurum Usage Dashboard
 // ══════════════════════════════════════════════════════════════
 // Internal-only telemetry dashboard for NitroSales owner.
-// Access: /admin/usage?key=ADMIN_SECRET
-// No auth beyond query-param key. Not in (app) group → no sidebar.
+// Acceso: sesión de staff (el endpoint lo valida). Antes pedía una clave por
+// URL; ya no. Not in (app) group → no sidebar.
 // ══════════════════════════════════════════════════════════════
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 type ModeStats = {
   queries: number;
@@ -64,24 +63,16 @@ export default function AdminUsagePage() {
 }
 
 function AdminUsageInner() {
-  const params = useSearchParams();
-  const [key, setKey] = useState<string>("");
   const [days, setDays] = useState<number>(30);
   const [data, setData] = useState<UsageResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const k = params?.get("key") || "";
-    if (k) setKey(k);
-  }, [params]);
-
-  async function load(k: string, d: number) {
-    if (!k) return;
+  async function load(d: number) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/usage?key=${encodeURIComponent(k)}&days=${d}`);
+      const res = await fetch(`/api/admin/usage?days=${d}`);
       const json = await res.json();
       if (!res.ok) {
         setError(json.error || "Error cargando datos");
@@ -97,9 +88,9 @@ function AdminUsageInner() {
   }
 
   useEffect(() => {
-    if (key) load(key, days);
+    load(days);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, days]);
+  }, [days]);
 
   return (
     <div
@@ -131,22 +122,6 @@ function AdminUsageInner() {
             borderRadius: 12,
           }}
         >
-          <input
-            type="password"
-            placeholder="Admin key"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            style={{
-              flex: 1,
-              padding: "10px 14px",
-              background: "rgba(0,0,0,0.4)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 8,
-              color: "#e4e4e7",
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
@@ -166,8 +141,8 @@ function AdminUsageInner() {
             <option value={90}>90 días</option>
           </select>
           <button
-            onClick={() => load(key, days)}
-            disabled={!key || loading}
+            onClick={() => load(days)}
+            disabled={loading}
             style={{
               padding: "10px 20px",
               background: "#fbbf24",
@@ -176,8 +151,8 @@ function AdminUsageInner() {
               borderRadius: 8,
               fontWeight: 600,
               fontSize: 14,
-              cursor: key && !loading ? "pointer" : "not-allowed",
-              opacity: key && !loading ? 1 : 0.5,
+              cursor: !loading ? "pointer" : "not-allowed",
+              opacity: !loading ? 1 : 0.5,
             }}
           >
             {loading ? "Cargando…" : "Actualizar"}
@@ -197,12 +172,6 @@ function AdminUsageInner() {
             }}
           >
             {error}
-          </div>
-        )}
-
-        {!key && !data && (
-          <div style={{ textAlign: "center", padding: 48, color: "#71717a" }}>
-            Ingresá la admin key para ver la telemetría.
           </div>
         )}
 

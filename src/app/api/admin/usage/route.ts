@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 type ModeKey = "FLASH" | "CORE" | "DEEP";
 
@@ -26,8 +27,10 @@ function percentile(sorted: number[], p: number): number {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const key = searchParams.get("key");
-  if (key !== process.env.ADMIN_SECRET && key !== "usage-2026") {
+  // Sesión de staff. Antes aceptaba ?key= contra ADMIN_SECRET o un literal
+  // escrito acá en el código: cualquiera que lo leyera veía la telemetría de
+  // todos los clientes sin sesión.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
