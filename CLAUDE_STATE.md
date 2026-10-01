@@ -1,5 +1,25 @@
 > ## 📍 2026-09-13 — DÓNDE ESTAMOS (leer esto primero)
 >
+> **Actualizado 2026-09-30 — el bloque de abajo quedó viejo en branch, conteo y tests:**
+>
+> - **La branch a mergear es `claude/listo-para-merge`**, no `fix/expansion-gate-e0` (superada).
+>   Sale del HEAD de Codex (`codex/expansion-review-fixes` = `db4dbdd6`, 43 commits sobre
+>   `060607f8`) y suma los arreglos de la revisión final. 179 commits adelante de `origin/main`
+>   (`39d93a20`, que no avanzó). **Sin push. NADA MERGEADO, NADA EN PROD.** Main no se toca sin
+>   orden explícita de Axel.
+> - **Plan de expansión: 23 de 33 hechas · 5 parciales** (E-07, E-20, E-28, E-30, E-33) **· 5 sin
+>   hacer** (E-09 bloqueada, E-10 desaconsejada, E-22 y E-31 esperan decisión, E-32 se hace en el
+>   próximo alta).
+> - **Validación (corrida completa en `eff86b87`):** `vitest run` 1976 pasan, 7 omitidos, 0 fallan
+>   (165 archivos + 1 omitido) · `tsc --noEmit` limpio · `npm run build` OK (106 páginas, guards OK,
+>   `depcruise` sin violaciones). **No se corrió** contra PostgreSQL real ni contra proveedores reales.
+> - **Rotar sigue cortando ingesta:** la ventana existe, pero 14 crons comparan la clave directo
+>   (ver más abajo).
+> - **Antes del merge:** correr las cinco migraciones de `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`
+>   en Neon. El estado completo y lo que falta decidir: `docs/revision-2026-09/07-ESTADO-FINAL.md`.
+>
+> *(Lo que sigue es el estado del 2026-09-13, sin tocar.)*
+>
 > **Branch `fix/expansion-gate-e0`, 93 commits adelante de `main`. NADA MERGEADO, NADA EN PROD.**
 > Todo el trabajo del plan de expansión vive ahí y ahí se queda hasta que Axel diga lo contrario.
 >
@@ -19,6 +39,8 @@
 >   comportamiento es idéntico al de siempre. Ojo: quedan ~50 endpoints que comparan
 >   `NEXTAUTH_SECRET` con `!==` y NO toleran la ventana (N-06 en el backlog); hay que cerrarlos
 >   ANTES de rotar de verdad.
+>   **Actualizado 2026-09-30:** el título de este punto es falso. Contra el código de
+>   `claude/listo-para-merge`, 14 crons comparan la clave directo: rotar los cortaría igual.
 > - **Sigue vigente: NO correr `prisma db push`.** Las ~30 tablas fuera de `schema.prisma` siguen
 >   fuera, y Prisma seguiría ofreciendo borrarlas.
 > - **Sigue vigente: la DB de prod no se toca desde acá.** El SQL lo corre Axel en la consola de Neon.

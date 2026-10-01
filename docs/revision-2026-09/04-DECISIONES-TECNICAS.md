@@ -60,6 +60,12 @@ con una línea que diga por qué.
 Hacer B solo es tapar el síntoma: el mail deja de ser ruido y el agujero de E-20 queda igual
 de abierto que antes de E-20.
 
+> **Actualizado 2026-09-30 — implementada por Codex, a ratificar.** Codex eligió **B** sin pasar
+> por esta decisión: `CRONES_CON_LATIDO` (`src/lib/cron/schedules.ts`) es una lista fija de los 7
+> crons que laten, y sólo ésos se vigilan (de `vercel.json` sale sólo su horario). El mail ya no
+> mete ruido; los 22 restantes, incluido `refresh-pixel-first-source`, siguen sin vigilancia. Queda
+> ratificar B o pedir A por partes como se recomendaba arriba.
+
 ---
 
 ## 3 · Qué hacer con `wipe-account` (R-07, R-08)
@@ -183,6 +189,14 @@ que no están en la tabla de precios. Si alguien cambia el id de modelo sin agre
 costear"*. El módulo hermano ya tiene escrita la doctrina: *"un costo de cero es una mentira
 que además da tranquilidad"*. Te lo consulto porque fail-closed puede degradar a un cliente
 que está pagando, por un error de configuración nuestro.
+
+> **Actualizado 2026-09-30 — implementada por Codex, a ratificar.** Codex eligió **fail-closed**
+> sin pasar por esta decisión (`src/lib/aurum/cuota.ts`): con consumo pendiente o sin precio, la
+> respuesta va en FLASH con aviso (*"Hay consumo pendiente o sin precio confirmado…"*) y
+> `medicionDisponible: false`; y la admisión se reserva en PostgreSQL antes de llamar al proveedor,
+> así que **si el contador falla, `/api/chat` devuelve 503**. Coincide con la recomendación; lo que
+> queda por ratificar es el costo dicho arriba (degradar a quien paga por un error nuestro) y el 503
+> ante una falla de la base.
 
 ---
 

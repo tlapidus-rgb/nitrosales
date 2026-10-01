@@ -13,6 +13,13 @@
 > `docs/revision-2026-09/02-HALLAZGOS.md`). **R-01 es lo único que puede estar afectando
 > producción hoy** y necesita que alguien mire si `SYNC_KEY` existe en Vercel.
 >
+> **Actualizado 2026-09-30:** los 37 ya no están abiertos. **24 se cerraron** en
+> `fix/expansion-gate-e0` y Codex no deshizo ninguno; **R-13 y R-16 los resolvió Codex** sin pasar
+> por la decisión, y quedan **"resueltos por Codex, a ratificar"**; R-14 quedó parcial. Siguen
+> abiertos: R-06, R-07/R-08, R-09, R-22, R-23/R-24/R-29, R-26, R-27b, R-36. La branch a mergear
+> es ahora `claude/listo-para-merge` (ver `docs/revision-2026-09/07-ESTADO-FINAL.md`). Lo de
+> `SYNC_KEY` sigue vigente: producción tiene el código viejo hasta el merge.
+>
 > _(Anterior: 2026-07-02 — Sesión Arredo/Pixel. Agregados **BP-PIXEL-CHANNEL-ROLLUP**
 > (backfill masivo del rollup de funnel-por-canal), **BP-NEON-CAPACITY** (evaluar tier de Neon a la escala
 > de Arredo) y **BP-PIXEL-AUDIT** (endurecimiento post-auditoría, ver `PLAN_PIXEL_HARDENING.md`). Antes:
@@ -42,6 +49,9 @@ pierda.
 > quedan tachados con su commit. Lo que **no** se arregló está en
 > `docs/revision-2026-09/04-DECISIONES-TECNICAS.md`, separado entre lo que espera una decisión tuya y lo
 > que es trabajo pendiente sin bloqueo.
+>
+> **Actualizado 2026-09-30:** a los 24 se suman **R-13 y R-16, resueltos por Codex en
+> `codex/expansion-review-fixes` y a ratificar** (las dos esperaban decisión). R-14 quedó parcial.
 
 ### 🔴 Afecta producción HOY (no es de la branch)
 
@@ -74,7 +84,7 @@ pierda.
 | # | Qué |
 |---|---|
 | ~~R-12~~ ✅ `30e9b2ff` | **La facturación cuenta órdenes de más**: `costos/consultas.ts` usa `COUNT(*)` donde todo el resto del repo usa `COUNT(DISTINCT COALESCE("packId","externalId"))`. "Órdenes/mes" es una de las seis dimensiones que se **facturan**, y sale más alta que la que el cliente ve en su dashboard |
-| **R-13** | **El tope de gasto de Aurum puede no frenar nunca.** La cuota se mide con `usdConocido`, que excluye los modelos sin precio en la tabla. Un id de modelo nuevo sin agregar a `precios-de-modelos.ts` cuesta **$0 contra el tope**, y reporta `medicionDisponible: true` — un fail-open disfrazado de medición |
+| **R-13** 🟦 *resuelto por Codex, a ratificar (2026-09-30): fail-closed — consumo sin precio o pendiente pasa a modo rápido con aviso, y si el contador falla, 503* | **El tope de gasto de Aurum puede no frenar nunca.** La cuota se mide con `usdConocido`, que excluye los modelos sin precio en la tabla. Un id de modelo nuevo sin agregar a `precios-de-modelos.ts` cuesta **$0 contra el tope**, y reporta `medicionDisponible: true` — un fail-open disfrazado de medición |
 | **R-14** | **El piso de volumen de las anomalías está bajo por √2**: `1/√n` es el desvío de *un* conteo, pero se evalúa la diferencia entre *dos*. Más que la facturación no es un conteo sino una suma de tickets. Efecto: con 45+ órdenes la corrección es inerte y el umbral queda en ~1σ → un HIGH *"Facturación cayó 30 %"* falso ~1 semana de cada 6. Tres defectos hermanos: `base = max()` es la base equivocada para las reglas de **suba**, CPA y ROAS están atados a `orders` cuando su ruido viene de las conversiones de ads, y la regla de margen no tiene ninguna corrección (dispara "el margen se comprimió" cuando no hubo ventas) |
 | ~~R-15~~ ✅ `5585cf2c` | **Aurum opina del margen sin saber la cobertura**: el snapshot que se le publica deja afuera `cogsCoverage` y `avisoDeCostos`. La tarjeta muestra "⚠ sólo 25 % de los productos"; el asistente contesta "tu margen es 78 %, muy sano" |
 
@@ -82,7 +92,7 @@ pierda.
 
 | # | Qué |
 |---|---|
-| **R-16** | **E-20 vigila 7 de los 29 crons, y `refresh-pixel-first-source` —el que la motivó— no late.** Si vuelve a salir de `vercel.json`, el detector sigue diciendo `"nunca-latió"`: sin transición de estado no hay señal. Y los 22 restantes salen en rojo en cada mail, cada 6 h, para siempre. El test que falta es de una línea: cruzar `schedulesDeVercel()` contra las routes que laten |
+| **R-16** 🟦 *resuelto por Codex, a ratificar (2026-09-30): opción B — se vigilan sólo los 7 crons que laten (`CRONES_CON_LATIDO`)* | **E-20 vigila 7 de los 29 crons, y `refresh-pixel-first-source` —el que la motivó— no late.** Si vuelve a salir de `vercel.json`, el detector sigue diciendo `"nunca-latió"`: sin transición de estado no hay señal. Y los 22 restantes salen en rojo en cada mail, cada 6 h, para siempre. El test que falta es de una línea: cruzar `schedulesDeVercel()` contra las routes que laten |
 | ~~R-17~~ ✅ `a33b804c` | **Errores que se reportan como éxito**: fallo total de rollups → `ok: true` + HTTP 200 (antes era 500); `post-backfill-finalize` → `ok: true` con los 4 pasos fallados; `evaluarChecklist` → `listo: true` cuando no sabe nada; `que-queda` puede decir "no queda ningún dato" con tablas llenas si la query de dependencias falla |
 | ~~R-18~~ ✅ `a0773431` | **Una org nueva cuyos rollups fallan desde el día uno nunca alerta**: el chequeo de frescura enumera desde la **tabla de salida**, así que sin filas no aparece en el `GROUP BY` |
 | ~~R-19~~ ✅ `571f3cd0` | **Cursores**: tres crons ignoran `persiste` (una corrida manual pisa el cursor del incremental y las orgs de atrás pierden su digest esa semana); `guardarCorte` no corre si la lambda muere por presupuesto; `refresh-gold-attribution-channel` no tiene try/catch por org y una org que falle siempre clava el cursor **y deja a las anteriores sin refrescar** |

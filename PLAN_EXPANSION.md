@@ -9,10 +9,12 @@
 >
 > **Estado global (revisado el 2026-09-13, después de la revisión con ojos frescos):** **23 de 33 hechas · 5 parciales · 4 pendientes · 1 esperando decisión de Tomy.**
 >
+> **Actualizado 2026-09-30 (contra el código de `claude/listo-para-merge`):** el conteo de 23 hechas se sostiene, con la misma lista. Lo que cambió adentro de las parciales: **E-33 pasó a 5 de 6** (el borrado se cerró el 13-09 y la ficha seguía diciendo 4 de 6; falta sólo el ítem que depende de E-32), **E-07 está más lejos de lo que decía este encabezado** (ver el párrafo del gate, abajo), y **E-20** ya no deriva de `vercel.json` qué crons vigila. E-27 sigue hecha y ahora la suspensión sí se aplica en la sesión.
+>
 > | | Tareas |
 > |---|---|
 > | ✅ Hechas (23) | E-01…E-06, E-08, E-11…E-19, E-21, E-23…E-27, E-29 |
-> | 🟡 Parciales (5) | **E-07** (preparada para rotar, sin rotar) · **E-20** · **E-28** (el borrado sí, la retención no) · **E-30** (7 de 8) · **E-33** (4 de 6) |
+> | 🟡 Parciales (5) | **E-07** (preparada para rotar, sin rotar) · **E-20** · **E-28** (el borrado sí, la retención no) · **E-30** (7 de 8) · **E-33** (5 de 6) |
 > | ⬜ Pendientes (4) | E-09, E-10, E-22, E-32 |
 > | 🔒 Decisión | E-31 |
 >
@@ -23,6 +25,8 @@
 > dice—, esta vez en el documento que manda. **Al cerrar una ficha hay que tocar los dos lugares.**
 >
 > **Lo que bloquea el gate ya no es técnico.** E-07 está preparada: los dos secretos toleran una ventana de rotación y rotar dejó de cortar la ingesta. La decisión del § 9 punto 6 **ya se tomó: no se rota** (2026-09-13). La ventana queda construida para cuando se quiera.
+>
+> **Actualizado 2026-09-30: "rotar dejó de cortar la ingesta" es FALSO.** La ventana de rotación existe, pero **14 crons comparan la clave directo** y no la toleran: rotar hoy los cortaría igual. E-07 sigue parcial por eso, además de por la decisión de no rotar. Si algún día se rota, primero hay que pasar esos crons a la comparación que acepta la ventana.
 >
 > **Ninguna de las 4 pendientes la puede hacer Claude solo, y dos no deberían hacerse:**
 > **E-09** no está pendiente sino **bloqueada** — su precondición innegociable (que el resumen
@@ -69,6 +73,16 @@
 > **Estado de la branch:** 63 commits por delante de `origin/main`, pusheada, sin mergear. El
 > resumen para leer antes de mergear —incluidas las **4 acciones manuales**— está en
 > `docs/ESTADO-BRANCH-INTEGRACION.md`.
+>
+> **Actualizado 2026-09-30:** la branch a mergear ya no es `fix/expansion-gate-e0` sino
+> **`claude/listo-para-merge`**: sale del HEAD de Codex (`db4dbdd6`, 43 commits sobre `060607f8`)
+> y suma los arreglos de la revisión final. 179 commits por delante de `origin/main` (`39d93a20`),
+> **sin push y sin mergear**. Última corrida completa (`eff86b87`): `vitest` 1976 pasan, 7
+> omitidos, 0 fallan · `tsc` limpio · `npm run build` OK. **No** se corrió contra PostgreSQL real ni
+> contra proveedores reales. **Las "4 acciones manuales" ya no alcanzan:** antes del merge hay que
+> correr las **cinco migraciones** en Neon con `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`, paso
+> por paso; el resto (variables de Vercel, decisiones pendientes) está en
+> `docs/revision-2026-09/07-ESTADO-FINAL.md`.
 
 ---
 
@@ -347,6 +361,11 @@ no económico: el producto deja de funcionar antes de volverse caro.**
 > rotar?"**. Las dos respuestas son defendibles —hoy los cuatro clientes son conocidos y el repo es
 > privado— pero tiene que ser una decisión tomada, no una que se toma sola por seguir avanzando con
 > lo que sí se puede hacer. El costo de rotar bajó mucho; el de no rotar no cambió.
+>
+> **Actualizado 2026-09-30:** "eso dejó de ser el riesgo" no es cierto. Contra el código de
+> `claude/listo-para-merge`, **14 crons comparan la clave directo** y no aceptan la ventana:
+> rotar todavía corta ingesta. La decisión del § 9 punto 6 (no rotar) no cambia; lo que cambia es
+> que, si algún día se rota, la ventana sola no alcanza.
 
 - **Estado:** 🟡 parcial (2026-09-06) — R-C01/R-C03/R-C04 hechos; **R-C05 y R-C06 hechos en su
   parte de código** (`1e8b65c4`, `62ed2b5a`, más el hallazgo nuevo `83d13d1a`). Lo que falta ya no
@@ -794,6 +813,15 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   · **Sin migración nueva:** la tabla `cron_cursors` todavía no se corrió, así que las columnas del
     latido entran en el mismo endpoint. Siguen siendo **cuatro** acciones manuales, no cinco.
   · Conectado a `control-alerts`, con su sección en el mail.
+  · **Actualizado 2026-09-30:** las dos viñetas de arriba ya no describen el código. **Qué crons se
+    vigilan ya no sale de `vercel.json`**: es una lista fija de 7 crons con latido
+    (`CRONES_CON_LATIDO` en `src/lib/cron/schedules.ts`: `alertas-clientes`, `ads-utm-audit`,
+    `alerts-scheduler`, `anomalies`, `control-alerts`, `digest`, `warm-cache`); de `vercel.json`
+    sólo sale el horario de esos 7. Es la opción B de R-16 (ver
+    `docs/revision-2026-09/04-DECISIONES-TECNICAS.md`), que Codex implementó y queda a ratificar.
+    Y las acciones previas al merge ya no son cuatro: son las cinco migraciones de
+    `docs/revision-2026-09/08-MIGRACIONES-NEON.sql` más lo que lista el informe 07. Siguen sin
+    alertas externas.
 - 🔒 **LO QUE FALTA NECESITA UNA DECISIÓN TUYA: instalar Sentry o equivalente** (punto 1 de R-C16).
   **No es un olvido:** se probó y se sacó porque agregaba 15-25 s al arranque en frío
   (`CLAUDE_STATE.md:6455`). Es una decisión vieja que nunca se revisó, tiene costo mensual, y hoy hay
@@ -893,6 +921,8 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 > La contracara es real: seguir ingiriendo a alguien que no paga nos cuesta plata. Por eso `cortarIngesta: true` existe como opción explícita en vez de estar decidida en el código, y la respuesta del endpoint avisa que esos datos no se van a poder recuperar.
 >
 > **Lo que falta:** el flag está expuesto pero **la aplicación todavía no lo lee**. Suspender hoy registra el estado; no bloquea el acceso. Enganchar eso en el gate de secciones es el paso que queda, y es chico — pero hasta que se haga, esto es media función.
+>
+> **Actualizado 2026-09-30: ya está conectada a la sesión.** Codex la enganchó y la revisión final la ató a la base: `src/lib/organizacion/session-access.ts` corre en cada resolución de sesión (callback `session` de NextAuth, también para JWT ya emitidos) y bloquea a la organización suspendida. El soporte de NitroSales mantiene el acceso en "ver como"; la impersonación vive el bloqueo del cliente. Si la base falla, usa lo último verificado en esa instancia por hasta 5 minutos, así que una suspensión puede tardar eso en aplicarse durante un corte.
 
 - **Estado:** ⬜ pendiente · **Riesgo:** 🟡 medio · **Esfuerzo:** 1 semana
 - **Qué falta para poder vender:**
@@ -1105,6 +1135,11 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
   Broadcaster, precios de costo, afiliado de VTEX y las 4 acciones manuales del merge
   (`GET /api/admin/checklist-merge`, que **verifica y no ejecuta**: dos de las cuatro son
   variables de Vercel y el código no las puede escribir).
+- **Actualizado 2026-09-30: 5 de 6.** El ítem 6 (borrado de datos) está hecho desde el 13-09 y este
+  estado no se había movido; falta sólo el 5, que depende de E-32. Y el ítem 4 ya no son "las 4
+  acciones manuales": `checklist-merge` ahora mira las **cinco migraciones** y los permisos de las
+  tres tablas nuevas, por catálogo (`fbaba73a`). El script para correrlas en Neon es
+  `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`; lo demás previo al merge, en el informe 07.
 - **Los tres primeros no eran lo que decía la ficha:** en los tres la cadena ya estaba
   construida y lo que faltaba era que alguien mirara el resultado
   (`#FICHA-ESCRITA-LEYENDO-EL-RUNBOOK`).
@@ -1216,7 +1251,7 @@ hoy) o recién al día siguiente (lo que significa "schedule")?
 
 | Momento | Qué | Por qué |
 |---|---|---|
-| **Antes de mergear** | Las 4 acciones manuales de `docs/ESTADO-BRANCH-INTEGRACION.md` | La migración de cursores va **antes** que el código que la usa (orden de `CLAUDE.md`). Sin `ALERTAS_EMAILS` y `BACKFILL_VENTANA`, dos tareas quedan escritas pero inertes |
+| **Antes de mergear** | ~~Las 4 acciones manuales de `docs/ESTADO-BRANCH-INTEGRACION.md`~~ **Actualizado 2026-09-30:** las **cinco migraciones** de `docs/revision-2026-09/08-MIGRACIONES-NEON.sql` en Neon, paso por paso, y el resto de lo que lista `docs/revision-2026-09/07-ESTADO-FINAL.md` (variables de Vercel, decisiones) | La migración de cursores va **antes** que el código que la usa (orden de `CLAUDE.md`). Sin `ALERTAS_EMAILS` y `BACKFILL_VENTANA`, dos tareas quedan escritas pero inertes |
 | **La decisión, antes que cualquier código** | § 9 punto 6 — **¿se firma antes de rotar?** | Define si el gate E0 está cerrado. Todo lo demás de E0 ya está |
 | **Ahora, y es barato** | E-29 (sacar Shopify/Tiendanube del wizard) | Sigue pendiente desde el día 1 y sigue siendo cierto: un cliente puede darse de alta hoy en una plataforma que no funciona. 1-2 h |
 | **Antes del próximo cliente** | E-14 (la mitad que falta) + E-20 | E-14 hoy sólo devuelve lo ignorado; falta la verificación real del pixel. E-20 es la telemetría que convierte "creo que anda" en "sé que anda" |

@@ -17,6 +17,14 @@ archivos de código no-test modificados. **Nada de esto está en producción.** 
 explícita: todo el plan entra en una sola branch, se prueba y se revisa entero, y recién ahí se
 mergea.
 
+> **Actualizado 2026-09-30:** la branch a mergear ya no es `fix/expansion-gate-e0` (superada)
+> sino **`claude/listo-para-merge`**. Después de esta revisión, Codex sumó **43 commits** en
+> `codex/expansion-review-fixes` (sobre `060607f8`, HEAD `db4dbdd6`) que nadie había revisado.
+> El **informe 07** los revisa; `claude/listo-para-merge` sale de `db4dbdd6` y suma los arreglos
+> de esa revisión final. 179 commits por delante de `origin/main` (`39d93a20`, que no avanzó).
+> Sin push, sin mergear. Antes del merge hay que correr las cinco migraciones con el **script
+> 08** en la consola de Neon.
+
 **Qué pasó en esta revisión.** Antes de mergear se hizo una revisión completa con **nueve
 revisores independientes en paralelo**, cada uno con un lote disjunto de archivos (la partición
 se hizo con un script para poder demostrar la cobertura: 127 de 127 archivos asignados, cero
@@ -27,6 +35,14 @@ pausado** porque su arreglo depende de una de esas decisiones.
 
 **Estado hoy:** 1.440 tests en verde, `tsc --noEmit` limpio, `next build` OK, los tres guards
 de build OK. Sin pushear, sin mergear.
+
+**Actualizado 2026-09-30 (`claude/listo-para-merge`, corrida completa en `eff86b87`):** `vitest`
+1976 pasan, 7 omitidos, 0 fallan · `tsc --noEmit` limpio · `npm run build` OK (106 páginas,
+guards OK, `depcruise` sin violaciones). **No corrido:** PostgreSQL real ni proveedores reales.
+De los 37 hallazgos: los 24 arreglados siguen arreglados (Codex no deshizo ninguno); **R-13 y
+R-16 los resolvió Codex sin pasar por la decisión y quedan a ratificar**; R-14, parcial. Lo que
+falta para mergear —decisiones, migraciones, variables de Vercel, autorización de Axel— está en
+`07-ESTADO-FINAL.md`.
 
 ---
 
@@ -40,6 +56,8 @@ de build OK. Sin pushear, sin mergear.
 | 04 | `04-DECISIONES-TECNICAS.md` | Las 12 decisiones pendientes, con el detalle técnico y mi recomendación |
 | 05 | `05-DECISIONES-PARA-TOMY.md` | Las mismas 12, escritas para el fundador no técnico: qué pasa, qué se pierde, qué recomiendo |
 | 06 | `06-ERRORES-COMETIDOS.md` | Los 13 errores que cometí durante los arreglos, escritos en el momento |
+| 07 | `07-ESTADO-FINAL.md` | La revisión final (2026-09-30) de los 43 commits de Codex y del plan contra el código: bloqueantes del merge, seguridad, decisiones que Codex tomó sin pasar por Tomy, qué falta, estado de las 33 tareas y runbook de merge |
+| 08 | `08-MIGRACIONES-NEON.sql` | El script para correr las cinco migraciones en la consola de Neon **antes** del merge, paso por paso y con verificación |
 
 ---
 

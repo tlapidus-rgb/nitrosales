@@ -10,6 +10,15 @@
 > cron, y `admin-key.ts` ahora la lee de `ADMIN_API_KEY` con fallback a un valor aleatorio. Si esa
 > variable no está seteada en Vercel —o no vale ese mismo literal— los 29 crons y los endpoints
 > admin empiezan a devolver 403. Falla cerrado, que es lo correcto, pero falla.
+>
+> **Actualizado 2026-09-30:** la branch a mergear ya no es `fix/expansion-gate-e0` (superada) sino
+> **`claude/listo-para-merge`**: sale del HEAD de Codex (`codex/expansion-review-fixes` =
+> `db4dbdd6`, 43 commits sobre `060607f8`) y suma los arreglos de la revisión final. **179
+> commits** por delante de `origin/main` (`39d93a20`), **sin push, sin mergear**. Antes del merge
+> hay que correr las **cinco migraciones** en Neon con
+> `docs/revision-2026-09/08-MIGRACIONES-NEON.sql`; el estado completo y lo que falta decidir está
+> en `docs/revision-2026-09/07-ESTADO-FINAL.md`. La tabla de abajo es la del 2026-09-13; la
+> corrida vigente es la de esta línea.
 
 ## Cómo está
 
@@ -20,6 +29,7 @@
 | `npm run build` | exit 0 (incluye los guards de contrato y `depcruise`) |
 | Tests nuevos en la branch | 60 archivos (`git diff --name-status origin/main...HEAD`) |
 | Guards de build | `order-contract`, `serve-gold-first`, `ts-nocheck` — los 3 en verde |
+| **Actualizado 2026-09-30** (`claude/listo-para-merge`, corrida completa en `eff86b87`) | `vitest` **1976 pasan**, 7 omitidos, 0 fallan (165 archivos + 1 omitido) · `tsc` limpio · `npm run build` OK (106 páginas, guards OK, `depcruise` sin violaciones). **No corrido:** PostgreSQL real ni proveedores reales |
 
 ## La tanda de arreglos (2026-09-15/16) — 24 de 37 hallazgos cerrados
 
@@ -40,6 +50,11 @@ cuatro arreglos que ya estaban dados por buenos y eran cosméticos.
 - **La clave del creador se podía romper a fuerza bruta.** Se agrega
   `src/lib/rate-limit.ts` (5 intentos/minuto por IP **+ código**; el limitador de al lado
   permitía 86.400 por día).
+  **Actualizado 2026-09-30:** ya no es un limitador en memoria. Codex lo pasó a una **admisión
+  compartida en Postgres** (tabla `creator_password_attempts`, `src/lib/creator-password.ts`): 5
+  intentos/minuto por cuenta y 30 por IP, contados en la base, así que valen entre instancias. Si
+  la base no responde —o falta la migración— contesta 503 en vez de dejar pasar; no hay respaldo en
+  memoria. La tabla es una de las cinco migraciones de `08-MIGRACIONES-NEON.sql`.
 - **Un preview podía filtrar `ADMIN_API_KEY`** a un host arbitrario, porque seis rutas
   pasaban el header `Origin` —que controla quien hace el request— a `selfFetchBaseUrl`.
   Lo introdujo el arreglo del incidente del 2026-09-06.

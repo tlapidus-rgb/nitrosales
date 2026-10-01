@@ -89,6 +89,12 @@ trabajo.
 La alternativa —dejar de vigilar las 22 y listo— saca el ruido del mail hoy, pero deja el
 agujero original igual de abierto que antes.
 
+> **Actualizado 2026-09-30 — ya está hecho, falta que lo apruebes.** El otro programador (Codex)
+> eligió la alternativa sin esperar tu decisión: ahora el detector **sólo vigila las 7 tareas que
+> avisan que están vivas**. El mail ya no se llena de falsas alarmas, pero las otras 22 —incluida
+> la que motivó todo— siguen sin nadie que las mire. Queda en vos decir si eso alcanza o si
+> querés que se sumen las 9 importantes.
+
 ---
 
 ## 🟡 5. Cuando borramos los datos de un cliente, ¿borramos también su cuenta?
@@ -188,6 +194,13 @@ además da tranquilidad"*.
 **Por qué es tuya:** frenar puede degradarle el servicio a un cliente que está pagando, por un
 error de configuración nuestro.
 
+> **Actualizado 2026-09-30 — ya está hecho, falta que lo apruebes.** El otro programador (Codex)
+> lo resolvió como se recomendaba, sin esperar tu decisión: si hay consumo que no se puede
+> costear, Aurum **sigue contestando pero en el modo rápido y más barato**, y le avisa al cliente
+> por qué. Y si el sistema no puede llevar la cuenta de cuánto se gastó (por ejemplo, si la base
+> de datos no responde), **Aurum no contesta** y le pide al cliente que pruebe de nuevo. Queda en
+> vos aprobarlo.
+
 ---
 
 ## 🟡 10. Un proceso que sólo hace la mitad del trabajo y dice que terminó
@@ -239,12 +252,12 @@ va a servir de nada mientras esas dos existan así.
 | 1 | ¿Existe `SYNC_KEY` en Vercel? | Que Axel lo mire hoy | 🔴 **Hoy** |
 | 2 | ¿Sacamos Shopify/Tiendanube del formulario? | Sí | 🟠 Perdemos prospectos |
 | 3 | ¿Sacamos Search Console y el historial de Ads? | Sí | 🟠 |
-| 4 | ¿Hacemos que avisen las 29 tareas o sólo vigilamos 7? | Las 9 que importan | 🟠 Antes de publicar |
+| 4 | ¿Hacemos que avisen las 29 tareas o sólo vigilamos 7? | Las 9 que importan · *ya se hizo "sólo las 7": falta tu aprobación* | 🟠 Antes de publicar |
 | 5 | ¿El borrado incluye la cuenta del cliente? | Sí, pero como paso aparte | 🟡 |
 | 6 | ¿Corregimos los umbrales de las alertas? | Sí | 🟡 |
 | 7 | ¿El webhook de VTEX bloquea el alta? | Sí | 🟡 |
 | 8 | ¿"Pixel instalado" puede basarse en datos viejos? | Que muestre la fecha | 🟡 |
-| 9 | ¿El tope de gasto frena si no puede medir? | Sí | 🟡 |
+| 9 | ¿El tope de gasto frena si no puede medir? | Sí · *ya se hizo así: falta tu aprobación* | 🟡 |
 | 10 | ¿Arreglamos la herramienta que hace la mitad? | Sí | 🟡 |
 | 11 | ¿Recalculamos cuántos clientes aguantamos? | Todavía no | 🟢 |
 | 12 | Las dos herramientas que filtran la otra clave | Nada ahora | 🟢 |
