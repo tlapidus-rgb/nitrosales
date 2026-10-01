@@ -25,12 +25,22 @@ describe("esClaveDeCron", () => {
     expect(esClaveDeCron("otra")).toBe(false);
   });
 
-  it("respeta las ventanas de rotación de las dos", async () => {
+  it("respeta la ventana de rotación de la clave de admin", async () => {
     const { esClaveDeCron } = await conEntorno({
       ADMIN_API_KEY: "admin-nueva", ADMIN_API_KEY_ANTERIOR: "admin-vieja",
       NEXTAUTH_SECRET: "sesion-nueva", NEXTAUTH_SECRET_ANTERIOR: "sesion-vieja",
     });
-    for (const k of ["admin-nueva", "admin-vieja", "sesion-nueva", "sesion-vieja"]) expect(esClaveDeCron(k), k).toBe(true);
+    for (const k of ["admin-nueva", "admin-vieja", "sesion-nueva"]) expect(esClaveDeCron(k), k).toBe(true);
+  });
+
+  it("EL CASO: la NEXTAUTH_SECRET anterior NO abre los crons durante la rotación", async () => {
+    // Esa ventana existe para el webhook de VTEX (la URL vive en el VTEX de cada
+    // cliente). Si los crons la aceptaran, el valor filtrado —el motivo para
+    // rotar— seguiría abriendo /api/sync* durante días.
+    const { esClaveDeCron } = await conEntorno({
+      ADMIN_API_KEY: "admin", NEXTAUTH_SECRET: "sesion-nueva", NEXTAUTH_SECRET_ANTERIOR: "sesion-vieja",
+    });
+    expect(esClaveDeCron("sesion-vieja")).toBe(false);
   });
 
   it.each([null, undefined, ""])("una clave ausente o vacía no entra: %j", async (k) => {

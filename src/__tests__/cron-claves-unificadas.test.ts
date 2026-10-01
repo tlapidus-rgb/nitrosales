@@ -56,21 +56,31 @@ const ALCANCE = [...new Set([...deCrons, ...deSync])];
 //
 // No cuentan los chequeos de presencia (`typeof process.env.X === "string"`,
 // `=== undefined`): comparan contra un literal, no contra otra clave.
-const OPERANDO = String.raw`[A-Za-z_$][\w$]*(?:\.[\w$]+|\[["'][\w$]+["']\])*`;
+// Un operando es un identificador con accesos y llamadas encadenadas:
+// `searchParams.get("key")`, `req.nextUrl.searchParams.get("key")`. Antes sólo
+// se aceptaban identificadores sueltos, y la forma vieja de ocho rutas
+// (`searchParams.get("key") !== CRON_KEY`) pasaba sin que nadie la viera.
+const OPERANDO = String.raw`[A-Za-z_$][\w$]*(?:\.[\w$]+|\[["'][\w$]+["']\]|\(\s*(?:["'][^"']*["']|[\w$.]*)\s*\))*`;
 const COMPARACION = new RegExp(String.raw`(${OPERANDO})\s*(?:===|!==|==|!=)\s*(${OPERANDO})`, "g");
-const PARECE_SECRETO = /(?:^process\.env\b|(?:KEY|Key|key|SECRET|Secret|secret)$|(?:KEY|SECRET)["']\]$)/;
+const PARECE_SECRETO =
+  /(?:^process\.env\b|(?:KEY|Key|key|SECRET|Secret|secret)$|(?:KEY|SECRET)["']\]$|\.get\(\s*["'](?:key|syncKey)["']\s*\)$)/;
 const NO_ES_CLAVE = new Set(["undefined", "null", "true", "false", "NaN"]);
 const INCLUDES = /\.includes\(\s*[\w$.]*(?:KEY|Key|key|SECRET|Secret|secret)\s*\)/;
 const TEMPLATE = /(?:===|!==|==|!=)\s*`[^`]*\$\{[^}]*(?:KEY|SECRET)/;
+// Una variable con nombre inocente que guarda un secreto (`const esperado =
+// process.env.NEXTAUTH_SECRET`) también cuenta como secreto al compararla.
+const ALIAS_DE_SECRETO = /(?:const|let|var)\s+([\w$]+)\s*=\s*(process\.env(?:\.[A-Z_]*(?:SECRET|KEY)[A-Z_]*|\[["'][A-Z_]+["']\])|ADMIN_API_KEY)\b/g;
 
 /** Las comparaciones a mano que encuentra, o [] si no hay. */
 function comparacionesAMano(codigo: string): string[] {
   const plano = codigo.replace(/\s+/g, " ");
+  const alias = new Set([...plano.matchAll(ALIAS_DE_SECRETO)].map((m) => m[1]));
+  const esSecreto = (op: string) => PARECE_SECRETO.test(op) || alias.has(op);
   const halladas: string[] = [];
   for (const m of plano.matchAll(COMPARACION)) {
     const [entera, a, b] = m;
     if (NO_ES_CLAVE.has(a) || NO_ES_CLAVE.has(b)) continue;
-    if (PARECE_SECRETO.test(a) || PARECE_SECRETO.test(b)) halladas.push(entera);
+    if (esSecreto(a) || esSecreto(b)) halladas.push(entera);
   }
   for (const r of [INCLUDES, TEMPLATE]) {
     const m = plano.match(r);
@@ -129,6 +139,10 @@ describe("crons y /api/sync*: la clave se valida con el helper, nunca a mano", (
       "if (![ADMIN_API_KEY, OTRA].includes(key)) {",
       "if (\n      key !==\n      process.env.NEXTAUTH_SECRET\n    ) {",
       "if (key !== `${ADMIN_API_KEY}`) {",
+      // las que encontró la segunda revisión
+      'if (searchParams.get("key") !== CRON_KEY) {',
+      'if (req.nextUrl.searchParams.get("key") !== process.env.NEXTAUTH_SECRET) {',
+      "const esperado = process.env.NEXTAUTH_SECRET; if (k !== esperado) {",
     ];
     for (const v of viejas) expect(comparacionesAMano(v), v).not.toEqual([]);
     const sanas = [

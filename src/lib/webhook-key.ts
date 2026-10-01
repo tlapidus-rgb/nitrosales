@@ -34,12 +34,12 @@
 // usuarios. Esta ventana cubre el webhook, NO las sesiones — NextAuth lee la
 // env por su cuenta.
 //
-// ⚠️ ALCANCE: hay ~50 endpoints más que comparan contra `NEXTAUTH_SECRET` con
-// `!==` (todo `/api/sync/*`, los `migrate-*`). Esos siguen igual: durante la
-// ventana aceptan sólo la clave nueva. Están anotados en el plan; darles el
-// mismo trato es un cambio aparte. El webhook de inventory
-// (`/api/webhooks/vtex/inventory`) ya usa este helper: es la otra URL que vive
-// pegada del lado de VTEX.
+// ⚠️ ALCANCE: esta ventana es SÓLO para las URLs que viven pegadas del lado de
+// VTEX: el webhook de órdenes y el de inventory (`/api/webhooks/vtex/inventory`,
+// que usa este helper). Los crons y `/api/sync/*` validan con `esClaveDeCron`
+// (src/lib/cron/clave.ts), que acepta NEXTAUTH_SECRET sólo en su valor vigente:
+// durante la ventana, el valor viejo NO los abre. Los `migrate-*` siguen
+// comparando con `!==` contra la vigente (se corren a mano, una vez).
 // ══════════════════════════════════════════════════════════════════════════
 
 import { coincideConAlguna } from "./comparacion-segura";

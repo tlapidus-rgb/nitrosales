@@ -76,10 +76,21 @@ function daAccesoPorHeaderDeCron(fuente: string): boolean {
     .join(" ")
     .replace(/\s+/g, " ");
   const LEE = String.raw`(?:req|request)\.headers\.get\(\s*["']x-vercel-cron["']\s*\)`;
-  if (new RegExp(String.raw`\|\|\s*${LEE}|${LEE}[^;]*\|\|`).test(codigo)) return true;
+  // Formas que dan acceso: en un `||`, un ternario que devuelve `true`
+  // (`isCron ? true : await isInternalUser()`, la forma habitual del repo), o
+  // negado en un `&&` JUNTO A UN CHEQUEO DE AUTORIZACIÓN (`!== "1" &&
+  // !isValidAdminKey(key)`). Negado junto a otra cosa no cuenta:
+  // refresh-pixel-rollups hace `!isVercelCron && tableParam` para decidir si
+  // acepta un override manual, con la autorización ya resuelta por clave.
+  const AUTH = String.raw`!?\s*(?:isValidAdminKey|esClaveDeCron|esClavePropia|isInternalUser|await\s+isInternalUser)\b`;
+  if (new RegExp(
+    String.raw`\|\|\s*${LEE}|${LEE}[^;]*\|\||${LEE}[^;?]*\?\s*true\b|${LEE}\s*!==?\s*["']1["']\s*&&\s*${AUTH}`,
+  ).test(codigo)) return true;
   for (const m of codigo.matchAll(new RegExp(String.raw`(?:const|let)\s+(\w+)\s*=\s*${LEE}`, "g"))) {
     const v = m[1];
-    if (new RegExp(String.raw`\b${v}\s*\|\||\|\|\s*${v}\b|if\s*\(\s*!?\s*${v}\s*\)\s*return`).test(codigo)) return true;
+    if (new RegExp(
+      String.raw`\b${v}\s*\|\||\|\|\s*${v}\b|if\s*\(\s*!?\s*${v}\s*\)\s*return|\b${v}\s*\?\s*true\b|!\s*${v}\s*&&\s*${AUTH}`,
+    ).test(codigo)) return true;
   }
   return false;
 }
@@ -97,7 +108,21 @@ describe("ninguna ruta da acceso por el header x-vercel-cron", () => {
       `const isCron = req.headers.get("x-vercel-cron") === "1";\n const allowed = isCron || key === KEY || (await isInternalUser());`,
     )).toBe(true);
     expect(daAccesoPorHeaderDeCron(`const ok = isValidAdminKey(key) || req.headers.get("x-vercel-cron") === "1";`)).toBe(true);
+    // las que encontró la segunda revisión
+    expect(daAccesoPorHeaderDeCron(
+      `const isCron = req.headers.get("x-vercel-cron") === "1"; const ok = isCron ? true : await isInternalUser();`,
+    )).toBe(true);
+    expect(daAccesoPorHeaderDeCron(
+      `if (req.headers.get("x-vercel-cron") !== "1" && !isValidAdminKey(key)) return deny();`,
+    )).toBe(true);
+    expect(daAccesoPorHeaderDeCron(
+      `const isCron = req.headers.get("x-vercel-cron") === "1"; if (!isCron && !isValidAdminKey(key)) return deny();`,
+    )).toBe(true);
     expect(daAccesoPorHeaderDeCron(`const isVercelCron = req.headers.get("x-vercel-cron") === "1"; const from = isVercelCron ? d : p;`)).toBe(false);
+    // la forma real de refresh-pixel-rollups: negado, pero para un override, no para acceso
+    expect(daAccesoPorHeaderDeCron(
+      `const isVercelCron = req.headers.get("x-vercel-cron") === "1"; if (!isVercelCron && tableParam && isRollupTable(tableParam)) {}`,
+    )).toBe(false);
     expect(daAccesoPorHeaderDeCron(`console.log({ cronHeader: req.headers.get("x-vercel-cron") });`)).toBe(false);
   });
 });
