@@ -65,16 +65,21 @@ export default async function middleware(req: NextRequest) {
   const adminAccess = checkAdminApiAccess(pathname, token);
   if (adminAccess === "unauthenticated") return adminDenied(401);
   if (adminAccess === "forbidden") return adminDenied(403);
-  // Fuera de la allowlist, la clave de la URL no llega a la ruta (ver
-  // aceptaClavePorUrl). Se aplica al final, después de los demás chequeos.
-  const sinClave =
-    isAdminApiPath(pathname) && !aceptaClavePorUrl(pathname) && req.nextUrl.searchParams.has("key")
-      ? (() => {
-          const url = req.nextUrl.clone();
-          url.searchParams.delete("key");
-          return url;
-        })()
-      : null;
+  // Fuera de la allowlist, un pedido con `?key=` se RECHAZA (ver
+  // aceptaClavePorUrl). Una primera versión reescribía la URL sin la clave, pero
+  // ~105 rutas leen `new URL(req.url)` y no está garantizado que un rewrite del
+  // middleware cambie `req.url` en la ruta: la clave podía seguir llegando.
+  // Rechazar no depende de eso. `searchParams.has` ya decodifica (`%6Bey`) y
+  // cubre la clave repetida. Staff usa estas rutas con su sesión, sin clave.
+  if (isAdminApiPath(pathname) && !aceptaClavePorUrl(pathname) && req.nextUrl.searchParams.has("key")) {
+    return new NextResponse(
+      JSON.stringify({
+        error: "La clave por URL no se acepta en esta ruta",
+        message: "Usá tu sesión de staff, sin ?key=.",
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   // ── 1. Read-only durante impersonate (writes de API) ──
   const isWrite =
@@ -121,7 +126,7 @@ export default async function middleware(req: NextRequest) {
     }
   }
 
-  return sinClave ? NextResponse.rewrite(sinClave) : NextResponse.next();
+  return NextResponse.next();
 }
 
 export const config = {

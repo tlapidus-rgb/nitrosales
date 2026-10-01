@@ -121,8 +121,8 @@ export interface AdminGateToken {
 
 /**
  * ¿Esta ruta de /api/admin puede recibir `?key=`? Sólo las de la allowlist (las
- * llama la automatización). En las demás, el middleware saca la clave de la URL
- * antes de que llegue a la ruta: el middleware no puede consultar la base y
+ * llama la automatización). En las demás, el middleware rechaza (403) cualquier
+ * pedido que traiga `?key=`: el middleware no puede consultar la base y
  * confía en el `isStaff` del JWT, que con NEXTAUTH_SECRET filtrado se puede
  * fabricar. Si la ruta además viera la clave (que el atacante también tiene),
  * aceptaría `key === ADMIN_API_KEY` sin mirar la sesión. Sin clave en la URL,

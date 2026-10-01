@@ -45,48 +45,43 @@ function req(path: string, method = "GET"): NextRequest {
   return new NextRequest(`${BASE}${path}`, { method });
 }
 
-/**
- * El pedido sigue hacia la ruta: NextResponse.next() o un rewrite (el que saca
- * la clave de la URL, ver "la clave no llega a la ruta").
- */
+/** El pedido sigue hacia la ruta (NextResponse.next()). */
 function passed(res: Response): boolean {
-  return res.headers.get("x-middleware-next") === "1" || res.headers.has("x-middleware-rewrite");
+  return res.headers.get("x-middleware-next") === "1";
 }
 
-/** La URL con la que la ruta va a recibir el pedido. */
-function urlQueLlega(res: Response, original: string): URL {
-  return new URL(res.headers.get("x-middleware-rewrite") ?? `${BASE}${original}`);
-}
+/** La misma ruta sensible, sin la clave: así la usa el staff con su sesión. */
+const SENSITIVE_SIN_CLAVE = "/api/admin/debug-vtex-raw-emails?orgId=org_victima";
 
-describe("middleware — fuera de la allowlist, la clave no llega a la ruta", () => {
+describe("middleware — fuera de la allowlist, un pedido con ?key= se rechaza", () => {
   // El middleware no puede consultar la base: confía en el isStaff del JWT, y
   // con NEXTAUTH_SECRET filtrado ese JWT se puede fabricar. Si la ruta además
   // viera la clave (que el atacante también tiene), aceptaría
-  // `key === ADMIN_API_KEY` sin mirar la sesión. Sin la clave, cae a
-  // isInternalUser(), que consulta la base.
-  it("EL CASO: staff (o un JWT fabricado) con ?key= → la ruta la recibe SIN key", async () => {
+  // `key === ADMIN_API_KEY` sin mirar la sesión. Una primera versión
+  // reescribía la URL sin la clave; ~105 rutas leen `new URL(req.url)` y no
+  // está garantizado que un rewrite cambie `req.url`. Rechazar no depende de eso.
+  it("EL CASO: staff (o un JWT fabricado) con ?key= → 403, no llega a la ruta", async () => {
     getTokenMock.mockResolvedValue(STAFF_TOKEN);
     const res = await middleware(req(SENSITIVE));
-    expect(passed(res)).toBe(true);
-    const url = urlQueLlega(res, SENSITIVE);
-    expect(url.searchParams.has("key")).toBe(false);
-    expect(url.searchParams.get("orgId")).toBe("org_victima");
-    expect(url.pathname).toBe("/api/admin/debug-vtex-raw-emails");
-  });
-
-  it("staff sin key → sigue igual, sin rewrite", async () => {
-    getTokenMock.mockResolvedValue(STAFF_TOKEN);
-    const res = await middleware(req("/api/admin/debug-vtex-raw-emails?orgId=x"));
-    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(passed(res)).toBe(false);
+    expect(res.status).toBe(403);
     expect(res.headers.has("x-middleware-rewrite")).toBe(false);
   });
 
-  it("en la allowlist la clave SÍ llega (la automatización la necesita)", async () => {
+  it.each(["%6Bey", "key=x&key", "KEY_NO&key"])("variantes de la clave también se rechazan: %s", async (k) => {
+    getTokenMock.mockResolvedValue(STAFF_TOKEN);
+    const res = await middleware(req(`${SENSITIVE_SIN_CLAVE}&${k}=${KEY}`));
+    expect(res.status).toBe(403);
+  });
+
+  it("staff sin key → pasa", async () => {
+    getTokenMock.mockResolvedValue(STAFF_TOKEN);
+    expect(passed(await middleware(req(SENSITIVE_SIN_CLAVE)))).toBe(true);
+  });
+
+  it("en la allowlist la clave SÍ pasa (la automatización la necesita)", async () => {
     getTokenMock.mockResolvedValue(null);
-    const path = `${ADMIN_KEY_ALLOWLIST[0].path}?key=${KEY}`;
-    const res = await middleware(req(path));
-    expect(passed(res)).toBe(true);
-    expect(urlQueLlega(res, path).searchParams.get("key")).toBe(KEY);
+    expect(passed(await middleware(req(`${ADMIN_KEY_ALLOWLIST[0].path}?key=${KEY}`)))).toBe(true);
   });
 });
 
@@ -109,15 +104,15 @@ describe("middleware — /api/admin sensible con ?key= correcta", () => {
     expect(res.status).toBe(403);
   });
 
-  it("con sesión de STAFF (users.isStaff) → pasa, igual que hoy", async () => {
+  it("con sesión de STAFF (users.isStaff), sin key → pasa", async () => {
     getTokenMock.mockResolvedValue(STAFF_TOKEN);
-    const res = await middleware(req(SENSITIVE));
+    const res = await middleware(req(SENSITIVE_SIN_CLAVE));
     expect(passed(res)).toBe(true);
   });
 
-  it("con sesión de STAFF por allowlist de email (isStaffUser) → pasa", async () => {
+  it("con sesión de STAFF por allowlist de email (isStaffUser), sin key → pasa", async () => {
     getTokenMock.mockResolvedValue(STAFF_BY_EMAIL_TOKEN);
-    const res = await middleware(req(SENSITIVE));
+    const res = await middleware(req(SENSITIVE_SIN_CLAVE));
     expect(passed(res)).toBe(true);
   });
 
