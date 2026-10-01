@@ -34,10 +34,13 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    // Cron Vercel pasa header x-vercel-cron-signature, key=<ADMIN_API_KEY> para manual,
+    // Auth: la clave (vercel.json la manda en la URL) o sesión de staff. Antes
+    // también dejaba pasar a quien mandara `x-vercel-cron: 1`: Vercel no documenta
+    // ese header ni dice que lo elimine de requests externas, así que cualquiera
+    // con `curl -H` entraba sin clave (verificado contra la documentación de
+    // Vercel, 2026-10-01). Lo oficial es CRON_SECRET por `Authorization: Bearer`.
     // o sesion admin.
-    const isCron = req.headers.get("x-vercel-cron") === "1";
-    const allowed = isCron || isValidAdminKey(key) || (await isInternalUser());
+    const allowed = isValidAdminKey(key) || (await isInternalUser());
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const appId = (process.env.META_APP_ID || "").trim();

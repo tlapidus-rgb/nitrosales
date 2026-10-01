@@ -219,11 +219,11 @@ export async function GET(req: NextRequest) {
   if (!isValidAdminKey(key)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  // Origen de la invocación — header CONFIABLE: Vercel lo agrega en los crons y
-  // lo strippea de requests externas, así que NO es spoofeable como el
-  // user-agent. NO se usa para auth (eso es la key); sólo decide si se aceptan
-  // los overrides manuales `?from=`/`?cursor=` (recálculo de historia a mano):
-  // en una invocación de Vercel se ignoran y se usa el rango default.
+  // Origen de la invocación. ⚠️ NO es confiable (corregido 2026-10-01): Vercel no
+  // documenta `x-vercel-cron` ni dice que lo elimine de requests externas. Acá no
+  // es un agujero porque NO se usa para auth (eso es la key, arriba): sólo decide
+  // si se ignoran los overrides manuales `?from=`/`?cursor=`. Y como Vercel
+  // tampoco documenta que lo mande, en la práctica esta rama puede no darse nunca.
   const isVercelCron = req.headers.get("x-vercel-cron") === "1";
 
   const startedAt = Date.now();
