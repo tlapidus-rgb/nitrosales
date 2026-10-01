@@ -35,10 +35,10 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
-    // Cron Vercel pasa header x-vercel-cron-signature, key=KEY para manual,
-    // o sesion admin.
-    const isCron = req.headers.get("x-vercel-cron") === "1";
-    const allowed = isCron || key === KEY || (await isInternalUser());
+    // Auth: key (el cron de vercel.json la manda en la URL) o sesion de staff.
+    // NO se acepta el header `x-vercel-cron`: no está documentado por Vercel
+    // como confiable y cualquiera puede mandarlo (`curl -H "x-vercel-cron: 1"`).
+    const allowed = key === KEY || (await isInternalUser());
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const appId = (process.env.META_APP_ID || "").trim();
