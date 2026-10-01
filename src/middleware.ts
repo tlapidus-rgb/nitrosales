@@ -24,6 +24,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isPathAllowed } from "@/lib/section-access";
 import { aceptaClavePorUrl, checkAdminApiAccess, isAdminApiPath } from "@/lib/admin-gate";
+import { esOrgIdValido } from "@/lib/org-id-seguro";
 
 function adminDenied(status: 401 | 403): NextResponse {
   return new NextResponse(
@@ -49,6 +50,26 @@ export default async function middleware(req: NextRequest) {
   }
 
   const isApi = pathname.startsWith("/api/");
+
+  // ── -1. Un `orgId` mal formado no llega a ninguna ruta ──
+  // Varias rutas (metrics/orders, metrics/pixel, asset-stats) aceptan
+  // `?orgId=&key=` para el cron warm-cache y pegan ese orgId en SQL crudo
+  // ($queryRawUnsafe). Con la clave filtrada, eso era inyección SQL sobre la
+  // base entera. Los ids de organización son cuid (minúscula y dígitos): se
+  // rechaza cualquier otra cosa acá, una sola vez para todas las rutas —
+  // incluida metrics/pixel, que es CORE PROTEGIDO y no se toca sin
+  // autorización del fundador. No cierra que alguien con la clave lea otra
+  // organización con un id válido: eso necesita separar la clave de admin del
+  // secreto filtrado (decisión pendiente).
+  if (isApi) {
+    const orgIds = req.nextUrl.searchParams.getAll("orgId");
+    if (orgIds.length > 0 && !orgIds.every((v) => esOrgIdValido(v))) {
+      return new NextResponse(JSON.stringify({ error: "orgId inválido" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
   let token: any = null;
   try {
     token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });

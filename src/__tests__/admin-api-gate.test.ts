@@ -30,7 +30,7 @@ const BASE = "https://app.nitrosales.ai";
 // Cualquier valor: el middleware no compara la key (eso lo hace la ruta).
 // Que "la key correcta" no alcance es justamente lo que se testea.
 const KEY = "la-key-filtrada";
-const SENSITIVE = `/api/admin/debug-vtex-raw-emails?orgId=org_victima&key=${KEY}`;
+const SENSITIVE = `/api/admin/debug-vtex-raw-emails?orgId=cvictimasintetica000000001&key=${KEY}`;
 
 const STAFF_TOKEN = { email: "staff@nitrosales.ai", isStaff: true };
 const STAFF_BY_EMAIL_TOKEN = { email: "TLapidus@99media.com.ar", isStaff: false };
@@ -51,7 +51,7 @@ function passed(res: Response): boolean {
 }
 
 /** La misma ruta sensible, sin la clave: así la usa el staff con su sesión. */
-const SENSITIVE_SIN_CLAVE = "/api/admin/debug-vtex-raw-emails?orgId=org_victima";
+const SENSITIVE_SIN_CLAVE = "/api/admin/debug-vtex-raw-emails?orgId=cvictimasintetica000000001";
 
 describe("middleware — fuera de la allowlist, un pedido con ?key= se rechaza", () => {
   // El middleware no puede consultar la base: confía en el isStaff del JWT, y
@@ -154,7 +154,7 @@ describe("middleware — allowlist de automatización (crons con ?key=, sin cook
     "%s con ?key= y SIN sesión → pasa (la ruta valida la key, igual que hoy)",
     async (path) => {
       getTokenMock.mockResolvedValue(null);
-      const res = await middleware(req(`${path}?orgId=org_1&key=${KEY}`));
+      const res = await middleware(req(`${path}?orgId=cunaorgsintetica0000000001&key=${KEY}`));
       expect(passed(res)).toBe(true);
     },
   );
@@ -259,5 +259,30 @@ describe("guard — inventario de llamadores automáticos a /api/admin con key="
 
   it("existen rutas admin para revisar (sanity)", () => {
     expect(walk(ADMIN_DIR).length).toBeGreaterThan(100);
+  });
+});
+
+describe("middleware — un orgId mal formado no llega a ninguna ruta", () => {
+  // metrics/orders, metrics/pixel (CORE) y asset-stats pegan el orgId del
+  // atajo de warm-cache en SQL crudo. Con la clave filtrada, era inyección SQL.
+  it.each([
+    "/api/metrics/orders?orgId=x'%20OR%20'1'='1&key=k",
+    "/api/metrics/pixel?orgId=cmocep2vk000b1409iqylv7zg'--&key=k",
+    "/api/nitropixel/asset-stats?orgId=ORG_MAYUS&key=k",
+    "/api/metrics/orders?orgId=cmocep2vk000b1409iqylv7zg&orgId=malo;drop",
+  ])("rechaza %s con 400", async (path) => {
+    getTokenMock.mockResolvedValue(null);
+    const res = await middleware(req(path));
+    expect(res.status).toBe(400);
+  });
+
+  it("un orgId real (cuid) pasa", async () => {
+    getTokenMock.mockResolvedValue(null);
+    expect(passed(await middleware(req("/api/metrics/orders?orgId=cmocep2vk000b1409iqylv7zg&key=k")))).toBe(true);
+  });
+
+  it("sin orgId, nada cambia", async () => {
+    getTokenMock.mockResolvedValue(null);
+    expect(passed(await middleware(req("/api/metrics/orders?from=2026-09-01")))).toBe(true);
   });
 });
