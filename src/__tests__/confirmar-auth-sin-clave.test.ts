@@ -12,7 +12,7 @@ import { NextRequest } from "next/server";
 
 const m = vi.hoisted(() => {
   process.env.ADMIN_API_KEY = "clave-sintetica-de-prueba";
-  return { staff: false, consultas: 0, updates: [] as any[], mails: [] as any[] };
+  return { staff: false, consultas: 0, updates: [] as any[], mails: [] as any[], orgName: "Tienda", clienteEmail: "cliente@tienda.test", credenciales: {} as any };
 });
 
 vi.mock("@/lib/feature-flags", () => ({ isInternalUser: async () => m.staff }));
@@ -20,11 +20,11 @@ vi.mock("@/lib/email/send", () => ({ sendEmail: async (x: any) => { m.mails.push
 vi.mock("@/lib/db/client", () => ({
   prisma: {
     connection: {
-      findFirst: async () => { m.consultas++; return { id: "ckconn000000000000000001", credentials: {} }; },
+      findFirst: async () => { m.consultas++; return { id: "ckconn000000000000000001", credentials: m.credenciales }; },
       update: async (x: any) => { m.updates.push(x); return {}; },
     },
     organization: {
-      findUnique: async () => ({ name: "Tienda", users: [{ email: "cliente@tienda.test", name: "Cliente" }] }),
+      findUnique: async () => ({ name: m.orgName, users: [{ email: m.clienteEmail, name: "Cliente" }] }),
     },
   },
 }));
@@ -39,6 +39,9 @@ beforeEach(() => {
   m.consultas = 0;
   m.updates = [];
   m.mails = [];
+  m.orgName = "Tienda";
+  m.clienteEmail = "cliente@tienda.test";
+  m.credenciales = {};
 });
 
 describe.each([
@@ -62,5 +65,20 @@ describe.each([
     expect(m.updates).toHaveLength(1);
     expect(m.updates[0].data.credentials.authStatus).toBe("APPROVED");
     expect(m.mails.map((x) => x.to)).toEqual(["cliente@tienda.test"]);
+  });
+
+  it("lo que carga el cliente (nombre de la org, emails) no se ejecuta en la página del staff ni en el mail", async () => {
+    // Un OWNER puede ponerle cualquier nombre a su organización, y el staff abre
+    // esta página desde el link del mail, con su sesión.
+    m.staff = true;
+    m.orgName = '<img src=x onerror="alert(1)">';
+    m.clienteEmail = "x@y.test<script>alert(2)</script>";
+    m.credenciales = { fbEmail: "<script>alert(3)</script>", googleEmail: "<script>alert(3)</script>" };
+    const html = await (await get(`orgId=${ORG}`)).text();
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<script>alert(2)");
+    expect(html).toContain("&lt;img src=x");
+    const mail = String(m.mails[0]?.html ?? "");
+    expect(mail).not.toContain("<script>alert(3)");
   });
 });

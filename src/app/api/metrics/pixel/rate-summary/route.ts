@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { canonicalMarketingSource } from "@/lib/pixel/source-classification";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { traeCredencialInterna } from "@/lib/credencial-interna";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const warmOrgId = searchParams.get("orgId");
-    const isWarmCall = !!warmOrgId && searchParams.get("key") === ADMIN_API_KEY;
+    // Warm-cache: credencial interna en un header (src/lib/credencial-interna.ts).
+    const isWarmCall = !!warmOrgId && traeCredencialInterna(request, "warm-cache");
     const organizationId = isWarmCall ? warmOrgId! : await getOrganizationId();
     const now = new Date();
     const dateTo = searchParams.get("to")

@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
 // Quick ML API diagnostic endpoint — forces token refresh
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { MLCredentials } from "@/lib/connectors/mercadolibre";
-import { esClaveDeCron } from "@/lib/cron/clave";
 
 export const revalidate = 0;
 
@@ -12,7 +12,10 @@ const ML_API = "https://api.mercadolibre.com";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  if (!esClaveDeCron(searchParams.get("key"))) {
+  // Sólo staff (sesión verificada contra la base). Con la clave, que está
+  // filtrada, cualquiera veía el comienzo del token de ML de una org y forzaba
+  // su renovación. Nadie la llama de forma automática.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

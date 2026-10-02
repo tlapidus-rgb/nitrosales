@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// GET /api/oauth/meta/start?orgId=X
+// GET /api/oauth/meta/start  (con sesión; la org sale de la sesión)
 // ══════════════════════════════════════════════════════════════
 // Inicia el flow OAuth de Meta Marketing API.
 // Redirige al usuario al login oficial de Facebook con los scopes
@@ -17,29 +17,21 @@
 // no-developer puedan conectarse. Mientras esperamos review, el cliente
 // debe estar agregado como "App Tester" en developers.facebook.com.
 //
-// State parameter: enviamos orgId firmado para evitar CSRF y poder
-// asociar el callback con la org correcta.
+// State parameter: orgId firmado + returnTo (src/lib/oauth-state.ts). El
+// callback además exige que la sesión sea de esa org: la firma sola no alcanza.
 // ══════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
-import { createHmac } from "crypto";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { armarState, COOKIE_NONCE, nuevoNonce, OPCIONES_COOKIE_NONCE } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
 
 const META_API_VERSION = "v21.0";
 
-function signState(payload: string): string {
-  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payload);
-  return hmac.digest("hex").slice(0, 16);
-}
-
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const queryOrgId = url.searchParams.get("orgId") || "";
   // Default returnTo: /settings/integraciones (donde se conecta Meta normalmente).
   // Si el cliente esta en onboarding, pasa explicitamente ?returnTo=/onboarding.
   // Tambien soportamos returnTo desde el referrer cuando no se pasa explicito.
@@ -55,27 +47,17 @@ export async function GET(req: Request) {
   })();
   const returnTo = url.searchParams.get("returnTo") || referrerPath || "/settings/integraciones";
 
-  // Resolver orgId: query param > sesion NextAuth.
-  // Esto evita que el cliente tenga que pasar el orgId manual y
-  // tambien protege contra orgId ajeno (el query param tiene que
-  // matchear con la sesion).
-  let orgId = queryOrgId;
-  let sessionOrgId: string | null = null;
+  // La organización sale SÓLO de la sesión: antes se aceptaba ?orgId= sin
+  // sesión ("link directo") y cualquiera arrancaba el flujo para otra org.
+  let orgId = "";
   try {
     const session = await getServerSession(authOptions as any);
-    sessionOrgId = (session as any)?.user?.organizationId || null;
-  } catch {
-    // sin sesion → solo aceptamos query param (caso unusual: link directo).
+    orgId = (session as any)?.user?.organizationId || "";
+  } catch (err) {
+    console.error("[oauth/meta/start] no se pudo leer la sesión:", err);
   }
-
-  // Si hay sesion, prevalece (evita orgId equivocado por copy-paste).
-  if (sessionOrgId) orgId = sessionOrgId;
-
   if (!orgId) {
-    return NextResponse.json(
-      { error: "orgId requerido (loguearse o pasar ?orgId=)" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Iniciá sesión para conectar Meta" }, { status: 401 });
   }
 
   const appId = (process.env.META_APP_ID || "").trim();
@@ -91,10 +73,13 @@ export async function GET(req: Request) {
   const baseUrl = `${url.protocol}//${url.host}`;
   const redirectUri = `${baseUrl}/api/oauth/meta/callback`;
 
-  // State firmado: orgId + signature para validar en callback.
-  // Format: orgId.sig
-  const sig = signState(orgId);
-  const state = `${orgId}.${sig}.${encodeURIComponent(returnTo)}`;
+  // State: orgId.firma.nonce.returnTo. El nonce queda en una cookie httpOnly de
+  // ESTE navegador; el callback exige la misma cookie y la sesión de esta org.
+  const nonce = nuevoNonce();
+  const state = armarState(orgId, nonce, returnTo);
+  if (!state) {
+    return NextResponse.json({ error: "No se pudo iniciar la conexión con Meta" }, { status: 500 });
+  }
 
   // Build Meta OAuth URL.
   const authUrl = new URL(`https://www.facebook.com/${META_API_VERSION}/dialog/oauth`);
@@ -104,5 +89,7 @@ export async function GET(req: Request) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "ads_read,ads_management,business_management");
 
-  return NextResponse.redirect(authUrl.toString());
+  const res = NextResponse.redirect(authUrl.toString());
+  res.cookies.set(COOKIE_NONCE.meta, nonce, OPCIONES_COOKIE_NONCE);
+  return res;
 }

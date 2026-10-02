@@ -13,12 +13,11 @@ export const dynamic = "force-dynamic";
 // - promotion_names included in TS type
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
-import { orgIdDeLaQuery, esOrgIdValido } from "@/lib/org-id-seguro";
+import { esOrgIdValido } from "@/lib/org-id-seguro";
 import { fuenteDeLaOrdenSql, meliPendienteSql, interpretarFuentePedida, FUENTES_DE_ORDEN } from "@/domains/orders";
 // enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
@@ -82,7 +81,6 @@ function getPaymentLabel(method: string, source: string): string {
   return `${method} (VTEX)`;
 }
 
-const WARM_CACHE_KEY = ADMIN_API_KEY;
 
 // Resiliencia (sin mocks silenciosos — es una plataforma de data, no debe mostrar $0 falso):
 //  - maxDuration=120 (Vercel Pro) da techo a la función.
@@ -98,22 +96,10 @@ export async function GET(request: NextRequest) {
 
 async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
   try {
-    // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
-    const _url = new URL(request.url);
-    // ⚠️ INYECCION SQL (revision de seguridad, 2026-09-07): este `orgId` entraba
-    // CRUDO y se interpola entre comillas simples en 53 `$queryRawUnsafe` de
-    // este archivo (`WHERE "organizationId" = '${ORG_ID}'`). Un valor que
-    // cerrara la comilla alcanzaba la base ENTERA, de todos los clientes.
-    // Se valida el formato en el borde: ver src/lib/org-id-seguro.ts para por
-    // que se arregla aca y no parametrizando las 53.
-    const queryOrgId = orgIdDeLaQuery(_url.searchParams.get("orgId"));
-    const queryKey = _url.searchParams.get("key");
-    let ORG_ID: string;
-    if (queryOrgId && queryKey === WARM_CACHE_KEY) {
-      ORG_ID = queryOrgId;
-    } else {
-      ORG_ID = await getOrganizationId();
-    }
+    // La organización sale SIEMPRE de la sesión. Había un atajo `?orgId=&key=`
+    // para el cron warm-cache, que ya no llama a esta ruta: con la clave filtrada
+    // servía para bajar nombres y emails de compradores de cualquier organización.
+    const ORG_ID: string = await getOrganizationId();
     // Cinturon y tiradores: si algo cambia arriba, esto corta antes de tocar SQL.
     //
     // Ojo con el alcance: esto corre tambien sobre el id que sale de la SESION,
@@ -135,7 +121,7 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
       console.error(
         "[metrics/orders] organizationId con forma inesperada; se corta antes de tocar SQL.",
         {
-          desdeLaQuery: Boolean(queryOrgId && queryKey === WARM_CACHE_KEY),
+          desdeLaQuery: false,
           // `ORG_ID` queda narrowed a `never` aca dentro (esOrgIdValido es un
           // type predicate), asi que no se le puede pedir `.length` directo.
           largo: String(ORG_ID).length,

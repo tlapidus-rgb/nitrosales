@@ -1,17 +1,10 @@
 // @ts-nocheck
 import { NextResponse } from "next/server";
-import { createHmac } from "crypto";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { armarState, COOKIE_NONCE, nuevoNonce, OPCIONES_COOKIE_NONCE } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
-
-function signState(payload: string): string {
-  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payload);
-  return hmac.digest("hex").slice(0, 16);
-}
 
 export async function GET(req: Request) {
   const clientId = process.env.GOOGLE_ADS_CLIENT_ID;
@@ -30,24 +23,29 @@ export async function GET(req: Request) {
   })();
   const returnTo = url.searchParams.get("returnTo") || referrerPath || "/settings/integraciones";
 
-  // S58 OAuth: resolver orgId desde sesion NextAuth (igual que Meta).
-  let orgId = url.searchParams.get("orgId") || "";
+  // La organización sale SÓLO de la sesión (ver src/lib/oauth-state.ts): antes
+  // se aceptaba ?orgId= sin sesión y cualquiera arrancaba el flujo para otra org.
+  let orgId = "";
   try {
     const session = await getServerSession(authOptions as any);
-    const sessionOrgId = (session as any)?.user?.organizationId;
-    if (sessionOrgId) orgId = sessionOrgId;
-  } catch {}
-
+    orgId = (session as any)?.user?.organizationId || "";
+  } catch (err) {
+    console.error("[google-ads] no se pudo leer la sesión:", err);
+  }
   if (!orgId) {
-    return NextResponse.json({ error: "orgId requerido (loguearse o pasar ?orgId=)" }, { status: 400 });
+    return NextResponse.json({ error: "Iniciá sesión para conectar Google Ads" }, { status: 401 });
   }
 
   const baseUrl = `${url.protocol}//${url.host}`;
   const redirectUri = `${baseUrl}/api/auth/google-ads/callback`;
 
-  // State firmado: orgId.signature.returnTo (igual que Meta).
-  const sig = signState(orgId);
-  const state = `${orgId}.${sig}.${encodeURIComponent(returnTo)}`;
+  // State: orgId.firma.nonce.returnTo. El nonce queda en una cookie httpOnly de
+  // ESTE navegador; el callback exige la misma cookie y la sesión de esta org.
+  const nonce = nuevoNonce();
+  const state = armarState(orgId, nonce, returnTo);
+  if (!state) {
+    return NextResponse.json({ error: "No se pudo iniciar la conexión con Google Ads" }, { status: 500 });
+  }
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", clientId);
@@ -59,5 +57,7 @@ export async function GET(req: Request) {
   authUrl.searchParams.set("include_granted_scopes", "true");
   authUrl.searchParams.set("state", state);
 
-  return NextResponse.redirect(authUrl.toString());
+  const res = NextResponse.redirect(authUrl.toString());
+  res.cookies.set(COOKIE_NONCE.google, nonce, OPCIONES_COOKIE_NONCE);
+  return res;
 }

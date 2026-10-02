@@ -83,7 +83,6 @@ describe("rechaza lo que no es un id", () => {
 
 describe("los tres endpoints lo usan", () => {
   const RUTAS = [
-    "src/app/api/metrics/orders/route.ts",
     "src/app/api/metrics/pixel/route.ts",
     "src/app/api/metrics/products/route.ts",
   ];
@@ -97,4 +96,15 @@ describe("los tres endpoints lo usan", () => {
     // que después toca SQL.
     expect(src).not.toMatch(/const queryOrgId\s*=\s*_?(?:url|searchParams)/);
   });
+});
+
+
+it("orders usa exclusivamente la sesión y valida su id antes de SQL", () => {
+  const src = readFileSync(join(process.cwd(), "src/app/api/metrics/orders/route.ts"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  expect(src).toContain("await getOrganizationId()");
+  expect(src).not.toContain('searchParams.get("orgId")');
+  expect(src).toContain("if (!esOrgIdValido(ORG_ID))");
+  expect(src.indexOf("if (!esOrgIdValido(ORG_ID))")).toBeLessThan(src.indexOf("await ensureColumns()"));
 });

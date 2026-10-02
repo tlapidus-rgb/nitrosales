@@ -33,6 +33,7 @@ import { prisma } from "@/lib/db/client";
 import { planDeWarm } from "@/lib/cache/warm-plan";
 import { purgeExpiredSharedCache } from "@/lib/api-cache-shared";
 import { purgeCreatorPasswordAttempts } from "@/lib/creator-password-cleanup";
+import { credencialInterna, HEADER_CREDENCIAL_INTERNA } from "@/lib/credencial-interna";
 import { sendEmail } from "@/lib/email/send";
 import {
   checkPipelineFreshness,
@@ -297,9 +298,14 @@ export async function GET(req: NextRequest) {
       for (const { org, range, endpoint } of plan) {
           if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break outer; }
           const start = Date.now();
+          // La clave pública ya no abre estas rutas: van con la credencial interna en
+          // un header. metrics/pixel es CORE PROTEGIDO y sigue con la clave hasta que
+          // se autorice el cambio (ver src/lib/credencial-interna.ts).
+          const conClave = endpoint === "/api/metrics/pixel";
           const target = `${baseUrl}${endpoint}?orgId=${encodeURIComponent(
             org.id
-          )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}`;
+          )}${conClave ? `&key=${WARM_CACHE_KEY}` : ""}&from=${range.from}&to=${range.to}`;
+          const credencial = conClave ? null : credencialInterna("warm-cache");
           try {
             const r = await fetch(target, {
               method: "GET",
@@ -312,9 +318,12 @@ export async function GET(req: NextRequest) {
               // la URL del deployment (protegida) y da 401. El secret lo provee
               // Vercel como System env var al activar "Protection Bypass for
               // Automation". En local (sin la env) no se manda header (no aplica).
-              headers: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-                ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
-                : undefined,
+              headers: {
+                ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+                  ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+                  : {}),
+                ...(credencial ? { [HEADER_CREDENCIAL_INTERNA]: credencial } : {}),
+              },
             });
             results.push({
               orgId: org.id,
@@ -339,6 +348,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    for (const r of results) {
+      if (!r.ok) console.warn(`[warm-cache] ${r.orgId} ${r.endpoint} ${r.range}: ${r.error}`);
+    }
     const totalOk = results.filter((r) => r.ok).length;
     const totalFail = results.filter((r) => !r.ok).length;
     const totalMs = results.reduce((s, r) => s + r.ms, 0);
@@ -448,7 +460,14 @@ export async function GET(req: NextRequest) {
         hoursStale: r.hoursStale,
         refreshedBy: r.refreshedBy,
       })),
-      freshness,
+      // El chequeo de expansión incluye ids por org. La respuesta del cron
+      // conserva el resumen operativo; el detalle queda en logs y correo interno.
+      freshness: freshness.map(({ orgsStale, orgsSinNingunDato, error, ...row }) => ({
+        ...row,
+        ...(orgsStale ? { orgsStaleCount: orgsStale.length } : {}),
+        ...(orgsSinNingunDato ? { orgsSinNingunDatoCount: orgsSinNingunDato.length } : {}),
+        ...(error ? { error: "No se pudo verificar esta tabla" } : {}),
+      })),
       orgsPlanned: activeOrgs.length,
       orgsWarmed: new Set(results.filter(r => r.ok).map(r => r.orgId)).size,
       orgsFullyWarmed: activeOrgs.filter(org =>
@@ -461,7 +480,11 @@ export async function GET(req: NextRequest) {
       avgMs,
       budgetHit,
       totalMs: Date.now() - startedAt,
-      results,
+      // Sin el id ni el nombre de la org: esta respuesta la recibe quien llama
+      // con la clave (que está filtrada), y la lista de organizaciones activas es
+      // justo lo que hace falta para pedir sus métricas. El detalle por org queda
+      // en los logs (abajo), que no son públicos.
+      results: results.map(({ orgId, orgName, error, ...r }) => ({ ...r, ...(error ? { error: "No se pudo calentar este endpoint" } : {}) })),
     });
   } catch (err: any) {
     // Decia `error`, que no existe en ningun scope de este archivo. El
@@ -473,7 +496,7 @@ export async function GET(req: NextRequest) {
     await registrarLatido("warm-cache", false, String(err?.message ?? "error"));
     console.error("[warm-cache] error:", err);
     return NextResponse.json(
-      { error: err.message, stack: err.stack?.slice(0, 500) },
+      { error: "No se pudo completar el calentamiento de caché" },
       { status: 500 }
     );
   }

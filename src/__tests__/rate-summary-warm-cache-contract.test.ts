@@ -15,11 +15,14 @@ describe("rate-summary warm-cache contract", () => {
   it("the cron warms the endpoint using the shared internal credentials", () => {
     expect(warmCache).toContain('"/api/metrics/pixel/rate-summary"');
     expect(warmCache).toContain("orgId=${encodeURIComponent(");
-    expect(warmCache).toContain("&key=${WARM_CACHE_KEY}");
+    // La clave pública ya no abre rate-summary: va la credencial interna en un
+    // header (src/lib/credencial-interna.ts; comportamiento en metricas-sin-clave-publica).
+    expect(warmCache).toContain('credencialInterna("warm-cache")');
   });
 
-  it("the endpoint accepts only the exact admin key and otherwise uses session auth", () => {
-    expect(rateSummary).toContain('searchParams.get("key") === ADMIN_API_KEY');
+  it("the endpoint accepts only the internal warm-cache credential and otherwise uses session auth", () => {
+    expect(rateSummary).toContain('traeCredencialInterna(request, "warm-cache")');
+    expect(rateSummary).not.toContain('searchParams.get("key")');
     expect(rateSummary).toContain("isWarmCall ? warmOrgId! : await getOrganizationId()");
   });
 

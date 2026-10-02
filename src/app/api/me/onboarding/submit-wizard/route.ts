@@ -18,6 +18,7 @@ import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendEmail } from "@/lib/email/send";
+import { escaparHtml } from "@/lib/escapar-html";
 import { waitUntil } from "@vercel/functions";
 import {
   validarCredenciales,
@@ -314,7 +315,7 @@ export async function POST(req: NextRequest) {
   <div style="font-size:11px;color:#FF5E1A;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">NitroSales · Centro de Control</div>
   <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Cliente listo para backfill</h1>
   <p style="color:#9CA3AF;font-size:14px;line-height:1.6;margin:0 0 16px;">
-    <strong style="color:#fff;">${orgName?.name || "Cliente"}</strong> completó el wizard de credenciales y está esperando tu aprobación para arrancar el backfill histórico.
+    <strong style="color:#fff;">${escaparHtml(orgName?.name || "Cliente")}</strong> completó el wizard de credenciales y está esperando tu aprobación para arrancar el backfill histórico.
   </p>
   <p style="color:#9CA3AF;font-size:13px;line-height:1.6;margin:0 0 24px;">
     Plataformas conectadas: <strong style="color:#fff;">${created.join(", ")}</strong><br/>

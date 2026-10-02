@@ -27,6 +27,7 @@ import {
   baseLayout,
   button,
 } from "./email-theme";
+import { escaparHtml } from "@/lib/escapar-html";
 export {
   BRAND_BG,
   CARD_BG,
@@ -42,9 +43,11 @@ export {
   button,
 };
 
+// El nombre de contacto llega del formulario público de onboarding: se escapa
+// porque va adentro del HTML del mail.
 function greeting(name: string | null | undefined): string {
   const n = (name || "").trim();
-  return n ? `Hola ${n}` : "Hola";
+  return n ? `Hola ${escaparHtml(n)}` : "Hola";
 }
 
 /** URL del onboarding con query params para pre-llenar + personalizar */
@@ -168,9 +171,13 @@ export function onboardingConfirmationEmail(opts: {
   companyName: string;
   statusToken: string;
 }) {
-  const { contactName, companyName } = opts;
-  const subject = `Postulación recibida — ${companyName}`;
-  const preheader = `La postulación de ${companyName} fue recibida y está en revisión.`;
+  // Cualquiera completa el formulario público con el email de un tercero: lo que
+  // carga va escapado en el HTML (el asunto es texto plano; baseLayout lo escapa
+  // para el <title>).
+  const { contactName } = opts;
+  const companyName = escaparHtml(opts.companyName);
+  const subject = `Postulación recibida — ${opts.companyName}`;
+  const preheader = `La postulación de ${opts.companyName} fue recibida y está en revisión.`;
 
   const content = `
     <div style="font-size:11px;font-weight:700;color:${ACCENT_GREEN};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;">

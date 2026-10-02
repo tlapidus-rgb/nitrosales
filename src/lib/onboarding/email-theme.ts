@@ -8,6 +8,8 @@
 // emails.ts las re-exporta para compat (10 rutas las importan de ahí).
 // ══════════════════════════════════════════════════════════════
 
+import { escaparHtml } from "@/lib/escapar-html";
+
 // NitroSales brand colors
 export const BRAND_BG = "#0A0A0F";
 export const CARD_BG = "#141419";
@@ -27,6 +29,9 @@ export function appUrl(): string {
   ).replace(/\/+$/, "");
 }
 
+// El título y el preheader son texto plano (el asunto, un resumen): se escapan
+// acá, una vez, para todos los mails. Pueden traer el nombre de una empresa
+// cargado en el formulario público de onboarding.
 export function baseLayout(title: string, preheader: string, content: string): string {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -35,7 +40,7 @@ export function baseLayout(title: string, preheader: string, content: string): s
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark light">
   <meta name="supported-color-schemes" content="dark light">
-  <title>${title}</title>
+  <title>${escaparHtml(title)}</title>
   <style>
     /* Responsive: mobile = full width, sin bordes, hero escalado */
     @media only screen and (max-width: 620px) {
@@ -54,7 +59,7 @@ export function baseLayout(title: string, preheader: string, content: string): s
   </style>
 </head>
 <body style="margin:0;padding:0;background:${BRAND_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escaparHtml(preheader)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND_BG};">
     <tr>
       <td align="center" class="ns-outer" style="padding:0;">

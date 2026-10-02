@@ -42,3 +42,22 @@ El primer intento de suite había detectado dos fixtures del hotfix incompatible
 6. Retención, borrado de cuenta y copias externas siguen sujetos a definición de propiedad/plazos.
 
 Los tests locales no autorizan publicar ni prueban por sí solos el comportamiento de proveedores o de producción.
+
+
+## Actualización: siete commits adicionales de Claude
+
+Se integra el lote fijo `49bc5caa..cfad5ef4` de `claude/hotfix-admin-key` sobre la rama de preview previamente subida (`50becf74`). La autorización del usuario incluye actualizar esa misma rama para Vercel/Neon; no autoriza main ni producción.
+
+- OAuth Meta/Google requiere sesión de la organización y nonce en cookie httpOnly; elimina el inicio anónimo con orgId y destinos externos. MercadoLibre valida el destino de retorno.
+- Los textos de confirmaciones y correos escapan HTML de datos ingresados por usuarios.
+- Las métricas de Pedidos usan exclusivamente organización de sesión; se conserva además validación del id antes de SQL. Products/rate-summary/asset-stats usan credencial interna para warm-cache y sesión para uso normal.
+- Warm-cache conserva planificación por rango/rotación y limpiezas de expansión; manda credencial interna sólo en header para los endpoints modificados. Se evita también exposición de IDs en el detalle de frescura añadido por expansión y errores de resultados. El endpoint CORE pixel conserva su contrato anterior y el riesgo operativo previamente documentado.
+- ml-test sólo admite staff verificado; sin bypass por clave de cron.
+- Conflictos de cuatro archivos resueltos sin sustituir la lógica de rendimiento por las versiones antiguas.
+- Tests de correo simulan validación del proveedor para no ejecutar VTEX; contrato de Orders actualizado al acceso por sesión y regresión de id de sesión inválido.
+
+Validación final del lote: **2.451 pruebas aprobadas, 7 omitidas**, 193 archivos aprobados y uno omitido (172,52 s). Build correcto: **106 páginas**, con TypeScript verificado. Guards: order-contract 15, serve-gold-first 19, ts-nocheck 290; dependencias sin violaciones (906 módulos / 2.930 dependencias). Diff sin errores ni conflictos pendientes. Evidencia local sin versionar: `.claude-seven-tests-final.log` y `.claude-seven-build-final.log`.
+
+Los tres subagentes de revisión de esta tanda no pudieron ejecutar por límite de uso. La revisión y resolución de conflictos se completaron directamente, con pruebas dirigidas y suite completa. No se declara una revisión paralela que no ocurrió.
+
+Los bloqueos de base de datos/proveedores/decisiones del documento siguen vigentes. Este lote valida código local, no la base de Neon ni el deployment. Antes de pruebas externas se debe confirmar la base aislada y las integraciones del preview.

@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { destinoSeguro } from "@/lib/oauth-state";
 
 const ML_APP_ID = process.env.ML_APP_ID || "5750438437863167";
 const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI || "https://nitrosales.vercel.app/api/auth/mercadolibre/callback";
@@ -30,7 +31,9 @@ export async function GET(req: NextRequest) {
 
   // Capturar returnTo (ej: "/onboarding-wizard") para que el callback
   // vuelva exactamente a donde el cliente hizo click "Conectar".
-  const returnTo = new URL(req.url).searchParams.get("returnTo") || "/competitors";
+  // Sólo un camino de esta app: con un returnTo a otro dominio, después del login
+  // real en MercadoLibre el cliente terminaba en una página del atacante.
+  const returnTo = destinoSeguro(new URL(req.url).searchParams.get("returnTo"), "/competitors");
 
   // offline_access scope ensures ML returns a refresh_token for long-lived access
   const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&scope=offline_access&code_challenge=${codeChallenge}&code_challenge_method=S256`;
