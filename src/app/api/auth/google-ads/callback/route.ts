@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { escaparHtml, leerState, sesionDeLaOrg } from "@/lib/oauth-state";
+import { COOKIE_NONCE, escaparHtml, leerCookie, leerState, OPCIONES_COOKIE_NONCE, sesionDeLaOrg } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     return errorPage("Falta state", "Reintentá desde el wizard.");
   }
 
-  const leido = leerState(state, "/onboarding");
+  const leido = leerState(state, leerCookie(req, COOKIE_NONCE.google), "/onboarding");
   if (!leido) {
     return errorPage("Link de conexión inválido", "El link no es válido o es viejo. Reintentá desde la app.");
   }
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions as any).catch(() => null);
   if (!sesionDeLaOrg(session, orgId)) {
     return errorPage(
-      "Sesión de otra cuenta",
+      (session as any)?.user ? "Sesión de otra cuenta" : "Tu sesión no está activa",
       "Iniciá sesión en NitroSales con un usuario de esta organización y reintentá desde la app.",
     );
   }
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
       return errorPage(
         "Falló intercambio del código",
         `Google rechazó: ${msg}.`,
-        "/api/auth/google-ads",
+        `/api/auth/google-ads?returnTo=${encodeURIComponent(returnTo)}`,
       );
     }
 
@@ -122,9 +122,12 @@ export async function GET(req: Request) {
 
     const successUrl = new URL(returnTo, baseUrl);
     successUrl.searchParams.set("googleConnected", "1");
-    return NextResponse.redirect(successUrl.toString());
+    // El nonce es de un solo uso.
+    const ok = NextResponse.redirect(successUrl.toString());
+    ok.cookies.set(COOKIE_NONCE.google, "", { ...OPCIONES_COOKIE_NONCE, maxAge: 0 });
+    return ok;
   } catch (err: any) {
     console.error("[google-ads/callback] error:", err);
-    return errorPage("Error inesperado", `${err?.message || "Unknown"}. Reintentá.`, "/api/auth/google-ads");
+    return errorPage("Error inesperado", `${err?.message || "Unknown"}. Reintentá.`, `/api/auth/google-ads?returnTo=${encodeURIComponent(returnTo)}`);
   }
 }

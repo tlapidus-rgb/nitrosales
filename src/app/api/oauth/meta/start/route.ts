@@ -24,7 +24,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { armarState } from "@/lib/oauth-state";
+import { armarState, COOKIE_NONCE, nuevoNonce, OPCIONES_COOKIE_NONCE } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +73,10 @@ export async function GET(req: Request) {
   const baseUrl = `${url.protocol}//${url.host}`;
   const redirectUri = `${baseUrl}/api/oauth/meta/callback`;
 
-  // State: orgId.firma.returnTo. El callback además exige sesión de esta org.
-  const state = armarState(orgId, returnTo);
+  // State: orgId.firma.nonce.returnTo. El nonce queda en una cookie httpOnly de
+  // ESTE navegador; el callback exige la misma cookie y la sesión de esta org.
+  const nonce = nuevoNonce();
+  const state = armarState(orgId, nonce, returnTo);
   if (!state) {
     return NextResponse.json({ error: "No se pudo iniciar la conexión con Meta" }, { status: 500 });
   }
@@ -87,5 +89,7 @@ export async function GET(req: Request) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "ads_read,ads_management,business_management");
 
-  return NextResponse.redirect(authUrl.toString());
+  const res = NextResponse.redirect(authUrl.toString());
+  res.cookies.set(COOKIE_NONCE.meta, nonce, OPCIONES_COOKIE_NONCE);
+  return res;
 }

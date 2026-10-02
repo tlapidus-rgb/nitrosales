@@ -23,7 +23,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { escaparHtml, leerState, sesionDeLaOrg } from "@/lib/oauth-state";
+import { COOKIE_NONCE, escaparHtml, leerCookie, leerState, OPCIONES_COOKIE_NONCE, sesionDeLaOrg } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +81,7 @@ export async function GET(req: Request) {
     return errorPage("Falta state parameter", "Posible intento de CSRF. Reintentá desde el wizard.");
   }
 
-  const leido = leerState(state, "/onboarding");
+  const leido = leerState(state, leerCookie(req, COOKIE_NONCE.meta), "/onboarding");
   if (!leido) {
     return errorPage("Link de conexión inválido", "El link no es válido o es viejo. Reintentá desde la app.");
   }
@@ -93,7 +93,7 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions as any).catch(() => null);
   if (!sesionDeLaOrg(session, orgId)) {
     return errorPage(
-      "Sesión de otra cuenta",
+      (session as any)?.user ? "Sesión de otra cuenta" : "Tu sesión no está activa",
       "Iniciá sesión en NitroSales con un usuario de esta organización y reintentá desde la app.",
     );
   }
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
       return errorPage(
         "Falló el intercambio del código",
         `Meta rechazó el code: ${msg}. Posibles causas: redirect_uri no coincide con la configurada en la App, o el code expiró.`,
-        "/api/oauth/meta/start",
+        `/api/oauth/meta/start?returnTo=${encodeURIComponent(returnTo)}`,
       );
     }
 
@@ -214,13 +214,16 @@ export async function GET(req: Request) {
     const successUrl = new URL(returnTo, baseUrl);
     successUrl.searchParams.set("metaConnected", "1");
     successUrl.searchParams.set("metaAccounts", String(adAccounts.length));
-    return NextResponse.redirect(successUrl.toString());
+    // El nonce es de un solo uso.
+    const ok = NextResponse.redirect(successUrl.toString());
+    ok.cookies.set(COOKIE_NONCE.meta, "", { ...OPCIONES_COOKIE_NONCE, maxAge: 0 });
+    return ok;
   } catch (err: any) {
     console.error("[oauth/meta/callback] error:", err);
     return errorPage(
       "Error inesperado",
       `${err?.message || "Unknown"}. Reintentá o avisá a soporte.`,
-      "/api/oauth/meta/start",
+      `/api/oauth/meta/start?returnTo=${encodeURIComponent(returnTo)}`,
     );
   }
 }
