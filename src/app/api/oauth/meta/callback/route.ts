@@ -21,19 +21,13 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { createHmac } from "crypto";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { escaparHtml, leerState, sesionDeLaOrg } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
 
 const META_API_VERSION = "v21.0";
-
-function verifyState(payload: string, signature: string): boolean {
-  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payload);
-  const expected = hmac.digest("hex").slice(0, 16);
-  return expected === signature;
-}
 
 function errorPage(title: string, message: string, retryUrl?: string): NextResponse {
   const html = `<!DOCTYPE html>
@@ -52,9 +46,9 @@ function errorPage(title: string, message: string, retryUrl?: string): NextRespo
 </head>
 <body>
 <div class="card">
-  <h1>${title}</h1>
-  <p>${message}</p>
-  ${retryUrl ? `<a href="${retryUrl}">Reintentar</a>` : ""}
+  <h1>${escaparHtml(title)}</h1>
+  <p>${escaparHtml(message)}</p>
+  ${retryUrl ? `<a href="${escaparHtml(retryUrl)}">Reintentar</a>` : ""}
   <a href="/onboarding">Volver al onboarding</a>
 </div>
 </body>
@@ -76,7 +70,7 @@ export async function GET(req: Request) {
   if (error) {
     return errorPage(
       "Cancelaste la conexión",
-      `Meta nos avisó: <code>${error}</code>${errorDescription ? ` — ${errorDescription}` : ""}. Si fue un error, podés volver a intentar.`,
+      `Meta nos avisó: "${error}"${errorDescription ? ` — ${errorDescription}` : ""}. Si fue un error, podés volver a intentar.`,
     );
   }
 
@@ -87,18 +81,20 @@ export async function GET(req: Request) {
     return errorPage("Falta state parameter", "Posible intento de CSRF. Reintentá desde el wizard.");
   }
 
-  // Parse state: orgId.signature.returnTo
-  const parts = state.split(".");
-  if (parts.length < 2) {
-    return errorPage("State malformado", "El parametro state no tiene el formato esperado.");
+  const leido = leerState(state, "/onboarding");
+  if (!leido) {
+    return errorPage("Link de conexión inválido", "El link no es válido o es viejo. Reintentá desde la app.");
   }
-  const [orgId, signature, ...returnToParts] = parts;
-  const returnTo = decodeURIComponent(returnToParts.join(".") || "/onboarding");
+  const { orgId, returnTo } = leido;
 
-  if (!verifyState(orgId, signature)) {
+  // La firma sola no alcanza: el secreto que la firma está filtrado. La sesión
+  // del navegador tiene que ser de la organización a la que se conecta la cuenta
+  // (ver src/lib/oauth-state.ts).
+  const session = await getServerSession(authOptions as any).catch(() => null);
+  if (!sesionDeLaOrg(session, orgId)) {
     return errorPage(
-      "State inválido (CSRF guard)",
-      "La firma del state no coincide. Posible intento de fraude o link viejo.",
+      "Sesión de otra cuenta",
+      "Iniciá sesión en NitroSales con un usuario de esta organización y reintentá desde la app.",
     );
   }
 
@@ -132,7 +128,7 @@ export async function GET(req: Request) {
       return errorPage(
         "Falló el intercambio del código",
         `Meta rechazó el code: ${msg}. Posibles causas: redirect_uri no coincide con la configurada en la App, o el code expiró.`,
-        `/api/oauth/meta/start?orgId=${orgId}`,
+        "/api/oauth/meta/start",
       );
     }
 
@@ -224,7 +220,7 @@ export async function GET(req: Request) {
     return errorPage(
       "Error inesperado",
       `${err?.message || "Unknown"}. Reintentá o avisá a soporte.`,
-      `/api/oauth/meta/start?orgId=${orgId}`,
+      "/api/oauth/meta/start",
     );
   }
 }

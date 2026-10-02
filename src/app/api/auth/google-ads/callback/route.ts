@@ -11,17 +11,11 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { createHmac } from "crypto";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { escaparHtml, leerState, sesionDeLaOrg } from "@/lib/oauth-state";
 
 export const dynamic = "force-dynamic";
-
-function verifyState(payload: string, signature: string): boolean {
-  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payload);
-  const expected = hmac.digest("hex").slice(0, 16);
-  return expected === signature;
-}
 
 function errorPage(title: string, message: string, retryUrl?: string): NextResponse {
   const html = `<!DOCTYPE html>
@@ -31,7 +25,7 @@ function errorPage(title: string, message: string, retryUrl?: string): NextRespo
 h1{color:#ef4444;margin-top:0;}
 a{display:inline-block;margin:8px 8px 0 0;padding:10px 20px;background:#3b82f6;color:white;text-decoration:none;border-radius:8px;}
 </style></head><body>
-<div class="card"><h1>${title}</h1><p>${message}</p>${retryUrl ? `<a href="${retryUrl}">Reintentar</a>` : ""}<a href="/onboarding">Volver al onboarding</a></div>
+<div class="card"><h1>${escaparHtml(title)}</h1><p>${escaparHtml(message)}</p>${retryUrl ? `<a href="${escaparHtml(retryUrl)}">Reintentar</a>` : ""}<a href="/onboarding">Volver al onboarding</a></div>
 </body></html>`;
   return new NextResponse(html, { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
@@ -43,7 +37,7 @@ export async function GET(req: Request) {
   const error = url.searchParams.get("error") || "";
 
   if (error) {
-    return errorPage("OAuth Error", `Google nos avisó: <code>${error}</code>. Si fue por error, reintentá.`);
+    return errorPage("OAuth Error", `Google nos avisó: "${error}". Si fue por error, reintentá.`);
   }
   if (!code) {
     return errorPage("Falta authorization code", "Google no devolvió el code. Reintentá.");
@@ -52,15 +46,21 @@ export async function GET(req: Request) {
     return errorPage("Falta state", "Reintentá desde el wizard.");
   }
 
-  const parts = state.split(".");
-  if (parts.length < 2) {
-    return errorPage("State malformado", "El state no tiene formato esperado.");
+  const leido = leerState(state, "/onboarding");
+  if (!leido) {
+    return errorPage("Link de conexión inválido", "El link no es válido o es viejo. Reintentá desde la app.");
   }
-  const [orgId, signature, ...returnToParts] = parts;
-  const returnTo = decodeURIComponent(returnToParts.join(".") || "/onboarding");
+  const { orgId, returnTo } = leido;
 
-  if (!verifyState(orgId, signature)) {
-    return errorPage("State inválido (CSRF)", "Firma del state no coincide. Posible link viejo.");
+  // La firma sola no alcanza: el secreto que la firma está filtrado. La sesión
+  // del navegador tiene que ser de la organización a la que se conecta la cuenta
+  // (ver src/lib/oauth-state.ts).
+  const session = await getServerSession(authOptions as any).catch(() => null);
+  if (!sesionDeLaOrg(session, orgId)) {
+    return errorPage(
+      "Sesión de otra cuenta",
+      "Iniciá sesión en NitroSales con un usuario de esta organización y reintentá desde la app.",
+    );
   }
 
   const baseUrl = `${url.protocol}//${url.host}`;
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
       return errorPage(
         "Falló intercambio del código",
         `Google rechazó: ${msg}.`,
-        `/api/auth/google-ads?orgId=${orgId}`,
+        "/api/auth/google-ads",
       );
     }
 
@@ -125,6 +125,6 @@ export async function GET(req: Request) {
     return NextResponse.redirect(successUrl.toString());
   } catch (err: any) {
     console.error("[google-ads/callback] error:", err);
-    return errorPage("Error inesperado", `${err?.message || "Unknown"}. Reintentá.`, `/api/auth/google-ads?orgId=${orgId}`);
+    return errorPage("Error inesperado", `${err?.message || "Unknown"}. Reintentá.`, "/api/auth/google-ads");
   }
 }
