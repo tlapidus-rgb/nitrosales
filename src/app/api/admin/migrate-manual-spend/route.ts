@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// GET /api/admin/migrate-manual-spend?key=Y
+// GET /api/admin/migrate-manual-spend — con sesión de staff (abrir logueado; sin clave en la URL)
 // ══════════════════════════════════════════════════════════════
 // Crea la tabla manual_channel_spends para que clientes puedan
 // cargar inversion manual de canales sin integracion (TV, radio,
@@ -9,18 +9,15 @@
 // Idempotente — usa CREATE TABLE IF NOT EXISTS.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "manual_channel_spends" (

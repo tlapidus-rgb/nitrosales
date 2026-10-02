@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 // Migración — Índices únicos parciales anti-doble-pago de Aura (D1 + D3)
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/migrate-aura-dedup-indexes
+// POST /api/admin/migrate-aura-dedup-indexes — con sesión de staff (POST desde el navegador logueado)
 //
 // Crea (idempotente, IF NOT EXISTS) los dos índices únicos PARCIALES que son
 // el guard FÍSICO contra el doble pago — el check de app no frena races:
@@ -21,8 +21,14 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export async function POST(_req: NextRequest) {
+  // Sólo staff. Antes no tenía ninguna autorización propia: dependía sólo del
+  // middleware.
+  if (!(await isInternalUser())) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
   try {
     // D1 — solo 1 comisión activa por creador.
     await prisma.$executeRawUnsafe(`

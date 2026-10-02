@@ -1,22 +1,20 @@
 // @ts-nocheck
-// GET /api/admin/debug-tvc-orders?orgId=X&key=Y
+// GET /api/admin/debug-tvc-orders?orgId=X — con sesión de staff (abrir logueado; sin clave en la URL)
 // Lista las 30 ordenes recientes de TVC (o cualquier org) con detalle
 // de attribution + touchpoints + packId para diagnosticar duplicados
 // y ordenes sin touchpoints.
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgId = url.searchParams.get("orgId");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
     const onlySource = url.searchParams.get("source"); // 'VTEX' | 'MELI' | null

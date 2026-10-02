@@ -1,15 +1,14 @@
 export const dynamic = "force-dynamic";
 
 // Adds Influencer.attributionWindowDays column (default 14).
-// Run once: /api/admin/migrate-creator-attribution-window?key=<NEXTAUTH_SECRET>
+// Run once (con sesión de staff, abrir la URL logueado): /api/admin/migrate-creator-attribution-window
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const key = searchParams.get("key");
-  if (!key || key !== process.env.NEXTAUTH_SECRET) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

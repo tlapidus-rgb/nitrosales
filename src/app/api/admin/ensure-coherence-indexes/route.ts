@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// GET /api/admin/ensure-coherence-indexes?key=Y
+// GET /api/admin/ensure-coherence-indexes — con sesión de staff (abrir logueado; sin clave en la URL)
 // ══════════════════════════════════════════════════════════════
 // Crea indices que aceleran las queries del contrato data-coherence
 // (introducidas en S60 EXT-2 BIS+++++++). Idempotente — usa
@@ -12,13 +12,12 @@
 //   - pixel_attributions(orderId) — para JOIN pa.orderId = o.id (NO existe hoy, solo unique con model)
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-const KEY = ADMIN_API_KEY;
 
 const INDEXES = [
   // Round 1 (S60 EXT-2 BIS+++++++)
@@ -122,9 +121,7 @@ const INDEXES = [
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const results: Array<{ name: string; ok: boolean; ms: number; error?: string }> = [];
 

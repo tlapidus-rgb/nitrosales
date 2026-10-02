@@ -13,7 +13,7 @@
 --   npx prisma db execute --file prisma/migrations/add_category_path.sql --schema prisma/schema.prisma
 --
 -- Ejecutar (opcion B - via endpoint admin, despues del deploy):
---   curl "https://app.nitrosales.io/api/admin/migrate-category-path?key=<NEXTAUTH_SECRET>"
+--   con sesión de staff, abrir logueado: https://app.nitrosales.io/api/admin/migrate-category-path
 -- ═══════════════════════════════════════════════════════════════════
 
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "categoryPath" TEXT;

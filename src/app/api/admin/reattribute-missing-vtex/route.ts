@@ -1,21 +1,20 @@
 // @ts-nocheck
-// POST /api/admin/reattribute-missing-vtex?key=Y&orgSlug=teve&days=14&max=50
+// POST /api/admin/reattribute-missing-vtex?orgSlug=teve&days=14&max=50 — con sesión de staff (POST desde el navegador logueado; sin clave en la URL)
 // Toma todas las ordenes VTEX de la org en ultimos N dias sin atribucion NITRO
 // y las re-procesa via webhook handler (que recrea atribucion).
 // Idempotente. Excluye FVG-/BPR- (marketplaces sin pixel).
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-const KEY = ADMIN_API_KEY;
 
 export async function POST(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    if (url.searchParams.get("key") !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const orgSlug = url.searchParams.get("orgSlug") || "teve";
     const days = Math.min(30, Math.max(1, Number(url.searchParams.get("days") || "14")));

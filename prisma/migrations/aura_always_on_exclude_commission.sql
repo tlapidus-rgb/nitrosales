@@ -8,7 +8,7 @@
 -- IDEMPOTENTE: correrlo 2 veces es no-op gracias a IF NOT EXISTS.
 --
 -- Ejecutar via endpoint admin (después del deploy):
---   curl "https://nitrosales.vercel.app/api/admin/migrate-aura-columns?key=<NEXTAUTH_SECRET>"
+--   con sesión de staff, abrir logueado: https://nitrosales.vercel.app/api/admin/migrate-aura-columns
 -- ═══════════════════════════════════════════════════════════════════
 
 -- 1. Columna isAlwaysOn en influencer_campaigns

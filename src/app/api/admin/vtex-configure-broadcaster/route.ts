@@ -1,21 +1,24 @@
 // @ts-nocheck
-// POST /api/admin/vtex-configure-broadcaster?key=Y&orgSlug=teve
+// POST /api/admin/vtex-configure-broadcaster?orgSlug=teve — con sesión de staff (POST desde el navegador logueado; sin clave en la URL)
 //   Configura el Orders Broadcaster en VTEX para la org dada.
 //   La URL del hook apunta a nuestro webhook handler con ?org=<orgId>&key=NEXTAUTH_SECRET.
 //   Filtros copiados de EMDJ (que funciona).
 //
-// DELETE /api/admin/vtex-configure-broadcaster?key=Y&orgSlug=teve
+// DELETE /api/admin/vtex-configure-broadcaster?orgSlug=teve — con sesión de staff (DELETE desde el navegador logueado; sin clave en la URL)
 //   Borra la configuracion (rollback). VTEX vuelve a 404 al consultar.
 //
-// GET (sin metodo PUT/DELETE) /api/admin/vtex-configure-broadcaster?key=Y&orgSlug=teve&dryRun=1
+// GET (sin metodo PUT/DELETE) /api/admin/vtex-configure-broadcaster?orgSlug=teve&dryRun=1 — con sesión de staff (abrir logueado; sin clave en la URL)
 //   Dry-run: arma el payload pero no lo envia. Solo lo devuelve para revision.
 
 import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
+// KEY ya NO autoriza esta ruta (sesión de staff). Queda sólo como respaldo de
+// la clave que lleva la URL del hook de VTEX (buildPayload), que no se toca.
 const KEY = ADMIN_API_KEY;
 
 // Misma config que EMDJ tiene (verificado via GET /api/orders/hook/config)
@@ -64,8 +67,7 @@ async function resolveOrg(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    if (url.searchParams.get("key") !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await resolveOrg(req);
     const host = req.headers.get("host") || "nitrosales.vercel.app";
@@ -85,8 +87,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    if (url.searchParams.get("key") !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await resolveOrg(req);
     const host = req.headers.get("host") || "nitrosales.vercel.app";
@@ -133,8 +134,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    if (url.searchParams.get("key") !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await resolveOrg(req);
     const vtexConfig = await getVtexConfig(org.id);

@@ -21,12 +21,12 @@
 // presupuesto de tiempo y devuelve `nextFrom`. Re-correrlo continúa; correrlo de
 // nuevo entero es idempotente (ON CONFLICT DO UPDATE).
 //
-// Uso:
-//   /api/admin/backfill-sku-product-map?key=<ADMIN_API_KEY>&orgId=<id>
-//   /api/admin/backfill-sku-product-map?key=...&orgId=...&from=1500
+// Uso (con sesión de staff, abrir la URL logueado):
+//   /api/admin/backfill-sku-product-map?orgId=<id>
+//   /api/admin/backfill-sku-product-map?orgId=...&from=1500
 // ══════════════════════════════════════════════════════════════════════════
 
-import { isValidAdminKey } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
@@ -44,7 +44,7 @@ interface GetProductAndSkuIdsResponse {
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  if (!isValidAdminKey(url.searchParams.get("key"))) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

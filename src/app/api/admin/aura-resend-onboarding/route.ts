@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 // Admin — Reenviar el link de set-password a creadores sin clave
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/aura-resend-onboarding
+// POST /api/admin/aura-resend-onboarding — sólo staff (POST desde el navegador logueado)
 // body: { dryRun?: boolean (default TRUE), onlyMissingPassword?: boolean (default TRUE) }
 //
 // ⚠️ ACCIÓN MANUAL Y EXPLÍCITA. NO corre solo en el deploy — solo cuando se la dispara.
@@ -18,8 +18,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { sendOnboardingEmail } from "@/lib/aura/create-creator";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export async function POST(req: NextRequest) {
+  // Sólo staff. getOrganization() sólo exige una sesión con org (cualquier
+  // usuario de la org, sin rol ni permiso de sección) y ninguna UI llama a esta
+  // ruta: queda para el staff, como el resto de /api/admin.
+  if (!(await isInternalUser())) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   try {
     const org = await getOrganization(req);
     const body = await req.json().catch(() => ({}));

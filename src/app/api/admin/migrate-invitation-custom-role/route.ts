@@ -8,14 +8,13 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key || key !== process.env.NEXTAUTH_SECRET) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
