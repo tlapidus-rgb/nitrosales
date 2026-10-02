@@ -85,6 +85,30 @@ describe("middleware — fuera de la allowlist, un pedido con ?key= se rechaza",
   });
 });
 
+describe("middleware — el rechazo de ?key= vale para CUALQUIER método, no sólo GET", () => {
+  // Un JWT con isStaff:true se fabrica con el secreto filtrado. Si el 403 por
+  // la clave mirara sólo GET, un POST con ?key= llegaría a una ruta de
+  // escritura que acepta `key === ADMIN_API_KEY` sin mirar la sesión
+  // (cleanup-duplicate-leads, por ejemplo, borra leads).
+  const ESCRITURA = "/api/admin/cleanup-duplicate-leads";
+
+  it.each(["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])(
+    "%s de staff (o JWT fabricado) con ?key= fuera de la allowlist → 403 por la clave",
+    async (method) => {
+      getTokenMock.mockResolvedValue(STAFF_TOKEN);
+      const res = await middleware(req(`${ESCRITURA}?key=${KEY}`, method));
+      expect(passed(res)).toBe(false);
+      expect(res.status).toBe(403);
+      expect((await res.json()).error).toBe("La clave por URL no se acepta en esta ruta");
+    },
+  );
+
+  it.each(["POST", "DELETE"])("%s de staff SIN clave → pasa (el 403 es por la clave, no por el método)", async (method) => {
+    getTokenMock.mockResolvedValue(STAFF_TOKEN);
+    expect(passed(await middleware(req(ESCRITURA, method)))).toBe(true);
+  });
+});
+
 beforeEach(() => {
   getTokenMock.mockReset();
 });

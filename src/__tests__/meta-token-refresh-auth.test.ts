@@ -29,6 +29,31 @@ it("EL CASO: el header x-vercel-cron sin clave no entra", async () => {
   expect(m.findMany).not.toHaveBeenCalled();
 });
 
+// Ningún header que pueda mandar cualquiera (`curl -H`, `curl -A`) reemplaza a
+// la clave o a la sesión: ni el de cron en otra capitalización, ni el
+// user-agent de Vercel Cron, ni una "firma" que nadie verifica.
+it.each<[string, Record<string, string>]>([
+  ["X-Vercel-Cron: 1 (mayúsculas)", { "X-Vercel-Cron": "1" }],
+  ["user-agent: vercel-cron/1.0", { "user-agent": "vercel-cron/1.0" }],
+  ["x-vercel-signature cualquiera", { "x-vercel-signature": "cualquiera" }],
+  ["x-vercel-cron-signature cualquiera", { "x-vercel-cron-signature": "cualquiera" }],
+  ["todos juntos", {
+    "X-Vercel-Cron": "1", "user-agent": "vercel-cron/1.0", "x-vercel-signature": "x", "x-vercel-cron-signature": "x",
+  }],
+])("headers de cron falsificables, sin clave ni sesión, no entran: %s", async (_caso, headers) => {
+  const res = await pedir("http://local/api/cron/meta-token-refresh", headers);
+  expect(m.findMany).not.toHaveBeenCalled();
+  expect(res.status).toBe(403);
+});
+
+it("con headers de cron y una clave equivocada, tampoco", async () => {
+  const res = await pedir("http://local/api/cron/meta-token-refresh?key=otra-clave", {
+    "x-vercel-cron": "1", "user-agent": "vercel-cron/1.0",
+  });
+  expect(m.findMany).not.toHaveBeenCalled();
+  expect(res.status).toBe(403);
+});
+
 it("con la clave que manda vercel.json, entra", async () => {
   const res = await pedir("http://local/api/cron/meta-token-refresh?key=clave-sintetica");
   expect(res.status).toBe(200);

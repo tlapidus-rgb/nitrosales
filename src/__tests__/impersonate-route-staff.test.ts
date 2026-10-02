@@ -14,6 +14,7 @@ vi.mock("@/lib/db/client", () => ({
 }));
 
 import { POST } from "@/app/api/admin/impersonate/route";
+import { STAFF_EMAILS } from "@/lib/staff";
 
 const pedir = () => POST(new NextRequest("http://local/api/admin/impersonate", {
   method: "POST", body: JSON.stringify({ targetUserId: "destino" }),
@@ -23,6 +24,13 @@ beforeEach(() => { vi.stubEnv("NEXTAUTH_SECRET", "synthetic-test-secret"); m.tar
 
 it("rechaza con 400 un destino que es staff", async () => {
   m.target.mockResolvedValue({ id: "destino", email: "otro@nitro.invalid", name: "Otro", organizationId: "nitro", isStaff: true });
+  const res = await pedir();
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toMatch(/staff/);
+});
+
+it("rechaza con 400 un destino que es staff sólo por la allowlist de emails (isStaff=false en la base)", async () => {
+  m.target.mockResolvedValue({ id: "destino", email: [...STAFF_EMAILS][0], name: "Staff", organizationId: "nitro", isStaff: false });
   const res = await pedir();
   expect(res.status).toBe(400);
   expect((await res.json()).error).toMatch(/staff/);

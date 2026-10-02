@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ══════════════════════════════════════════════════════════════════════════
 // HOTFIX: la sesión se ata a la base
@@ -19,8 +19,8 @@ vi.mock("@/lib/permissions-resolve", () => ({
 }));
 
 import { authOptions } from "@/lib/auth";
-import { olvidarVerificaciones, MEMORIA_ANTE_CORTE_MS } from "@/lib/organizacion/session-access";
-import { STAFF_EMAILS } from "@/lib/staff";
+import { olvidarVerificaciones, MEMORIA_ANTE_CORTE_MS, verificarIdentidad } from "@/lib/organizacion/session-access";
+import { isStaffUser, STAFF_EMAILS } from "@/lib/staff";
 
 const token = { id: "user", organizationId: "a", organizationName: "A", email: "client@example.invalid", isStaff: false, role: "VIEWER" };
 const enBase = (o: Record<string, unknown> = {}) => [{ email: "client@example.invalid", isStaff: false, role: "VIEWER", organizationId: "a", ...o }];
@@ -92,4 +92,62 @@ it("con una verificación reciente, un error de la base no deja afuera; pasado e
 it("sin verificación previa, un error de la base deja sin usuario", async () => {
   m.fila.mockRejectedValue(new Error("pool timeout"));
   expect((await resolve()).user).toBeUndefined();
+});
+
+describe("memoria ante corte: el recuerdo sólo vale con el mismo email y la misma organización", () => {
+  // Lo recordado es por id. Durante un corte de la base, un token fabricado con
+  // el id de un usuario verificado hace poco no puede traer otro email ni otra
+  // organización: NextAuth arma `session.user.email` con el email del TOKEN, e
+  // isInternalUser() trata como staff a cualquier sesión cuyo email esté en
+  // STAFF_EMAILS.
+  const comoNextAuth = (override: Record<string, unknown> = {}) => {
+    const t = { ...token, ...override };
+    return authOptions.callbacks!.session!({ session: { expires: "2099-01-01", user: { email: t.email } }, token: t } as any) as Promise<any>;
+  };
+  /** `user` se verifica con la base; un minuto después, la base no responde. */
+  async function verificadoYDespuesCorte(): Promise<void> {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
+    expect((await resolve()).user.id).toBe("user");
+    m.fila.mockRejectedValue(new Error("pool timeout"));
+    vi.setSystemTime(new Date(Date.now() + 60_000));
+  }
+
+  it("control: durante el corte, el mismo token sigue entrando", async () => {
+    await verificadoYDespuesCorte();
+    expect((await comoNextAuth()).user.id).toBe("user");
+  });
+
+  it("EL CASO: durante el corte, el id recordado con el email de alguien de staff no entra ni pasa por staff", async () => {
+    await verificadoYDespuesCorte();
+    const s = await comoNextAuth({ email: staffEmail });
+    // Lo que decide isInternalUser(): isStaff y email de la sesión.
+    expect(isStaffUser({ isStaff: s.user?.isStaff, email: s.user?.email })).toBe(false);
+    expect(s.user).toBeUndefined();
+  });
+
+  it("durante el corte, el id recordado con otra organización no entra", async () => {
+    await verificadoYDespuesCorte();
+    expect((await comoNextAuth({ organizationId: "otra" })).user).toBeUndefined();
+  });
+
+  it("verificarIdentidad compara el recuerdo contra el email y la organización del token", async () => {
+    const t0 = Date.parse("2026-10-01T12:00:00Z");
+    const t1 = t0 + 60_000;
+    const delToken = { id: "user", email: "client@example.invalid", organizationId: "a" };
+    expect(await verificarIdentidad(delToken, t0)).toMatchObject({ estado: "ok" });
+    m.fila.mockRejectedValue(new Error("pool timeout"));
+    expect(await verificarIdentidad(delToken, t1)).toMatchObject({ estado: "ok" });
+    expect(await verificarIdentidad({ ...delToken, email: staffEmail }, t1)).toEqual({ estado: "invalida" });
+    expect(await verificarIdentidad({ ...delToken, email: "otro@example.invalid" }, t1)).toEqual({ estado: "invalida" });
+    expect(await verificarIdentidad({ ...delToken, organizationId: "otra" }, t1)).toEqual({ estado: "invalida" });
+  });
+
+  it("un usuario que la base dijo que no existe sigue sin existir durante el corte", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
+    m.fila.mockResolvedValue([]);
+    expect((await resolve()).user).toBeUndefined();
+    m.fila.mockRejectedValue(new Error("pool timeout"));
+    vi.setSystemTime(new Date(Date.now() + 60_000));
+    expect((await resolve()).user).toBeUndefined();
+  });
 });
