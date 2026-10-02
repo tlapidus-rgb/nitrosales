@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getOrganizationId } from "@/lib/auth-guard";
+import { getOrganizationId, NoOrganizationError } from "@/lib/auth-guard";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { esOrgIdValido } from "@/lib/org-id-seguro";
 import { fuenteDeLaOrdenSql, meliPendienteSql, interpretarFuentePedida, FUENTES_DE_ORDEN } from "@/domains/orders";
@@ -1779,6 +1779,11 @@ async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
     setSharedCache("orders", response, ...cacheKey);
     return NextResponse.json(response);
   } catch (error: any) {
+    // Sesión ausente o inaccesible: 401 evita los reintentos de errores 5xx.
+    // Los fallos reales de la base conservan 500 y su política de reintentos.
+    if (error instanceof NoOrganizationError) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
     console.error("Orders API error:", error);
     // Devolver 500 real (NO un mock vacío con 200). En una plataforma de data, mostrar
     // "$0 ventas" cuando en realidad falló la consulta es peor que mostrar el error: el

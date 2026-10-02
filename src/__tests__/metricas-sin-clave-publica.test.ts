@@ -15,16 +15,21 @@ import { NextRequest } from "next/server";
 const m = vi.hoisted(() => {
   process.env.ADMIN_API_KEY = "clave-publica-sintetica";
   process.env.DATABASE_URL = "postgres://sintetico:sintetico@localhost:5432/x";
-  return { pidioSesion: 0, orgsActivas: [] as any[], freshness: [] as any[], sessionOrg: null as string | null };
+  return { pidioSesion: 0, orgsActivas: [] as any[], freshness: [] as any[], sessionOrg: null as string | null, unexpectedAuthFailure: false };
 });
 
-vi.mock("@/lib/auth-guard", () => ({
-  getOrganizationId: async () => {
-    m.pidioSesion++;
-    if (m.sessionOrg !== null) return m.sessionOrg;
-    throw new Error("Unauthorized");
-  },
-}));
+vi.mock("@/lib/auth-guard", () => {
+  class NoOrganizationError extends Error {}
+  return {
+    NoOrganizationError,
+    getOrganizationId: async () => {
+      m.pidioSesion++;
+      if (m.sessionOrg !== null) return m.sessionOrg;
+      if (m.unexpectedAuthFailure) throw new Error("Synthetic database failure");
+      throw new NoOrganizationError("Unauthorized");
+    },
+  };
+});
 vi.mock("@/lib/api-cache-shared", () => ({
   getSharedCachedSWR: async () => null,
   purgeExpiredSharedCache: async () => 0,
@@ -57,6 +62,7 @@ beforeEach(() => {
   m.orgsActivas = [];
   m.freshness = [];
   m.sessionOrg = null;
+  m.unexpectedAuthFailure = false;
 });
 
 describe("credencial interna", () => {
@@ -75,6 +81,11 @@ describe("credencial interna", () => {
 });
 
 describe("metrics/orders", () => {
+  it("conserva 500 si falla la base al verificar la sesión", async () => {
+    m.unexpectedAuthFailure = true;
+    const res = await orders.GET(pedido("/api/metrics/orders"));
+    expect(res.status).toBe(500);
+  });
   it("rechaza un id de sesión que podría escapar del SQL antes de consultar datos", async () => {
     m.sessionOrg = "x' OR 1=1 --";
     const res = await orders.GET(pedido("/api/metrics/orders"));
@@ -85,7 +96,7 @@ describe("metrics/orders", () => {
   it("EL CASO: con la clave pública y ?orgId= de otro, igual le pide la org a la sesión", async () => {
     const res = await orders.GET(pedido("/api/metrics/orders"));
     expect(m.pidioSesion).toBe(1);
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(401);
   });
 
   it("ni siquiera la credencial interna abre otra organización (nadie la usa acá)", async () => {

@@ -61,3 +61,24 @@ Validación final del lote: **2.451 pruebas aprobadas, 7 omitidas**, 193 archivo
 Los tres subagentes de revisión de esta tanda no pudieron ejecutar por límite de uso. La revisión y resolución de conflictos se completaron directamente, con pruebas dirigidas y suite completa. No se declara una revisión paralela que no ocurrió.
 
 Los bloqueos de base de datos/proveedores/decisiones del documento siguen vigentes. Este lote valida código local, no la base de Neon ni el deployment. Antes de pruebas externas se debe confirmar la base aislada y las integraciones del preview.
+
+## Validación externa en la copia de Neon — 2026-10-02
+
+Esta actualización supera los bloqueos históricos de acceso a Neon descritos arriba. La rama `codex/expansion-integrated` ya fue subida con el lote completo y el preview identificado corresponde al commit `113497a3d5ce9732584fa3bbb7ed03fdfde4734c`. Main y producción no se modificaron.
+
+- Entorno comprobado por las CLI oficiales: deployment READY de `codex/expansion-integrated`, y Neon `preview/codex/expansion-integrated`, no primary ni default, reseteada por el usuario. Ambas variables de conexión del preview apuntan a su endpoint aislado (pooled y directo).
+- La copia reseteada no tenía las cinco migraciones. Se aplicaron sólo allí, una sentencia por transacción con lock_timeout de 3 s y statement_timeout de 15 s, y se repitieron sin errores. Las nueve comprobaciones del runbook dan true. Backfills RUNNING en esta copia: cero; no se consultó ese estado en producción.
+- PostgreSQL real: **18 casos aprobados** (28,03 s), incluyendo backends concurrentes distintos, admisión global, leases obsoletos, ML sync/reconcile, rollback del watermark, snapshot repetible, runbook exacto dos veces, exportación de 10.001 órdenes, cancelación, borrado por organización y rollback ante conflictos/fallos tardíos.
+- El harness temporal usa bases descartables con nombres aleatorios y datos sintéticos. Un primer intento por esquema no aisló las consultas raw y se detuvo en CREATE TABLE por una relación existente, sin insertar ni borrar datos de clientes; se cambió a bases propias y se repitieron todos los casos. Confirmación posterior: cero bases y cero esquemas de fixtures pendientes.
+- Los IDs de las cuatro organizaciones clonadas cumplen el formato del guard de Pedidos (conteos agregados, sin exportar datos de clientes).
+- Smoke HTTP anónimo del deployment: `/api/auth/session` devuelve 200 con sesión vacía; migración de cursores y `ml-test` devuelven 401 sin ejecutar operaciones. Pedidos rechaza el acceso, pero devolvía 500 por falta de sesión. Se añadió manejo específico de NoOrganizationError para devolver 401 y evitar reintentos; errores reales de DB conservan 500. Regresión observada roja (500 frente a 401 esperado) y verde tras el arreglo.
+- Evidencia local ignorada: `.gstack/neon-validation/results.log`, harness temporal y logs de suite/build. No se guardaron connection strings ni valores de credenciales en estos archivos.
+
+### Pendientes que permanecen
+
+1. **Integraciones sin aislamiento:** el preview hereda variables compartidas con producción de Resend, VTEX, Google Ads/GA4, Meta y Anthropic. Se comprobaron sólo nombres/alcances; no se llamaron proveedores, no se enviaron correos y no se modificó la configuración de Vercel. Hace falta definir credenciales sandbox o bloqueos efectivos antes de probar esos flujos. La copia de DB también puede contener configuraciones de conectores reales.
+2. **Recorrido autenticado en el deployment:** la automatización de navegador sigue fallando por el problema local de permisos; la sesión iniciada en Opera GX no estuvo accesible. Los tests de autorización con DB real y el smoke anónimo no sustituyen ese recorrido en pantalla.
+3. **Publicación:** las migraciones siguen pendientes en producción; el resultado de la copia no acredita sus permisos ni el drenado de workers reales. No hay autorización de merge ni de cambios en producción.
+4. Las decisiones de producto y retención previamente listadas siguen pendientes. Esta validación no las resuelve ni acredita el cierre del riesgo documentado en CORE Pixel.
+
+Validación final del arreglo HTTP: **2.452 pruebas aprobadas, 7 omitidas** (193 archivos aprobados y uno omitido, 188,98 s). Build Next correcto, 106 páginas y TypeScript verificado; guards 15/19/290 y dependencias sin violaciones (906 módulos, 2.930 dependencias). El arreglo se publica exclusivamente en la rama de preview; no se considera listo para producción hasta resolver los pendientes externos anteriores.
