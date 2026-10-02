@@ -46,6 +46,19 @@ it.each([429, 500])("still saves the order when the optional /items lookup fails
  expect(m.persist.mock.calls[0][1].order_items[0].item.id).toBe("MLA1");
  expect(m.enrich).toHaveBeenCalledTimes(1);
 });
+// Lo opcional (/items) se tolera; lo esencial no. Si guardar la orden o traerla de
+// ML falla y el error se traga, el outbox marca el evento como procesado, ML
+// descarta el reenvío como duplicado y la orden queda afuera hasta ml-reconcile.
+it("propagates a failure saving the order so the outbox retries it", async () => {
+ m.persist.mockRejectedValue(new Error("deadlock detected"));
+ await expect(processMLNotification(event)).rejects.toThrow("deadlock detected");
+ expect(m.update).not.toHaveBeenCalled();
+});
+it.each([429, 500])("propagates a %i fetching the order itself", async status => {
+ vi.stubGlobal("fetch", vi.fn(async () => new Response("error", { status })));
+ await expect(processMLNotification(event)).rejects.toThrow(`→ ${status}`);
+ expect(m.persist).not.toHaveBeenCalled(); expect(m.update).not.toHaveBeenCalled();
+});
 it.each(["payments", "shipments"])("refreshes the canonical order for %s instead of writing a stale fragment", async topic => {
  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith("/orders/1") ? order : { order_id: 1, status: "delivered" }))));
  await processMLNotification({ ...event, resource: `/${topic}/99`, topic });
