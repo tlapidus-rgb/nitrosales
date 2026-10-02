@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 // - promotion_names included in TS type
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
@@ -80,7 +79,6 @@ function getPaymentLabel(method: string, source: string): string {
   return `${method} (VTEX)`;
 }
 
-const WARM_CACHE_KEY = ADMIN_API_KEY;
 
 // Resiliencia (sin mocks silenciosos — es una plataforma de data, no debe mostrar $0 falso):
 //  - maxDuration=120 (Vercel Pro) da techo a la función.
@@ -96,16 +94,10 @@ export async function GET(request: NextRequest) {
 
 async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
   try {
-    // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
-    const _url = new URL(request.url);
-    const queryOrgId = _url.searchParams.get("orgId");
-    const queryKey = _url.searchParams.get("key");
-    let ORG_ID: string;
-    if (queryOrgId && queryKey === WARM_CACHE_KEY) {
-      ORG_ID = queryOrgId;
-    } else {
-      ORG_ID = await getOrganizationId();
-    }
+    // La organización sale SIEMPRE de la sesión. Había un atajo `?orgId=&key=`
+    // para el cron warm-cache, que ya no llama a esta ruta: con la clave filtrada
+    // servía para bajar nombres y emails de compradores de cualquier organización.
+    const ORG_ID: string = await getOrganizationId();
     if (!migrated) {
       // Await to avoid competing for connections with the query batches below.
       // Only runs once per cold start — subsequent requests skip this.

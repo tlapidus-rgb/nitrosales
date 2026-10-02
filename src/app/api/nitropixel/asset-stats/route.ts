@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getSharedCachedSWR, setSharedCacheWithTtl } from "@/lib/api-cache-shared";
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { traeCredencialInterna } from "@/lib/credencial-interna";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -81,8 +81,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const warmOrgId = searchParams.get("orgId");
-    const warmKey = searchParams.get("key");
-    const isWarmCall = !!warmOrgId && warmKey === ADMIN_API_KEY;
+    // Warm-cache: credencial interna en un header (src/lib/credencial-interna.ts).
+    const isWarmCall = !!warmOrgId && traeCredencialInterna(request, "warm-cache");
     const orgId = isWarmCall
       ? warmOrgId!
       : await getOrganizationId();

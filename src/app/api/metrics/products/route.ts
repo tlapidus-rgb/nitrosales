@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { traeCredencialInterna } from "@/lib/credencial-interna";
 import { tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
 import { getSharedCachedSWR, setSharedCache } from "@/lib/api-cache-shared";
 import { waitUntil } from "@vercel/functions";
@@ -114,11 +114,10 @@ type APIResponse = {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    // Warm-cache cron bypass: ?orgId=X&key=KEY (mismo patrón que /metrics/pixel, BP-PERF-DASHBOARD).
-    // Permite al cron /api/cron/warm-cache precalentar el SWR de cada org sin sesión.
+    // Warm-cache: ?orgId=X con la credencial interna en un header (no la clave
+    // pública de antes, ver src/lib/credencial-interna.ts). Sin eso, la sesión.
     const queryOrgId = searchParams.get("orgId");
-    const queryKey = searchParams.get("key");
-    const ORG_ID = queryOrgId && queryKey === ADMIN_API_KEY
+    const ORG_ID = queryOrgId && traeCredencialInterna(request, "warm-cache")
       ? queryOrgId
       : await getOrganizationId();
     const now = new Date();

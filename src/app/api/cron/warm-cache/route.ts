@@ -30,6 +30,7 @@ import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
+import { credencialInterna, HEADER_CREDENCIAL_INTERNA } from "@/lib/credencial-interna";
 import { sendEmail } from "@/lib/email/send";
 import {
   checkPipelineFreshness,
@@ -250,9 +251,14 @@ export async function GET(req: NextRequest) {
         for (const endpoint of endpoints) {
           if (Date.now() - startedAt > TIME_BUDGET_MS) { budgetHit = true; break outer; }
           const start = Date.now();
+          // La clave pública ya no abre estas rutas: van con la credencial interna en
+          // un header. metrics/pixel es CORE PROTEGIDO y sigue con la clave hasta que
+          // se autorice el cambio (ver src/lib/credencial-interna.ts).
+          const conClave = endpoint === "/api/metrics/pixel";
           const target = `${baseUrl}${endpoint}?orgId=${encodeURIComponent(
             org.id
-          )}&key=${WARM_CACHE_KEY}&from=${range.from}&to=${range.to}`;
+          )}${conClave ? `&key=${WARM_CACHE_KEY}` : ""}&from=${range.from}&to=${range.to}`;
+          const credencial = conClave ? null : credencialInterna("warm-cache");
           try {
             const r = await fetch(target, {
               method: "GET",
@@ -265,9 +271,12 @@ export async function GET(req: NextRequest) {
               // la URL del deployment (protegida) y da 401. El secret lo provee
               // Vercel como System env var al activar "Protection Bypass for
               // Automation". En local (sin la env) no se manda header (no aplica).
-              headers: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-                ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
-                : undefined,
+              headers: {
+                ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+                  ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+                  : {}),
+                ...(credencial ? { [HEADER_CREDENCIAL_INTERNA]: credencial } : {}),
+              },
             });
             results.push({
               orgId: org.id,
