@@ -17,6 +17,7 @@ import {
   BORDER,
   appUrl,
 } from "./email-theme";
+import { escaparHtml } from "@/lib/escapar-html";
 
 export type TemplateContext = {
   contactName?: string | null;
@@ -112,8 +113,18 @@ export function renderTemplateFromRow(
     return appUrl();
   })();
 
+  // El asunto y el preheader son texto plano (baseLayout los escapa para el HTML).
+  // Todo lo demás es HTML: los valores de contexto (que pueden venir del
+  // formulario público de onboarding) entran escapados.
   const subject = interpolate(row.subject, ctx);
   const preheader = interpolate(row.preheader, ctx);
+  ctx = {
+    ...ctx,
+    contactName: ctx.contactName ? escaparHtml(ctx.contactName) : ctx.contactName,
+    companyName: ctx.companyName ? escaparHtml(ctx.companyName) : ctx.companyName,
+    loginEmail: ctx.loginEmail ? escaparHtml(ctx.loginEmail) : ctx.loginEmail,
+    temporaryPassword: ctx.temporaryPassword ? escaparHtml(ctx.temporaryPassword) : ctx.temporaryPassword,
+  };
 
   const eyebrowHtml = row.eyebrow
     ? `<div style="font-size:11px;font-weight:700;color:${TEXT_SECONDARY};text-transform:uppercase;letter-spacing:0.22em;margin-bottom:36px;opacity:0.85;">

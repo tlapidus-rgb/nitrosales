@@ -14,6 +14,7 @@ import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendEmail } from "@/lib/email/send";
+import { escaparHtml } from "@/lib/escapar-html";
 
 export const dynamic = "force-dynamic";
 
@@ -81,17 +82,17 @@ export async function POST(req: Request) {
         <div style="font-family: -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1a1a1a; margin-top: 0;">Nueva solicitud de autorización Google Ads</h2>
           <div style="background: #f5f5f5; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
-            <p style="margin: 0 0 8px;"><strong>Cliente:</strong> ${userName}</p>
-            <p style="margin: 0 0 8px;"><strong>Org:</strong> ${org?.name || orgId} (${org?.slug || ""})</p>
-            <p style="margin: 0 0 8px;"><strong>Email login:</strong> ${userEmail || "—"}</p>
-            <p style="margin: 0; font-size: 16px;"><strong>📧 Email Google:</strong> <code style="background: #fff; padding: 4px 8px; border-radius: 4px;">${googleEmail}</code></p>
+            <p style="margin: 0 0 8px;"><strong>Cliente:</strong> ${escaparHtml(userName)}</p>
+            <p style="margin: 0 0 8px;"><strong>Org:</strong> ${escaparHtml(org?.name || orgId)} (${escaparHtml(org?.slug || "")})</p>
+            <p style="margin: 0 0 8px;"><strong>Email login:</strong> ${escaparHtml(userEmail || "—")}</p>
+            <p style="margin: 0; font-size: 16px;"><strong>📧 Email Google:</strong> <code style="background: #fff; padding: 4px 8px; border-radius: 4px;">${escaparHtml(googleEmail)}</code></p>
           </div>
 
           <h3 style="color: #1a1a1a;">Pasos:</h3>
           <ol style="line-height: 1.8;">
             <li>Andá a <a href="${gcloudTestUsersUrl}" style="color: #4285F4;">Google Cloud Console → OAuth Consent Screen</a></li>
             <li>Bajá hasta "Test users" → click "+ Add Users"</li>
-            <li>Pegá el email <strong>${googleEmail}</strong> y enviá</li>
+            <li>Pegá el email <strong>${escaparHtml(googleEmail)}</strong> y enviá</li>
             <li>Volvé acá y hacé click en el botón:</li>
           </ol>
 
