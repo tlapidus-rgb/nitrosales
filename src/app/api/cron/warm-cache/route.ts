@@ -302,6 +302,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    for (const r of results) {
+      if (!r.ok) console.warn(`[warm-cache] ${r.orgId} ${r.endpoint} ${r.range}: ${r.error}`);
+    }
     const totalOk = results.filter((r) => r.ok).length;
     const totalFail = results.filter((r) => !r.ok).length;
     const totalMs = results.reduce((s, r) => s + r.ms, 0);
@@ -352,7 +355,11 @@ export async function GET(req: NextRequest) {
       avgMs,
       budgetHit,
       totalMs: Date.now() - startedAt,
-      results,
+      // Sin el id ni el nombre de la org: esta respuesta la recibe quien llama
+      // con la clave (que está filtrada), y la lista de organizaciones activas es
+      // justo lo que hace falta para pedir sus métricas. El detalle por org queda
+      // en los logs (abajo), que no son públicos.
+      results: results.map(({ orgId, orgName, ...r }) => r),
     });
   } catch (err: any) {
     console.error("[warm-cache] error:", err);

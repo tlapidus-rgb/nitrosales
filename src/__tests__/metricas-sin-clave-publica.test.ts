@@ -108,7 +108,7 @@ describe.each([
 });
 
 describe("cron warm-cache", () => {
-  it("manda la credencial interna (no la clave) a todo menos a metrics/pixel (CORE)", async () => {
+  it("manda la credencial interna (no la clave) a todo menos a metrics/pixel (CORE), y no lista las orgs", async () => {
     m.orgsActivas = [{ id: VICTIMA, name: "Cliente" }];
     const llamadas: Array<{ url: string; headers: Record<string, string> }> = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: any) => {
@@ -118,6 +118,10 @@ describe("cron warm-cache", () => {
     try {
       const res = await warmCache.GET(new NextRequest("http://local/api/cron/warm-cache?key=clave-publica-sintetica"));
       expect(res.status).toBe(200);
+      // La respuesta la recibe quien tenga la clave pública: sin ids ni nombres de orgs.
+      const cuerpo = JSON.stringify(await res.json());
+      expect(cuerpo).not.toContain(VICTIMA);
+      expect(cuerpo).not.toContain("Cliente");
     } finally {
       vi.unstubAllGlobals();
     }
