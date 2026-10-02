@@ -79,6 +79,17 @@ describe("middleware — fuera de la allowlist, un pedido con ?key= se rechaza",
     expect(passed(await middleware(req(SENSITIVE_SIN_CLAVE)))).toBe(true);
   });
 
+  it.each([
+    "/api/admin/trigger-vtex-sync-x",
+    "/api/admin/trigger-vtex-sync/algo",
+  ])("%s con clave y staff exige coincidencia exacta: 403", async (path) => {
+    getTokenMock.mockResolvedValue(STAFF_TOKEN);
+    const res = await middleware(req(`${path}?key=${KEY}`));
+    expect(res.status).toBe(403);
+    expect(passed(res)).toBe(false);
+    expect((await res.json()).error).toBe("La clave por URL no se acepta en esta ruta");
+  });
+
   it("en la allowlist la clave SÍ pasa (la automatización la necesita)", async () => {
     getTokenMock.mockResolvedValue(null);
     expect(passed(await middleware(req(`${ADMIN_KEY_ALLOWLIST[0].path}?key=${KEY}`)))).toBe(true);

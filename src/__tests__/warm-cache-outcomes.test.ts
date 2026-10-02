@@ -86,3 +86,19 @@ it("reports creator counter cleanup failures", async () => {
  expect(await run()).toMatchObject({ ok: false, completo: false, creatorAttemptsPurged: -1 });
  expect(m.heartbeat).toHaveBeenCalledWith("warm-cache", false, expect.stringContaining("contadores"));
 });
+it("returns a generic results error when a fetch message contains the organization id", async () => {
+ const orgId = "ckorg00000000000000000099";
+ m.query.mockResolvedValue([{ id: orgId, name: "Synthetic org", attribution_model: "NITRO" }]);
+ m.fetch.mockRejectedValue(new Error(`Request failed for orgId=${orgId}`));
+ vi.spyOn(console, "warn").mockImplementation(() => {});
+ const result = await run();
+ expect(result).toMatchObject({ ok: false, fail_count: 20 });
+ expect(result.results).toHaveLength(20);
+ for (const item of result.results) {
+  expect(item).toMatchObject({ ok: false, error: "No se pudo calentar este endpoint" });
+  expect(item).not.toHaveProperty("orgId");
+  expect(item).not.toHaveProperty("orgName");
+ }
+ expect(JSON.stringify(result)).not.toContain(orgId);
+ expect(m.email).not.toHaveBeenCalled();
+});

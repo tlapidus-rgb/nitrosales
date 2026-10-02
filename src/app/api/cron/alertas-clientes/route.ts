@@ -3,6 +3,7 @@ import { registrarLatido } from "@/lib/cron/latido";
 import { isValidAdminKey } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
+import { escaparHtml } from "@/lib/escapar-html";
 import { obtenerAlertasClientes, type Alerta } from "@/lib/alertas/clientes";
 import { destinatariosDeAlertas } from "@/lib/alertas/destinatarios";
 
@@ -21,7 +22,7 @@ function html(alertas: Alerta[]): string {
       : `<h3 style="color:${color};margin:18px 0 6px">${titulo}</h3><ul>${lista
           .map(
             (a) =>
-              `<li><b>${a.orgName}</b> — ${a.title}<br><span style="opacity:.75">${a.description}</span></li>`,
+              `<li><b>${escaparHtml(a.orgName)}</b> — ${a.title}<br><span style="opacity:.75">${a.description}</span></li>`,
           )
           .join("")}</ul>`;
 

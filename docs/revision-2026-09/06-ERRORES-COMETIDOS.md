@@ -514,3 +514,37 @@ prueba también con un caso que DEBE marcar sobre archivos reales, no sólo con 
 memoria: los casos en memoria pasaban, el barrido real no veía nada.
 
 ---
+
+### E-20 · Edité un doc CRLF con `sed -i` y dejé una frase partida
+
+**Cuándo:** 2026-10-01 · **Lo detectó:** la relectura del párrafo después del cambio
+
+**Qué hice mal:** para corregir una frase de `07-ESTADO-FINAL.md` usé un `sed -i` con dos
+expresiones. La primera no matcheó (el `` del final de línea) y la segunda sí: quedó la
+mitad de la frase vieja pegada a la mitad de la nueva, y esas líneas en LF.
+
+**Por qué pasó:** la misma regla que E-19 ("los scripts de edición no pasan por el shell"),
+más la de CRLF. Un reemplazo multilínea con `sed` sobre un archivo CRLF falla a medias y no
+avisa.
+
+**Qué hago distinto:** los docs se editan igual que el código: herramienta de edición o un
+`.cjs` que exige exactamente una coincidencia por reemplazo y no escribe nada si alguno falla.
+
+---
+
+### E-21 · Escribí números sin sacarlos de un comando
+
+**Cuándo:** 2026-10-01 · **Lo detectó:** yo, al contar antes de citar el número en un doc
+
+**Qué hice mal:** en el mensaje de un commit puse "22 casos" (eran 18) y a Axel le dije que el
+hotfix tenía "15 commits" (eran 14). Los dos los estimé sumando de cabeza.
+
+**Por qué pasó:** la regla "nunca reportes un número de memoria" está en `CLAUDE.md`. La rompí
+en textos que sentía secundarios: un mensaje de commit y un resumen de estado.
+
+**Qué hago distinto:** todo número que escribo, también en commits y mensajes, sale de un
+comando corrido en ese momento (`vitest` sobre el archivo, `git rev-list --count`). El
+commit con "22" se corrigió antes de que existiera en otro lado (`0bb77c15`); el "15" se
+corrigió en el doc y en el chat.
+
+---

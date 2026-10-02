@@ -2,7 +2,7 @@
 
 Rama de trabajo: `codex/expansion-integrated`, checkout `C:/Users/axelf/github/nitrosales-integrated`.
 Integra `claude/listo-para-merge` (`99395ac4`) y `claude/hotfix-admin-key` (`49bc5caa`).
-Sin push, cambios a main, despliegue ni operaciones de producción. Los worktrees de Claude y los cambios locales de Codex originales se preservaron.
+La rama está pusheada a origin y tiene despliegues de preview. Sin cambios a main ni operaciones de producción. Los worktrees de Claude y los cambios locales de Codex originales se preservaron.
 
 Este documento actualiza el estado técnico de la integración; los informes anteriores conservan el contexto histórico. Se copiaron las tres actualizaciones documentales locales de Claude al nuevo checkout, sin modificar sus originales.
 

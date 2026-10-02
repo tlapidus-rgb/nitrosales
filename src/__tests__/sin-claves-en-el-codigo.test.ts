@@ -39,12 +39,27 @@ function sinComentarios(src: string): string {
 // nombre de un campo: por eso la comparación sólo se mira en rutas, y sólo
 // contra la clave que viene del request.
 const CONSTANTE = /\bconst\s+[A-Z_]*(?:KEY|SECRET|TOKEN)[A-Z_]*\s*=\s*["'`][^"'`$]{8,}["'`]/;
+const RESPALDO_ENTORNO = /\bprocess\.env\.[A-Z_]*(?:KEY|SECRET|TOKEN)[A-Z_]*\s*\|\|\s*["'`][^"'`$]{8,}["'`]/;
+const EXCEPCIONES_RESPALDO = {
+  "src/app/api/auth/mercadolibre/callback/route.ts": {
+    variable: "ML_SECRET_KEY",
+    motivo: "pendiente: confirmar ML_SECRET_KEY en Vercel y regenerar el secret",
+  },
+} as const;
+
+function respaldoPendiente(path: string, coincidencia: string): boolean {
+  const excepcion = EXCEPCIONES_RESPALDO[path as keyof typeof EXCEPCIONES_RESPALDO];
+  return Boolean(excepcion && coincidencia.match(/^process\.env\.([A-Z_]+)\s*\|\|/)?.[1] === excepcion.variable);
+}
+
 const LEE_CLAVE = /const\s+(\w+)\s*=\s*(?:\w+\.)*searchParams\.get\(\s*["'](?:key|secret|token)["']\s*\)/g;
 
 export function claveEnElCodigo(fuente: string, esRuta = true): string | null {
   const codigo = sinComentarios(fuente);
   const constante = codigo.match(CONSTANTE)?.[0];
   if (constante) return constante;
+  const respaldo = codigo.match(RESPALDO_ENTORNO)?.[0];
+  if (respaldo) return respaldo;
   if (!esRuta) return null;
   for (const m of codigo.matchAll(LEE_CLAVE)) {
     // `typeof token !== "string"` compara el TIPO, no la clave.
@@ -54,6 +69,16 @@ export function claveEnElCodigo(fuente: string, esRuta = true): string | null {
   return null;
 }
 
+function hallazgoSinExcepcion(path: string, fuente: string, esRuta: boolean): string | null {
+  let restante = sinComentarios(fuente);
+  let coincidencia = claveEnElCodigo(restante, esRuta);
+  while (coincidencia && respaldoPendiente(path, coincidencia)) {
+    restante = restante.replace(coincidencia, "process.env.ML_SECRET_KEY");
+    coincidencia = claveEnElCodigo(restante, esRuta);
+  }
+  return coincidencia;
+}
+
 describe("ninguna clave de acceso escrita en el código de src/app", () => {
   it("el barrido encuentra archivos", () => {
     expect(archivos(APP).length).toBeGreaterThan(300);
@@ -61,11 +86,45 @@ describe("ninguna clave de acceso escrita en el código de src/app", () => {
 
   it("ningún archivo de src/app tiene una", () => {
     const hallados = archivos(APP)
-      .map((p) => ({ p: relative(process.cwd(), p).replace(/\\/g, "/"), m: claveEnElCodigo(readFileSync(p, "utf8"), /[\\/]route\.ts$/.test(p)) }))
+      .map((p) => {
+        const path = relative(process.cwd(), p).replace(/\\/g, "/");
+        return { p: path, m: hallazgoSinExcepcion(path, readFileSync(p, "utf8"), /[\\/]route\.ts$/.test(p)) };
+      })
       .filter((x) => x.m)
       // Sólo el nombre del archivo y la forma: el valor no se imprime.
       .map((x) => `${x.p}: ${x.m!.replace(/["'`][^"'`]{8,}["'`]/, '"…"')}`);
     expect(hallados, hallados.join("\n")).toEqual([]);
+  });
+
+  it("detecta valores de repuesto del entorno en rutas y páginas", () => {
+    for (const variable of ["ML_SECRET_KEY", "ADMIN_API_KEY", "ACCESS_TOKEN"]) {
+      const fuente = `const credential = process.env.${variable} || "valor-sintetico-largo";`;
+      expect(claveEnElCodigo(fuente)).not.toBeNull();
+      expect(claveEnElCodigo(fuente, false)).not.toBeNull();
+    }
+    expect(claveEnElCodigo('const title = process.env.SITE_TITLE || "Titulo sintetico";')).toBeNull();
+    expect(claveEnElCodigo('const key = process.env.ADMIN_API_KEY || "";')).toBeNull();
+  });
+
+  it("la excepción temporal sólo permite el repuesto ML_SECRET_KEY en su callback", () => {
+    const path = "src/app/api/auth/mercadolibre/callback/route.ts";
+    const respaldo = 'process.env.ML_SECRET_KEY || "valor-sintetico-largo"';
+    expect(respaldoPendiente(path, respaldo)).toBe(true);
+    expect(respaldoPendiente(path, 'process.env.ML_SECRET_KEY||"valor-sintetico-largo"')).toBe(true);
+    expect(respaldoPendiente(path, 'process.env.ML_SECRET_KEY\n|| "valor-sintetico-largo"')).toBe(true);
+    expect(respaldoPendiente("src/app/api/otra/route.ts", respaldo)).toBe(false);
+    expect(respaldoPendiente(path, 'const OTHER_SECRET = "valor-sintetico-largo"')).toBe(false);
+    expect(respaldoPendiente(path, 'process.env.OTHER_SECRET || "valor-sintetico-largo"')).toBe(false);
+    expect(EXCEPCIONES_RESPALDO[path].motivo).toBe("pendiente: confirmar ML_SECRET_KEY en Vercel y regenerar el secret");
+    expect(hallazgoSinExcepcion(path, `const first = ${respaldo};`, true)).toBeNull();
+    expect(hallazgoSinExcepcion(path, `const first = ${respaldo}; const other = process.env.OTHER_SECRET || "otro-valor-sintetico";`, true)).not.toBeNull();
+  });
+
+  it("la excepción avanza con comentarios entre la variable y su repuesto", () => {
+    const path = "src/app/api/auth/mercadolibre/callback/route.ts";
+    const respaldo = 'process.env.ML_SECRET_KEY\n// comentario sintético\n || "valor-sintetico-largo"';
+    expect(hallazgoSinExcepcion(path, `const first = ${respaldo};`, true)).toBeNull();
+    expect(hallazgoSinExcepcion(path, `const first = ${respaldo}; const other = process.env.OTHER_SECRET || "otro-valor-sintetico";`, true)).not.toBeNull();
   });
 
   it("reconoce las formas que había", () => {

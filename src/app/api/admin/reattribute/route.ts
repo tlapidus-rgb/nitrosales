@@ -3,11 +3,8 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 // Admin: Reprocess All Attributions
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/reattribute?key=<ADMIN_API_KEY>
+// POST /api/admin/reattribute?org=<orgId> — sesión de staff
 //
-// ⚠️ Decía `?key=ADMIN_SECRET`, que es OTRA variable — y que no está
-// seteada en ningún lado del repo. Cualquier runbook que diga ADMIN_SECRET
-// da 401. La que vale es `ADMIN_API_KEY`, la misma que manda `vercel.json`.
 // Recalculates attribution for all orders that have a matched visitor.
 // Use after fixing attribution logic to update historical data.
 
@@ -19,7 +16,9 @@ import { isInternalUser } from '@/lib/feature-flags';
 // Tope duro por invocación. Sin esto, un solo POST recorre TODA la historia de
 // atribuciones en un loop secuencial — con la org grande son cientos de miles de
 // llamadas a `calculateAttribution`, que satura Neon y tumba el dashboard de
-// todos los clientes mientras corre. Se procesa de a tandas; el caller repite.
+// todos los clientes mientras corre. Esta llamada procesa una sola tanda.
+// Pendiente: agregar orden estable y cursor antes de usar llamadas repetidas
+// como recorrido de toda la historia; repetir hoy puede seleccionar la misma tanda.
 const MAX_PER_CALL = 2_000;
 
 export async function POST(request: Request) {

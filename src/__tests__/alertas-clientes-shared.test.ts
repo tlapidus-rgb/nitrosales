@@ -74,3 +74,16 @@ it("does not send mail for setup info and rejects unauthorized cron before readi
   expect((await cron(req("invalid"))).status).toBe(403);
   expect(m.orgs).not.toHaveBeenCalled();
 });
+
+it("escapes the organization name in the daily staff email", async () => {
+  fixture([{ id: "down", last: new Date("2026-09-30T12:00:00Z"), events: 0, visitors: 0, identified: 0, purchases: 0 }]);
+  const name = '<a href="https://example.invalid/path">Org & partners</a>';
+  m.orgs.mockResolvedValue([{ id: "down", name, slug: "down" }]);
+  expect((await cron(req())).status).toBe(200);
+  expect(m.email).toHaveBeenCalledTimes(1);
+  const mail = m.email.mock.calls[0][0];
+  expect(mail.html).toContain('<b>&lt;a href=&quot;https://example.invalid/path&quot;&gt;Org &amp; partners&lt;/a&gt;</b>');
+  expect(mail.html).not.toContain(name);
+  expect(mail.html).toContain("Pixel caído");
+  expect(m.fetch).not.toHaveBeenCalled();
+});
