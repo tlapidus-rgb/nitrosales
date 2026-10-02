@@ -16,7 +16,6 @@
 // Devuelve { processed, updated, hasMore } para retomar.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
@@ -28,7 +27,6 @@ import { waitUntil } from "@vercel/functions";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const KEY = ADMIN_API_KEY;
 const CONCURRENCY = 6;
 const BATCH_SIZE = 500;            // por iteracion interna
 const TIME_BUDGET_MS = 240_000;    // 4 min de las 5 max — deja 1 min para waitUntil + cleanup
@@ -37,13 +35,12 @@ export async function GET(req: NextRequest) {
   const startTime = Date.now();
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgId = url.searchParams.get("orgId");
     let offset = Number(url.searchParams.get("offset") || 0);
     const dryRun = url.searchParams.get("dryRun") === "1";
     const autoContinue = url.searchParams.get("autoContinue") !== "0"; // default true
 
-    const allowed = key === KEY ? true : await isInternalUser();
+    const allowed = await isInternalUser();
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
@@ -174,11 +171,11 @@ export async function GET(req: NextRequest) {
       const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
       const nextUrl =
         `${baseUrl}/api/admin/vtex-recover-customer-emails` +
-        `?orgId=${encodeURIComponent(orgId)}&key=${encodeURIComponent(KEY)}&autoContinue=1`;
-      // HOTFIX 2026-10-01: el middleware exige sesión de staff en /api/admin
-      // (la key sola ya no alcanza, y esta ruta NO está en la allowlist porque
-      // devuelve emails de compradores). El auto-continue reenvía la cookie de
-      // sesión del staff que disparó la corrida, sólo a nuestro propio host.
+        `?orgId=${encodeURIComponent(orgId)}&autoContinue=1`;
+      // HOTFIX 2026-10-01: /api/admin exige sesión de staff y rechaza la clave
+      // (esta ruta NO está en la allowlist porque devuelve emails de
+      // compradores). El auto-continue reenvía la cookie de sesión del staff
+      // que disparó la corrida, sólo a nuestro propio host, y va sin clave.
       const sessionCookie = req.headers.get("cookie");
       waitUntil(
         fetch(nextUrl, {

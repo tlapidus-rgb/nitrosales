@@ -9,7 +9,6 @@
 // Body: { googleEmail: "user@gmail.com" }
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
@@ -70,7 +69,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const adminConfirmUrl = `https://app.nitrosales.ai/api/admin/google-auth-confirm?orgId=${orgId}&key=${ADMIN_API_KEY}`;
+    // Sin clave: lo abre el staff logueado (antes la ADMIN_API_KEY viajaba por mail).
+    const adminConfirmUrl = `https://app.nitrosales.ai/api/admin/google-auth-confirm?orgId=${orgId}`;
     // Google Cloud Console: hay que ir a OAuth Consent Screen → Test Users.
     const gcloudTestUsersUrl = `https://console.cloud.google.com/apis/credentials/consent`;
 

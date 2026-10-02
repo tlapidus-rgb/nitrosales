@@ -17,7 +17,6 @@
 // Body: { fbEmail: "user@gmail.com" }
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
@@ -81,8 +80,10 @@ export async function POST(req: Request) {
       });
     }
 
-    // Email a admin con datos + link directo a Meta + endpoint de confirmacion
-    const adminConfirmUrl = `https://app.nitrosales.ai/api/admin/meta-auth-confirm?orgId=${orgId}&key=${ADMIN_API_KEY}`;
+    // Email a admin con datos + link directo a Meta + endpoint de confirmacion.
+    // El link va SIN clave: lo abre el staff logueado (antes llevaba la
+    // ADMIN_API_KEY, que así viajaba por mail).
+    const adminConfirmUrl = `https://app.nitrosales.ai/api/admin/meta-auth-confirm?orgId=${orgId}`;
     const metaTestersUrl = `https://developers.facebook.com/apps/${META_APP_ID}/roles/roles/`;
 
     await sendEmail({

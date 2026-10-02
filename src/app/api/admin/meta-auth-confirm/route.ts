@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// GET /api/admin/meta-auth-confirm?orgId=X&key=Y
+// GET /api/admin/meta-auth-confirm?orgId=X  (sesión de staff)
 // ══════════════════════════════════════════════════════════════
 // Tomy hace click en este link desde el email de solicitud despues
 // de agregar al cliente como tester en developers.facebook.com.
@@ -11,15 +11,12 @@
 // GET friendly-browser para que Tomy solo tenga que click sin curl.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { sendEmail } from "@/lib/email/send";
 
 export const dynamic = "force-dynamic";
-
-const KEY = ADMIN_API_KEY;
 
 function successPage(message: string, clientEmail: string): NextResponse {
   return new NextResponse(
@@ -57,10 +54,9 @@ function errorPage(title: string, message: string): NextResponse {
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgId = url.searchParams.get("orgId");
 
-    const allowed = key === KEY ? true : await isInternalUser();
+    const allowed = await isInternalUser();
     if (!allowed) return errorPage("Forbidden", "No autorizado");
     if (!orgId) return errorPage("Falta orgId", "Pasá ?orgId=...");
 

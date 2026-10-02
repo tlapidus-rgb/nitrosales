@@ -203,19 +203,12 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/**
- * Llamadores a /api/admin con `key=` que NO van a la allowlist, con el motivo.
- * Si aparece uno nuevo, este test falla: decidí si es automatización (→
- * ADMIN_KEY_ALLOWLIST) o un humano/self-fetch con sesión (→ acá).
- */
-const KNOWN_NON_AUTOMATIC: Record<string, string> = {
-  "/api/admin/google-auth-confirm": "link en un mail al staff; lo abre un humano logueado",
-  "/api/admin/meta-auth-confirm": "link en un mail al staff; lo abre un humano logueado",
-  "/api/admin/usage":
-    "página /admin/usage (su layout exige isInternalUser): fetch desde el browser del staff, lleva la cookie",
-  "/api/admin/vtex-recover-customer-emails":
-    "self-fetch de auto-continue: reenvía la cookie de sesión del staff (devuelve emails → no va a la allowlist)",
-};
+// Fuera de ADMIN_KEY_ALLOWLIST el middleware responde 403 a cualquier pedido
+// con `?key=`, haya sesión o no. Así que todo código que arme una URL a
+// /api/admin con `key=` tiene que apuntar a una ruta de la allowlist: si no,
+// en producción es un 403. Antes había excepciones (links de mail al staff, el
+// auto-continue de vtex-recover-customer-emails, /admin/usage) de cuando el
+// middleware reescribía la URL; ahora van sin clave y con la sesión del staff.
 
 describe("guard — inventario de llamadores automáticos a /api/admin con key=", () => {
   it("cada ruta de la allowlist existe", () => {
@@ -240,7 +233,7 @@ describe("guard — inventario de llamadores automáticos a /api/admin con key="
         const window = lines.slice(i, i + 6).join("\n");
         if (!/key=/.test(window)) return;
         const path = m[0].replace(/\/+$/, "");
-        if (!allow.has(path) && !(path in KNOWN_NON_AUTOMATIC)) {
+        if (!allow.has(path)) {
           unclassified.push(`${relative(process.cwd(), file)}:${i + 1} → ${path}`);
         }
       });
