@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { sendEmail } from "@/lib/email/send";
+import { escaparHtml } from "@/lib/escapar-html";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,8 @@ function successPage(message: string, clientEmail: string): NextResponse {
     </style></head><body>
     <div class="card">
       <h1>✓ Autorización Google confirmada</h1>
-      <p>${message}</p>
-      <p style="color:#999;font-size:13px;">Email enviado al cliente: ${clientEmail}</p>
+      <p>${escaparHtml(message)}</p>
+      <p style="color:#999;font-size:13px;">Email enviado al cliente: ${escaparHtml(clientEmail)}</p>
       <a href="/control/onboardings">Volver al panel</a>
     </div></body></html>`,
     { headers: { "Content-Type": "text/html; charset=utf-8" } },
@@ -38,7 +39,7 @@ function errorPage(title: string, message: string): NextResponse {
     <style>body{font-family:-apple-system,sans-serif;background:#0a0a0a;color:#fff;margin:0;padding:40px 20px;}
     .card{max-width:560px;margin:60px auto;background:#1a1a1a;border-radius:16px;padding:32px;border:1px solid #2a2a2a;}
     h1{color:#ef4444;margin-top:0;}
-    </style></head><body><div class="card"><h1>${title}</h1><p>${message}</p></div></body></html>`,
+    </style></head><body><div class="card"><h1>${escaparHtml(title)}</h1><p>${escaparHtml(message)}</p></div></body></html>`,
     { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } },
   );
 }
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
               </a>
             </div>
             <p style="color: #666; font-size: 12px;">
-              Cuando hagas click "Conectar con Google", Google va a abrir su login oficial con tu cuenta ${googleEmail}.
+              Cuando hagas click "Conectar con Google", Google va a abrir su login oficial con tu cuenta ${escaparHtml(googleEmail)}.
             </p>
           </div>
         `,

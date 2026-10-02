@@ -77,11 +77,4 @@ export function sesionDeLaOrg(session: any, orgId: string): boolean {
   return typeof deLaSesion === "string" && deLaSesion.length > 0 && deLaSesion === orgId;
 }
 
-export function escaparHtml(texto: unknown): string {
-  return String(texto ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+export { escaparHtml } from "@/lib/escapar-html";
