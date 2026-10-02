@@ -8,6 +8,7 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db/client";
 import { isStaffUser } from "@/lib/staff";
 
 /**
@@ -16,14 +17,32 @@ import { isStaffUser } from "@/lib/staff";
  *
  * La fuente de verdad ("quién es staff") vive en src/lib/staff.ts:
  * flag `users.isStaff` (DB) + allowlist de transición por email.
+ *
+ * Staff según la BASE, no según el token. La sesión es un JWT: quien
+ * tenga el secreto que lo firma fabrica uno con isStaff=true y cualquier
+ * id. Por eso el usuario tiene que existir, el email del token coincidir
+ * con el de la base, y el staff se lee de la base. Mirando como otra
+ * cuenta (impersonación) no se es staff.
  */
 export async function isInternalUser(): Promise<boolean> {
   try {
     const session = await getServerSession(authOptions);
-    const email = session?.user?.email;
-    const isStaff = (session?.user as any)?.isStaff === true;
-    return isStaffUser({ isStaff, email });
-  } catch {
+    const user = session?.user as any;
+    if (!user?.id || user.impersonatedBy) return false;
+
+    const real = await prisma.user.findUnique({
+      where: { id: String(user.id) },
+      select: { email: true, isStaff: true },
+    });
+    if (!real?.email) return false;
+    if (real.email.toLowerCase() !== String(user.email || "").toLowerCase()) return false;
+    return isStaffUser({ isStaff: real.isStaff, email: real.email });
+  } catch (error) {
+    // En el build, Next tantea si la página es estática y getServerSession
+    // lanza su señal de "uso dinámico": no es un error, no se loguea.
+    if ((error as any)?.digest !== "DYNAMIC_SERVER_USAGE") {
+      console.error("[isInternalUser] no se pudo verificar el staff:", error);
+    }
     return false;
   }
 }

@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // password de esa cuenta y la devolvía en la respuesta: con la clave alcanzaba
 // un pedido para quedarse con cualquier cuenta, la de staff incluida, y entrar
 // por el login normal. Ahora: sin GET ni clave, staff verificado contra la base
-// (no contra el token, que se puede fabricar) y nunca sobre cuentas de staff.
+// (isInternalUser real, no mockeado: no confía en el token, que se puede
+// fabricar) y nunca sobre cuentas de staff.
 // ══════════════════════════════════════════════════════════════════════════
 
 type Fila = { id: string; email: string; name: string; organizationId: string; isStaff: boolean };
@@ -21,11 +22,18 @@ const m = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: async () => m.session }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("bcryptjs", () => ({ hash: async (p: string) => `hash(${p})` }));
+// Como Prisma: sólo devuelve los campos pedidos en `select`. Si una consulta
+// deja de pedir `isStaff`, el chequeo de staff lo ve como `undefined`.
+function elegir(fila: any, select?: Record<string, boolean>) {
+  if (!fila || !select) return fila ?? null;
+  return Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, fila[k]]));
+}
+
 vi.mock("@/lib/db/client", () => ({
   prisma: {
     user: {
-      findUnique: async ({ where }: any) =>
-        m.usuarios.find((u) => (where.id ? u.id === where.id : u.email === where.email)) ?? null,
+      findUnique: async ({ where, select }: any) =>
+        elegir(m.usuarios.find((u) => (where.id ? u.id === where.id : u.email === where.email)), select),
       update: async (args: any) => {
         m.updates.push(args);
         return {};

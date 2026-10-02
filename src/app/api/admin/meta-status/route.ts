@@ -1,6 +1,7 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// GET /api/admin/meta-status?email=...&key=...
+// GET /api/admin/meta-status?email=...  (sesión de staff; sin clave: daba
+// el orgId de cualquier email)
 // ══════════════════════════════════════════════════════════════
 // Diagnostico: dado un email de user, devuelve el estado de su
 // Connection de META_ADS — si tiene token, cuando expira, cuantas
@@ -10,21 +11,17 @@
 // DB directo.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
-const KEY = ADMIN_API_KEY;
-
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const email = (url.searchParams.get("email") || "").toLowerCase().trim();
-    const allowed = key === KEY ? true : await isInternalUser();
+    const allowed = await isInternalUser();
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!email) return NextResponse.json({ error: "email requerido" }, { status: 400 });
 

@@ -8,7 +8,7 @@
 //
 // Body: { email: "user@dominio.com" }
 //
-// Sólo staff verificado contra la BASE. Antes había un GET que aceptaba
+// Sólo staff verificado contra la BASE (isInternalUser). Antes había un GET que aceptaba
 // ?key=<ADMIN_API_KEY>: con esa clave cualquiera reseteaba la password
 // de cualquier cuenta —staff incluido— y la recibía en la respuesta.
 // Ya no hay GET ni clave, y las cuentas de staff no se resetean por acá
@@ -16,9 +16,8 @@
 // ══════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 import { isStaffUser } from "@/lib/staff";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -31,26 +30,6 @@ function generateTempPassword(): string {
   let out = "";
   for (let i = 0; i < 12; i++) out += chars[buf[i] % chars.length];
   return out;
-}
-
-/**
- * Staff según la base, no según el token. La sesión es un JWT y quien
- * tenga el secreto que lo firma fabrica uno con isStaff=true: por eso el
- * usuario tiene que existir, el email tiene que coincidir y el staff se
- * lee de la base. Mirando como otra organización ("ver como") no vale.
- */
-async function esStaffVerificado(): Promise<boolean> {
-  const session = await getServerSession(authOptions);
-  const id = (session?.user as any)?.id;
-  if (!id || (session?.user as any)?.impersonatedBy) return false;
-
-  const real = await prisma.user.findUnique({
-    where: { id },
-    select: { email: true, isStaff: true },
-  });
-  if (!real?.email) return false;
-  if (real.email.toLowerCase() !== (session.user.email || "").toLowerCase()) return false;
-  return isStaffUser({ isStaff: real.isStaff, email: real.email });
 }
 
 async function doReset(email: string) {
@@ -91,7 +70,7 @@ async function doReset(email: string) {
 
 export async function POST(req: Request) {
   try {
-    if (!(await esStaffVerificado())) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
