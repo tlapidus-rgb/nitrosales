@@ -41,12 +41,16 @@ import * as metaCallback from "@/app/api/oauth/meta/callback/route";
 const MIA = "ckorgmia0000000000000001";
 const VICTIMA = "ckorgvictima000000000001";
 const NONCE = "0123456789abcdef0123456789abcdef";
-const fetchSimulado = vi.fn(async () => new Response(JSON.stringify({ error: { message: "code vencido" } }), { status: 400 }));
+const canjeRechazado = async () => new Response(JSON.stringify({ error: { message: "code vencido" } }), { status: 400 });
+const fetchSimulado = vi.fn(canjeRechazado);
 
 beforeEach(() => {
   m.session = null;
   m.escrituras = [];
-  fetchSimulado.mockClear();
+  // mockReset, no mockClear: un test que cambia la respuesta no la deja puesta
+  // para los siguientes.
+  fetchSimulado.mockReset();
+  fetchSimulado.mockImplementation(canjeRechazado);
   vi.stubGlobal("fetch", fetchSimulado);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -58,7 +62,7 @@ describe("src/lib/oauth-state", () => {
     expect(destinoSeguro("/settings/integraciones?x=1")).toBe("/settings/integraciones?x=1");
     for (const malo of [
       "https://evil.example/x", "//evil.example", "/\\evil.example", "javascript:alert(1)", "", null,
-      "/\t/evil.example", "/\r\n/evil.example", "/api/oauth/meta/callback?code=viejo", "/api",
+      "/\t/evil.example", "/\r\n/evil.example", "/api/oauth/meta/callback?code=viejo", "/api", "/api?x=1", "/\u007f/evil.example",
     ]) {
       expect(destinoSeguro(malo as any), JSON.stringify(malo)).toBe("/settings/integraciones");
     }
@@ -125,6 +129,12 @@ describe.each([
     const setCookie = res.headers.get("set-cookie") || "";
     expect(setCookie).toContain(`${cookie}=${state.split(".")[2]}`);
     expect(setCookie.toLowerCase()).toContain("httponly");
+    // Lax: la vuelta desde facebook.com / google.com es una navegación GET de
+    // otro sitio; con Strict la cookie no viaja y no conecta nadie.
+    expect(setCookie.toLowerCase()).toContain("samesite=lax");
+    // /api cubre los dos callbacks (/api/oauth/meta/callback y /api/auth/google-ads/callback).
+    expect(setCookie).toContain("Path=/api;");
+    expect(setCookie).toContain("Max-Age=600");
   });
 
   it("cada inicio usa un nonce distinto", async () => {
@@ -193,6 +203,26 @@ describe.each([
 
   it("si el canje falla, Reintentar vuelve al inicio con el destino original (no al callback)", async () => {
     m.session = sesionDe(VICTIMA);
+    const html = await (await callback(`code=abc&state=${stateDe(VICTIMA)}`)).text();
+    expect(html).toContain("returnTo=%2Fonboarding");
+  });
+
+  it("conexión exitosa: vuelve al destino y borra la cookie del nonce (un solo uso)", async () => {
+    m.session = sesionDe(VICTIMA);
+    fetchSimulado.mockImplementation(async () => new Response(JSON.stringify({
+      access_token: "tok", refresh_token: "ref", expires_in: 5184000, token_type: "bearer", data: [],
+    }), { status: 200 }));
+    const res = await callback(`code=abc&state=${stateDe(VICTIMA)}`);
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/onboarding");
+    const setCookie = res.headers.get("set-cookie") || "";
+    expect(setCookie).toContain(`${cookie}=;`);
+    expect(setCookie).toContain("Max-Age=0");
+  });
+
+  it("si el canje explota, Reintentar también vuelve al inicio con el destino", async () => {
+    m.session = sesionDe(VICTIMA);
+    fetchSimulado.mockImplementation(async () => { throw new Error("red caída"); });
     const html = await (await callback(`code=abc&state=${stateDe(VICTIMA)}`)).text();
     expect(html).toContain("returnTo=%2Fonboarding");
   });

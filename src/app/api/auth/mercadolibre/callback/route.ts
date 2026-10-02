@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { tryGetOrganizationId } from "@/lib/auth-guard";
+import { destinoSeguro } from "@/lib/oauth-state";
 
 const ML_APP_ID = process.env.ML_APP_ID || "5750438437863167";
 const ML_SECRET = process.env.ML_SECRET_KEY || "4WBCq5f9ejpT4U62KGjG0q08koi0bPxt";
@@ -146,7 +147,7 @@ export async function GET(req: NextRequest) {
 
     // Redirect al returnTo si se seteó (ej: wizard del onboarding).
     // Fallback a /competitors si no hay cookie.
-    const returnTo = req.cookies.get("ml_oauth_return_to")?.value || "/competitors";
+    const returnTo = destinoSeguro(req.cookies.get("ml_oauth_return_to")?.value, "/competitors");
     // Agregamos ?ml_connected=true como flag para que el wizard sepa refrescar creds
     const sep = returnTo.includes("?") ? "&" : "?";
     const target = `${returnTo}${sep}ml_connected=true`;
@@ -157,7 +158,7 @@ export async function GET(req: NextRequest) {
     return successRedirect;
   } catch (err: any) {
     console.error("[ML OAuth] Error:", err);
-    const returnTo = req.cookies.get("ml_oauth_return_to")?.value || "/competitors";
+    const returnTo = destinoSeguro(req.cookies.get("ml_oauth_return_to")?.value, "/competitors");
     const sep = returnTo.includes("?") ? "&" : "?";
     return NextResponse.redirect(
       new URL(`${returnTo}${sep}ml_error=${encodeURIComponent(err.message)}`, req.url)
