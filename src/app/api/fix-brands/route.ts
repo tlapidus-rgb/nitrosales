@@ -1,36 +1,24 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { isInternalUser } from "@/lib/feature-flags";
 
-const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
 const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX // v3
 
-// Multi-tenant: request-scoped VTEX config (NO cache global — evitar leak de creds entre orgs)
-// Cada request resuelve las credenciales de la org pasada por ?org=<orgId>
-let _requestHeaders: Record<string, string> | null = null;
-let _requestBaseUrl: string | null = null;
-
-async function getVtexHeadersAndUrl(orgId: string) {
-  // Siempre fresco por request (no reuse global — puede leakear entre orgs concurrentes)
-  const config = await getVtexConfig(orgId);
-  _requestHeaders = { ...config.headers, Accept: "application/json" };
-  _requestBaseUrl = config.baseUrl;
-  return { headers: _requestHeaders, baseUrl: _requestBaseUrl };
+// Every asynchronous helper reads only the credentials of its own request.
+const vtexContext = new AsyncLocalStorage<{ headers: Record<string, string>; baseUrl: string; categoryCache: Map<number, { name: string; fatherId: number | null }> }>();
+function requestVtex() {
+  const context = vtexContext.getStore();
+  if (!context) throw new Error("Missing request VTEX context");
+  return context;
 }
-
-function vtexHeaders() {
-  if (!_requestHeaders) {
-    throw new Error("Call getVtexHeadersAndUrl(orgId) before using vtexHeaders()");
-  }
-  return _requestHeaders;
-}
-
+function vtexHeaders() { return requestVtex().headers; }
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -40,7 +28,7 @@ async function sleep(ms: number) {
  * Uses: GET /api/catalog/pvt/category/{categoryId}
  */
 async function getVtexCategoryName(categoryId: number): Promise<string> {
-  const baseUrl = `${_requestBaseUrl}`;
+  const baseUrl = `${requestVtex().baseUrl}`;
   try {
     const catRes = await fetch(
       `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
@@ -66,7 +54,7 @@ async function getVtexCategoryName(categoryId: number): Promise<string> {
 async function getVtexBrand(
   externalId: string
 ): Promise<{ brand: string; category: string } | null> {
-  const baseUrl = `${_requestBaseUrl}`;
+  const baseUrl = `${requestVtex().baseUrl}`;
 
   // Step 1: Get BrandId and CategoryId from product
   let brandId: number | null = null;
@@ -167,16 +155,14 @@ async function getVtexBrand(
 // Cache in-memory por request: categoryId -> {name, fatherId}
 // Evita hacer la misma llamada a VTEX varias veces para categorias
 // padres comunes (ej: "Juguetes" aparece en cientos de productos).
-const _categoryCache: Map<number, { name: string; fatherId: number | null }> =
-  new Map();
 
 async function getVtexCategoryInfo(
   categoryId: number
 ): Promise<{ name: string; fatherId: number | null } | null> {
-  if (_categoryCache.has(categoryId)) {
-    return _categoryCache.get(categoryId)!;
+  if (requestVtex().categoryCache.has(categoryId)) {
+    return requestVtex().categoryCache.get(categoryId)!;
   }
-  const baseUrl = `${_requestBaseUrl}`;
+  const baseUrl = `${requestVtex().baseUrl}`;
   try {
     const catRes = await fetch(
       `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
@@ -191,7 +177,7 @@ async function getVtexCategoryInfo(
             ? Number(catData.FatherCategoryId)
             : null,
       };
-      _categoryCache.set(categoryId, info);
+      requestVtex().categoryCache.set(categoryId, info);
       return info;
     }
   } catch (e) {}
@@ -207,7 +193,7 @@ async function getVtexCategoryInfo(
 async function getVtexCategoryPath(
   externalId: string
 ): Promise<string | null> {
-  const baseUrl = `${_requestBaseUrl}`;
+  const baseUrl = `${requestVtex().baseUrl}`;
   let leafCategoryId: number | null = null;
 
   try {
@@ -255,7 +241,7 @@ async function getVtexCategoryPath(
   const MAX_DEPTH = 8;
 
   while (currentId && depth < MAX_DEPTH) {
-    const wasCached = _categoryCache.has(currentId);
+    const wasCached = requestVtex().categoryCache.has(currentId);
     if (!wasCached) await sleep(DELAY_MS);
     const info = await getVtexCategoryInfo(currentId);
     if (!info || !info.name) break;
@@ -273,7 +259,7 @@ async function getVtexCategoryPath(
  * Used by fix-categories action.
  */
 async function getVtexCategory(externalId: string): Promise<string | null> {
-  const baseUrl = `${_requestBaseUrl}`;
+  const baseUrl = `${requestVtex().baseUrl}`;
   let categoryId: number | null = null;
 
   try {
@@ -321,42 +307,23 @@ async function getVtexCategory(externalId: string): Promise<string | null> {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const key = searchParams.get("key");
-  const action = searchParams.get("action");
-  // Multi-tenant safe: orgId via ?org= explícito (admin endpoint).
-  // Fallback: primera org con productos (compat MdJ).
-  let ORG_ID = searchParams.get("org") || "";
-  if (!ORG_ID) {
-    const firstOrg = await prisma.product.findFirst({
-      select: { organizationId: true },
-      orderBy: { createdAt: "asc" },
-    });
-    ORG_ID = firstOrg?.organizationId || "";
-    if (!ORG_ID) {
-      return NextResponse.json({ error: "No org found. Pass ?org=<orgId>" }, { status: 400 });
-    }
-  }
-
-  // R-C02 bis (2026-09-06) — ACA NO HABIA NINGUN CHEQUEO DE SESION.
-  // El unico control era esta clave, que esta hardcodeada tambien en
-  // /backfill-runner/page.tsx (client component) y por lo tanto viaja en el
-  // bundle publico. Con eso, cualquiera podia pasar ?org=<orgId de otro
-  // cliente> y correr un UPDATE sobre el catalogo de ese tenant con SUS
-  // credenciales VTEX. Es el mismo IDOR que se cerro en /api/backfill/vtex,
-  // vivo en el endpoint de al lado que comparte la clave.
-  //
-  // Ahora manda la sesion de staff. La clave sigue pero ya no alcanza sola.
   if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (key !== BACKFILL_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const org = new URL(request.url).searchParams.get("org");
+  if (!org?.trim()) {
+    return NextResponse.json({ error: "Missing ?org=<orgId>" }, { status: 400 });
   }
+  const config = await getVtexConfig(org);
+  return vtexContext.run(
+    { headers: { ...config.headers, Accept: "application/json" }, baseUrl: config.baseUrl, categoryCache: new Map() },
+    () => handleRequest(request, org),
+  );
+}
 
-  // Initialize VTEX credentials (cached for this request)
-  await getVtexHeadersAndUrl(ORG_ID);
-
+async function handleRequest(request: NextRequest, ORG_ID: string) {
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get("action");
   // --- ACTION: stats ---
   if (action === "stats") {
     const total = await prisma.product.count({
@@ -735,8 +702,8 @@ export async function GET(request: NextRequest) {
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
-      credentialSource: _requestBaseUrl ? "centralized" : "not-loaded",
-      baseUrl: _requestBaseUrl || "not-loaded",
+      credentialSource: requestVtex().baseUrl ? "centralized" : "not-loaded",
+      baseUrl: requestVtex().baseUrl || "not-loaded",
       timestamp: new Date().toISOString(),
     });
   }
@@ -833,7 +800,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...results,
       nextOffset: offset + limit,
-      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-vtex&limit=${limit}&offset=${offset + limit}`,
+      nextUrl: `/api/fix-brands?org=${encodeURIComponent(ORG_ID)}&action=fix-vtex&limit=${limit}&offset=${offset + limit}`,
     });
   }
 
@@ -935,7 +902,7 @@ export async function GET(request: NextRequest) {
         ...results,
         type: "numeric_categories",
         nextOffset: offset + limit,
-        nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
+        nextUrl: `/api/fix-brands?org=${encodeURIComponent(ORG_ID)}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
       });
     }
 
@@ -991,7 +958,7 @@ export async function GET(request: NextRequest) {
       ...results,
       type: "missing_categories",
       nextOffset: offset + limit,
-      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
+      nextUrl: `/api/fix-brands?org=${encodeURIComponent(ORG_ID)}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
     });
   }
 
@@ -1070,7 +1037,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...results,
       nextOffset: offset + limit,
-      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-category-paths&limit=${limit}&offset=${offset + limit}`,
+      nextUrl: `/api/fix-brands?org=${encodeURIComponent(ORG_ID)}&action=fix-category-paths&limit=${limit}&offset=${offset + limit}`,
     });
   }
 
@@ -1082,7 +1049,7 @@ export async function GET(request: NextRequest) {
     const startedAt = Date.now();
 
     // Paso 1: traer arbol completo VTEX (1 sola llamada)
-    const baseUrl = `${_requestBaseUrl}`;
+    const baseUrl = `${requestVtex().baseUrl}`;
     let tree: any[] = [];
     try {
       const treeRes = await fetch(
@@ -1282,7 +1249,7 @@ export async function GET(request: NextRequest) {
         errors: [] as any[],
       };
 
-      const baseUrl = `${_requestBaseUrl}`;
+      const baseUrl = `${requestVtex().baseUrl}`;
 
       for (const cat of numericCategories) {
         const catId = cat.category.replace(/\//g, "");

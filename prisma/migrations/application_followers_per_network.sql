@@ -9,7 +9,7 @@
 -- IDEMPOTENTE: correrlo 2 veces es no-op gracias a IF NOT EXISTS.
 --
 -- Ejecutar via endpoint admin (después del deploy):
---   curl "https://<host>/api/admin/migrate-application-followers?key=<NEXTAUTH_SECRET>"
+--   con sesión de staff, abrir logueado: https://<host>/api/admin/migrate-application-followers
 -- ═══════════════════════════════════════════════════════════════════
 
 ALTER TABLE "influencer_applications"

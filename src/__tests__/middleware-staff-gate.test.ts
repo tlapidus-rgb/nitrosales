@@ -23,7 +23,7 @@ const { default: middleware } = await import("@/middleware");
 
 function req(pathname: string, method = "GET") {
   return {
-    nextUrl: { pathname, clone: () => new URL(`https://app.nitrosales.ai${pathname}`) },
+    nextUrl: { pathname, searchParams: new URLSearchParams(), clone: () => new URL(`https://app.nitrosales.ai${pathname}`) },
     method,
     url: `https://app.nitrosales.ai${pathname}`,
     headers: new Headers(),
@@ -40,30 +40,27 @@ async function status(pathname: string, method = "GET"): Promise<number> {
 // vitest 4 un `mockReset()` en beforeEach hace que un throw del mock escape del
 // try/catch del middleware y falle el test aunque el guard funcione.
 
-describe("los crons y los self-fetch no llevan token: tienen que pasar", () => {
+describe("automatización y rutas administrativas requieren autorizaciones distintas", () => {
   beforeEach(() => getToken.mockResolvedValue(null));
 
   it.each([
-    "/api/admin/setup-pixel-rollups",
-    "/api/admin/trigger-vtex-sync",
-    "/api/admin/vtex-recover-customer-emails",
-    "/api/admin/reconcile",
+    "/api/admin/setup-pixel-rollups", "/api/admin/trigger-vtex-sync",
+    "/api/admin/recompute-customer-aggregates", "/api/admin/backfill-orderitem-costs",
     "/api/backfill/runner",
-  ])("%s pasa el middleware sin sesión", async (p) => {
-    // Pasa el MIDDLEWARE. Cada handler sigue exigiendo su `?key=` — el gate de
-    // sección nunca fue el que los autenticaba.
-    expect(await status(p)).not.toBe(403);
+  ])("%s llega a su handler para verificar la credencial automática", async (p) => {
+    expect(await status(p)).toBe(200);
   });
 
-  it("tampoco bloquea un POST sin token", async () => {
-    expect(await status("/api/admin/reattribute", "POST")).not.toBe(403);
-  });
+  it.each(["/api/admin/vtex-recover-customer-emails", "/api/admin/reconcile", "/api/admin/reattribute"])(
+    "%s exige sesión de staff", async (p) => {
+      expect(await status(p, "POST")).toBe(401);
+    },
+  );
 
-  // NO hay caso para "si getToken explota, no se bloquea nada". El guard existe
-  // (middleware.ts lo envuelve en try/catch) y lo verifiqué a mano: devuelve 200 y
-  // no propaga. Pero en vitest 4 un mock que tira sincrónicamente escapa igual del
-  // try/catch del código bajo test y falla el caso aunque el guard ande. Es un
-  // artefacto del harness, y ese guard es preexistente: no es lo que arregla R-C05.
+  it("un error al leer el token bloquea admin", async () => {
+    getToken.mockRejectedValueOnce(new Error("token no verificable"));
+    expect(await status("/api/admin/onboardings")).toBe(401);
+  });
 });
 
 describe("staff por allowlist de email, sin el flag en la base", () => {
@@ -76,7 +73,7 @@ describe("staff por allowlist de email, sin el flag en la base", () => {
       allowedSections: ["dashboard"],
       writableSections: ["dashboard"],
     });
-    expect(await status("/api/admin/onboardings")).not.toBe(403);
+    expect(await status("/api/admin/onboardings")).toBe(200);
   });
 
   it("y el email se compara sin distinguir mayúsculas", async () => {
@@ -86,7 +83,7 @@ describe("staff por allowlist de email, sin el flag en la base", () => {
       allowedSections: ["dashboard"],
       writableSections: ["dashboard"],
     });
-    expect(await status("/api/admin/onboardings")).not.toBe(403);
+    expect(await status("/api/admin/onboardings")).toBe(200);
   });
 
   it("un email cualquiera NO es staff", async () => {
@@ -101,7 +98,7 @@ describe("staff por allowlist de email, sin el flag en la base", () => {
 
   it("un token sin email tampoco rompe nada", async () => {
     getToken.mockResolvedValue({ isStaff: true, allowedSections: [], writableSections: [] });
-    expect(await status("/api/admin/onboardings")).not.toBe(403);
+    expect(await status("/api/admin/onboardings")).toBe(200);
   });
 });
 

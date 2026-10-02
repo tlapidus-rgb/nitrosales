@@ -1,3 +1,5 @@
+> Estado técnico actualizado: [integración local del 2 de octubre](EXPANSION-INTEGRACION-2026-10-02.md). Lo siguiente conserva el historial.
+
 # Estado de la branch de integración
 
 > **Última actualización: 2026-09-13, después de la revisión con ojos frescos.** Branch

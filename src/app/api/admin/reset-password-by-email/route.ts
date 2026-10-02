@@ -7,18 +7,22 @@
 // usa la misma logica que /api/admin/users/[userId]/reset-password.
 //
 // Body: { email: "user@dominio.com" }
+//
+// Sólo staff verificado contra la BASE (isInternalUser). Antes había un GET que aceptaba
+// ?key=<ADMIN_API_KEY>: con esa clave cualquiera reseteaba la password
+// de cualquier cuenta —staff incluido— y la recibía en la respuesta.
+// Ya no hay GET ni clave, y las cuentas de staff no se resetean por acá
+// (para la propia: "Olvidé mi contraseña" en el login).
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { isStaffUser } from "@/lib/staff";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 
 export const dynamic = "force-dynamic";
-
-const KEY = ADMIN_API_KEY;
 
 function generateTempPassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -36,10 +40,16 @@ async function doReset(email: string) {
 
   const user = await prisma.user.findUnique({
     where: { email: normalized },
-    select: { id: true, email: true, name: true, organizationId: true },
+    select: { id: true, email: true, name: true, organizationId: true, isStaff: true },
   });
   if (!user) {
     return NextResponse.json({ error: `No existe user con email ${normalized}` }, { status: 404 });
+  }
+  if (isStaffUser({ isStaff: user.isStaff, email: user.email })) {
+    return NextResponse.json(
+      { error: "Las cuentas de staff no se resetean por acá. Usá \"Olvidé mi contraseña\" en el login." },
+      { status: 403 },
+    );
   }
 
   const newPassword = generateTempPassword();
@@ -58,30 +68,9 @@ async function doReset(email: string) {
   });
 }
 
-// S58 BIS: GET wrapper friendly-browser. Acepta ?key=... como bypass de
-// session admin para casos donde el admin (Tomy) perdio acceso a la sesion
-// (ej: reset de su propia cuenta). El KEY es server-side, no se logea.
-export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    const email = url.searchParams.get("email") || "";
-
-    const allowed = key === KEY ? true : await isInternalUser();
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    return await doReset(email);
-  } catch (error: any) {
-    console.error("[admin/reset-password-by-email GET] error:", error);
-    return NextResponse.json({ error: error.message || "Error interno" }, { status: 500 });
-  }
-}
-
 export async function POST(req: Request) {
   try {
-    const allowed = await isInternalUser();
-    if (!allowed) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

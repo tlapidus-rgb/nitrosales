@@ -1,22 +1,19 @@
 // @ts-nocheck
-// GET /api/admin/debug-vtex-affiliates?key=Y
+// GET /api/admin/debug-vtex-affiliates — con sesión de staff (abrir logueado; sin clave en la URL)
 // Lista afiliados configurados en VTEX para EMDJ, TVC y Arredo.
 // Cada afiliado tiene: id (3 letras), name, hookUrl, searchByAffiliateId, etc.
 // Comparar la config nos dice si TVC tiene el afiliado bien armado o no.
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const orgs = await prisma.$queryRawUnsafe<any[]>(`
       SELECT id, name, slug FROM organizations

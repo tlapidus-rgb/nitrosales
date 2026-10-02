@@ -7,21 +7,20 @@
 // no necesite credenciales locales.
 //
 // Uso:
-//   curl "https://app.nitrosales.io/api/admin/migrate-category-path?key=<NEXTAUTH_SECRET>"
+//   con sesión de staff, abrir logueado: https://app.nitrosales.io/api/admin/migrate-category-path
 //
 // Retorna: { ok: true, alreadyExisted: boolean, columnNow: "categoryPath" }
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key || key !== process.env.NEXTAUTH_SECRET) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

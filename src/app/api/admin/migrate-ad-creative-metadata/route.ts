@@ -4,19 +4,18 @@
 // Idempotente: agrega columna ad_creatives.metadata (JSONB) a Neon.
 // Soporta headlines[], descriptions[], keywords[], finalUrls[] por
 // cada creativo Google. Uso:
-//   curl "https://nitrosales.vercel.app/api/admin/migrate-ad-creative-metadata?key=<NEXTAUTH_SECRET>"
+//   con sesión de staff, abrir logueado: https://nitrosales.vercel.app/api/admin/migrate-ad-creative-metadata
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key || key !== process.env.NEXTAUTH_SECRET) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

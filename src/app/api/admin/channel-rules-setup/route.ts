@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidAdminKey } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { prisma } from "@/lib/db/client";
 import { SEED_CHANNEL_RULES } from "@/lib/pixel/channel-rules";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/lib/pixel/channel-rules-store";
 
 // ══════════════════════════════════════════════════════════════════════════
-// POST /api/admin/channel-rules-setup?key=<ADMIN_API_KEY>
+// POST /api/admin/channel-rules-setup — con sesión de staff (POST desde el navegador logueado; sin clave en la URL)
 // ══════════════════════════════════════════════════════════════════════════
 // Crea la tabla `channel_rule` (IF NOT EXISTS) y siembra las reglas GLOBALES
 // (idempotente por id). Es la fase (1) CREATE del orden de migraciones de
@@ -24,8 +24,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const key = new URL(req.url).searchParams.get("key");
-  if (!isValidAdminKey(key)) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

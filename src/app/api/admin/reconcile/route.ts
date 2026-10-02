@@ -23,18 +23,16 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
-import { isValidAdminKey } from '@/lib/admin-key';
 import { calculateAttribution } from '@/lib/pixel/attribution';
+import { isInternalUser } from '@/lib/feature-flags';
 
 export const maxDuration = 60; // Allow up to 60s for batch processing
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
-  const key = searchParams.get('key');
-  // ⚠️ ANTES: `key !== process.env.ADMIN_SECRET && key !== 'reattribute-2026'`.
-  // Con el literal, un POST desde internet con `?org=<cualquiera>` disparaba el
-  // relink de órdenes de un cliente ajeno. Ahora, clave canónica (fail-closed).
-  if (!isValidAdminKey(key)) {
+  // Sesión de staff. Antes aceptaba ?key= contra ADMIN_SECRET o un literal
+  // escrito acá en el código. Nadie la llama automáticamente.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -42,11 +40,10 @@ export async function POST(request: Request) {
   const dryRun = searchParams.get('dry') === 'true';
 
   try {
-    // Multi-tenant safe: ?org= explícito o fallback a primera org (compat)
+    // Una reparación administrativa nunca elige un cliente por orden de la base.
     const orgParam = searchParams.get('org');
-    const org = orgParam
-      ? await prisma.organization.findUnique({ where: { id: orgParam } })
-      : await prisma.organization.findFirst();
+    if (!orgParam) return NextResponse.json({ error: 'Missing ?org=<orgId>' }, { status: 400 });
+    const org = await prisma.organization.findUnique({ where: { id: orgParam } });
     if (!org) return NextResponse.json({ error: 'No org found. Pass ?org=<orgId>' }, { status: 404 });
 
     const dateFrom = new Date();

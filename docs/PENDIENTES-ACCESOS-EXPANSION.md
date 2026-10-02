@@ -1,3 +1,5 @@
+> Estado técnico actualizado: [integración local del 2 de octubre](EXPANSION-INTEGRACION-2026-10-02.md). Lo siguiente conserva el historial.
+
 # Estado y pendientes de expansión — 2026-09-29
 
 Trabajo exclusivo en `codex/expansion-review-fixes`. No push, merge, despliegue ni cambios en producción. El usuario pidió completar los tres bloques; confirmó que no existe entorno externo aislado y no decidió el alcance de altas sólo Ads/NitroPixel.

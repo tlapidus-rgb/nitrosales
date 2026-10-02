@@ -1,5 +1,5 @@
 // @ts-nocheck
-// GET /api/admin/debug-tvc-when-inserted?key=Y&orgSlug=teve
+// GET /api/admin/debug-tvc-when-inserted?orgSlug=teve — con sesión de staff (abrir logueado; sin clave en la URL)
 // Para cada orden VTEX de los ultimos 7 dias en la org, devuelve:
 //   - externalId, orderDate (cuando TVC tuvo la venta)
 //   - createdAt (cuando NUESTRA DB la inserto)
@@ -7,19 +7,17 @@
 //   - has_nitro_attr
 // Sirve para correlacionar cuando se inserto vs si quedo atribuida.
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgSlug = url.searchParams.get("orgSlug") || "teve";
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await prisma.organization.findFirst({
       where: { OR: [{ slug: orgSlug }, { name: { contains: orgSlug, mode: "insensitive" } }] },

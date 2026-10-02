@@ -1,10 +1,10 @@
 // @ts-nocheck
-// GET /api/admin/debug-test-creds?key=Y&orgId=X
+// GET /api/admin/debug-test-creds?orgId=X — con sesión de staff (abrir logueado; sin clave en la URL)
 // Llama directo a testCredentialsByPlatform + testNitroPixel
-// con auth por key (no cookie) para diagnosticar errores que el
+// (con sesión de staff) para diagnosticar errores que el
 // endpoint admin tira como "Unexpected token A".
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { decryptCredentials, isEncrypted } from "@/lib/crypto";
@@ -12,12 +12,11 @@ import { testCredentialsByPlatform, testNitroPixel } from "@/lib/onboarding/cred
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    if (url.searchParams.get("key") !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const orgId = url.searchParams.get("orgId");
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 

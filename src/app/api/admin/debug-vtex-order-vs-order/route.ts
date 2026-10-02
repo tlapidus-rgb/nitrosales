@@ -1,22 +1,19 @@
 // @ts-nocheck
-// GET /api/admin/debug-vtex-order-vs-order?key=Y
+// GET /api/admin/debug-vtex-order-vs-order — con sesión de staff (abrir logueado; sin clave en la URL)
 // Compara 5 ordenes TVC que SI dispararon webhook vs 5 que NO.
 // Pega a VTEX /api/oms/pvt/orders/{id} y trae campos clave para detectar
 // que diferencia tiene una vs otra (affiliateId, origin, marketplaceServicesEndpoint).
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await prisma.organization.findFirst({
       where: { OR: [{ slug: "teve-compras" }, { name: { contains: "teve", mode: "insensitive" } }] },

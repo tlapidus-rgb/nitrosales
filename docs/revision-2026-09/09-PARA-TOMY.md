@@ -12,33 +12,43 @@
 
 ---
 
-## 🔴 1. Un cliente puede ver datos de los compradores de otro cliente
+## 🔴 1. Cualquiera en internet puede entrar a cualquier cuenta y ver los datos de los clientes
 
-**Qué pasa.** Para conectar VTEX, la pantalla de integración le muestra a cada cliente una
-dirección que tiene adentro una de nuestras claves maestras. Esa clave abre también la mayoría
-de nuestras herramientas internas: **106 de 165**. Algunas muestran la lista de todos nuestros
-clientes, y otras, **nombres y emails de los compradores** de cualquier cliente que se les pida.
+**Qué pasa.** Una de nuestras claves maestras está escrita en un archivo del código, y **el
+código está publicado en internet como público** (GitHub). O sea: la clave no la tienen sólo
+nuestros clientes (que además la ven en la pantalla de integración de VTEX), la tiene
+cualquiera, sin necesidad de tener usuario.
 
-O sea: cualquier persona con usuario en NitroSales, de cualquier cliente, podría ver datos de
-los compradores de los demás. Hoy, en la versión publicada.
+Con esa clave, hoy, en la versión publicada, alguien puede:
+- **Quedarse con cualquier cuenta, la tuya incluida, con un solo pedido**: la app le cambia la
+  contraseña y se la muestra.
+- **Ver datos de cualquier cliente**: más de la mitad de nuestras herramientas internas (90 de
+  154) se abren con la clave. Algunas muestran la lista de todos los clientes; otras, nombres y
+  emails de los compradores.
+- **Hacerse pasar por alguien del equipo o de cualquier cliente**, y ver lo que esa persona ve.
 
 No sabemos si alguien lo hizo. Lo encontré leyendo el código, no probándolo contra los datos
-reales.
+reales. Axel puede mirar en Vercel si hubo pedidos sospechosos. Lo que sí sabemos: desde el 5 de
+septiembre también está publicado, en el mismo lugar, un informe nuestro que explica paso a
+paso cómo aprovecharlo.
 
-**Qué recomiendo, en tres pasos:**
-1. **Ya:** un arreglo chico que publicamos por separado, sin esperar el resto. Las
-   herramientas internas dejan de abrirse con esa clave y piden que entre alguien del equipo
-   con su usuario. A los clientes no les cambia nada.
-2. **Cuando publiquemos el trabajo nuevo:** ya trae el arreglo de otra parte del mismo
-   problema (con esa clave también se podía hacer pasar por alguien del equipo).
-3. **Después, con calma:** dejar de mostrarle esa clave a los clientes. Hay que cambiar la
-   configuración de VTEX de cada uno. La parte técnica ya está preparada.
+**Qué recomiendo, en orden:**
+1. **Ya (está listo):** un arreglo chico, aparte de todo. Las herramientas para cambiar
+   contraseñas dejan de abrirse con la clave, y "es alguien del equipo" se comprueba contra la
+   base de datos en vez de creerle a la sesión. A los clientes no les cambia nada. Vos ya no
+   podés resetear tu propia contraseña con la clave: usás "Olvidé mi contraseña".
+2. **Hoy, apenas termine su revisión:** el arreglo completo. Todas las herramientas internas
+   piden el usuario de alguien del equipo, y la sesión de cada persona se comprueba contra la
+   base. Con eso, la clave sola ya no abre cuentas ni datos.
+3. **Lo único que cierra todo:** cambiar la clave, y que la nueva no quede escrita en el código.
+   Mientras sea la misma, alguien que consiga el identificador interno de una persona real puede
+   hacerse pasar por ella. Los pasos 1 y 2 lo hacen muy difícil, no imposible.
 
-**Lo que necesito de vos:** el sí para el paso 1. Es urgente.
+**Lo que necesito de vos:** el sí para los pasos 1 y 2. Es urgente.
 
-**Por qué ahora y no antes:** habíamos decidido no cambiar las claves por ahora, sabiendo que
-una estaba escrita en un archivo interno. Lo que no sabíamos es que **cualquier cliente la
-tiene a la vista** y que abre datos de los demás. Eso cambia el riesgo.
+**Sobre cambiar la clave:** habíamos decidido no hacerlo. Desde entonces aparecieron dos datos:
+cualquier cliente la ve en su pantalla, y el código, con la clave adentro, es público. La
+decisión sigue siendo tuya.
 
 ---
 
@@ -123,6 +133,21 @@ entrar y ve un cartel de cuenta suspendida.
 
 **Recomiendo:** aprobarlo.
 
+### 3h. El trabajo nuevo cambia tres archivos que sólo vos autorizás
+
+Son los tres "archivos protegidos" (el pixel y la entrada de ventas de VTEX). Sin tu sí no se
+pueden publicar. Qué cambia en cada uno:
+- **Los números del pixel:** se cerró un agujero por el que se podían leer datos ajenos
+  armando una dirección especial, y si una de sus consultas falla, el panel ya no queda
+  entero en cero.
+- **El código del pixel que se instala en las tiendas:** se reordenó por dentro para poder
+  sumar otras plataformas además de VTEX. Lo que reciben las tiendas no cambia (hay una
+  prueba que lo controla).
+- **La entrada de ventas de VTEX:** acepta la clave vieja durante un rato cuando se cambia
+  la clave. Es la preparación para poder cambiarla algún día sin cortar la entrada de ventas.
+
+**Recomiendo:** autorizar los tres.
+
 ---
 
 ## 🟡 4. Decisiones de producto que no frenan la publicación
@@ -153,7 +178,8 @@ entrar y ve un cartel de cuenta suspendida.
 
 ## Lo que hace Axel (no es decisión tuya)
 
-1. **Hoy:** mirar `SYNC_KEY` en Vercel (punto 2).
+1. **Hoy:** mirar `SYNC_KEY` en Vercel (punto 2) y buscar en los logs de Vercel pedidos a
+   `reset-password-by-email` (punto 1).
 2. **Antes de publicar:** correr unos cambios en la base de datos que el trabajo nuevo
    necesita. Están preparados y probados, y se corren a mano en unos minutos. Si se publicara sin hacerlos,
    **dejarían de entrar las ventas de MercadoLibre** en el momento.
@@ -165,7 +191,7 @@ entrar y ve un cartel de cuenta suspendida.
 
 | # | Qué | Recomiendo | Cuándo |
 |---|---|---|---|
-| 1 | Clientes que pueden ver datos de otros | Arreglo chico ya, aparte | 🔴 **Ya** |
+| 1 | La clave maestra la tiene cualquiera (código público) | Arreglo chico ya + arreglo completo hoy | 🔴 **Ya** |
 | 2 | ¿Existe `SYNC_KEY`? | Que Axel lo mire | 🔴 **Hoy** |
 | 3a | Estado de Resultados oculto si faltan costos | Ocultar sólo ganancia y margen | 🟠 Antes de publicar |
 | 3b | Alerta de margen exige el 100% | Bajarlo a ~90% | 🟠 |
@@ -174,5 +200,6 @@ entrar y ve un cartel de cuenta suspendida.
 | 3e | Vigilar 7 de 29 tareas | Sumar las 9 importantes | 🟠 |
 | 3f | Activación sin excepción | Excepción con motivo escrito | 🟠 |
 | 3g | Suspensión real | Aprobar | 🟠 |
+| 3h | Tres archivos protegidos | Autorizar | 🟠 |
 | 4a–4i | Producto | Ver la tabla del punto 4 | 🟡 |
 | 5 | Capacidad | Todavía no | 🟢 |

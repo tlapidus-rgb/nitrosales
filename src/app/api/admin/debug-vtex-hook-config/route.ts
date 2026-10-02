@@ -1,23 +1,21 @@
 // @ts-nocheck
-// GET /api/admin/debug-vtex-hook-config?key=Y&orgSlug=teve
+// GET /api/admin/debug-vtex-hook-config?orgSlug=teve — con sesión de staff (abrir logueado; sin clave en la URL)
 // Consulta a VTEX cual es el Orders Broadcaster webhook configurado
 // para la cuenta de la org. Si no hay nada configurado, devuelve null.
 // No modifica nada — solo lee.
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgSlug = url.searchParams.get("orgSlug") || "teve";
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await prisma.organization.findFirst({
       where: { OR: [{ slug: orgSlug }, { name: { contains: orgSlug, mode: "insensitive" } }] },

@@ -14,13 +14,17 @@
 // El admin se la pasa al cliente. Si la pierde, hay que regenerar
 // otra (no hay forma de "ver" la password vieja).
 //
-// Por defecto solo internal users (ver isInternalUser). Cuando haya
-// admins por organizacion, expandir la auth.
+// Por defecto solo internal users (ver isInternalUser, que verifica el
+// staff contra la base). Cuando haya admins por organizacion, expandir la
+// auth. Las cuentas de staff no se resetean por acá: la password vuelve
+// en la respuesta, y una sesión de staff robada no tiene que poder
+// convertirse en el acceso permanente a otra cuenta de staff.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { isStaffUser } from "@/lib/staff";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 
@@ -52,10 +56,16 @@ export async function POST(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, organizationId: true },
+      select: { id: true, email: true, name: true, organizationId: true, isStaff: true },
     });
     if (!user) {
       return NextResponse.json({ error: "User no encontrado" }, { status: 404 });
+    }
+    if (isStaffUser({ isStaff: user.isStaff, email: user.email })) {
+      return NextResponse.json(
+        { error: "Las cuentas de staff no se resetean por acá. Usá \"Olvidé mi contraseña\" en el login." },
+        { status: 403 },
+      );
     }
 
     const newPassword = generateTempPassword();

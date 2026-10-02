@@ -71,7 +71,7 @@ it("releases the export transaction after a download cancellation",async()=>{
  await exportFixture();const reader=(await exportRequest()).body!.getReader();await reader.read();await reader.cancel();
  let count=1;
  for(let attempt=0;attempt<30;attempt++){
-  const rows=await db.$queryRawUnsafe<Array<{n:number}>>(`SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction' AND pid<>pg_backend_pid()`);
+  const rows=await db.$queryRawUnsafe<Array<{n:number}>>(`SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND xact_start IS NOT NULL AND pid<>pg_backend_pid()`);
   count=rows[0].n;if(count===0)break;await new Promise(r=>setTimeout(r,20));
  }
  expect(count).toBe(0);

@@ -10,20 +10,19 @@
 //
 // ORDEN (CLAUDE.md regla #13):
 //   1. Este endpoint se pushea PRIMERO (sin tocar schema.prisma).
-//   2. Tomy lo ejecuta manualmente con la key.
+//   2. Tomy lo ejecuta manualmente con sesión de staff (abriendo la URL logueado).
 //   3. Luego en siguiente push se declara schema + UI + APIs.
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key || key !== process.env.NEXTAUTH_SECRET) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

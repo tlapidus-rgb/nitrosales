@@ -13,10 +13,10 @@
 // getOrganizationId() es ambiguo con 2+ orgs y las credenciales pueden caer a
 // variables globales de otra cuenta).
 //
-// Uso: /api/admin/backfill-category-names?key=<ADMIN_API_KEY>&orgId=<id>
+// Uso (con sesión de staff, abrir la URL logueado): /api/admin/backfill-category-names?orgId=<id>
 // ══════════════════════════════════════════════════════════════════════════
 
-import { isValidAdminKey } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
@@ -53,7 +53,7 @@ function flattenTree(
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  if (!isValidAdminKey(url.searchParams.get("key"))) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

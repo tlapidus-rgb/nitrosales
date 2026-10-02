@@ -10,13 +10,14 @@
 // Paginado: procesa hasta `limit` customers por llamada (default 500).
 //
 // Uso:
-//   curl "https://nitrosales.vercel.app/api/admin/backfill-visitor-customer-link?key=<NEXTAUTH_SECRET>"
-//   curl "https://nitrosales.vercel.app/api/admin/backfill-visitor-customer-link?key=<SECRET>&limit=200"
-//   curl "https://nitrosales.vercel.app/api/admin/backfill-visitor-customer-link?key=<SECRET>&dryRun=1"
+//   con sesión de staff, abrir logueado: https://nitrosales.vercel.app/api/admin/backfill-visitor-customer-link
+//   con sesión de staff, abrir logueado: https://nitrosales.vercel.app/api/admin/backfill-visitor-customer-link?limit=200
+//   con sesión de staff, abrir logueado: https://nitrosales.vercel.app/api/admin/backfill-visitor-customer-link?dryRun=1
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
 import { linkVisitorToCustomer } from "@/lib/pixel/link-visitor";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,7 @@ export async function GET(req: Request) {
 
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key || key !== process.env.NEXTAUTH_SECRET) {
+    if (!(await isInternalUser())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

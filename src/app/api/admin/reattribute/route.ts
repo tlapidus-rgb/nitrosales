@@ -13,8 +13,8 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
-import { isValidAdminKey } from '@/lib/admin-key';
 import { calculateAttribution } from '@/lib/pixel/attribution';
+import { isInternalUser } from '@/lib/feature-flags';
 
 // Tope duro por invocación. Sin esto, un solo POST recorre TODA la historia de
 // atribuciones en un loop secuencial — con la org grande son cientos de miles de
@@ -24,15 +24,9 @@ const MAX_PER_CALL = 2_000;
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
-  const key = searchParams.get('key');
-  // ⚠️ ANTES: `key !== process.env.ADMIN_SECRET && key !== 'reattribute-2026'`.
-  // El literal convertía el control en decorativo: la contraseña estaba en el
-  // código, este endpoint no pasa por el gate del middleware, y REESCRIBE la
-  // atribución — que es lo que decide qué canal se lleva el crédito de cada venta
-  // y cuánta comisión cobra cada creador de Aura. O sea que movía plata, desde
-  // internet, sin sesión. Ahora usa la clave canónica del repo, que es
-  // fail-closed si la variable no está seteada.
-  if (!isValidAdminKey(key)) {
+  // Sesión de staff. Antes aceptaba ?key= contra ADMIN_SECRET o un literal
+  // escrito acá en el código. Nadie la llama automáticamente.
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

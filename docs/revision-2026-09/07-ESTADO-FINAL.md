@@ -1,3 +1,5 @@
+> Actualización técnica 2026-10-02: hotfix y expansión integrados localmente en `codex/expansion-integrated`. Ver [resultado y pendientes](../EXPANSION-INTEGRACION-2026-10-02.md). El análisis siguiente conserva el estado anterior; no autoriza producción.
+
 # Estado final del plan de expansión — revisión del 2026-09-30
 
 > **Qué se revisó.** La branch más avanzada del proyecto: `codex/expansion-review-fixes`,
@@ -15,12 +17,14 @@
 ## 0. Actualización (2026-09-30, después de la revisión) — dónde quedó
 
 Todo lo de este informe que se podía resolver con código se resolvió en una branch nueva,
-**`claude/listo-para-merge`**, que sale de `db4dbdd6` (Codex) y suma 14 commits. Es la que
-habría que mergear. **Sin push, sin merge.** `main` no se toca hasta que Axel lo diga.
+**`claude/listo-para-merge`**, que sale de `db4dbdd6` (Codex); los commits de esta revisión
+son `git log --oneline db4dbdd6..claude/listo-para-merge`. Es la que habría que mergear,
+**después de mergearle el hotfix** (D1 y §7). **Sin push, sin merge.** `main` no se toca
+hasta que Axel lo diga.
 
-**Verificación en el último commit de código (`e7913da5`):** 1.986 tests pasan, 7 omitidos,
-0 fallan · `tsc` limpio · `npm run build` OK (guards, depcruise, 106 páginas) · la deuda de
-`@ts-nocheck` no creció. Cada arreglo tiene su test, visto rojo por el motivo correcto con el
+**Verificación (2026-10-01, en `99395ac4`):** 2.216 tests pasan, 7 omitidos, 0 fallan. En el
+último commit de código anterior (`7b195990`): `tsc` limpio · `npm run build` OK (guards,
+depcruise, 106 páginas) · la deuda de `@ts-nocheck` no creció. Cada arreglo tiene su test, visto rojo por el motivo correcto con el
 bug reintroducido. No se pudo correr nada contra PostgreSQL real (Docker no arranca en la
 máquina) ni contra proveedores.
 
@@ -44,37 +48,54 @@ máquina) ni contra proveedores.
 **Decisiones (Tomy / Axel):**
 
 - **D1 — El secreto filtrado (S1). Es lo más grave de este informe, y está en producción.**
-  *(Actualizado 2026-10-01; reemplaza una versión anterior que decía que con el secreto se
-  podían "cargar órdenes falsas" por el webhook de VTEX: era falso, el webhook busca la orden
-  en VTEX con las credenciales del cliente. Ver E-18.)*
+  *(Actualizado 2026-10-01 por segunda vez: el repo es público. Reemplaza dos versiones
+  anteriores. Una decía que con el secreto se podían "cargar órdenes falsas" por el webhook de
+  VTEX: era falso, ver E-18. La otra, que la opción 1 "junto con el atado de identidad corta el
+  acceso entre clientes": no alcanza, ver "lo que queda abierto".)*
 
-  Cualquier usuario logueado de cualquier cliente ve el secreto en su pantalla de integración
-  VTEX (`/api/me/vtex-affiliate-info`), y hoy es **el mismo valor que la clave de admin**. Con
-  esa clave, **106 de las 165 rutas de `/api/admin`** se abren por URL, sin sesión. Entre ellas:
-  - varias **listan todas las organizaciones** (por ejemplo `consumo-por-cliente`, `usage`,
-    `compare-orgs-pixel`);
-  - otras devuelven **datos de compradores de la organización que se pida**: verificado en
-    `debug-vtex-raw-emails` (nombre y email; el archivo es idéntico en producción).
+  **El repo `tlapidus-rgb/nitrosales` es público en GitHub** (`gh repo view`: `PUBLIC`). El
+  secreto está escrito en el `vercel.json` de `main` (28 URLs de cron, un solo valor) y en su
+  historia. Además, cualquier usuario logueado lo ve en su pantalla de integración VTEX
+  (`/api/me/vtex-affiliate-info`), y es el mismo valor que la clave de admin. Lo tiene
+  **cualquiera en internet, sin cuenta**. Y la receta también es pública: desde el 2026-09-05
+  la branch `fix/expansion-gate-e0` del remoto tiene `docs/auditoria-2026-09/review-seguridad.md`,
+  con la cadena completa (CRIT-01/02: clave de `vercel.json` → rutas admin → sesión fabricada).
+  En producción, con eso:
+  - `GET /api/admin/reset-password-by-email?key=…&email=…` resetea la password de cualquier
+    cuenta, staff incluido, y la devuelve en la respuesta: toma de cuenta en un pedido.
+  - 90 de las 154 rutas de `/api/admin` leen `?key=` de la URL (`git grep` sobre
+    `origin/main`). Varias **listan todas las organizaciones** y otras devuelven **datos de
+    compradores** de la organización que se pida (`debug-vtex-raw-emails`: nombre y email).
+  - Con el secreto se fabrica una sesión. `isInternalUser()` y el "ver como" creen el `isStaff`
+    del token, y la organización de la sesión sale del token: se abren las rutas de staff
+    (`users/[userId]/reset-password`, `wipe-account`…) y los datos de cualquier organización.
 
-  Además, en producción la sesión no está atada a la base: con el secreto se fabrica una sesión
-  de staff. La branch cierra eso (`8920c2e3`, `eff86b87`), no lo de las rutas por clave.
+  Verificado leyendo el código, no probado contra producción. No hay forma de saber desde el
+  repo si alguien lo usó; en los logs de Vercel se puede buscar `reset-password-by-email`.
 
-  Verificado leyendo el código, no probado contra producción; no hay forma de saber desde el
-  repo si alguien lo usó.
+  **Lo que hay preparado** (todo local, sin push):
+  1. **Parche** `claude/parche-reset-password`, 2 commits sobre `main` (`c4f6d872`,
+     `0bb77c15`): `isInternalUser()` verifica el staff contra la base; los dos resets de
+     password sin clave y nunca sobre cuentas de staff; `debug-org` y `meta-status` sin clave
+     (daban los ids que hacen falta para fabricar la sesión de una persona real). **No cierra**
+     la sesión fabricada con otra organización.
+  2. **Hotfix** `claude/hotfix-admin-key`, sobre `main`, incluye el parche: sesión
+     atada a la base; `/api/admin` sólo para staff, y `?key=` → 403 fuera de una allowlist de 4
+     rutas de automatización; `orgId` validado en el middleware (cierra la inyección SQL);
+     impersonación endurecida; ninguna clave escrita en el código; links de mail sin clave.
+  3. **Esta branch** trae el atado de sesión (más la suspensión), pero no lo de `/api/admin`:
+     antes de mergearla hay que mergearle el hotfix (ver §7).
 
-  **Opciones** (todas tocan producción):
-  1. Hotfix chico en `main`: `/api/admin/*` deja de aceptar la clave por URL y exige sesión de
-     staff. Los crons no se afectan (viven en `/api/cron` y `/api/sync`). Junto con el atado de
-     identidad de la branch, corta el acceso entre clientes.
-  2. Mergear la branch (con las migraciones antes): cierra las sesiones fabricadas; hay que
-     sumarle la 1.
-  3. De fondo: dejar de entregar el secreto (clave de webhook propia por organización, cambia
-     la configuración de VTEX de cada cliente) y separar `ADMIN_API_KEY` de `NEXTAUTH_SECRET`.
-     La parte de código para separarlas sin cortar la ingesta ya está hecha (`709a92c5`,
-     `dfeb76f4`).
+  **Lo que queda abierto sin rotar**, aun con las tres cosas: quien consiga el id interno de un
+  usuario real fabrica una sesión idéntica a la suya, y `metrics/orders?orgId=&key=` (el atajo
+  del cron warm-cache) lee datos de cualquier organización. Lo cierra rotar, como mínimo
+  `ADMIN_API_KEY` separada de `NEXTAUTH_SECRET` (el código para separarlas sin cortar la
+  ingesta ya está: `709a92c5`, `dfeb76f4`), y sacar la clave de `vercel.json` (los crons de
+  Vercel pueden autenticarse con `CRON_SECRET` en un header).
 
-  *La decisión de no rotar sigue siendo de ustedes; esto es un dato que no se tenía cuando se
-  tomó.* **Recomendación:** la 1 ya, la 2 cuando se autorice el merge, la 3 planificada.
+  *La decisión de no rotar sigue siendo de ustedes; el análisis con el que se tomó no contemplaba
+  que el repo fuera público.* **Recomendación:** el parche ya; el hotfix apenas pase su revisión; esta branch con el
+  hotfix mergeado.
 - **D2 — Aurum ante un error del proveedor (R2).** Hoy, un solo error deja a la organización en
   modo básico hasta fin de mes. Opciones: (a) dejarlo así; (b) contar cada consulta fallida al
   peor caso (hasta ~USD 10 una DEEP) y seguir; (c) contarla al promedio de las consultas medidas
@@ -93,8 +114,8 @@ máquina) ni contra proveedores.
 
 **En producción (una persona, con autorización):**
 
-1. **Hoy, sin esperar nada:** confirmar que `SYNC_KEY` existe en Vercel (fail-open de cinco
-   crons en producción).
+1. **Hoy, sin esperar nada:** autorizar el parche de D1, y confirmar que `SYNC_KEY` existe en
+   Vercel (fail-open de cinco crons en producción).
 2. Antes del merge: punto de restauración en Neon y correr `08-MIGRACIONES-NEON.sql` paso por
    paso, sin backfills corriendo al momento de mergear.
 3. Después del merge: el runbook de la sección 7.
@@ -355,22 +376,46 @@ en ninguno deshizo el arreglo; en varios lo reforzó.
 `[N]` = una persona en la consola de Neon. `[V]` = en Vercel.
 
 **Antes**
-1. Resolver B3, B2 y B4, y las decisiones de la sección 4 que se quieran revertir.
+1. B1–B4 están resueltos. Falta: las decisiones de la sección 4 que se quieran revertir, la
+   autorización de Tomy para los tres archivos CORE que la branch toca (`09-PARA-TOMY.md`, 3h)
+   y **mergear el hotfix a esta branch** (abajo).
 2. `[N]` Crear un punto de restauración de Neon (branch o snapshot).
 3. Confirmar que no hay backfills corriendo ni altas en curso. La migración de leases pide
    drenar los workers viejos.
 4. `[N]` Correr las cinco migraciones, cada una precedida de `SET lock_timeout = '3s';`
    (la de `orders` toma un lock exclusivo breve; si hay una consulta larga, espera y bloquea a
    las demás). Si una da timeout, reintentar: son idempotentes.
-5. `[N]` Verificar en `information_schema` que las cinco existen y que el rol de la app tiene
-   permisos, incluido `DELETE` en `creator_password_attempts`.
+5. `[N]` Verificar con el paso 4 de `08-MIGRACIONES-NEON.sql` (sólo lectura) que las cinco
+   existen y que el rol de la app tiene permisos, incluido `DELETE` en
+   `creator_password_attempts` (por catálogo, no por `information_schema`: E-15).
 6. `[N]` Mirar el consumo de Aurum del mes por organización contra el tope nuevo (USD 100).
+
+**Mergear el hotfix a esta branch** (análisis ejecutado sobre copias con el hotfix en
+`dd039e6b`; los commits posteriores del hotfix —45 rutas de `/api/admin` a sesión de staff,
+`isInternalUser()` contra la base— suman conflictos: rehacer el análisis antes de mergear. El
+hotfix entra a `main` por fast-forward). Resolver los conflictos "todo a favor de la branch" **rompe cosas**: deja
+`usage`, `reattribute` y `reconcile` inaccesibles (la branch sólo acepta la clave y el
+middleware la rechaza), deja una constante sin definir en `fix-brands` y el literal en
+`backfill/vtex`. Por archivo:
+- `auth.ts`, `session-access.ts`, `org-id-seguro.test.ts`, `cron/meta-token-refresh`,
+  `settings/api-keys`, `custom-roles`, `backfill-runner/page.tsx`: la branch.
+- `middleware.ts`: la unión de los imports; el resto se mezcla solo.
+- `admin/usage` (ruta y página), `reattribute`, `reconcile`: la autorización del hotfix
+  (`isInternalUser()`), conservando de la branch el `org` obligatorio y `MAX_PER_CALL`.
+- `fix-brands`: el hotfix. `backfill/vtex`: la branch, sin la constante `BACKFILL_SECRET`.
+- En el mismo merge: `cron/alertas-clientes` hace un self-fetch a `/api/admin/alertas?key=` y
+  va a dar 403 (extraer los chequeos a `lib` e importarlos); `migrate-cron-cursors` tiene que
+  aceptar sesión de staff (el paso 8 se hace logueado); ajustar los tests que no son
+  compatibles entre lados (`sesion-atada-a-la-base`, `meta-token-refresh-auth`,
+  `middleware-staff-gate`, `gates-conectados`, `admin-backdoors`); y que el guard
+  `admin-rutas-exigen-staff` del hotfix pase sobre las rutas nuevas de la branch.
+- Comprobar: `tsc`, suite completa, `next build`, y ningún `<<<<<<<` en el árbol.
 
 **Merge**
 7. Fast-forward de `main`. Deploy automático.
 
 **Después**
-8. `[V]` `POST /api/admin/migrate-cron-cursors`.
+8. `[V]` `POST /api/admin/migrate-cron-cursors`, logueado como staff (sin `?key=`).
 9. `[V]` Corrida manual de los dos crons Gold con `?full=1`.
 10. Verificar en las primeras dos horas: logs sin `column … does not exist`, órdenes nuevas de
     MercadoLibre entrando por webhook, `backfill-runner` respondiendo 200, un panel de creador

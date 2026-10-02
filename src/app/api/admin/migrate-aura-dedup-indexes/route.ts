@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 // Migración — Índices únicos parciales anti-doble-pago de Aura (D1 + D3)
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/migrate-aura-dedup-indexes
+// POST /api/admin/migrate-aura-dedup-indexes — con sesión de staff (POST desde el navegador logueado)
 //
 // Crea (idempotente, IF NOT EXISTS) los dos índices únicos PARCIALES que son
 // el guard FÍSICO contra el doble pago — el check de app no frena races:
@@ -21,17 +21,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { isValidAdminKey } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 
-export async function POST(req: NextRequest) {
-  // Este endpoint NO tenia NINGUNA autenticacion (revision del 2026-09-07):
-  // un POST anonimo desde internet corria DDL sobre la base de produccion. El
-  // dano directo era bajo porque es idempotente y los indices ya existen, pero
-  // confirma que el modelo "cada handler valida lo suyo" no lo verificaba nadie.
-  // Ahora hay un test que barre TODAS las rutas bajo /api/admin y exige que
-  // cada una tenga alguna forma de auth.
-  if (!isValidAdminKey(new URL(req.url).searchParams.get("key"))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+export async function POST(_req: NextRequest) {
+  // Sólo staff. Antes no tenía ninguna autorización propia: dependía sólo del
+  // middleware.
+  if (!(await isInternalUser())) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   try {
     // D1 — solo 1 comisión activa por creador.

@@ -159,7 +159,7 @@ const { default: middleware } = await import("@/middleware");
 
 function pedido(pathname: string) {
   return {
-    nextUrl: { pathname, clone: () => new URL(`https://app.nitrosales.ai${pathname}`) },
+    nextUrl: { pathname, searchParams: new URLSearchParams(), clone: () => new URL(`https://app.nitrosales.ai${pathname}`) },
     method: "GET",
     url: `https://app.nitrosales.ai${pathname}`,
     headers: new Headers(),

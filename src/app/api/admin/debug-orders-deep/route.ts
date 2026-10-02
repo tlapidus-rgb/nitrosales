@@ -1,5 +1,5 @@
 // @ts-nocheck
-// GET /api/admin/debug-orders-deep?key=Y&orgSlug=tevecompras&externalIds=A,B,C
+// GET /api/admin/debug-orders-deep?orgSlug=tevecompras&externalIds=A,B,C — con sesión de staff (abrir logueado; sin clave en la URL)
 // Investigacion PROFUNDA de ordenes especificas que no tienen atribucion.
 // Para cada orden:
 //   - data completa (customer, channel, source, dates, status)
@@ -12,21 +12,19 @@
 //   - presencia/ausencia de atribuciones de cada modelo
 // No asume nada. Devuelve raw data + diagnostico hipotetizado.
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgSlugOrId = url.searchParams.get("orgSlug") || url.searchParams.get("orgId");
     const externalIdsRaw = url.searchParams.get("externalIds");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!orgSlugOrId) return NextResponse.json({ error: "orgSlug requerido" }, { status: 400 });
     if (!externalIdsRaw) return NextResponse.json({ error: "externalIds requerido" }, { status: 400 });
 

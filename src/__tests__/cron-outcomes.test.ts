@@ -1,12 +1,13 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const m = vi.hoisted(() => ({ heartbeat: vi.fn(), email: vi.fn(), check: vi.fn(),
-  pending: vi.fn(), evaluate: vi.fn(), fetch: vi.fn() }));
+  clientChecks: vi.fn(), pending: vi.fn(), evaluate: vi.fn(), fetch: vi.fn() }));
 vi.mock("@/lib/cron/latido", () => ({ registrarLatido: m.heartbeat }));
 vi.mock("@/lib/admin-key", () => ({ ADMIN_API_KEY: "test-key", isValidAdminKey: (v: string) => v === "test-key" }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.email }));
 vi.mock("@/lib/feature-flags", () => ({ isInternalUser: async () => false }));
 vi.mock("@/lib/alertas/destinatarios", () => ({ destinatariosDeAlertas: () => ["test@example.invalid"] }));
+vi.mock("@/lib/alertas/clientes", () => ({ obtenerAlertasClientes: m.clientChecks }));
 vi.mock("@/lib/self-fetch", () => ({ selfFetchBaseUrl: () => "https://test.invalid" }));
 vi.mock("@/lib/control/email-template", () => ({ buildAlertEmailHtml: () => ({ html: "test", subject: "test" }) }));
 vi.mock("@/lib/control/checks", () => ({ checkConnectionIssues: m.check, checkStuckOnboardings: m.check,
@@ -39,18 +40,18 @@ it("marks rejected control emails as failures", async () => {
   expect(res.status).toBe(502); expect((await res.json()).ok).toBe(false);
   expect(m.heartbeat).toHaveBeenCalledWith("control-alerts", false, expect.any(String));
 });
-it.each(["html", "http-error", "json-error"])("records upstream failure: %s", async kind => {
-  m.fetch.mockResolvedValue(new Response(kind === "html" ? "<html>error</html>" : JSON.stringify({ ok: kind === "http-error" }),
-    { status: kind === "http-error" ? 500 : 200 }));
-  expect((await clients(request())).status).toBe(502);
+it("records failed client checks without sending email", async () => {
+  m.clientChecks.mockRejectedValue(new Error("database unavailable"));
+  expect((await clients(request())).status).toBe(500);
   expect(m.heartbeat).toHaveBeenCalledWith("alertas-clientes", false, expect.any(String));
   expect(m.email).not.toHaveBeenCalled();
+  expect(m.fetch).not.toHaveBeenCalled();
 });
 it.each([false, true])("does not report alerts as notified on failed mail, throws=%s", async throws => {
   vi.spyOn(console, "error").mockImplementation(() => {});
-  m.fetch.mockResolvedValue(Response.json({ ok: true, summary: { critical: 1 }, alertas: [
+  m.clientChecks.mockResolvedValue({ ok: true, summary: { critical: 1 }, alertas: [
     { severity: "critical", title: "Test", description: "Test", category: "test", organizationName: "Test" },
-  ] }));
+  ] });
   if (throws) m.email.mockRejectedValue(new Error("rejected")); else m.email.mockResolvedValue({ ok: false });
   const res = await clients(request());
   expect(res.status).toBe(502); expect(await res.json()).toMatchObject({ ok: false, avisadas: 0, pendientesDeAvisar: 1 });

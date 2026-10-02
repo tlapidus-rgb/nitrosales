@@ -48,8 +48,9 @@ hacer una excepción.
    anoto en `BACKLOG_PENDIENTES.md` (prefijo `PR-YYYYMMDD-NN`) y aviso. Referencia:
    `CLAUDE_VM/PARA_CLAUDE_PRODUCTO.md`.
 
-6. **Secretos.** No los escribo en código, tests, commits ni docs. No rotar
-   `ADMIN_API_KEY`/`NEXTAUTH_SECRET` es una decisión tomada; no la re-propongas.
+6. **Secretos.** No los escribo en código, tests, commits ni docs. **El repo es público en
+   GitHub**: todo lo que se commitea (código, docs, mensajes de commit) lo lee cualquiera, para
+   siempre. No rotar `ADMIN_API_KEY`/`NEXTAUTH_SECRET` es una decisión tomada; no la re-propongas.
 
 ---
 
@@ -308,5 +309,7 @@ Creator (Influencer) → Campaign → Deal → Attribution → Payout
 - Visual: *Creator Gradient* `#ff0080 → #a855f7 → #00d4ff` (detalle en
   `UI_VISION_NITROSALES.md`).
 - `migrate-aura-payouts`, `migrate-aura-columns` y `backfill-always-on`
-  (`src/app/api/admin/`) ya se ejecutaron en producción; no se vuelven a correr. El estado de
-  `migrate-aura-dedup-indexes` está en `CLAUDE_STATE.md`.
+  (`src/app/api/admin/`) ya se ejecutaron en producción; no se vuelven a correr. Si
+  `migrate-aura-dedup-indexes` se corrió en producción no está registrado en ningún lado: antes
+  de depender de esos índices únicos, verificarlo en Neon (`pg_indexes` de `influencer_deals` y
+  `payouts`).

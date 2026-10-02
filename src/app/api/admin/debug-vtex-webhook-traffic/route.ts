@@ -1,21 +1,18 @@
 // @ts-nocheck
-// GET /api/admin/debug-vtex-webhook-traffic?key=Y
+// GET /api/admin/debug-vtex-webhook-traffic — con sesión de staff (abrir logueado; sin clave en la URL)
 // Cuenta los webhook-events generados por VTEX en TVC, EMDJ y Arredo.
 // Cuando llega un webhook VTEX y se procesa, se crea un PURCHASE event
 // con sessionId LIKE 'webhook-%'. Si una org tiene 0 = no le llegan webhooks.
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
-const KEY = ADMIN_API_KEY;
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(await isInternalUser())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     // Conectar TVC, EMDJ y Arredo
     const orgs = await prisma.$queryRawUnsafe<any[]>(`

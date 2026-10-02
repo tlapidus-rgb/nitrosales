@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════════════════
-// POST /api/admin/create-attribution-iphash-index?key=<ADMIN_API_KEY>
+// POST /api/admin/create-attribution-iphash-index — con sesión de staff (POST desde el navegador logueado; sin clave en la URL)
 // ══════════════════════════════════════════════════════════════════════════
 // Crea el índice que arregla la lentitud de calculateAttribution (BP-PERF-ATTR).
 //
@@ -29,7 +29,7 @@
 // INVÁLIDO (mismo nombre, inusable) → lo dropea y reconstruye.
 // ══════════════════════════════════════════════════════════════════════════
 
-import { isValidAdminKey } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
@@ -45,8 +45,7 @@ const CREATE_SQL =
   `WHERE "ipHash" IS NOT NULL`;
 
 export async function POST(req: NextRequest) {
-  const url = new URL(req.url);
-  if (!isValidAdminKey(url.searchParams.get("key"))) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

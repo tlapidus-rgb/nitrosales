@@ -15,10 +15,10 @@
 // devuelve null (se arranca de cero, igual que hoy) y escribir no hace nada.
 // O sea que el código nuevo se puede mergear sin haber corrido esto.
 //
-// Auth: ?key=<ADMIN_API_KEY>. Idempotente (IF NOT EXISTS).
+// Auth: sesión de staff verificada contra la base. Idempotente (IF NOT EXISTS).
 // ══════════════════════════════════════════════════════════════
 
-import { isValidAdminKey } from "@/lib/admin-key";
+import { isInternalUser } from "@/lib/feature-flags";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { DDL_CURSORES, TABLA_CURSORES } from "@/lib/cron/cursor-store";
@@ -66,8 +66,7 @@ async function migrar() {
 }
 
 export async function POST(req: NextRequest) {
-  const key = new URL(req.url).searchParams.get("key");
-  if (!isValidAdminKey(key)) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
@@ -80,8 +79,7 @@ export async function POST(req: NextRequest) {
 
 /** GET = ver los cursores sin migrar nada. Útil para diagnosticar. */
 export async function GET(req: NextRequest) {
-  const key = new URL(req.url).searchParams.get("key");
-  if (!isValidAdminKey(key)) {
+  if (!(await isInternalUser())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {

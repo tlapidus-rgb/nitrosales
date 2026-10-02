@@ -13,6 +13,10 @@
 //    El acceso se lee del snapshot `allowedSections` que auth.ts guarda
 //    en el JWT al login (edge runtime no puede tocar la DB). Cambios de
 //    rol requieren re-login para reflejarse. Bypass total para staff.
+// 0. HOTFIX 2026-10-01: /api/admin/* exige sesión de staff. La `?key=`
+//    sola ya NO alcanza, salvo en las rutas que llama la automatización
+//    (allowlist documentada en src/lib/admin-gate.ts). Fail-closed: si la
+//    lectura del token falla, /api/admin responde 401.
 // ══════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
@@ -20,6 +24,18 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isPathAllowed } from "@/lib/section-access";
 import { isStaffUser } from "@/lib/staff";
+import { aceptaClavePorUrl, checkAdminApiAccess, isAdminApiPath } from "@/lib/admin-gate";
+import { esOrgIdValido } from "@/lib/org-id-seguro";
+
+function adminDenied(status: 401 | 403): NextResponse {
+  return new NextResponse(
+    JSON.stringify({
+      error: status === 401 ? "No autenticado" : "Sin permisos",
+      message: "Este endpoint requiere una sesión de staff de NitroSales.",
+    }),
+    { status, headers: { "Content-Type": "application/json" } },
+  );
+}
 
 const READ_ONLY_EXCEPTIONS = [
   "/api/auth/", // NextAuth internal (signOut, session, csrf)
@@ -35,13 +51,56 @@ export default async function middleware(req: NextRequest) {
   }
 
   const isApi = pathname.startsWith("/api/");
+
+  // ── -1. Un `orgId` mal formado no llega a ninguna ruta ──
+  // Varias rutas (metrics/orders, metrics/pixel, asset-stats) aceptan
+  // `?orgId=&key=` para el cron warm-cache y pegan ese orgId en SQL crudo
+  // ($queryRawUnsafe). Con la clave filtrada, eso era inyección SQL sobre la
+  // base entera. Los ids de organización son cuid (minúscula y dígitos): se
+  // rechaza cualquier otra cosa acá, una sola vez para todas las rutas —
+  // incluida metrics/pixel, que es CORE PROTEGIDO y no se toca sin
+  // autorización del fundador. No cierra que alguien con la clave lea otra
+  // organización con un id válido: eso necesita separar la clave de admin del
+  // secreto filtrado (decisión pendiente).
+  if (isApi) {
+    const orgIds = req.nextUrl.searchParams.getAll("orgId");
+    if (orgIds.length > 0 && !orgIds.every((v) => esOrgIdValido(v))) {
+      return new NextResponse(JSON.stringify({ error: "orgId inválido" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
   let token: any = null;
   try {
     token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   } catch {
-    // Si falla la lectura del token, dejamos pasar (no bloquear por bug
-    // del check; el endpoint/página valida su propia auth).
+    // /api/admin falla CERRADO: sin token legible no hay forma de saber si
+    // es staff, y la key sola ya no alcanza.
+    if (isAdminApiPath(pathname)) return adminDenied(401);
+    // Resto: si falla la lectura del token, dejamos pasar (no bloquear por
+    // bug del check; el endpoint/página valida su propia auth).
     return NextResponse.next();
+  }
+
+  // ── 0. /api/admin/*: sólo staff (salvo allowlist de automatización) ──
+  const adminAccess = checkAdminApiAccess(pathname, token);
+  if (adminAccess === "unauthenticated") return adminDenied(401);
+  if (adminAccess === "forbidden") return adminDenied(403);
+  // Fuera de la allowlist, un pedido con `?key=` se RECHAZA (ver
+  // aceptaClavePorUrl). Una primera versión reescribía la URL sin la clave, pero
+  // ~105 rutas leen `new URL(req.url)` y no está garantizado que un rewrite del
+  // middleware cambie `req.url` en la ruta: la clave podía seguir llegando.
+  // Rechazar no depende de eso. `searchParams.has` ya decodifica (`%6Bey`) y
+  // cubre la clave repetida. Staff usa estas rutas con su sesión, sin clave.
+  if (isAdminApiPath(pathname) && !aceptaClavePorUrl(pathname) && req.nextUrl.searchParams.has("key")) {
+    return new NextResponse(
+      JSON.stringify({
+        error: "La clave por URL no se acepta en esta ruta",
+        message: "Usá tu sesión de staff, sin ?key=.",
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
   }
 
   // ── 1. Read-only durante impersonate (writes de API) ──

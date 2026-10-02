@@ -1,27 +1,24 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// GET /api/admin/debug-org?orgId=...&key=...
+// GET /api/admin/debug-org?orgId=...  (sesión de staff)
 // ══════════════════════════════════════════════════════════════
 // Debug rapido: devuelve info de una org + sus users.
-// Bypass admin con KEY (igual que reset-password-by-email).
+// Sin clave: devolvía ids y emails de los usuarios de cualquier org, que
+// con el secreto filtrado sirven para fabricar una sesión de esa persona.
 // ══════════════════════════════════════════════════════════════
 
-import { ADMIN_API_KEY } from "@/lib/admin-key";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
-const KEY = ADMIN_API_KEY;
-
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key");
     const orgId = url.searchParams.get("orgId");
 
-    const allowed = key === KEY ? true : await isInternalUser();
+    const allowed = await isInternalUser();
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

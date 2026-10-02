@@ -30,7 +30,7 @@ beforeAll(async () => {
  CREATE TABLE sync_watermarks ("organizationId" text,platform text,"syncLayer" text,"lastSuccessfulSyncAt" timestamptz,
  "lastRunAt" timestamptz,"lastRunStatus" text,metadata jsonb,"updatedAt" timestamptz,
  PRIMARY KEY("organizationId",platform,"syncLayer"));`);
- for (let n=0;n<2;n++) for (const migration of ["backfill_job_lease","backfill_enrichment_version","ml_sync_progress","ml_reconcile_progress"])
+ for (let n=0;n<2;n++) for (const migration of ["backfill_job_lease","backfill_enrichment_version","ml_sync_progress","ml_reconcile_progress","creator_password_attempts"])
    await sqlBatch(readFileSync(`prisma/migrations/${migration}.sql`,"utf8"));
 });
 afterAll(async () => {
@@ -51,9 +51,13 @@ it("uses genuinely distinct PostgreSQL backends for concurrent transactions", as
  });
  await Promise.all([worker(),worker()]); expect(new Set(pids).size).toBe(2);
 });
-it("applies all four migrations twice in real PostgreSQL", async () => {
+it("applies all five migrations twice in real PostgreSQL", async () => {
  const columns = await db.$queryRawUnsafe<Array<{ column_name: string }>>(`SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND ((table_name='orders' AND column_name='backfillEnrichedVersion') OR (table_name='backfill_jobs' AND column_name='leaseToken'))`,schema);
  expect(columns).toHaveLength(2);
+ const [attempts] = await db.$queryRawUnsafe<Array<{ table_name: string | null; index_name: string | null }>>(
+   `SELECT to_regclass($1)::text AS table_name, to_regclass($2)::text AS index_name`,
+   `${schema}.creator_password_attempts`, `${schema}.creator_password_attempts_expiry_idx`);
+ expect(attempts.table_name).not.toBeNull(); expect(attempts.index_name).not.toBeNull();
 });
 it("serializes six simultaneous admissions at the global limit", async () => {
  await db.$executeRawUnsafe(`INSERT INTO backfill_jobs(id,status) SELECT 'job-'||n,'QUEUED' FROM generate_series(1,6) n`);
@@ -105,4 +109,32 @@ it("keeps a repeatable-read export snapshot while another connection writes", as
   expect(await tx.$queryRawUnsafe("SELECT id FROM orders ORDER BY id")).toEqual(before);
  }, { isolationLevel: "RepeatableRead" });
  expect(await db.$queryRawUnsafe("SELECT id FROM orders ORDER BY id")).toHaveLength(2);
+});
+
+it("runs the exact deployment runbook twice and verifies all nine checks in real PostgreSQL", async () => {
+ const name = "expansion_runbook_"+randomUUID().replaceAll("-", "");
+ const isolated = new PrismaClient({ datasources: { db: { url: "postgresql://postgres:synthetic-local-only@127.0.0.1:15439/"+name } } });
+ let created = false;
+ try {
+  await admin.$executeRawUnsafe(`CREATE DATABASE "${name}"`); created = true;
+  for(const statement of ["CREATE TABLE organizations (id text PRIMARY KEY)", "CREATE TABLE orders (id text PRIMARY KEY)", "CREATE TABLE backfill_jobs (id text PRIMARY KEY,status text)"])
+   await isolated.$executeRawUnsafe(statement);
+  const runbook = readFileSync("docs/revision-2026-09/08-MIGRACIONES-NEON.sql", "utf8");
+  const statements = runbook.replace(/--[^\n]*/g, "").split(";").map(x=>x.trim()).filter(Boolean);
+  const verification = statements.find(x=>x.startsWith("WITH rol AS"));
+  if(!verification)throw new Error("Runbook verification query missing");
+  const before = await isolated.$queryRawUnsafe<Array<{ok:boolean}>>(verification);
+  expect(before).toHaveLength(9); expect(before.every(x=>!x.ok)).toBe(true);
+  for(let run=0;run<2;run++) {
+   for(const statement of statements) {
+    if(/^(WITH|SELECT)\b/.test(statement)) {
+     const rows = await isolated.$queryRawUnsafe<Array<{ok?:boolean}>>(statement);
+     if(statement===verification){expect(rows).toHaveLength(9);expect(rows.every(x=>x.ok===true)).toBe(true);}
+    } else await isolated.$executeRawUnsafe(statement);
+   }
+  }
+ } finally {
+  await isolated.$disconnect();
+  if(created && /^expansion_runbook_[a-f0-9]{32}$/.test(name))await admin.$executeRawUnsafe(`DROP DATABASE "${name}"`);
+ }
 });

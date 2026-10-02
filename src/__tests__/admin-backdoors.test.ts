@@ -53,9 +53,10 @@ const CON_BACKDOOR = [
 
 describe("R-C01 — no quedan contraseñas hardcodeadas en los endpoints admin", () => {
   for (const [nombre, ruta] of CON_BACKDOOR) {
-    it(`admin/${nombre} valida con isValidAdminKey, no con un literal`, () => {
+    it(`admin/${nombre} exige sesión de staff y no una clave por URL`, () => {
       const codigo = sinComentarios(leer(...ruta));
-      expect(codigo).toContain("isValidAdminKey(key)");
+      expect(codigo).toMatch(/if\s*\(!\(await isInternalUser\(\)\)\)/);
+      expect(codigo).not.toContain("isValidAdminKey(key)");
       // El literal sigue citado en el comentario que explica el bug; lo que no
       // puede volver es la COMPARACIÓN, y por eso se mira el código sin comentarios.
       expect(codigo).not.toMatch(/key !== ["']usage-2026["']/);

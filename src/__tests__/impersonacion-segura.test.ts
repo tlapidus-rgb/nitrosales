@@ -36,6 +36,7 @@ vi.mock("@/lib/permissions-resolve", () => ({
 }));
 
 import { authOptions } from "@/lib/auth";
+import { STAFF_EMAILS } from "@/lib/staff";
 
 const SECRETO = "synthetic-test-secret";
 const firmar = (payload: object, secreto = SECRETO) => {
@@ -70,6 +71,17 @@ it("EL CASO: un cliente que firma un token hacia alguien de staff no recibe nada
 
 it("tampoco si dice que lo inicia otro staff: el destino no puede ser staff", async () => {
   const u = await autorizar(firmar({ targetUserId: "staff", impersonatorUserId: "otro-staff", impersonatorEmail: "x", exp: enUnMinuto() }));
+  expect(u).toBeNull();
+});
+
+it("EL CASO (staff por email): tampoco a un destino que es staff sólo por la allowlist de emails", async () => {
+  // isStaff=false en la base, pero el email está en STAFF_EMAILS. La sesión de
+  // la impersonación lleva ese email, e isInternalUser() (isStaffUser con el
+  // email de la sesión) la trataría como staff: gates de /api/admin abiertos.
+  m.users.set("staff-por-email", {
+    id: "staff-por-email", email: [...STAFF_EMAILS][0], isStaff: false, role: "OWNER", organizationId: "nitro",
+  });
+  const u = await autorizar(firmar({ targetUserId: "staff-por-email", impersonatorUserId: "staff", impersonatorEmail: "x", exp: enUnMinuto() }));
   expect(u).toBeNull();
 });
 
